@@ -253,7 +253,7 @@ function initializeGameElements() {
 
 // Call this function when your main game script is loaded and ready
 // This might be in the global scope of main.js or within an init function
-document.addEventListener('DOMContentLoaded', initializeGameElements);
+
 
 function enableShadows() {
   if (!dirLight) {
