@@ -39,7 +39,7 @@ window.bloomPass = null;
 export function initMenuUI() { // No longer needs startGameCallback, toggleDetailsCallback as args
     const menuOverlay = document.getElementById("menu-overlay");
     const usernamePrompt = document.getElementById("username-prompt");
-    const mapSelect = document.getElementById("map-select");
+    const mapSelect = document.getElementById("map-menu");
     const controlsMenu = document.getElementById("controls-menu");
 
     const playButton = document.getElementById("play-button");
