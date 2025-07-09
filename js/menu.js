@@ -187,7 +187,7 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
 // --- Main execution logic (formerly in main.js) ---
 document.addEventListener('DOMContentLoaded', () => {
     // Check if we are on the game.html page
-    if (window.location.pathname.endsWith('game.html')) {
+    if (window.location.pathname.endsWith('index.html')) {
         // If on game.html, immediately set up the game UI and start the game.
         const gameWrapper = document.getElementById('game-wrapper');
         if (gameWrapper) {
