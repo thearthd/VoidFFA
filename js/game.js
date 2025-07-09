@@ -537,7 +537,7 @@ async function pulsePlayerHit(victimId) {
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled) {
-    
+    console.log("starting");
     detailsEnabled = initialDetailsEnabled;
     
     initGlobalFogAndShadowParams();
