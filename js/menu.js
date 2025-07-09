@@ -82,6 +82,7 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
     // --- Event Listeners for Main Menu Buttons ---
     if (playButton) {
         playButton.addEventListener("click", () => {
+            console.log("you idiot lol");
             console.log("Play button clicked (showing map selection)");
             // No mapName here, as it's selected on the next panel
             showPanel(controlsMenu);
