@@ -52,7 +52,6 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
     const sensitivityRange = document.getElementById("sensitivity-range");
     const sensitivityInput = document.getElementById("sensitivity-input");
     const toggleDetailsBtn = document.getElementById("toggle-details-btn");
-    const closeControlsBtn = document = document.getElementById("close-controls-btn");
 
     const mapButtons = document.querySelectorAll(".map-btn");
 
@@ -113,13 +112,6 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
             } else {
                 console.warn("Username cannot be empty!");
             }
-        });
-    }
-
-    // --- Controls/Settings Menu Logic ---
-    if (closeControlsBtn) {
-        closeControlsBtn.addEventListener("click", () => {
-            showPanel(null); // Go back to main menu options
         });
     }
 
@@ -196,12 +188,8 @@ document.addEventListener('DOMContentLoaded', () => {
             createGameUI(gameWrapper);
 
             const username = localStorage.getItem("username") || "Guest";
-            const mapName = localStorage.getItem("selectedMap") || "CrocodilosConstruction";
-            const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
 
             initNetwork(username, mapName);
-            initBulletHoles();
-            startGame(username, mapName, detailsEnabled);
             console.log("Game UI and game initialized on game.html.");
         } else {
             console.error("game-wrapper element not found in game.html!");
