@@ -6,7 +6,7 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/
 import { createGameUI, initBulletHoles } from "./ui.js"; // Moved from main.js
 
 // Import startGame and toggleSceneDetails from game.js
-import { startGame, toggleSceneDetails } from "./game.js"; // Moved from main.js
+import { startGame, toggleSceneDetails } from "game.jss"; // Moved from main.js
 import { initNetwork } from "./network.js"; // Moved from main.js
 
 // Global window properties (less is more in main.js now)
@@ -81,7 +81,7 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
     if (playButton) {
         playButton.addEventListener("click", () => {
             console.log("Play button clicked (showing map selection)");
-            startGame(username, mapName, initialDetailsEnabled);
+            // No mapName here, as it's selected on the next panel
             showPanel(mapSelect);
         });
     }
@@ -163,13 +163,16 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
             }
 
             const mapName = btn.dataset.map;
-            localStorage.setItem("selectedMap", mapName);
+            // Removed: localStorage.setItem("selectedMap", mapName);
             localStorage.setItem("detailsEnabled", currentDetailsEnabled.toString());
 
             console.log(`Player clicked play for map: ${mapName}, Username: ${username}, Details Enabled: ${currentDetailsEnabled}`);
 
             // Direct redirection and game initialization setup
-            window.location.href = 'game.html';
+            // Instead of redirecting and then trying to get mapName, pass it via URL
+            // or better yet, trigger startGame directly if on game.html.
+            // Since you're redirecting, you can pass it as a URL parameter.
+            window.location.href = `game.html?map=${mapName}`;
         });
     });
 
@@ -189,9 +192,24 @@ document.addEventListener('DOMContentLoaded', () => {
             createGameUI(gameWrapper);
 
             const username = localStorage.getItem("username") || "Guest";
+            // Get mapName from URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const mapName = urlParams.get('map'); // 'map' is the key we set in the URL
 
-            initNetwork(username, mapName);
-            console.log("Game UI and game initialized on game.html.");
+            if (mapName) {
+                // Call startGame with the retrieved mapName
+                startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true"); // Pass currentDetailsEnabled
+                initNetwork(username, mapName);
+                console.log(`Game UI and game initialized on game.html for map: ${mapName}.`);
+            } else {
+                console.warn("No map specified in URL. Starting with a default map or showing an error.");
+                // Handle case where no map is in URL, e.g., redirect back to menu or use a default map
+                // For now, let's just log it and assume startGame can handle a null/undefined mapName if needed
+                // or you might want to redirect back to the menu: window.location.href = 'index.html';
+                startGame(username, "defaultMap", localStorage.getItem("detailsEnabled") === "true"); // Example default
+                initNetwork(username, "defaultMap"); // Example default
+            }
+
         } else {
             console.error("game-wrapper element not found in game.html!");
         }
