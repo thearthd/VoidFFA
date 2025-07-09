@@ -2547,3 +2547,15 @@ function checkForDamagePulse() {
   prevHealth = health;
   prevShield = shield;
 }
+
+export { initGlobalFogAndShadowParams };
+export { toggleSceneDetails };
+export { updateCrosshair };
+export { hideGameUI };
+export { pruneChat };
+export { pruneKills };
+export { addRemotePlayer };
+export { removeRemotePlayer };
+export { updateRemotePlayer };
+export { handleLocalDeath };
+export { animate };
