@@ -551,6 +551,7 @@ document.getElementById("hud").style.display = "block";
 document.getElementById("crosshair").style.display = "block";
 
 console.log("starting3");
+       console.log(username, mapName, initialDetailsEnabled);
 // Call initGameNetwork which now only calls network.initNetwork
 await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
 console.log("starting31");
