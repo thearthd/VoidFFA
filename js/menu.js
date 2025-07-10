@@ -193,36 +193,3 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
     initializeMenuDisplay();
 }
 
-// --- Main execution logic ---
-document.addEventListener('DOMContentLoaded', () => {
-    // Always initialize the menu UI if we are on index.html
-    if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
-        console.log("Attempting to initialize Menu UI on index.html...");
-        initMenuUI();
-        console.log("Menu UI initialization process started.");
-    } else {
-        // This block would typically handle game.html, but since we're no longer redirecting,
-        // it might not be strictly necessary if index.html is the only entry point.
-        // However, keeping it for robustness if game.html could still be accessed directly.
-        const gameWrapper = document.getElementById('game-container');
-        if (gameWrapper) {
-            createGameUI(gameWrapper);
-
-            const username = localStorage.getItem("username") || "Guest";
-            const urlParams = new URLSearchParams(window.location.search);
-            const mapName = urlParams.get('map');
-
-            if (mapName) {
-               initNetwork(username, mapName);
-                startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true");
-                console.log(`Game UI and game initialized on game.html for map: ${mapName}.`);
-            } else {
-                console.warn("No map specified in URL. Starting with a default map or showing an error.");
-                    initNetwork(username, "defaultMap");
-                startGame(username, "defaultMap", localStorage.getItem("detailsEnabled") === "true");
-            }
-        } else {
-            console.error("game-container element not found!");
-        }
-    }
-});
