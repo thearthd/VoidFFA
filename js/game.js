@@ -145,7 +145,7 @@ window.scene.fog = null;
 
 
 function initializeGameElements() {
-const gameWrapper = document.getElementById('game-wrapper');
+const gameWrapper = document.getElementById('game-container');
 
 if (!gameWrapper) {
 console.error("Game wrapper not found! Cannot initialize game elements.");
