@@ -37,8 +37,7 @@ export function createGameUI(gameWrapper) {
     }
 
     // --- Create and append Crosshair ---
-    const crosshair = document.createElement('div');
-    crosshair.id = 'crosshair';
+    const crosshair = document.createElement('crosshair');
     crosshair.style.display = 'block'; // Or 'none' if dynamically shown
     gameWrapper.appendChild(crosshair);
 
@@ -104,27 +103,7 @@ export function createGameUI(gameWrapper) {
     hud.appendChild(killFeed);
 
     // --- Append Chat Box to HUD ---
-    const chatBox = document.createElement('div');
-    chatBox.id = 'chat-box';
-    Object.assign(chatBox.style, {
-        position: 'absolute',
-        top: '10px',
-        left: '10px',
-        width: '300px',
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        borderRadius: '5px',
-        padding: '10px',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: '1000',
-        pointerEvents: 'auto', // Chat input should be interactive
-        // Remove fixed height from chatBox to allow dynamic resizing
-        minHeight: '80px', // Set a minimum height for the entire chat box
-    });
-    chatBox.innerHTML = `
-        <div id="chat-messages" style="max-height: 200px; overflow-y: auto; color: white; font-size: 14px; margin-bottom: 10px; scrollbar-width: none;"></div>
-        <input type="text" id="chat-input" maxlength="100" placeholder="(\`) to Chat | (C) to Open/Close" style="padding: 5px; border: 1px solid #555; border-radius: 3px; background-color: #333; color: white; font-size: 14px;">
-    `;
+    const chatBox = document.createElement('chat-box');
     hud.appendChild(chatBox);
     // REMOVED: document.getElementById('chat-input').style.display = 'none';
     // The chat input will now be visible by default.
