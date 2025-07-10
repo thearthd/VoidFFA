@@ -539,7 +539,7 @@ async function pulsePlayerHit(victimId) {
 export async function startGame(username, mapName, initialDetailsEnabled) {
     console.log("starting");
     detailsEnabled = initialDetailsEnabled;
-    
+
     initGlobalFogAndShadowParams();
     console.log("starting2");
     window.isGamePaused = false;
@@ -548,9 +548,16 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
     document.getElementById("game-container").style.display = "block";
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
-console.log("starting3");
-    // Call initGameNetwork which now only calls network.initNetwork
-    await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
+    console.log("starting3");
+
+    // Call initGameNetwork and await its return value
+    const dbRefsFromNetwork = await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
+
+    // Now assign the references in startGame
+    playersRef = dbRefsFromNetwork.playersRef;
+    chatRef = dbRefsFromNetwork.chatRef;
+    killsRef = dbRefsFromNetwork.killsRef;
+    mapStateRef = dbRefsFromNetwork.mapStateRef;
 
     // After initGameNetwork (and thus network.initNetwork) completes,
     // localPlayerId should be set in network.js and available via import if needed.
@@ -561,17 +568,17 @@ console.log("starting3");
         playerId = playersRef.push().key; // Only generate if not already in localStorage
         localStorage.setItem("playerId", playerId);
     } else if (!playerId && !playersRef) {
+        // This error should now ideally not be hit if initGameNetwork successfully returns dbRefs
         console.error("Critical Error: playersRef is null after initGameNetwork. Cannot generate playerId.");
         return;
     }
-    
+
     console.log("starting4");
 
-    
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
-    
-        weaponController = new WeaponController(
+
+    weaponController = new WeaponController(
         window.camera,
         playersRef, // Pass playersRef for damage updates
         mapStateRef.child("bullets"), // Pass the specific bullet holes reference
@@ -580,7 +587,7 @@ console.log("starting3");
         physicsController
     );
     window.weaponController = weaponController; // Expose globally if needed
-        console.log("starting5");
+    console.log("starting5");
     // --- CONDITIONAL SCENE INITIALIZATION BASED ON MAPNAME ---
     if (mapName === "CrocodilosConstruction") {
         await initSceneCrocodilosConstruction();
@@ -1009,22 +1016,12 @@ function onWindowResize() {
 
 // js/game.js (modify existing initGameNetwork)
 export async function initGameNetwork(username, playerId, mapName) {
-    // network.js will now handle setting up all Firebase listeners and
-    // distributing data via callbacks or by updating global `remotePlayers` object.
-    // It will also pass dbRefs to ui.js.
-    await initNetwork(username, mapName); // network.js handles playerId internally now
+    await initNetwork(username, mapName);
 
-    // Now, you can get the *references* if game.js needs them directly for specific operations,
-    // but the listeners are handled by network.js.
-    // Assuming getDbRefs is globally available or imported in game.js as well
-    const dbRefs = getDbRefs(mapName);
-    playersRef = dbRefs.playersRef;
-    chatRef = dbRefs.chatRef;
-    killsRef = dbRefs.killsRef;
-    mapStateRef = dbRefs.mapStateRef;
+    const dbRefs = getDbRefs(mapName); // Assuming getDbRefs is accessible
 
-    console.log("[game.js] initGameNetwork complete. Network listeners handled by network.js.");
-    // No need for duplicate listeners here!
+    // Return the dbRefs object directly
+    return dbRefs;
 }
 
 
