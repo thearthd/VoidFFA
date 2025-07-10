@@ -8,7 +8,7 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/
 import { createGameUI, initBulletHoles } from "./ui.js"; // Moved from main.js
 
 // Import startGame and toggleSceneDetails from game.js
-import { startGame, toggleSceneDetails } from "game.jss"; // Moved from main.js
+import { startGame, toggleSceneDetails } from "./game.js"; // Corrected import path for game.js (removed extra 's')
 import { initNetwork } from "./network.js"; // Moved from main.js
 
 // Global window properties (less is more in main.js now)
@@ -82,10 +82,8 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
     // --- Event Listeners for Main Menu Buttons ---
     if (playButton) {
         playButton.addEventListener("click", () => {
-            console.log("you idiot lol");
             console.log("Play button clicked (showing map selection)");
-            // No mapName here, as it's selected on the next panel
-          showPanel(mapSelect);
+            showPanel(mapSelect);
         });
     }
 
@@ -140,7 +138,7 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
     }
 
     // --- Details Toggle Logic ---
-    if (toggleDetailsBtn) { // Removed typeof check as it's now internal
+    if (toggleDetailsBtn) {
         toggleDetailsBtn.textContent = currentDetailsEnabled ? "Details: On" : "Details: Off";
 
         toggleDetailsBtn.addEventListener("click", () => {
@@ -166,61 +164,64 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
             }
 
             const mapName = btn.dataset.map;
-            // Removed: localStorage.setItem("selectedMap", mapName);
             localStorage.setItem("detailsEnabled", currentDetailsEnabled.toString());
 
             console.log(`Player clicked play for map: ${mapName}, Username: ${username}, Details Enabled: ${currentDetailsEnabled}`);
 
-            // Direct redirection and game initialization setup
-            // Instead of redirecting and then trying to get mapName, pass it via URL
-            // or better yet, trigger startGame directly if on game.html.
-            // Since you're redirecting, you can pass it as a URL parameter.
-            window.location.href = `game.html?map=${mapName}`;
+            // Hide the menu overlay to reveal the game
+            if (menuOverlay) {
+                menuOverlay.classList.add("hidden");
+            }
+
+            // Initialize game UI (if not already done) and start the game
+            const gameWrapper = document.getElementById('game-wrapper');
+            if (gameWrapper) {
+                // Ensure createGameUI is only called once if it creates permanent elements
+                // If it appends to gameWrapper, it's fine to call it here.
+                // If your game UI is already part of index.html, you might not need this call here.
+                createGameUI(gameWrapper);
+                startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true");
+                initNetwork(username, mapName);
+                console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
+            } else {
+                console.error("game-wrapper element not found in index.html! Make sure your game elements are present.");
+            }
         });
     });
 
     initializeMenuDisplay();
-
-    // The return value for initialDetailsEnabled is no longer strictly needed here
-    // as the menu itself manages the state and redirection.
 }
 
-// --- Main execution logic (formerly in main.js) ---
+// --- Main execution logic ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if we are on the game.html page
-    if (window.location.pathname.endsWith('index.html')) {
-        // If on game.html, immediately set up the game UI and start the game.
+    // Always initialize the menu UI if we are on index.html
+    if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
+        console.log("Attempting to initialize Menu UI on index.html...");
+        initMenuUI();
+        console.log("Menu UI initialization process started.");
+    } else {
+        // This block would typically handle game.html, but since we're no longer redirecting,
+        // it might not be strictly necessary if index.html is the only entry point.
+        // However, keeping it for robustness if game.html could still be accessed directly.
         const gameWrapper = document.getElementById('game-wrapper');
         if (gameWrapper) {
             createGameUI(gameWrapper);
 
             const username = localStorage.getItem("username") || "Guest";
-            // Get mapName from URL parameter
             const urlParams = new URLSearchParams(window.location.search);
-            const mapName = urlParams.get('map'); // 'map' is the key we set in the URL
+            const mapName = urlParams.get('map');
 
             if (mapName) {
-                // Call startGame with the retrieved mapName
-                startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true"); // Pass currentDetailsEnabled
+                startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true");
                 initNetwork(username, mapName);
                 console.log(`Game UI and game initialized on game.html for map: ${mapName}.`);
             } else {
                 console.warn("No map specified in URL. Starting with a default map or showing an error.");
-                // Handle case where no map is in URL, e.g., redirect back to menu or use a default map
-                // For now, let's just log it and assume startGame can handle a null/undefined mapName if needed
-                // or you might want to redirect back to the menu: window.location.href = 'index.html';
-                startGame(username, "defaultMap", localStorage.getItem("detailsEnabled") === "true"); // Example default
-                initNetwork(username, "defaultMap"); // Example default
+                startGame(username, "defaultMap", localStorage.getItem("detailsEnabled") === "true");
+                initNetwork(username, "defaultMap");
             }
-
         } else {
-            console.error("game-wrapper element not found in game.html!");
+            console.error("game-wrapper element not found!");
         }
-    } else {
-        // We are on index.html (the menu page)
-        console.log("Attempting to initialize Menu UI on index.html...");
-        // Call initMenuUI directly without passing callbacks, as it now contains the logic
-        initMenuUI();
-        console.log("Menu UI initialization process started.");
     }
 });
