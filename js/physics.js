@@ -122,18 +122,17 @@ this.fallDelay = 300;
         // this.scene.add(this.debugCapsuleMesh);
     }
 
-    buildOctree(group, onProgress = () => {}) {
+buildOctree(group, onProgress = () => {}) { // Added async for better clarity with Promise
         return new Promise((resolve, reject) => {
             if (!group) {
                 console.warn("Attempted to build Octree with no group provided.");
-                onProgress({ loaded: 1, total: 1 }); // Immediately report 100% if no group
+                onProgress({ loaded: 1, total: 1 });
                 resolve();
                 return;
             }
 
             console.log("Starting Octree build from group geometry...");
 
-            // --- DEBUG LOG: Check mesh count ---
             let meshCount = 0;
             group.traverse((obj) => {
                 if (obj.isMesh) {
@@ -141,36 +140,46 @@ this.fallDelay = 300;
                 }
             });
             console.log(`DEBUG: Group passed to Octree contains ${meshCount} meshes.`);
-            // --- END DEBUG LOG ---
 
-
-            // Clear any existing Octree data to ensure a fresh build
             if (this.worldOctree) {
                 this.worldOctree.clear();
             } else {
-                this.worldOctree = new Octree();
+                this.worldOctree = new OctreeV2(); // Use OctreeV2 here
             }
 
-            // Call fromGraphNode on the Octree instance.
-            // This modified method now accepts the progress callback and returns a Promise.
             this.worldOctree.fromGraphNode(group, ({ loaded, total }) => {
-                // Pass the progress event directly to the external onProgress callback
                 onProgress({ loaded, total });
             }).then(() => {
                 console.log("Octree built successfully.");
+                
+                // --- NEW: Log Octree data to console ---
+                try {
+                    const octreeData = this.worldOctree.toJSON();
+                    const jsonString = JSON.stringify(octreeData, null, 2); // Pretty print JSON
+                    console.log("--- Octree Data Start ---");
+                    console.log(jsonString);
+                    console.log("--- Octree Data End ---");
+                    
+                    // You can also add a helper function to download it directly
+                    // if you're running this in a browser environment.
+                    // If running in Node.js, you'd write to a file system.
+                    // For browser:
+                    // const blob = new Blob([jsonString], { type: 'application/json' });
+                    // const url = URL.createObjectURL(blob);
+                    // const a = document.createElement('a');
+                    // a.href = url;
+                    // a.download = 'octree_data.json';
+                    // document.body.appendChild(a);
+                    // a.click();
+                    // document.body.removeChild(a);
+                    // URL.revokeObjectURL(url);
 
-                // Optional: Add/Update OctreeHelper for visualization
-                // You'll need access to your THREE.Scene object here if you uncomment this.
-                // Example:
-                // if (this.octreeHelper) {
-                //    scene.remove(this.octreeHelper);
-                //    this.octreeHelper.dispose();
-                // }
-                // this.octreeHelper = new OctreeHelper(this.worldOctree, 0xff0000);
-                // scene.add(this.octreeHelper);
-                // console.log("OctreeHelper added to scene.");
+                } catch (e) {
+                    console.error("Error serializing Octree data:", e);
+                }
+                // --- END NEW ---
 
-                resolve(); // Resolve the promise when Octree reports completion
+                resolve();
             }).catch(err => {
                 console.error("Error building Octree:", err);
                 reject(err);
