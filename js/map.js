@@ -52,6 +52,26 @@ export class Lantern {
                     child.castShadow = child.receiveShadow = true;
                 });
 
+                // Original had: this.container.add(spot, spot.target);
+                // Corrected to add lanternGroup and then the spot light
+                this.container.add(lanternGroup);
+
+                const {
+                    color = 0xffffff,
+                    intensity = 1,
+                    distance = 10,
+                    angle = Math.PI / 8,
+                    penumbra = 0.5,
+                    decay = 2
+                } = lightOptions;
+
+                const spot = new THREE.SpotLight(color, intensity, distance, angle, penumbra, decay);
+                spot.position.set(0, (box.max.y - box.min.y) * 0.75, 0);
+                spot.target.position.set(0, -20, 0);
+                spot.castShadow = true;
+                spot.shadow.mapSize.set(512, 512);
+                spot.shadow.camera.near = 0.5;
+                spot.shadow.camera.far = distance;
                 this.container.add(spot, spot.target);
             },
             null,
@@ -104,11 +124,14 @@ export async function createCrocodilosConstruction(scene, physicsController) {
 
     // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb';
-    const OCTREE_STORAGE_KEY = 'crocodilosOctree'; // Unique key for this map's octree
+    const OCTREE_STORAGE_KEY = 'crocodilosOctree'; // Unique key for localStorage
+    // This is where you would place your pre-built Octree JSON file
+    // Example: 'path/to/your/prebuilt_crocodilos_octree.json'
+    const OCTREE_FILE_URL = null; // Set to your file URL, or null to skip file loading
 
+    let gltfGroup = null;
 
     // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null;
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
@@ -133,7 +156,6 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                 console.log('✔️ GLB mesh loaded into scene.');
                 resolve(gltfGroup);
             },
-            // progress callback
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
@@ -149,37 +171,37 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is loaded, either load the Octree from storage or build it
+    // 2) Once GLB is loaded, try to load Octree from storage, then file, then build
     let onOctreeProgress = () => {};
     const octreePromise = mapLoadPromise.then(async (group) => {
-        let loadedOctree = null;
-        let octreeBuildPromise = null;
+        let octreeResult = null;
 
-        // Try to load from local storage first
-        console.log(`Attempting to load Octree from local storage: ${OCTREE_STORAGE_KEY}`);
-        loadedOctree = await physicsController.worldOctree.loadFromLocalStorage(OCTREE_STORAGE_KEY, (evt) => {
-             // Pass this progress directly to the outer onOctreeProgress if loading takes time
-             onOctreeProgress(evt);
-        });
-
-        if (loadedOctree) {
-            // If loaded, this promise resolves immediately
-            console.log("Octree loaded from local storage!");
-            return Promise.resolve();
-        } else {
-            // If not loaded from storage, build the octree
-            console.log("Building Octree from GLB data...");
-            octreeBuildPromise = physicsController.buildOctree(group, (evt) => {
-                // Pass this progress directly to the outer onOctreeProgress
-                onOctreeProgress(evt);
-            }).then(() => {
-                // After successful build, save to local storage
-                physicsController.worldOctree.saveToLocalStorage(OCTREE_STORAGE_KEY);
-                console.log("Octree built and saved to local storage!");
-            });
-            return octreeBuildPromise;
+        // Attempt 1: Load from Local Storage
+        octreeResult = await physicsController.worldOctree.loadFromLocalStorage(OCTREE_STORAGE_KEY, onOctreeProgress);
+        if (octreeResult) {
+            console.log("Octree for CrocodilosConstruction loaded from local storage!");
+            return; // Octree is loaded, exit
         }
+
+        // Attempt 2: Load from Pre-built File (if URL is provided)
+        if (OCTREE_FILE_URL) {
+            octreeResult = await physicsController.worldOctree.loadFromFile(OCTREE_FILE_URL, onOctreeProgress);
+            if (octreeResult) {
+                console.log("Octree for CrocodilosConstruction loaded from file!");
+                // Optionally save to local storage after successful file load for next time
+                physicsController.worldOctree.saveToLocalStorage(OCTREE_STORAGE_KEY);
+                return; // Octree is loaded, exit
+            }
+        }
+
+        // Attempt 3: Build from GLB (fallback)
+        console.log("No saved Octree found (or failed to load from file). Building Octree from GLB data...");
+        await physicsController.buildOctree(group, onOctreeProgress);
+        // After successful build, save to local storage
+        physicsController.worldOctree.saveToLocalStorage(OCTREE_STORAGE_KEY);
+        console.log("Octree built and saved to local storage!");
     });
+
 
     // track octree build/load at 10%, with live percent updates
     loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
@@ -234,7 +256,10 @@ export async function createSigmaCity(scene, physicsController) {
 
     // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb';
-    const OCTREE_STORAGE_KEY = 'sigmaCityOctree'; // Unique key for this map's octree
+    const OCTREE_STORAGE_KEY = 'sigmaCityOctree'; // Unique key for localStorage
+    // This is where you would place your pre-built Octree JSON file
+    // Example: 'path/to/your/prebuilt_sigma_octree.json'
+    const OCTREE_FILE_URL = null; // Set to your file URL, or null to skip file loading
 
     // 1) Load the GLB into the scene, wiring up a progress callback
     let gltfGroup = null;
@@ -265,7 +290,6 @@ export async function createSigmaCity(scene, physicsController) {
                 console.log('✔️ GLB mesh loaded into scene.');
                 resolve(gltfGroup);
             },
-            // progress callback
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
@@ -281,34 +305,35 @@ export async function createSigmaCity(scene, physicsController) {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is loaded, either load the Octree from storage or build it
+    // 2) Once GLB is loaded, try to load Octree from storage, then file, then build
     let onOctreeProgress = () => {};
     const octreePromise = mapLoadPromise.then(async (group) => {
-        let loadedOctree = null;
-        let octreeBuildPromise = null;
+        let octreeResult = null;
 
-        // Try to load from local storage first
-        console.log(`Attempting to load Octree from local storage: ${OCTREE_STORAGE_KEY}`);
-        loadedOctree = await physicsController.worldOctree.loadFromLocalStorage(OCTREE_STORAGE_KEY, (evt) => {
-             onOctreeProgress(evt);
-        });
-
-        if (loadedOctree) {
-            // If loaded, this promise resolves immediately
-            console.log("Octree loaded from local storage!");
-            return Promise.resolve();
-        } else {
-            // If not loaded from storage, build the octree
-            console.log("Building Octree from GLB data...");
-            octreeBuildPromise = physicsController.buildOctree(group, (evt) => {
-                onOctreeProgress(evt);
-            }).then(() => {
-                // After successful build, save to local storage
-                physicsController.worldOctree.saveToLocalStorage(OCTREE_STORAGE_KEY);
-                console.log("Octree built and saved to local storage!");
-            });
-            return octreeBuildPromise;
+        // Attempt 1: Load from Local Storage
+        octreeResult = await physicsController.worldOctree.loadFromLocalStorage(OCTREE_STORAGE_KEY, onOctreeProgress);
+        if (octreeResult) {
+            console.log("Octree for SigmaCity loaded from local storage!");
+            return; // Octree is loaded, exit
         }
+
+        // Attempt 2: Load from Pre-built File (if URL is provided)
+        if (OCTREE_FILE_URL) {
+            octreeResult = await physicsController.worldOctree.loadFromFile(OCTREE_FILE_URL, onOctreeProgress);
+            if (octreeResult) {
+                console.log("Octree for SigmaCity loaded from file!");
+                // Optionally save to local storage after successful file load for next time
+                physicsController.worldOctree.saveToLocalStorage(OCTREE_STORAGE_KEY);
+                return; // Octree is loaded, exit
+            }
+        }
+
+        // Attempt 3: Build from GLB (fallback)
+        console.log("No saved Octree found (or failed to load from file). Building Octree from GLB data...");
+        await physicsController.buildOctree(group, onOctreeProgress);
+        // After successful build, save to local storage
+        physicsController.worldOctree.saveToLocalStorage(OCTREE_STORAGE_KEY);
+        console.log("Octree built and saved to local storage!");
     });
 
     // track octree build/load at 10%, with live percent updates
