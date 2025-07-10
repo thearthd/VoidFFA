@@ -82,24 +82,7 @@ export function createGameUI(gameWrapper) {
     gameWrapper.appendChild(hud);
 
     // --- Append Kill Feed to HUD ---
-    const killFeed = document.createElement('div');
-    killFeed.id = 'kill-feed';
-    Object.assign(killFeed.style, {
-        position: 'absolute',
-        top: '10px',
-        right: '10px',
-        color: 'white',
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        padding: '5px',
-        borderRadius: '3px',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '14px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2px',
-        maxWidth: '250px',
-        textAlign: 'right',
-    });
+    const killFeed = document.createElement('killFeed');
     hud.appendChild(killFeed);
 
     // --- Append Chat Box to HUD ---
