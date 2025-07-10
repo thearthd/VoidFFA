@@ -270,31 +270,7 @@ export function initChatUI() {
     let chatCooldown = false;
 
     // Toggle chat input visibility
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "c" || e.code === "C") { // Backtick key
-            e.preventDefault();
-            const currentDisplay = chatInput.style.display;
-            chatInput.style.display = currentDisplay === 'none' ? 'block' : 'none';
-            if (chatInput.style.display === 'block') {
-                chatInput.focus();
-                chatBox.style.pointerEvents = 'auto'; // Make chat box interactive
-            } else {
-                chatInput.blur();
-                chatBox.style.pointerEvents = 'none'; // Make chat box non-interactive
-            }
-        } else if (e.key === "`" || e.key === "Backquote") { // C key
-             e.preventDefault();
-            const currentDisplay = chatInput.style.display;
-            chatInput.style.display = currentDisplay === 'none' ? 'block' : 'none';
-            if (chatInput.style.display === 'block') {
-                chatInput.focus();
-                chatBox.style.pointerEvents = 'auto'; // Make chat box interactive
-            } else {
-                chatInput.blur();
-                chatBox.style.pointerEvents = 'none'; // Make chat box non-interactive
-            }
-        }
-    });
+
 
 
     if (chatInput) {
