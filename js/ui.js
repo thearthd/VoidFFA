@@ -108,7 +108,7 @@ export function createGameUI(gameWrapper) {
     chatBox.id = 'chat-box';
     Object.assign(chatBox.style, {
         position: 'absolute',
-        top: '10px', // Changed from 'bottom' to 'top'
+        top: '10px',
         left: '10px',
         width: '300px',
         backgroundColor: 'rgba(0,0,0,0.7)',
@@ -118,10 +118,11 @@ export function createGameUI(gameWrapper) {
         flexDirection: 'column',
         zIndex: '1000',
         pointerEvents: 'auto', // Chat input should be interactive
-        minHeight: '200px', // Added minimum height
+        // Remove fixed height from chatBox to allow dynamic resizing
+        minHeight: '80px', // Set a minimum height for the entire chat box
     });
     chatBox.innerHTML = `
-        <div id="chat-messages" style="height: 150px; overflow-y: auto; color: white; font-size: 14px; margin-bottom: 10px; scrollbar-width: none;"></div>
+        <div id="chat-messages" style="max-height: 200px; overflow-y: auto; color: white; font-size: 14px; margin-bottom: 10px; scrollbar-width: none;"></div>
         <input type="text" id="chat-input" maxlength="100" placeholder="(\`) to Chat | (C) to Open/Close" style="padding: 5px; border: 1px solid #555; border-radius: 3px; background-color: #333; color: white; font-size: 14px;">
     `;
     hud.appendChild(chatBox);
@@ -153,7 +154,7 @@ export function createGameUI(gameWrapper) {
             <thead>
                 <tr>
                     <th style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">Player</th>
-                    <th style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">K</th>
+                    <th style="8px; border-bottom: 1px solid #444; text-align: left;">K</th>
                     <th style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">D</th>
                     <th style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">KS</th>
                 </tr>
@@ -291,7 +292,7 @@ export function initChatUI() {
 
     // Toggle chat input visibility
     document.addEventListener("keydown", (e) => {
-        if (e.key === "`" || e.code === "Backquote") { // Backtick key
+        if (e.key === "c" || e.code === "C") { // Backtick key
             e.preventDefault();
             const currentDisplay = chatInput.style.display;
             chatInput.style.display = currentDisplay === 'none' ? 'block' : 'none';
@@ -302,7 +303,7 @@ export function initChatUI() {
                 chatInput.blur();
                 chatBox.style.pointerEvents = 'none'; // Make chat box non-interactive
             }
-        } else if (e.key === "c" || e.key === "C") { // C key
+        } else if (e.key === "`" || e.key === "Backquote") { // C key
              e.preventDefault();
             const currentDisplay = chatInput.style.display;
             chatInput.style.display = currentDisplay === 'none' ? 'block' : 'none';
