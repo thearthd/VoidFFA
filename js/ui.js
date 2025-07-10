@@ -108,7 +108,7 @@ export function createGameUI(gameWrapper) {
     chatBox.id = 'chat-box';
     Object.assign(chatBox.style, {
         position: 'absolute',
-        top: '10px', // Positioned at the top-left as requested
+        top: '10px', // Changed from 'bottom' to 'top'
         left: '10px',
         width: '300px',
         backgroundColor: 'rgba(0,0,0,0.7)',
@@ -117,15 +117,18 @@ export function createGameUI(gameWrapper) {
         display: 'flex',
         flexDirection: 'column',
         zIndex: '1000',
-        pointerEvents: 'auto', // Chat box itself should allow interaction
+        pointerEvents: 'auto', // Chat input should be interactive
+        minHeight: '200px', // Added minimum height
     });
     chatBox.innerHTML = `
         <div id="chat-messages" style="height: 150px; overflow-y: auto; color: white; font-size: 14px; margin-bottom: 10px; scrollbar-width: none;"></div>
         <input type="text" id="chat-input" maxlength="100" placeholder="(\`) to Chat | (C) to Open/Close" style="padding: 5px; border: 1px solid #555; border-radius: 3px; background-color: #333; color: white; font-size: 14px;">
     `;
     hud.appendChild(chatBox);
-    // Hide chat input by default, as indicated by the placeholder text
-    document.getElementById('chat-input').style.display = 'none';
+    // REMOVED: document.getElementById('chat-input').style.display = 'none';
+    // The chat input will now be visible by default.
+    // You'll likely need a separate mechanism to toggle its visibility based on key presses.
+
 
     // --- Append Scoreboard to HUD ---
     const scoreboard = document.createElement('div');
@@ -214,7 +217,6 @@ export function createGameUI(gameWrapper) {
     initChatUI();
     initBuyMenuEvents();
 }
-
 /* —————————————————————————————————————————————————————————————————————
    HEALTH + SHIELD BAR (Three.js version – unchanged from your ui.js)
    ————————————————————————————————————————————————————————————————————— */
