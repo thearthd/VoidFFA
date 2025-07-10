@@ -553,7 +553,7 @@ document.getElementById("crosshair").style.display = "block";
 console.log("starting3");
        console.log(username, mapName, initialDetailsEnabled);
 // Call initGameNetwork which now only calls network.initNetwork
-initGameNetwork(username, localStorage.getItem("playerId"), mapName);
+await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
 console.log("starting31");
 // After initGameNetwork (and thus network.initNetwork) completes,
 // localPlayerId should be set in network.js and available via import if needed.
