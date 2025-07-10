@@ -36,22 +36,6 @@ export function createGameUI(gameWrapper) {
         return;
     }
 
-    // --- Create and append Debug Log ---
-    const debugLog = document.createElement('div');
-    debugLog.id = 'debug-log';
-    Object.assign(debugLog.style, {
-        position: 'absolute',
-        bottom: '20px',
-        left: '20px',
-        color: 'yellow',
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        padding: '5px',
-        borderRadius: '3px',
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        zIndex: '9999',
-    });
-    gameWrapper.appendChild(debugLog);
 
     // --- Create and append Crosshair ---
     const crosshair = document.createElement('div');
