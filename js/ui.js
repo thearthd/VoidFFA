@@ -36,25 +36,10 @@ export function createGameUI(gameWrapper) {
         return;
     }
 
-
     // --- Create and append Crosshair ---
     const crosshair = document.createElement('div');
     crosshair.id = 'crosshair';
     crosshair.style.display = 'block'; // Or 'none' if dynamically shown
-    crosshair.innerHTML = `
-        <div class="line" id="line-up" style="width:3px; height:10px; background:white; position:absolute; left:50%; transform:translateX(-50%); top:calc(50% - 15px);"></div>
-        <div class="line" id="line-down" style="width:3px; height:10px; background:white; position:absolute; left:50%; transform:translateX(-50%); bottom:calc(50% - 15px);"></div>
-        <div class="line" id="line-left" style="width:10px; height:3px; background:white; position:absolute; top:50%; transform:translateY(-50%); left:calc(50% - 15px);"></div>
-        <div class="line" id="line-right" style="width:10px; height:3px; background:white; position:absolute; top:50%; transform:translateY(-50%); right:calc(50% - 15px);"></div>
-    `;
-    Object.assign(crosshair.style, {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        pointerEvents: 'none',
-        zIndex: '1000',
-        transform: 'translate(-50%, -50%)', // Center it
-    });
     gameWrapper.appendChild(crosshair);
 
     // --- Create and append Scope Overlay ---
@@ -123,7 +108,7 @@ export function createGameUI(gameWrapper) {
     chatBox.id = 'chat-box';
     Object.assign(chatBox.style, {
         position: 'absolute',
-        bottom: '10px',
+        top: '10px', // Changed from 'bottom' to 'top'
         left: '10px',
         width: '300px',
         backgroundColor: 'rgba(0,0,0,0.7)',
@@ -139,8 +124,10 @@ export function createGameUI(gameWrapper) {
         <input type="text" id="chat-input" maxlength="100" placeholder="(\`) to Chat | (C) to Open/Close" style="padding: 5px; border: 1px solid #555; border-radius: 3px; background-color: #333; color: white; font-size: 14px;">
     `;
     hud.appendChild(chatBox);
-    // Hide chat input by default
-    document.getElementById('chat-input').style.display = 'none';
+    // REMOVED: document.getElementById('chat-input').style.display = 'none';
+    // The chat input will now be visible by default.
+    // You'll likely need a separate mechanism to toggle its visibility based on key presses.
+
 
     // --- Append Scoreboard to HUD ---
     const scoreboard = document.createElement('div');
@@ -192,6 +179,7 @@ export function createGameUI(gameWrapper) {
     hud.appendChild(inventory); // Append to hud
 
     // --- Create and append Respawn Overlay ---
+    // Assuming createRespawnOverlay function exists elsewhere
     createRespawnOverlay(gameWrapper); // Call a dedicated function for respawn overlay
 
     // --- Create and append Loading Progress ---
@@ -224,6 +212,7 @@ export function createGameUI(gameWrapper) {
 
 
     // Initialize listeners for interactive UI elements
+    // Assuming initChatUI and initBuyMenuEvents functions exist elsewhere
     initChatUI();
     initBuyMenuEvents();
 }
