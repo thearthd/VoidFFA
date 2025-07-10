@@ -409,7 +409,7 @@ if (!this.prevGround && this.isGrounded) {
     if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
         this.fallStartTimer = setTimeout(() => {
             this.fallStartY = this.camera.position.y; // Set fallStartY after delay
-          //  console.log("fallStartY set after delay:", this.fallStartY);
+            console.log("fallStartY set after delay:", this.fallStartY);
             this.fallStartTimer = null; // Reset the timer ID
         }, this.fallDelay);
     }
