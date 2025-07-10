@@ -553,15 +553,17 @@ document.getElementById("crosshair").style.display = "block";
 console.log("starting3");
 // Call initGameNetwork which now only calls network.initNetwork
 await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
-
+console.log("starting31");
 // After initGameNetwork (and thus network.initNetwork) completes,
 // localPlayerId should be set in network.js and available via import if needed.
 // Also, playersRef should be available as it's set above in initGameNetwork now.
 let playerId = localStorage.getItem("playerId"); // Re-read, or get from network.js directly
-
+console.log("starting32");
 if (!playerId && playersRef) { // playersRef should be set now
 playerId = playersRef.push().key; // Only generate if not already in localStorage
+       console.log("starting33");
 localStorage.setItem("playerId", playerId);
+       console.log("starting34");
 } else if (!playerId && !playersRef) {
 console.error("Critical Error: playersRef is null after initGameNetwork. Cannot generate playerId.");
 return;
