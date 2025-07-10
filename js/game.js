@@ -743,41 +743,6 @@ createLeaderboardOverlay();
 animate(); // Start the game loop
 }
 
-export function hideGameUI() {
-document.getElementById("menu-overlay").style.display = "flex";
-document.body.classList.remove("game-active");
-}
-
-function setupDetailToggle() {
-const btn = document.getElementById("toggle-details-btn");
-if (!btn) return;
-
-btn.addEventListener("click", () => {
-detailsEnabled = !detailsEnabled;
-
-if (detailsEnabled) {
-const fp = window.originalFogParams;
-if (fp.type === "exp2") {
-scene.fog = new THREE.FogExp2(fp.color, fp.density);
-} else {
-scene.fog = new THREE.Fog(fp.color, fp.near, fp.far);
-}
-renderer.shadowMap.enabled = true;
-dirLight.castShadow      = true;
-window.bloomPass.strength = window.originalBloomStrength;
-btn.textContent           = "Details: On";
-} else {
-scene.fog                = null;
-renderer.shadowMap.enabled = false;
-dirLight.castShadow        = false;
-window.bloomPass.strength   = 0;
-btn.textContent             = "Details: Off";
-}
-});
-
-btn.textContent = detailsEnabled ? "Details: On" : "Details: Off";
-
-}
 
 
 export function hideGameUI() {
