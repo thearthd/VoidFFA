@@ -537,194 +537,248 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled) {
-    
-    detailsEnabled = initialDetailsEnabled;
-    
-    initGlobalFogAndShadowParams();
+console.log("starting");
+detailsEnabled = initialDetailsEnabled;
 
-    window.isGamePaused = false;
-    document.getElementById("menu-overlay").style.display = "none";
-    document.body.classList.add("game-active");
-    document.getElementById("game-container").style.display = "block";
-    document.getElementById("hud").style.display = "block";
-    document.getElementById("crosshair").style.display = "block";
+initGlobalFogAndShadowParams();
 
-    // Call initGameNetwork which now only calls network.initNetwork
-    await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
+    console.log("starting2");
+window.isGamePaused = false;
+document.getElementById("menu-overlay").style.display = "none";
+document.body.classList.add("game-active");
+document.getElementById("game-container").style.display = "block";
+document.getElementById("hud").style.display = "block";
+document.getElementById("crosshair").style.display = "block";
 
-    // After initGameNetwork (and thus network.initNetwork) completes,
-    // localPlayerId should be set in network.js and available via import if needed.
-    // Also, playersRef should be available as it's set above in initGameNetwork now.
-    let playerId = localStorage.getItem("playerId"); // Re-read, or get from network.js directly
-
-    if (!playerId && playersRef) { // playersRef should be set now
-        playerId = playersRef.push().key; // Only generate if not already in localStorage
-        localStorage.setItem("playerId", playerId);
-    } else if (!playerId && !playersRef) {
-        console.error("Critical Error: playersRef is null after initGameNetwork. Cannot generate playerId.");
-        return;
-    }
-    window.physicsController = new PhysicsController(window.camera, scene);
-    physicsController = window.physicsController;
-    // --- CONDITIONAL SCENE INITIALIZATION BASED ON MAPNAME ---
-    if (mapName === "CrocodilosConstruction") {
-        await initSceneCrocodilosConstruction();
-    } else if (mapName === "SigmaCity") {
-        await initSceneSigmaCity();
-    } else {
-        console.warn(`Unknown mapName: ${mapName}. Skipping specific scene initialization.`);
-    }
-
-    initInput();
-    initChatUI();
-    initBulletHoles(); // Now correctly initialized and listening via network.js/ui.js events
-    initializeAudioManager(window.camera, scene);
-    startSoundListener();
-    
-    // Get a spawn point
-    const spawn = findFurthestSpawn();
-
-    // Initialize localPlayer object
-    // DO NOT include initialPlayerHealth, initialPlayerShield, initialPlayerWeapon directly
-    // in this object, as you only need 'health', 'shield', 'weapon'.
-    window.localPlayer = {
-        id: playerId,
-        username,
-        x: spawn.x,
-        y: spawn.y,
-        z: spawn.z,
-        rotY: 0, // This will be updated by input
-        health: initialPlayerHealth, // Use the defined constant here for *current* health
-        shield: initialPlayerShield, // Use the defined constant here for *current* shield
-        weapon: initialPlayerWeapon, // Use the defined constant here for *current* weapon
-        kills: 0,
-        deaths: 0,
-        ks: 0,
-        bodyColor: Math.floor(Math.random() * 0xffffff),
-        velocity: 0,
-        isCrouched: false,
-        isAirborne: false,
-        isDead: false
-    };
-    console.log("window.localPlayer before animate():", window.localPlayer);
-    // Set initial camera position based on local player's spawn
-    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-    window.camera.lookAt(
-        new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z)
-            .add(new THREE.Vector3(0, 0, -1))
-    );
-
-    // Initial Firebase setup for local player
-    if (playersRef && window.localPlayer) {
-        window.localPlayer.trueColor = window.localPlayer.bodyColor;
-        // Send a clean object to Firebase, without the "initialPlayer..." constants
-        await playersRef.child(playerId).set({
-            id: window.localPlayer.id,
-            username: window.localPlayer.username,
-            x: window.localPlayer.x,
-            y: window.localPlayer.y,
-            z: window.localPlayer.z,
-            rotY: window.localPlayer.rotY,
-            health: window.localPlayer.health,
-            shield: window.localPlayer.shield,
-            weapon: window.localPlayer.weapon,
-            kills: window.localPlayer.kills,
-            deaths: window.localPlayer.deaths,
-            ks: window.localPlayer.ks,
-            bodyColor: window.localPlayer.bodyColor,
-            isDead: window.localPlayer.isDead,
-            trueColor: window.localPlayer.trueColor, // Keep if you use this explicitly in Firebase
-            lastUpdate: Date.now() // Add a timestamp for pruning inactive players
-        }).then(() => {
-            console.log("Local player initial state set in Firebase.");
-            playersRef.child(playerId).onDisconnect().remove(); // Keep this!
-
-            updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // Initial UI update
-        }).catch(error => {
-            console.error("[startGame] Error setting local player data:", error);
-            updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // Fallback UI update
-        });
-    } else {
-        console.error("Cannot set initial player data: playersRef or localPlayer is null.");
-        return;
-    }
-
-    
-    weaponController = new WeaponController(
-        window.camera,
-        playersRef, // Pass playersRef for damage updates
-        mapStateRef.child("bullets"), // Pass the specific bullet holes reference
-        createTracer,
-        playerId // Pass local player ID for weapon actions
-    );
-    window.weaponController = weaponController; // Expose globally if needed
-
-    // Initialize weapon ammo for all weapons
-    weaponAmmo = {};
-    for (const key in WeaponController.WEAPONS) {
-        weaponAmmo[key] = WeaponController.WEAPONS[key].magazineSize;
-    }
-
-    weaponController.equipWeapon(window.localPlayer.weapon); // Equip the initial weapon
-
-    initInventory(window.localPlayer.weapon); // Pass current weapon for initial selection
-    initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
-    updateInventory(window.localPlayer.weapon); // Select the initial weapon in UI
-    updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
-
-    window.addEventListener("applyRecoilEvent", e => {
-        if (window.localPlayer.weapon !== "knife") {
-            const now = performance.now() / 1000;
-            activeRecoils.push({
-                angle: e.detail,
-                start: now,
-                duration: weaponController.stats.recoilDuration
-            });
-        }
-    });
-
-    window.addEventListener("buyWeapon", async e => {
-        const choice = e.detail;
-        weaponAmmo[window.localPlayer.weapon] = weaponController.getCurrentAmmo();
-        window.localPlayer.weapon = choice;
-
-        // Update Firebase: crucial to reflect weapon change for other players
-        if (playersRef && localPlayerId) {
-            try {
-                await playersRef.child(localPlayerId).update({ weapon: choice });
-            } catch (error) {
-                console.error("Failed to update weapon in Firebase:", error);
-            }
-        }
-
-        weaponController.equipWeapon(choice);
-
-        const restoreAmmo = weaponAmmo[choice];
-        weaponController.ammoInMagazine =
-            restoreAmmo !== undefined
-                ? restoreAmmo
-                : weaponController.stats.magazineSize;
-
-        updateInventory(window.localPlayer.weapon); // Only pass current weapon key
-        updateAmmoDisplay(
-            weaponController.ammoInMagazine,
-            weaponController.stats.magazineSize
-        );
-
-        if (choice === "knife") activeRecoils = [];
-    });
-
-    createRespawnOverlay();
-    createFadeOverlay();
-
-    // Initial check for death state before starting animate loop (important for fresh game start)
-    if (window.localPlayer?.isDead) {
-        showRespawn();
-    }
-
-    createLeaderboardOverlay();
-    animate(); // Start the game loop
+console.log("starting3");
+       console.log(username, mapName, initialDetailsEnabled);
+// Call initGameNetwork which now only calls network.initNetwork
+await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
+console.log("starting31");
+// After initGameNetwork (and thus network.initNetwork) completes,
+// localPlayerId should be set in network.js and available via import if needed.
+// Also, playersRef should be available as it's set above in initGameNetwork now.
+let playerId = localStorage.getItem("playerId"); // Re-read, or get from network.js directly
+console.log("starting32");
+if (!playerId && playersRef) { // playersRef should be set now
+playerId = playersRef.push().key; // Only generate if not already in localStorage
+       console.log("starting33");
+localStorage.setItem("playerId", playerId);
+       console.log("starting34");
+} else if (!playerId && !playersRef) {
+console.error("Critical Error: playersRef is null after initGameNetwork. Cannot generate playerId.");
+return;
 }
+
+    
+    console.log("starting4");
+
+
+window.physicsController = new PhysicsController(window.camera, scene);
+physicsController = window.physicsController;
+
+weaponController = new WeaponController(
+window.camera,
+playersRef, // Pass playersRef for damage updates
+mapStateRef.child("bullets"), // Pass the specific bullet holes reference
+createTracer,
+playerId, // Pass local player ID for weapon actions
+physicsController
+);
+window.weaponController = weaponController; // Expose globally if needed
+    
+        console.log("starting5");
+// --- CONDITIONAL SCENE INITIALIZATION BASED ON MAPNAME ---
+if (mapName === "CrocodilosConstruction") {
+await initSceneCrocodilosConstruction();
+} else if (mapName === "SigmaCity") {
+await initSceneSigmaCity();
+} else {
+console.warn(`Unknown mapName: ${mapName}. Skipping specific scene initialization.`);
+}
+
+        console.log("starting6");
+initInput();
+initChatUI();
+initBulletHoles(); // Now correctly initialized and listening via network.js/ui.js events
+initializeAudioManager(window.camera, scene);
+startSoundListener();
+    
+            console.log("starting7");
+// Get a spawn point
+const spawn = findFurthestSpawn();
+
+// Initialize localPlayer object
+// DO NOT include initialPlayerHealth, initialPlayerShield, initialPlayerWeapon directly
+// in this object, as you only need 'health', 'shield', 'weapon'.
+window.localPlayer = {
+id: playerId,
+username,
+x: spawn.x,
+y: spawn.y,
+z: spawn.z,
+rotY: 0, // This will be updated by input
+health: initialPlayerHealth, // Use the defined constant here for *current* health
+shield: initialPlayerShield, // Use the defined constant here for *current* shield
+weapon: initialPlayerWeapon, // Use the defined constant here for *current* weapon
+kills: 0,
+deaths: 0,
+ks: 0,
+bodyColor: Math.floor(Math.random() * 0xffffff),
+velocity: 0,
+isCrouched: false,
+isAirborne: false,
+isDead: false
+};
+console.log("window.localPlayer before animate():", window.localPlayer);
+// Set initial camera position based on local player's spawn
+window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
+window.camera.lookAt(
+new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z)
+.add(new THREE.Vector3(0, 0, -1))
+);
+
+// Initial Firebase setup for local player
+if (playersRef && window.localPlayer) {
+window.localPlayer.trueColor = window.localPlayer.bodyColor;
+// Send a clean object to Firebase, without the "initialPlayer..." constants
+await playersRef.child(playerId).set({
+id: window.localPlayer.id,
+username: window.localPlayer.username,
+x: window.localPlayer.x,
+y: window.localPlayer.y,
+z: window.localPlayer.z,
+rotY: window.localPlayer.rotY,
+health: window.localPlayer.health,
+shield: window.localPlayer.shield,
+weapon: window.localPlayer.weapon,
+kills: window.localPlayer.kills,
+deaths: window.localPlayer.deaths,
+ks: window.localPlayer.ks,
+bodyColor: window.localPlayer.bodyColor,
+isDead: window.localPlayer.isDead,
+trueColor: window.localPlayer.trueColor, // Keep if you use this explicitly in Firebase
+lastUpdate: Date.now() // Add a timestamp for pruning inactive players
+}).then(() => {
+console.log("Local player initial state set in Firebase.");
+playersRef.child(playerId).onDisconnect().remove(); // Keep this!
+
+updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // Initial UI update
+}).catch(error => {
+console.error("[startGame] Error setting local player data:", error);
+updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // Fallback UI update
+});
+} else {
+console.error("Cannot set initial player data: playersRef or localPlayer is null.");
+return;
+}
+
+
+
+
+// Initialize weapon ammo for all weapons
+weaponAmmo = {};
+for (const key in WeaponController.WEAPONS) {
+weaponAmmo[key] = WeaponController.WEAPONS[key].magazineSize;
+}
+
+weaponController.equipWeapon(window.localPlayer.weapon); // Equip the initial weapon
+
+initInventory(window.localPlayer.weapon); // Pass current weapon for initial selection
+initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
+updateInventory(window.localPlayer.weapon); // Select the initial weapon in UI
+updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
+
+window.addEventListener("applyRecoilEvent", e => {
+if (window.localPlayer.weapon !== "knife") {
+const now = performance.now() / 1000;
+activeRecoils.push({
+angle: e.detail,
+start: now,
+duration: weaponController.stats.recoilDuration
+});
+}
+});
+
+window.addEventListener("buyWeapon", async e => {
+const choice = e.detail;
+weaponAmmo[window.localPlayer.weapon] = weaponController.getCurrentAmmo();
+window.localPlayer.weapon = choice;
+
+// Update Firebase: crucial to reflect weapon change for other players
+if (playersRef && localPlayerId) {
+try {
+await playersRef.child(localPlayerId).update({ weapon: choice });
+} catch (error) {
+console.error("Failed to update weapon in Firebase:", error);
+}
+}
+
+weaponController.equipWeapon(choice);
+
+const restoreAmmo = weaponAmmo[choice];
+weaponController.ammoInMagazine =
+restoreAmmo !== undefined
+? restoreAmmo
+: weaponController.stats.magazineSize;
+
+updateInventory(window.localPlayer.weapon); // Only pass current weapon key
+updateAmmoDisplay(
+weaponController.ammoInMagazine,
+weaponController.stats.magazineSize
+);
+
+if (choice === "knife") activeRecoils = [];
+});
+
+createRespawnOverlay();
+createFadeOverlay();
+
+// Initial check for death state before starting animate loop (important for fresh game start)
+if (window.localPlayer?.isDead) {
+showRespawn();
+}
+
+createLeaderboardOverlay();
+animate(); // Start the game loop
+}
+
+export function hideGameUI() {
+document.getElementById("menu-overlay").style.display = "flex";
+document.body.classList.remove("game-active");
+}
+
+function setupDetailToggle() {
+const btn = document.getElementById("toggle-details-btn");
+if (!btn) return;
+
+btn.addEventListener("click", () => {
+detailsEnabled = !detailsEnabled;
+
+if (detailsEnabled) {
+const fp = window.originalFogParams;
+if (fp.type === "exp2") {
+scene.fog = new THREE.FogExp2(fp.color, fp.density);
+} else {
+scene.fog = new THREE.Fog(fp.color, fp.near, fp.far);
+}
+renderer.shadowMap.enabled = true;
+dirLight.castShadow      = true;
+window.bloomPass.strength = window.originalBloomStrength;
+btn.textContent           = "Details: On";
+} else {
+scene.fog                = null;
+renderer.shadowMap.enabled = false;
+dirLight.castShadow        = false;
+window.bloomPass.strength   = 0;
+btn.textContent             = "Details: Off";
+}
+});
+
+btn.textContent = detailsEnabled ? "Details: On" : "Details: Off";
+
+}
+
 
 export function hideGameUI() {
   document.getElementById("menu-overlay").style.display = "flex";
