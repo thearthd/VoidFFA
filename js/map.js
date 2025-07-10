@@ -1,4 +1,4 @@
-// js/map.js (Keep as is from the last update)
+// js/map.js
 
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
@@ -86,7 +86,8 @@ export async function createCrocodilosConstruction(scene, physicsController) {
 
     // Initialize loader UI with two milestones: 70% for GLB, 30% for octree
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
+    // Adjusted percentages: GLB is 50%, Octree BUILD is 50%, or Octree LOAD is 0%
+    const mapLoadPercentages = [0.5, 0.5]; 
     loaderUI.show('Loading CrocodilosConstruction Map & Building Octree...', mapLoadPercentages);
 
     // scaling and spawn points
@@ -121,9 +122,27 @@ export async function createCrocodilosConstruction(scene, physicsController) {
 
     // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb';
+    const OCTREE_STORAGE_KEY = 'crocodilosOctree'; // Unique key for this map's octree
+
+    let gltfGroup = null; // Will hold the loaded GLTF scene
+    let octreeLoadedFromStorage = false; // Flag to track if octree was loaded
+
+    // Attempt to load the octree from local storage first
+    let octreePromise = new Promise(resolve => {
+        const loadedOctree = physicsController.worldOctree.loadFromLocalStorage(OCTREE_STORAGE_KEY);
+        if (loadedOctree) {
+            physicsController.worldOctree = loadedOctree; // Replace the current octree with the loaded one
+            octreeLoadedFromStorage = true;
+            console.log("Octree for CrocodilosConstruction loaded from local storage!");
+            loaderUI.update(1, 0); // Update progress for octree load to 100% immediately
+            resolve();
+        } else {
+            console.log("No saved Octree found for CrocodilosConstruction. Will build from GLB.");
+            resolve(); // Continue to GLB loading if no octree found
+        }
+    });
 
     // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null; // Declare gltfGroup here
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
@@ -160,24 +179,35 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         );
     });
 
-    // track GLB load at 70%, with live percent updates
+    // track GLB load at 50%, with live percent updates
     loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build the octree
-    let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        // physicsController.buildOctree now returns a promise and takes the progress callback
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
-        });
-    });
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
-    });
+    // 2) Once GLB is added (if needed), or if octree was loaded, handle the octree part
+    let onOctreeProgress = () => {};
+
+    if (!octreeLoadedFromStorage) {
+        // If octree was NOT loaded from storage, proceed to build it
+        octreePromise = mapLoadPromise.then(group => {
+            return physicsController.buildOctree(group, (evt) => {
+                onOctreeProgress(evt);
+            });
+        }).then(() => {
+            // Save the newly built octree to local storage
+            physicsController.worldOctree.saveToLocalStorage(OCTREE_STORAGE_KEY);
+        });
+
+        // track octree build at 50%, with live percent updates
+        loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
+            onOctreeProgress = cb;
+        });
+    } else {
+        // If octree WAS loaded from storage, create a resolved promise for the loader UI
+        octreePromise = Promise.resolve();
+    }
+
 
     // wait for both loading steps
     await Promise.all([mapLoadPromise, octreePromise]);
@@ -199,7 +229,8 @@ export async function createSigmaCity(scene, physicsController) {
 
     // initialize loader UI with two milestones: 70% for GLB, 30% for octree
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
+    // Adjusted percentages: GLB is 50%, Octree BUILD is 50%, or Octree LOAD is 0%
+    const mapLoadPercentages = [0.5, 0.5];
     loaderUI.show('Loading SigmaCity Map & Building Octree...', mapLoadPercentages);
 
     // scaling and spawn points
@@ -227,9 +258,27 @@ export async function createSigmaCity(scene, physicsController) {
 
     // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb';
+    const OCTREE_STORAGE_KEY = 'sigmaCityOctree'; // Unique key for this map's octree
+
+    let gltfGroup = null; // Will hold the loaded GLTF scene
+    let octreeLoadedFromStorage = false; // Flag to track if octree was loaded
+
+    // Attempt to load the octree from local storage first
+    let octreePromise = new Promise(resolve => {
+        const loadedOctree = physicsController.worldOctree.loadFromLocalStorage(OCTREE_STORAGE_KEY);
+        if (loadedOctree) {
+            physicsController.worldOctree = loadedOctree; // Replace the current octree with the loaded one
+            octreeLoadedFromStorage = true;
+            console.log("Octree for SigmaCity loaded from local storage!");
+            loaderUI.update(1, 0); // Update progress for octree load to 100% immediately
+            resolve();
+        } else {
+            console.log("No saved Octree found for SigmaCity. Will build from GLB.");
+            resolve(); // Continue to GLB loading if no octree found
+        }
+    });
 
     // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null; // Declare gltfGroup here
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
@@ -269,23 +318,35 @@ export async function createSigmaCity(scene, physicsController) {
         );
     });
 
-    // track GLB load at 70%, with live percent updates
+    // track GLB load at 50%, with live percent updates
     loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build the octree
-    let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
-        });
-    });
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
-    });
+    // 2) Once GLB is added (if needed), or if octree was loaded, handle the octree part
+    let onOctreeProgress = () => {};
+
+    if (!octreeLoadedFromStorage) {
+        // If octree was NOT loaded from storage, proceed to build it
+        octreePromise = mapLoadPromise.then(group => {
+            return physicsController.buildOctree(group, (evt) => {
+                onOctreeProgress(evt);
+            });
+        }).then(() => {
+            // Save the newly built octree to local storage
+            physicsController.worldOctree.saveToLocalStorage(OCTREE_STORAGE_KEY);
+        });
+
+        // track octree build at 50%, with live percent updates
+        loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
+            onOctreeProgress = cb;
+        });
+    } else {
+        // If octree WAS loaded from storage, create a resolved promise for the loader UI
+        octreePromise = Promise.resolve();
+    }
+
 
     // wait for both loading steps
     await Promise.all([mapLoadPromise, octreePromise]);
