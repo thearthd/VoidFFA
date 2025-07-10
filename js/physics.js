@@ -126,14 +126,13 @@ this.fallDelay = 300;
         return new Promise((resolve, reject) => {
             if (!group) {
                 console.warn("Attempted to build Octree with no group provided.");
-                onProgress({ loaded: 1, total: 1 }); // Immediately report 100% if no group
+                onProgress({ loaded: 1, total: 1 });
                 resolve();
                 return;
             }
 
             console.log("Starting Octree build from group geometry...");
 
-            // --- DEBUG LOG: Check mesh count ---
             let meshCount = 0;
             group.traverse((obj) => {
                 if (obj.isMesh) {
@@ -141,36 +140,29 @@ this.fallDelay = 300;
                 }
             });
             console.log(`DEBUG: Group passed to Octree contains ${meshCount} meshes.`);
-            // --- END DEBUG LOG ---
 
-
-            // Clear any existing Octree data to ensure a fresh build
             if (this.worldOctree) {
                 this.worldOctree.clear();
             } else {
-                this.worldOctree = new Octree();
+                this.worldOctree = new OctreeV2();
             }
 
-            // Call fromGraphNode on the Octree instance.
-            // This modified method now accepts the progress callback and returns a Promise.
             this.worldOctree.fromGraphNode(group, ({ loaded, total }) => {
-                // Pass the progress event directly to the external onProgress callback
                 onProgress({ loaded, total });
             }).then(() => {
                 console.log("Octree built successfully.");
+                
+                // --- MODIFIED: Call downloadJSON instead of console.log ---
+                try {
+                    const octreeData = this.worldOctree.toJSON(); // Get the serializable plain JS object
+                    console.log("Octree object prepared for serialization. Initiating download...");
+                    downloadJSON(octreeData, 'world_octree.json'); // Trigger the download
+                } catch (e) {
+                    console.error("Error getting Octree data for serialization (likely toJSON issue):", e);
+                }
+                // --- END MODIFIED ---
 
-                // Optional: Add/Update OctreeHelper for visualization
-                // You'll need access to your THREE.Scene object here if you uncomment this.
-                // Example:
-                // if (this.octreeHelper) {
-                //    scene.remove(this.octreeHelper);
-                //    this.octreeHelper.dispose();
-                // }
-                // this.octreeHelper = new OctreeHelper(this.worldOctree, 0xff0000);
-                // scene.add(this.octreeHelper);
-                // console.log("OctreeHelper added to scene.");
-
-                resolve(); // Resolve the promise when Octree reports completion
+                resolve(this.worldOctree); // Resolve with the built octree instance
             }).catch(err => {
                 console.error("Error building Octree:", err);
                 reject(err);
