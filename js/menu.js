@@ -180,8 +180,9 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
                 // If it appends to gameWrapper, it's fine to call it here.
                 // If your game UI is already part of index.html, you might not need this call here.
                 createGameUI(gameWrapper);
+              initNetwork(username, mapName);
                 startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true");
-                initNetwork(username, mapName);
+               
                 console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
             } else {
                 console.error("game-wrapper element not found in index.html! Make sure your game elements are present.");
@@ -212,13 +213,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const mapName = urlParams.get('map');
 
             if (mapName) {
+               initNetwork(username, mapName);
                 startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true");
-                initNetwork(username, mapName);
                 console.log(`Game UI and game initialized on game.html for map: ${mapName}.`);
             } else {
                 console.warn("No map specified in URL. Starting with a default map or showing an error.");
+                    initNetwork(username, "defaultMap");
                 startGame(username, "defaultMap", localStorage.getItem("detailsEnabled") === "true");
-                initNetwork(username, "defaultMap");
             }
         } else {
             console.error("game-wrapper element not found!");
