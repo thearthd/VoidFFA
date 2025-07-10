@@ -7,11 +7,12 @@ import {
 	Sphere,
 	Triangle,
 	Vector3,
-    Group, // Added for deserialization
-    Mesh, // Added for deserialization
-    BufferGeometry, // Added for deserialization
-    BufferAttribute, // Added for deserialization
-    MeshBasicMaterial // Added for deserialization
+    // Added for generateSerializedOctreeData static utility method
+    Group,
+    Mesh,
+    BufferGeometry,
+    BufferAttribute,
+    Matrix4 // Used for applyMatrix4
 } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
@@ -25,6 +26,7 @@ const _line1 = new Line3();
 const _line2 = new Line3();
 const _sphere = new Sphere();
 const _capsule = new Capsule();
+const _tempMatrix4 = new Matrix4(); // Added for temporary matrix in static method
 
 // Missing lineToLineClosestPoints from the original three.js example.
 // Re-adding it as it's used by triangleCapsuleIntersect.
@@ -96,8 +98,8 @@ class OctreeV2 {
 		this.bounds = null; // Will be initialized in addTriangle
 
 		// Custom properties for progress tracking
-		this._totalTrianglesAdded = 0; // Tracks triangles added during fromGraphNode
-		this._totalTriangleCount = 0; // The total number of triangles expected from the entire GLTF scene
+		this._totalTrianglesAdded = 0; // Tracks triangles added during fromGraphNode / _processAndBuildFromSerializedData
+		this._totalTriangleCount = 0; // The total number of triangles expected
 		this._onProgressCallback = null; // Stored callback for progress updates
 		this._addPhaseWeight = 0.5; // How much of the total build is the 'addTriangle' phase (0.0 to 1.0)
 		this._buildPhaseWeight = 0.5; // How much of the total build is the 'split' phase (0.0 to 1.0)
@@ -107,7 +109,7 @@ class OctreeV2 {
 		this._cellsProcessedForSplit = 0; // Counts how many cells have been processed in splitting
 		this._totalCellsToSplitEstimate = 0; // Estimate for total cells that will be split
 
-		this._serializedTriangles = null; // Added to store serialized triangle data
+		this._serializedTriangles = null; // Stores serialized triangle data for quick re-saving
 	}
 
 	addTriangle( triangle ) {
@@ -147,23 +149,17 @@ class OctreeV2 {
 
 	}
 
-	// This is the new iterative split method, replacing the old recursive 'split'
 	_splitIterative( level, onComplete ) {
-		const trianglesPerLeaf = 8; // Hardcoded from original example, can be a class property
-		const maxLevel = 16; // Hardcoded from original example, can be a class property
+		const trianglesPerLeaf = 8;
+		const maxLevel = 16;
 
-		const processBatchSize = 100; // Number of cells to process per animation frame
+		const processBatchSize = 100;
 
-		// If this is the initial call to _splitIterative (level 0), ensure the root is in the queue
 		if (level === 0 && this._splitQueue.length === 0 && this.triangles.length > trianglesPerLeaf) {
 			this._splitQueue.push({ octree: this, level: 0 });
-			// Estimate total cells to split. This is a rough heuristic.
-			// A deeper tree means more cells. A simple estimate is (total triangles / triangles per leaf) * 2 or 3.
 			this._totalCellsToSplitEstimate = Math.ceil(this._totalTriangleCount / trianglesPerLeaf) * 2;
-			if (this._totalCellsToSplitEstimate === 0) this._totalCellsToSplitEstimate = 1; // Avoid division by zero
+			if (this._totalCellsToSplitEstimate === 0) this._totalCellsToSplitEstimate = 1;
 		} else if (this.triangles.length <= trianglesPerLeaf || level >= maxLevel) {
-			// If this specific octree instance doesn't need splitting, and it's not the root initiating,
-			// just complete. This handles cases where a child cell might be pushed but then found to be small enough.
 			onComplete();
 			return;
 		}
@@ -172,9 +168,8 @@ class OctreeV2 {
 		const processNextSplitBatch = () => {
 			let processedInBatch = 0;
 			while (this._splitQueue.length > 0 && processedInBatch < processBatchSize) {
-				const { octree, level } = this._splitQueue.shift(); // Get the next cell to process
+				const { octree, level } = this._splitQueue.shift();
 
-				// Only split if it still needs splitting (e.g., if triangles haven't been moved by a parent's split)
 				if (octree.triangles.length > trianglesPerLeaf && level < maxLevel) {
 
 					const subTrees = [];
@@ -187,16 +182,12 @@ class OctreeV2 {
 								const v = _v1.set( x, y, z );
 								box.min.copy( octree.box.min ).add( v.multiply( halfsize ) );
 								box.max.copy( box.min ).add( halfsize );
-								// --- IMPORTANT: Ensure you're creating OctreeV2 instances here ---
 								subTrees.push( new OctreeV2( box ) );
-								// --- END IMPORTANT ---
 							}
 						}
 					}
 
 					let triangle;
-					// Move triangles from the current octree instance to its new sub-trees
-					// Use splice to empty the current octree's triangles array
 					const trianglesToRedistribute = octree.triangles.splice(0);
 
 					while ( triangle = trianglesToRedistribute.pop() ) {
@@ -211,7 +202,6 @@ class OctreeV2 {
 						const len = subTrees[ i ].triangles.length;
 
 						if ( len > trianglesPerLeaf && level <= maxLevel ) {
-							// Push to queue for further splitting in future batches
 							this._splitQueue.push({ octree: subTrees[i], level: level + 1 });
 						}
 
@@ -232,15 +222,13 @@ class OctreeV2 {
 			}
 
 			if (this._splitQueue.length > 0) {
-				requestAnimationFrame(processNextSplitBatch); // Schedule next batch
+				requestAnimationFrame(processNextSplitBatch);
 			} else {
-				// All cells have been processed and split
-				this._onProgressCallback({ loaded: 1, total: 1 }); // Ensure final 100%
+				this._onProgressCallback({ loaded: 1, total: 1 });
 				if (onComplete) onComplete();
 			}
 		};
 
-		// Start the batched processing
 		requestAnimationFrame(processNextSplitBatch);
 	}
 
@@ -252,23 +240,18 @@ class OctreeV2 {
 	 * @return {Promise<Octree>} A promise that resolves to this Octree when building is complete.
 	 */
 	build( onProgress = () => {} ) {
-		this._onProgressCallback = onProgress; // Store the callback
-		// _totalTriangleCount is already set by fromGraphNode
-		this._cellsProcessedForSplit = 0; // Reset for this build cycle
-		this._splitQueue = []; // Clear queue from previous runs
+		this._onProgressCallback = onProgress;
+		this._cellsProcessedForSplit = 0;
+		this._splitQueue = [];
 
-		this.calcBox(); // This is synchronous and calculates the overall bounding box
+		this.calcBox();
 
-		// If no triangles, or already handled by fromGraphNode's initial check
 		if (this.triangles.length === 0 && this.subTrees.length === 0) {
 			onProgress({ loaded: 1, total: 1 });
 			return Promise.resolve(this);
 		}
 
 		return new Promise(resolve => {
-			// Start the iterative splitting process.
-			// The _splitIterative method will manage its own requestAnimationFrame loop
-			// and call the resolve callback when it's truly done.
 			this._splitIterative(0, () => {
 				resolve(this);
 			});
@@ -338,8 +321,6 @@ class OctreeV2 {
 
 			const line2 = _line2.set( lines[ i ][ 0 ], lines[ i ][ 1 ] );
 
-			// This line was calling a non-existent method.
-			// Replaced with the correct `lineToLineClosestPoints` helper function.
 			lineToLineClosestPoints( line1, line2, _point1, _point2 );
 
 			if ( _point1.distanceToSquared( _point2 ) < r2 ) {
@@ -563,104 +544,111 @@ class OctreeV2 {
 		group.updateWorldMatrix( true, true );
 
 		let totalMeshTriangles = 0;
+		const trianglesToCollect = []; // Collect triangles here first
+
 		group.traverse( ( obj ) => {
 			if ( obj.isMesh === true ) {
 				const geometry = obj.geometry;
 				const positionAttribute = geometry.getAttribute( 'position' );
 				if (positionAttribute) {
 					totalMeshTriangles += (geometry.index ? geometry.index.count : positionAttribute.count) / 3;
-				}
-			}
-		});
 
-		this._totalTriangleCount = totalMeshTriangles; // Set the total expected triangles
-		this._totalTrianglesAdded = 0; // Reset for this build cycle
-		this._onProgressCallback = onProgress; // Store the callback for internal use
-		this._splitQueue = [];
-		this._cellsProcessedForSplit = 0;
-		this._totalCellsToSplitEstimate = 0; // Reset estimate
+					let currentGeometry, isTemp = false;
 
-		const trianglesToAddQueue = []; // Store triangles to add in a queue
+					if ( geometry.index !== null ) {
+						isTemp = true;
+						currentGeometry = geometry.toNonIndexed();
+					} else {
+						currentGeometry = geometry;
+					}
 
-		group.traverse( ( obj ) => {
+					const currentPositionAttribute = currentGeometry.getAttribute( 'position' );
+					const objMatrixWorld = obj.matrixWorld;
 
-			if ( obj.isMesh === true ) {
+					for ( let i = 0; i < currentPositionAttribute.count; i += 3 ) {
+						const v1 = new Vector3().fromBufferAttribute( currentPositionAttribute, i );
+						const v2 = new Vector3().fromBufferAttribute( currentPositionAttribute, i + 1 );
+						const v3 = new Vector3().fromBufferAttribute( currentPositionAttribute, i + 2 );
 
-				let geometry, isTemp = false;
+						v1.applyMatrix4( objMatrixWorld );
+						v2.applyMatrix4( objMatrixWorld );
+						v3.applyMatrix4( objMatrixWorld );
 
-				if ( obj.geometry.index !== null ) {
+						trianglesToCollect.push(new Triangle( v1, v2, v3 ));
+					}
 
-					isTemp = true;
-					geometry = obj.geometry.toNonIndexed();
-
-				} else {
-
-					geometry = obj.geometry;
-
-				}
-
-				const positionAttribute = geometry.getAttribute( 'position' );
-
-				for ( let i = 0; i < positionAttribute.count; i += 3 ) {
-
-					const v1 = new Vector3().fromBufferAttribute( positionAttribute, i );
-					const v2 = new Vector3().fromBufferAttribute( positionAttribute, i + 1 );
-					const v3 = new Vector3().fromBufferAttribute( positionAttribute, i + 2 );
-
-					v1.applyMatrix4( obj.matrixWorld );
-					v2.applyMatrix4( obj.matrixWorld );
-					v3.applyMatrix4( obj.matrixWorld );
-
-					trianglesToAddQueue.push(new Triangle( v1, v2, v3 ));
-
-				}
-
-				if ( isTemp ) {
-
-					geometry.dispose();
-
-				}
-
-			}
-
-		} );
-
-        // Store the triangles that will be added, for later serialization
-        this._serializedTriangles = this._serializeTriangles(trianglesToAddQueue);
-
-
-		// Now, process trianglesToAddQueue in batches to report progress
-		const triangleAddBatchSize = 1000; // Process 1000 triangles per frame
-		let trianglesAddedInCurrentPhase = 0; // Tracks triangles added in this specific phase
-
-		return new Promise(resolve => {
-			const processAddTrianglesBatch = () => {
-				let processedInBatch = 0;
-				while(trianglesToAddQueue.length > 0 && processedInBatch < triangleAddBatchSize) {
-					this.addTriangle(trianglesToAddQueue.shift()); // This increments _totalTrianglesAdded
-					processedInBatch++;
-					trianglesAddedInCurrentPhase++;
-
-					// Update progress for the 'addTriangle' phase
-					const progress = (trianglesAddedInCurrentPhase / this._totalTriangleCount) * this._addPhaseWeight;
-					if (this._onProgressCallback) {
-						this._onProgressCallback({ loaded: progress, total: 1 });
+					if ( isTemp ) {
+						currentGeometry.dispose();
 					}
 				}
-
-				if (trianglesToAddQueue.length > 0) {
-					requestAnimationFrame(processAddTrianglesBatch);
-				} else {
-					// All triangles have been added. Now start the build (split) phase.
-					this.build(this._onProgressCallback).then(() => { // Pass the stored callback to build()
-						resolve(this); // Resolve fromGraphNode's promise when build is complete
-					});
-				}
-			};
-
-			requestAnimationFrame(processAddTrianglesBatch);
+			}
 		});
+
+        // Store the collected triangles for potential serialization
+        this._serializedTriangles = this._serializeTriangles(trianglesToCollect);
+
+        // Now, process and build from the collected triangles
+        return this._processAndBuildFromSerializedData(this._serializedTriangles, onProgress);
 	}
+
+    /**
+     * Internal method to process serialized triangle data and rebuild the octree.
+     * This is used by fromGraphNode, loadFromLocalStorage, and loadFromFile.
+     * @param {number[][]} serializedData - The array of serialized triangle data.
+     * @param {function({loaded: number, total: number}):void} [onProgress] - Callback for progress updates.
+     * @returns {Promise<OctreeV2>} A promise that resolves to this Octree when building is complete.
+     */
+    _processAndBuildFromSerializedData(serializedData, onProgress = () => {}) {
+        this.clear(); // Clear existing data
+
+        if (!serializedData || serializedData.length === 0) {
+            onProgress({ loaded: 1, total: 1 });
+            return Promise.resolve(this);
+        }
+
+        const deserializedTriangles = this._deserializeTriangles(serializedData);
+
+        this._totalTriangleCount = deserializedTriangles.length;
+        this._totalTrianglesAdded = 0;
+        this._onProgressCallback = onProgress;
+        this._cellsProcessedForSplit = 0;
+        this._totalCellsToSplitEstimate = Math.ceil(this._totalTriangleCount / 8) * 2;
+        if (this._totalCellsToSplitEstimate === 0) this._totalCellsToSplitEstimate = 1;
+
+
+        const triangleAddBatchSize = 1000;
+        let trianglesAddedInCurrentPhase = 0;
+        const trianglesToProcessQueue = [...deserializedTriangles];
+
+        return new Promise(resolve => {
+            const processAddTrianglesBatch = () => {
+                let processedInBatch = 0;
+                while(trianglesToProcessQueue.length > 0 && processedInBatch < triangleAddBatchSize) {
+                    this.addTriangle(trianglesToProcessQueue.shift());
+                    processedInBatch++;
+                    trianglesAddedInCurrentPhase++;
+
+                    // Update progress for the 'addTriangle' phase
+                    const progress = (trianglesAddedInCurrentPhase / this._totalTriangleCount) * this._addPhaseWeight;
+                    if (this._onProgressCallback) {
+                        this._onProgressCallback({ loaded: progress, total: 1 });
+                    }
+                }
+
+                if (trianglesToProcessQueue.length > 0) {
+                    requestAnimationFrame(processAddTrianglesBatch);
+                } else {
+                    // All triangles have been added. Now start the build (split) phase.
+                    this.build(this._onProgressCallback).then(() => {
+                        resolve(this);
+                    });
+                }
+            };
+
+            requestAnimationFrame(processAddTrianglesBatch);
+        });
+    }
+
 
     /**
      * Serializes an array of THREE.Triangle objects into a JSON-compatible format.
@@ -706,12 +694,20 @@ class OctreeV2 {
      */
     saveToLocalStorage(key) {
         if (!this._serializedTriangles) {
-            console.warn("Octree has not been built from a graph node yet. Cannot save. Call fromGraphNode first.");
+            console.warn("Octree has not been built/loaded with serialized data. Cannot save to local storage.");
             return false;
         }
         try {
-            const data = JSON.stringify(this._serializedTriangles);
-            localStorage.setItem(key, data);
+            // Check if data is too large for localStorage first
+            const dataString = JSON.stringify(this._serializedTriangles);
+            // localStorage usually has a 5MB limit. This is a rough estimate.
+            // A more robust check would involve trying a small item first.
+            if (dataString.length > 4 * 1024 * 1024) { // Roughly 4MB
+                console.warn(`Serialized Octree data size (${(dataString.length / (1024 * 1024)).toFixed(2)} MB) might exceed localStorage quota (typically 5MB). Consider using IndexedDB or a pre-built file.`);
+                // We still try to save, but warn. The QuotaExceededError will still occur if it's too big.
+            }
+
+            localStorage.setItem(key, dataString);
             console.log(`Octree data saved to local storage under key: ${key}`);
             return true;
         } catch (e) {
@@ -734,79 +730,129 @@ class OctreeV2 {
             try {
                 const data = localStorage.getItem(key);
                 if (!data) {
-                    console.log(`No Octree data found in local storage for key: ${key}`);
+                    // console.log(`No Octree data found in local storage for key: ${key}`);
                     resolve(null);
                     return;
                 }
 
                 const serializedTriangles = JSON.parse(data);
                 if (!serializedTriangles || serializedTriangles.length === 0) {
-                    console.warn(`Empty or invalid Octree data found for key: ${key}`);
+                    console.warn(`Empty or invalid Octree data found for key: ${key}. Clearing.`);
                     localStorage.removeItem(key); // Clear invalid data
                     resolve(null);
                     return;
                 }
 
-                // Deserialized triangles directly
-                const deserializedTriangles = this._deserializeTriangles(serializedTriangles);
-
-                // --- Rebuild the Octree using deserialized triangles ---
-                this.clear(); // Clear existing octree data
-
-                // Set internal state for progress tracking during the rebuild
-                this._totalTriangleCount = deserializedTriangles.length;
-                this._totalTrianglesAdded = 0;
-                this._onProgressCallback = onProgress;
-                this._splitQueue = [];
-                this._cellsProcessedForSplit = 0;
-                this._totalCellsToSplitEstimate = Math.ceil(this._totalTriangleCount / 8) * 2; // Re-estimate based on loaded triangles
-                if (this._totalCellsToSplitEstimate === 0) this._totalCellsToSplitEstimate = 1;
-
-
-                // Process deserialized triangles in batches, similar to fromGraphNode's add phase
-                const triangleAddBatchSize = 1000;
-                let trianglesAddedInCurrentPhase = 0;
-                const trianglesToLoadQueue = [...deserializedTriangles]; // Copy to a mutable queue
-
-                const processLoadTrianglesBatch = () => {
-                    let processedInBatch = 0;
-                    while(trianglesToLoadQueue.length > 0 && processedInBatch < triangleAddBatchSize) {
-                        this.addTriangle(trianglesToLoadQueue.shift());
-                        processedInBatch++;
-                        trianglesAddedInCurrentPhase++;
-
-                        const progress = (trianglesAddedInCurrentPhase / this._totalTriangleCount) * this._addPhaseWeight;
-                        if (this._onProgressCallback) {
-                            this._onProgressCallback({ loaded: progress, total: 1 });
-                        }
-                    }
-
-                    if (trianglesToLoadQueue.length > 0) {
-                        requestAnimationFrame(processLoadTrianglesBatch);
-                    } else {
-                        // All triangles added, now build (split)
-                        this.build(this._onProgressCallback)
-                            .then(() => {
-                                console.log(`Octree successfully rebuilt from local storage for key: ${key}`);
-                                // Store the serialized triangles back, just in case save is called again without fromGraphNode
-                                this._serializedTriangles = serializedTriangles;
-                                resolve(this); // Resolve the promise with the rebuilt octree
-                            })
-                            .catch(buildError => {
-                                console.error(`Error rebuilding Octree from local storage for key ${key}:`, buildError);
-                                localStorage.removeItem(key); // Clear potentially corrupted data
-                                resolve(null); // Resolve with null on rebuild error
-                            });
-                    }
-                };
-
-                requestAnimationFrame(processLoadTrianglesBatch);
+                this._serializedTriangles = serializedTriangles; // Store for future save calls
+                this._processAndBuildFromSerializedData(serializedTriangles, onProgress)
+                    .then(() => {
+                        console.log(`Octree successfully rebuilt from local storage for key: ${key}`);
+                        resolve(this);
+                    })
+                    .catch(buildError => {
+                        console.error(`Error rebuilding Octree from local storage for key ${key}:`, buildError);
+                        localStorage.removeItem(key);
+                        resolve(null);
+                    });
 
             } catch (e) {
                 console.error(`Failed to load Octree from local storage for key ${key}:`, e);
-                localStorage.removeItem(key); // Clear potentially corrupted data
-                resolve(null); // Resolve with null on load/parse error
+                localStorage.removeItem(key);
+                resolve(null);
             }
+        });
+    }
+
+    /**
+     * Loads serialized triangle data from a remote file (JSON) and rebuilds the Octree.
+     * @param {string} url - The URL to the pre-built Octree JSON data file.
+     * @param {function({loaded: number, total: number})} onProgress Callback for progress updates during rebuild.
+     * @returns {Promise<OctreeV2|null>} A promise that resolves to the current OctreeV2 instance if successful,
+     * or null if an error occurred.
+     */
+    async loadFromFile(url, onProgress = () => {}) {
+        try {
+            console.log(`Fetching Octree data from file: ${url}`);
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const serializedTriangles = await response.json();
+
+            if (!serializedTriangles || serializedTriangles.length === 0) {
+                console.warn(`Empty or invalid Octree data found in file: ${url}`);
+                return null;
+            }
+
+            this._serializedTriangles = serializedTriangles; // Store for potential re-saving
+            return this._processAndBuildFromSerializedData(serializedTriangles, onProgress)
+                .then(() => {
+                    console.log(`Octree successfully rebuilt from file: ${url}`);
+                    return this;
+                })
+                .catch(buildError => {
+                    console.error(`Error rebuilding Octree from file ${url}:`, buildError);
+                    return null;
+                });
+
+        } catch (e) {
+            console.error(`Failed to load Octree from file ${url}:`, e);
+            return null;
+        }
+    }
+
+    /**
+     * Static utility method to generate serialized Octree data from a Three.js Object3D group.
+     * This is useful for pre-building Octree data during a development or build process.
+     * You would call this in a separate script or in your browser's console after a model loads.
+     * The result can then be saved to a .json file.
+     *
+     * @param {Object3D} group - The Three.js Object3D (e.g., GLTF scene) to extract triangles from.
+     * @returns {Promise<number[][]>} A promise that resolves with the serialized triangle data.
+     */
+    static async generateSerializedOctreeData(group) {
+        return new Promise(resolve => {
+            group.updateWorldMatrix(true, true); // Ensure world matrices are up to date
+
+            const trianglesToCollect = [];
+
+            group.traverse( ( obj ) => {
+                if ( obj.isMesh === true ) {
+                    let geometry, isTemp = false;
+
+                    // Ensure geometry is non-indexed for direct vertex access
+                    if ( obj.geometry.index !== null ) {
+                        isTemp = true;
+                        geometry = obj.geometry.toNonIndexed();
+                    } else {
+                        geometry = obj.geometry;
+                    }
+
+                    const positionAttribute = geometry.getAttribute( 'position' );
+                    const objMatrixWorld = obj.matrixWorld;
+
+                    for ( let i = 0; i < positionAttribute.count; i += 3 ) {
+                        const v1 = new Vector3().fromBufferAttribute( positionAttribute, i );
+                        const v2 = new Vector3().fromBufferAttribute( positionAttribute, i + 1 );
+                        const v3 = new Vector3().fromBufferAttribute( positionAttribute, i + 2 );
+
+                        v1.applyMatrix4( objMatrixWorld );
+                        v2.applyMatrix4( objMatrixWorld );
+                        v3.applyMatrix4( objMatrixWorld );
+
+                        trianglesToCollect.push(new Triangle( v1, v2, v3 ));
+                    }
+
+                    if ( isTemp ) {
+                        geometry.dispose();
+                    }
+                }
+            });
+
+            const tempOctree = new OctreeV2(); // Use a temporary instance to access _serializeTriangles
+            const serializedData = tempOctree._serializeTriangles(trianglesToCollect);
+            console.log(`Generated serialized data for ${trianglesToCollect.length} triangles.`);
+            resolve(serializedData);
         });
     }
 
@@ -825,7 +871,7 @@ class OctreeV2 {
 		this._splitQueue = [];
 		this._cellsProcessedForSplit = 0;
 		this._totalCellsToSplitEstimate = 0;
-        this._serializedTriangles = null; // Clear serialized data
+        this._serializedTriangles = null; // Clear cached serialized data
 
 		return this;
 
