@@ -174,7 +174,7 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
             }
 
             // Initialize game UI (if not already done) and start the game
-            const gameWrapper = document.getElementById('game-wrapper');
+            const gameWrapper = document.getElementById('game-container');
             if (gameWrapper) {
                 // Ensure createGameUI is only called once if it creates permanent elements
                 // If it appends to gameWrapper, it's fine to call it here.
@@ -185,7 +185,7 @@ export function initMenuUI() { // No longer needs startGameCallback, toggleDetai
                
                 console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
             } else {
-                console.error("game-wrapper element not found in index.html! Make sure your game elements are present.");
+                console.error("game-container element not found in index.html! Make sure your game elements are present.");
             }
         });
     });
@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // This block would typically handle game.html, but since we're no longer redirecting,
         // it might not be strictly necessary if index.html is the only entry point.
         // However, keeping it for robustness if game.html could still be accessed directly.
-        const gameWrapper = document.getElementById('game-wrapper');
+        const gameWrapper = document.getElementById('game-container');
         if (gameWrapper) {
             createGameUI(gameWrapper);
 
@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 startGame(username, "defaultMap", localStorage.getItem("detailsEnabled") === "true");
             }
         } else {
-            console.error("game-wrapper element not found!");
+            console.error("game-container element not found!");
         }
     }
 });
