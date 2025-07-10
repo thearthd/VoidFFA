@@ -27,7 +27,7 @@ function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
             currentAudio = new Audio(src);
             currentAudio.volume = volume;
             currentAudio.addEventListener('ended', scheduleNext);
-            currentAudio.play().catch(() => { }).then(scheduleNext).catch(() => { });
+            currentAudio.play().catch(console.error).then(scheduleNext).catch(console.error); // Added catch for play().then()
         },
         stop() {
             clearTimeout(timerId);
@@ -41,6 +41,42 @@ function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
         }
     };
 }
+
+// --- NEW HELPER FUNCTION FOR DOWNLOADING JSON ---
+/**
+ * Initiates a file download of JSON data in the browser.
+ * @param {Object} data - The JavaScript object to be stringified and downloaded.
+ * @param {string} filename - The name of the file to download (e.g., 'octree_data.json').
+ */
+function downloadJSON(data, filename) {
+    if (!data) {
+        console.error("No data provided for download.");
+        return;
+    }
+    try {
+        // This is the point where the RangeError might still occur if the 'data' object
+        // itself is too large to be stringified into a single JavaScript string in memory.
+        const jsonString = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url); // Clean up the URL object
+
+        console.log(`Octree data download initiated for ${filename}`);
+    } catch (e) {
+        console.error("Error preparing Octree data for download:", e);
+        if (e instanceof RangeError && e.message.includes("Invalid string length")) {
+            console.error("The Octree data is too large to stringify into a single JavaScript string. Consider optimizing your Octree's data, or explore streaming/binary serialization if saving this large of data is critical.");
+        }
+    }
+}
+// --- END NEW HELPER FUNCTION ---
 
 const PLAYER_MASS = 70;
 const STAND_HEIGHT = 2.2;
@@ -56,8 +92,6 @@ const FOOT_DISABLED_THRESHOLD = 0.2; // Keep as is, or slightly increase if foot
 const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10; // New constant for maximum horizontal speed
-
-// STEPS_PER_FRAME has been removed
 
 // Vector helpers to avoid re-allocations
 const _vector1 = new THREE.Vector3();
@@ -80,7 +114,7 @@ export class PhysicsController {
         this.playerOnFloor = false;
         this.isGrounded = false; // More descriptive, often used for general ground checks
 
-        this.worldOctree = new OctreeV2();
+        this.worldOctree = new OctreeV2(); // Ensure this is OctreeV2
 
         this.mouseTime = 0;
 
@@ -100,17 +134,19 @@ export class PhysicsController {
         this.footIndex = 0;
         this.footAcc = 0;
         this.baseFootInterval = 3;
-        this.landAudio = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
+        this.landAudio = new Audio("https://codehs.com/uploads/600ab769d99d74647db5468b19761f");
         this.landAudio.volume = 0.8; // Set volume
         this.fallStartY = null;
         this.prevGround = false;
         this.jumpTriggered = false; // ADDED: Flag to track if the last airborne state was due to a jump
+        this.fallStartTimer = null; // ADDED: To manage delay for fallStartY
 
         this.speedModifier = 0;
         this.isAim = false;
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
-this.fallDelay = 300;
+        this.fallDelay = 300; // Half a second in milliseconds
+
         // Debugging Helpers (Optional, but highly recommended for collision issues)
         // Uncomment these to visualize the Octree and Player Capsule
         // this.octreeHelper = new OctreeHelper(this.worldOctree);
@@ -122,7 +158,14 @@ this.fallDelay = 300;
         // this.scene.add(this.debugCapsuleMesh);
     }
 
-buildOctree(group, onProgress = () => {}) { // Added async for better clarity with Promise
+    /**
+     * Builds the Octree from a Three.js group of meshes.
+     * This method now triggers a download of the Octree data after successful build.
+     * @param {THREE.Group} group - The Three.js group containing meshes to build the Octree from.
+     * @param {Function} onProgress - Callback function for build progress updates ({loaded, total}).
+     * @returns {Promise<OctreeV2>} A promise that resolves with the built OctreeV2 instance.
+     */
+    buildOctree(group, onProgress = () => {}) {
         return new Promise((resolve, reject) => {
             if (!group) {
                 console.warn("Attempted to build Octree with no group provided.");
@@ -144,7 +187,7 @@ buildOctree(group, onProgress = () => {}) { // Added async for better clarity wi
             if (this.worldOctree) {
                 this.worldOctree.clear();
             } else {
-                this.worldOctree = new OctreeV2(); // Use OctreeV2 here
+                this.worldOctree = new OctreeV2();
             }
 
             this.worldOctree.fromGraphNode(group, ({ loaded, total }) => {
@@ -152,39 +195,39 @@ buildOctree(group, onProgress = () => {}) { // Added async for better clarity wi
             }).then(() => {
                 console.log("Octree built successfully.");
                 
-                // --- NEW: Log Octree data to console ---
+                // --- MODIFIED: Call downloadJSON instead of console.log ---
                 try {
-                    const octreeData = this.worldOctree.toJSON();
-                    const jsonString = JSON.stringify(octreeData, null, 2); // Pretty print JSON
-                    console.log("--- Octree Data Start ---");
-                    console.log(jsonString);
-                    console.log("--- Octree Data End ---");
-                    
-                    // You can also add a helper function to download it directly
-                    // if you're running this in a browser environment.
-                    // If running in Node.js, you'd write to a file system.
-                    // For browser:
-                    // const blob = new Blob([jsonString], { type: 'application/json' });
-                    // const url = URL.createObjectURL(blob);
-                    // const a = document.createElement('a');
-                    // a.href = url;
-                    // a.download = 'octree_data.json';
-                    // document.body.appendChild(a);
-                    // a.click();
-                    // document.body.removeChild(a);
-                    // URL.revokeObjectURL(url);
-
+                    const octreeData = this.worldOctree.toJSON(); // Get the serializable plain JS object
+                    console.log("Octree object prepared for serialization. Initiating download...");
+                    downloadJSON(octreeData, 'world_octree.json'); // Trigger the download
                 } catch (e) {
-                    console.error("Error serializing Octree data:", e);
+                    console.error("Error getting Octree data for serialization (likely toJSON issue):", e);
                 }
-                // --- END NEW ---
+                // --- END MODIFIED ---
 
-                resolve();
+                resolve(this.worldOctree); // Resolve with the built octree instance
             }).catch(err => {
                 console.error("Error building Octree:", err);
                 reject(err);
             });
         });
+    }
+
+    /**
+     * Loads Octree data from a JSON string.
+     * @param {string} jsonString - The JSON string representing the Octree data.
+     * @returns {OctreeV2 | null} The reconstructed OctreeV2 instance, or null if an error occurs.
+     */
+    loadOctreeFromJson(jsonString) {
+        try {
+            const octreeData = JSON.parse(jsonString);
+            this.worldOctree = OctreeV2.fromJSON(octreeData);
+            console.log("Octree loaded from JSON successfully.");
+            return this.worldOctree;
+        } catch (e) {
+            console.error("Error loading Octree from JSON:", e);
+            return null;
+        }
     }
 
     setSpeedModifier(value) {
@@ -315,7 +358,7 @@ buildOctree(group, onProgress = () => {}) { // Added async for better clarity wi
 
         // Crouch/Stand height transition
         const wantCrouch = input.crouch && this.isGrounded;
-        const wantSlow = input.slow && this.isGrounded && !wantCrouch;
+        const wantSlow = input.slow && this.isGrounded && !wantCrouch; // `wantSlow` is not directly used for height, but kept from original logic
 
         this.targetHeight = wantCrouch ? CROUCH_HEIGHT : STAND_HEIGHT;
 
@@ -327,14 +370,14 @@ buildOctree(group, onProgress = () => {}) { // Added async for better clarity wi
 
         // If your debug capsule mesh is active, update its scale/position here
         // if (this.debugCapsuleMesh) {
-        //    // Adjust geometry size for debug mesh (CapsuleGeometry takes radius, length)
-        //    // Length of the cylinder part = total height - 2 * radius
-        //    const capsuleLength = Math.max(0, this.currentHeight - 2 * COLLIDER_RADIUS);
-        //    this.debugCapsuleMesh.geometry.dispose(); // Dispose old geometry
-        //    this.debugCapsuleMesh.geometry = new THREE.CapsuleGeometry(COLLIDER_RADIUS, capsuleLength, 10, 20);
-        //    // Position the mesh based on the collider's bottom point (start.y)
-        //    this.debugCapsuleMesh.position.copy(this.playerCollider.start);
-        //    this.debugCapsuleMesh.position.y += (COLLIDER_RADIUS + capsuleLength / 2); // Center the mesh on the capsule axis
+        //  // Adjust geometry size for debug mesh (CapsuleGeometry takes radius, length)
+        //  // Length of the cylinder part = total height - 2 * radius
+        //  const capsuleLength = Math.max(0, this.currentHeight - 2 * COLLIDER_RADIUS);
+        //  this.debugCapsuleMesh.geometry.dispose(); // Dispose old geometry
+        //  this.debugCapsuleMesh.geometry = new THREE.CapsuleGeometry(COLLIDER_RADIUS, capsuleLength, 10, 20);
+        //  // Position the mesh based on the collider's bottom point (start.y)
+        //  this.debugCapsuleMesh.position.copy(this.playerCollider.start);
+        //  this.debugCapsuleMesh.position.y += (COLLIDER_RADIUS + capsuleLength / 2); // Center the mesh on the capsule axis
         // }
     }
 
@@ -347,6 +390,8 @@ buildOctree(group, onProgress = () => {}) { // Added async for better clarity wi
             this.isGrounded = false;
             this.jumpTriggered = false; // Reset jump flag on teleport
             this.fallStartY = null; // Reset fall start Y on teleport
+            clearTimeout(this.fallStartTimer); // Clear any pending fall start timer
+            this.fallStartTimer = null;
         }
     }
 
@@ -366,6 +411,8 @@ buildOctree(group, onProgress = () => {}) { // Added async for better clarity wi
         this.isGrounded = false;
         this.jumpTriggered = false; // Reset jump flag on setting position
         this.fallStartY = null; // Reset fall start Y on setting position
+        clearTimeout(this.fallStartTimer); // Clear any pending fall start timer
+        this.fallStartTimer = null;
 
         // Update camera position to match the new player collider position.
         // Camera eye level is typically slightly above the capsule's start.y.
@@ -378,12 +425,10 @@ buildOctree(group, onProgress = () => {}) { // Added async for better clarity wi
 
     update(deltaTime, input) {
         deltaTime = Math.min(0.05, deltaTime); // Cap deltaTime to prevent "explosions"
-        // stepDt is no longer needed since STEPS_PER_FRAME is removed
 
         this.prevGround = this.isGrounded; // Store previous ground state
 
         const currentSpeedXZ = Math.sqrt(this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z);
-
 
         if (currentSpeedXZ > FOOT_DISABLED_THRESHOLD && this.isGrounded && !input.slow && !input.crouch) {
             const interval = this.baseFootInterval / currentSpeedXZ;
@@ -399,38 +444,46 @@ buildOctree(group, onProgress = () => {}) { // Added async for better clarity wi
         } else if (this.isGrounded && currentSpeedXZ <= FOOT_DISABLED_THRESHOLD) {
             this.footAcc = 0; // Reset footstep accumulator when stopped
         }
-        // console.log(speedFrac);
+
         // Now calling controls and updatePlayer once per frame with deltaTime
         this.controls(deltaTime, input);
         this.updatePlayer(deltaTime);
         this.teleportIfOob();
 
-        // Landing sound logic // Half a second in milliseconds
+        // Landing sound logic
+        if (!this.prevGround && this.isGrounded) {
+            // Player just landed.
+            // Check if falling distance was significant before playing land sound
+            const fallDistance = this.fallStartY !== null ? (this.fallStartY - this.camera.position.y) : 0;
+            
+            // Play land sound if it was a significant fall OR if it was a jump and then a land
+            if (fallDistance > 1 || (this.jumpTriggered && fallDistance > 0.1)) { // Adjusted fallDistance check for jump land
+                this.landAudio.currentTime = 0;
+                this.landAudio.play().catch(() => { });
+                sendSoundEvent("landingThud", "land", this._pos());
+            }
+            this.fallStartY = null; // Reset fall start Y
+            this.jumpTriggered = false; // Reset jump flag after landing
+            // Clear any pending fall start timer if we land
+            if (this.fallStartTimer) {
+                clearTimeout(this.fallStartTimer);
+                this.fallStartTimer = null;
+            }
+        } else if (!this.isGrounded && this.fallStartY === null && !this.jumpTriggered) {
+            // If not grounded and fallStartY hasn't been set yet, AND we didn't just jump,
+            // start a timer to set it after the delay. This prevents setting fallStartY immediately after a jump.
+            if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
+                this.fallStartTimer = setTimeout(() => {
+                    this.fallStartY = this.camera.position.y; // Set fallStartY after delay
+                    this.fallStartTimer = null; // Reset the timer ID
+                }, this.fallDelay);
+            }
+        } else if (this.isGrounded && this.fallStartTimer) {
+            // If we somehow became grounded while a fallStartTimer was active, clear it.
+            clearTimeout(this.fallStartTimer);
+            this.fallStartTimer = null;
+        }
 
-if (!this.prevGround && this.isGrounded) {
-    // Check if falling distance was significant before playing land sound
-    if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
-        this.landAudio.currentTime = 0;
-        this.landAudio.play().catch(() => { });
-        sendSoundEvent("landingThud", "land", this._pos());
-    }
-    this.fallStartY = null; // Reset fall start Y
-    // Clear any pending fall start timer if we land
-    if (this.fallStartTimer) {
-        clearTimeout(this.fallStartTimer);
-        this.fallStartTimer = null;
-    }
-} else if (!this.isGrounded && this.fallStartY === null) {
-    // If not grounded and fallStartY hasn't been set yet,
-    // start a timer to set it after the delay.
-    if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
-        this.fallStartTimer = setTimeout(() => {
-            this.fallStartY = this.camera.position.y; // Set fallStartY after delay
-          //  console.log("fallStartY set after delay:", this.fallStartY);
-            this.fallStartTimer = null; // Reset the timer ID
-        }, this.fallDelay);
-    }
-}
 
         // Set camera position relative to the capsule's current height and position
         this.camera.position.x = this.playerCollider.start.x;
@@ -439,8 +492,8 @@ if (!this.prevGround && this.isGrounded) {
 
         // Update debug capsule mesh position if active
         // if (this.debugCapsuleMesh) {
-        //    this.debugCapsuleMesh.position.copy(this.playerCollider.start);
-        //    this.debugCapsuleMesh.position.y += (this.currentHeight / 2);
+        //  this.debugCapsuleMesh.position.copy(this.playerCollider.start);
+        //  this.debugCapsuleMesh.position.y += (this.currentHeight / 2);
         // }
 
 
