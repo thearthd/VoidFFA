@@ -541,14 +541,14 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
     detailsEnabled = initialDetailsEnabled;
     
     initGlobalFogAndShadowParams();
-
+    console.log("starting2");
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
     document.body.classList.add("game-active");
     document.getElementById("game-container").style.display = "block";
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
-
+console.log("starting3");
     // Call initGameNetwork which now only calls network.initNetwork
     await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
 
@@ -565,7 +565,7 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
         return;
     }
     
-    
+    console.log("starting4");
 
     
     window.physicsController = new PhysicsController(window.camera, scene);
@@ -580,7 +580,7 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
         physicsController
     );
     window.weaponController = weaponController; // Expose globally if needed
-    
+        console.log("starting5");
     // --- CONDITIONAL SCENE INITIALIZATION BASED ON MAPNAME ---
     if (mapName === "CrocodilosConstruction") {
         await initSceneCrocodilosConstruction();
@@ -589,13 +589,13 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
     } else {
         console.warn(`Unknown mapName: ${mapName}. Skipping specific scene initialization.`);
     }
-
+        console.log("starting6");
     initInput();
     initChatUI();
     initBulletHoles(); // Now correctly initialized and listening via network.js/ui.js events
     initializeAudioManager(window.camera, scene);
     startSoundListener();
-    
+            console.log("starting7");
     // Get a spawn point
     const spawn = findFurthestSpawn();
 
