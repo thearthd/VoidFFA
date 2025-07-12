@@ -1,7 +1,11 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
+// Make sure this path is correct for your local OctreeV2.js file
 import { OctreeV2 } from './OctreeV2.js';
-import { Capsule } from 'three/examples/jsm/math/Capsule.js';
-import { Octree } from 'three/examples/jsm/math/Octree.js';
+// Updated path for direct browser use
+import { Capsule } from 'https://unpkg.com/three@0.152.0/examples/jsm/math/Capsule.js';
+// Removing this import as you are now using OctreeV2 exclusively
+// import { Octree } from 'three/examples/jsm/math/Octree.js';
+
 // Uncomment for debugging:
 // import { OctreeHelper } from 'three/examples/jsm/helpers/OctreeHelper.js';
 
@@ -57,8 +61,6 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10; // New constant for maximum horizontal speed
 
-// STEPS_PER_FRAME has been removed
-
 // Vector helpers to avoid re-allocations
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
@@ -80,7 +82,8 @@ export class PhysicsController {
         this.playerOnFloor = false;
         this.isGrounded = false; // More descriptive, often used for general ground checks
 
-        this.worldOctree = new OctreeV2();
+        // Initialize worldOctree as null, it will be loaded or built later
+        this.worldOctree = null; 
 
         this.mouseTime = 0;
 
@@ -110,20 +113,77 @@ export class PhysicsController {
         this.isAim = false;
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
-this.fallDelay = 300;
+        this.fallDelay = 300;
+        
         // Debugging Helpers (Optional, but highly recommended for collision issues)
-        // Uncomment these to visualize the Octree and Player Capsule
-        // this.octreeHelper = new OctreeHelper(this.worldOctree);
-        // this.scene.add(this.octreeHelper);
-
-        // const capsuleGeometry = new THREE.CapsuleGeometry(COLLIDER_RADIUS, STAND_HEIGHT - 2 * COLLIDER_RADIUS, 10, 20);
-        // const capsuleMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.5 });
-        // this.debugCapsuleMesh = new THREE.Mesh(capsuleGeometry, capsuleMaterial);
-        // this.scene.add(this.debugCapsuleMesh);
+        // This will be added after the octree is built/loaded
+        this.octreeHelper = null; 
+        this.debugCapsuleMesh = null;
     }
 
-    buildOctree(group, onProgress = () => {}) {
+    // New method to load the Octree from localStorage
+    async loadOctree(onProgress = () => {}) {
         return new Promise((resolve, reject) => {
+            console.log("Attempting to load Octree from localStorage...");
+            const savedOctreeString = localStorage.getItem('gameOctreeMap'); // Using a specific key
+            if (savedOctreeString) {
+                try {
+                    const octreeData = JSON.parse(savedOctreeString);
+                    this.worldOctree = OctreeV2.fromJSON(octreeData);
+                    console.log("Octree loaded successfully from localStorage!");
+                    onProgress({ loaded: 1, total: 1 }); // Report 100% completion
+                    this.updateOctreeHelper(); // Update helper if debugging
+                    resolve();
+                } catch (e) {
+                    console.error("Error parsing or loading Octree from localStorage:", e);
+                    reject(e); // Reject if there's an error in parsing
+                }
+            } else {
+                console.log("No saved Octree found in localStorage.");
+                onProgress({ loaded: 0, total: 1 }); // Report 0% if no saved data
+                resolve(); // Resolve, but indicate no data was loaded
+            }
+        });
+    }
+
+    // New method to save the Octree to localStorage
+    saveOctree() {
+        if (!this.worldOctree) {
+            console.warn("No Octree to save.");
+            return;
+        }
+        try {
+            const octreeData = this.worldOctree.toJSON();
+            const jsonString = JSON.stringify(octreeData);
+            localStorage.setItem('gameOctreeMap', jsonString); // Using a specific key
+            console.log("Octree saved to localStorage!");
+        } catch (e) {
+            console.error("Error saving Octree to localStorage:", e);
+        }
+    }
+
+    // Helper to update or add the OctreeHelper for debugging
+    updateOctreeHelper() {
+        // You'll need access to your THREE.Scene object here.
+        // Assuming 'this.scene' is your THREE.Scene instance.
+        if (this.octreeHelper) {
+            this.scene.remove(this.octreeHelper);
+            this.octreeHelper.dispose();
+        }
+        // Only add if the octree exists and you want debugging
+        if (this.worldOctree && typeof THREE.OctreeHelper !== 'undefined') {
+             // You'll need to import OctreeHelper at the top:
+             // import { OctreeHelper } from 'three/examples/jsm/helpers/OctreeHelper.js';
+             // and pass 'THREE' to the constructor as it's the global namespace for Three.js
+            this.octreeHelper = new THREE.OctreeHelper(this.worldOctree); // Removed color, using default for simplicity
+            this.scene.add(this.octreeHelper);
+            console.log("OctreeHelper added/updated in scene.");
+        }
+    }
+
+
+    async buildOctree(group, onProgress = () => {}) {
+        return new Promise(async (resolve, reject) => { // Made the callback async
             if (!group) {
                 console.warn("Attempted to build Octree with no group provided.");
                 onProgress({ loaded: 1, total: 1 }); // Immediately report 100% if no group
@@ -133,7 +193,6 @@ this.fallDelay = 300;
 
             console.log("Starting Octree build from group geometry...");
 
-            // --- DEBUG LOG: Check mesh count ---
             let meshCount = 0;
             group.traverse((obj) => {
                 if (obj.isMesh) {
@@ -141,40 +200,26 @@ this.fallDelay = 300;
                 }
             });
             console.log(`DEBUG: Group passed to Octree contains ${meshCount} meshes.`);
-            // --- END DEBUG LOG ---
 
-
-            // Clear any existing Octree data to ensure a fresh build
-            if (this.worldOctree) {
-                this.worldOctree.clear();
+            // Ensure worldOctree is an OctreeV2 instance before calling fromGraphNode
+            if (!this.worldOctree || !(this.worldOctree instanceof OctreeV2)) {
+                this.worldOctree = new OctreeV2(); // Create a new instance if null or wrong type
             } else {
-                this.worldOctree = new Octree();
+                this.worldOctree.clear(); // Clear existing data if it's already an OctreeV2
             }
 
-            // Call fromGraphNode on the Octree instance.
-            // This modified method now accepts the progress callback and returns a Promise.
-            this.worldOctree.fromGraphNode(group, ({ loaded, total }) => {
-                // Pass the progress event directly to the external onProgress callback
-                onProgress({ loaded, total });
-            }).then(() => {
+            try {
+                // Call fromGraphNode on the Octree instance.
+                await this.worldOctree.fromGraphNode(group, ({ loaded, total }) => {
+                    onProgress({ loaded, total });
+                });
                 console.log("Octree built successfully.");
-
-                // Optional: Add/Update OctreeHelper for visualization
-                // You'll need access to your THREE.Scene object here if you uncomment this.
-                // Example:
-                // if (this.octreeHelper) {
-                //    scene.remove(this.octreeHelper);
-                //    this.octreeHelper.dispose();
-                // }
-                // this.octreeHelper = new OctreeHelper(this.worldOctree, 0xff0000);
-                // scene.add(this.octreeHelper);
-                // console.log("OctreeHelper added to scene.");
-
-                resolve(); // Resolve the promise when Octree reports completion
-            }).catch(err => {
+                this.updateOctreeHelper(); // Update helper after build
+                resolve();
+            } catch (err) {
                 console.error("Error building Octree:", err);
                 reject(err);
-            });
+            }
         });
     }
 
@@ -183,6 +228,12 @@ this.fallDelay = 300;
     }
 
     playerCollisions() {
+        // Ensure worldOctree is initialized before attempting collision
+        if (!this.worldOctree) {
+            // console.warn("worldOctree not initialized. Skipping player collisions.");
+            return;
+        }
+
         const result = this.worldOctree.capsuleIntersect(this.playerCollider);
 
         // Reset each frame
@@ -369,7 +420,6 @@ this.fallDelay = 300;
 
     update(deltaTime, input) {
         deltaTime = Math.min(0.05, deltaTime); // Cap deltaTime to prevent "explosions"
-        // stepDt is no longer needed since STEPS_PER_FRAME is removed
 
         this.prevGround = this.isGrounded; // Store previous ground state
 
@@ -398,30 +448,31 @@ this.fallDelay = 300;
 
         // Landing sound logic // Half a second in milliseconds
 
-if (!this.prevGround && this.isGrounded) {
-    // Check if falling distance was significant before playing land sound
-    if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
-        this.landAudio.currentTime = 0;
-        this.landAudio.play().catch(() => { });
-        sendSoundEvent("landingThud", "land", this._pos());
-    }
-    this.fallStartY = null; // Reset fall start Y
-    // Clear any pending fall start timer if we land
-    if (this.fallStartTimer) {
-        clearTimeout(this.fallStartTimer);
-        this.fallStartTimer = null;
-    }
-} else if (!this.isGrounded && this.fallStartY === null) {
-    // If not grounded and fallStartY hasn't been set yet,
-    // start a timer to set it after the delay.
-    if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
-        this.fallStartTimer = setTimeout(() => {
-            this.fallStartY = this.camera.position.y; // Set fallStartY after delay
-          //  console.log("fallStartY set after delay:", this.fallStartY);
-            this.fallStartTimer = null; // Reset the timer ID
-        }, this.fallDelay);
-    }
-}
+        if (!this.prevGround && this.isGrounded) {
+            // Check if falling distance was significant before playing land sound
+            if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
+                this.landAudio.currentTime = 0;
+                this.landAudio.play().catch(() => { });
+                sendSoundEvent("landingThud", "land", this._pos());
+            }
+            this.fallStartY = null; // Reset fall start Y
+            this.jumpTriggered = false; // Reset jump flag after landing
+            // Clear any pending fall start timer if we land
+            if (this.fallStartTimer) {
+                clearTimeout(this.fallStartTimer);
+                this.fallStartTimer = null;
+            }
+        } else if (!this.isGrounded && this.fallStartY === null && !this.jumpTriggered) { // Only set fallStartY if not jumped
+            // If not grounded and fallStartY hasn't been set yet,
+            // start a timer to set it after the delay.
+            if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
+                this.fallStartTimer = setTimeout(() => {
+                    this.fallStartY = this.camera.position.y; // Set fallStartY after delay
+                    this.fallStartTimer = null; // Reset the timer ID
+                }, this.fallDelay);
+            }
+        }
+
 
         // Set camera position relative to the capsule's current height and position
         this.camera.position.x = this.playerCollider.start.x;
