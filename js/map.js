@@ -7,9 +7,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
     computeBoundsTree,
     disposeBoundsTree,
-    acceleratedRaycast,
-    serializeBoundsTree,   // <--- Added for saving
-    deserializeBoundsTree  // <--- Added for loading
+    acceleratedRaycast
+    // Removed: serializeBoundsTree, deserializeBoundsTree
 } from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
 
 // ─── BVH Setup ────────────────────────────────────────────────────────────
@@ -182,23 +181,22 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         console.log('Found cached octree for CrocodilosConstruction. Attempting to load...');
         octreePromise = Promise.resolve().then(() => {
             try {
-                // Convert base64 string back to ArrayBuffer, then to DataView
+                // Convert base64 string back to ArrayBuffer
                 const binaryString = atob(cachedOctreeData);
                 const len = binaryString.length;
                 const bytes = new Uint8Array(len);
                 for (let i = 0; i < len; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
-                const dataView = new DataView(bytes.buffer);
+                const arrayBuffer = bytes.buffer; // This is the ArrayBuffer that MeshBVH.deserialize expects
 
                 // Attempt to deserialize and apply to main environment mesh (or all meshes)
-                // Assuming physicsController.loadOctree will handle applying it to relevant geometries
-                // or you're building a single combined BVH within physicsController.
-                const success = physicsController.loadOctree(dataView); // This method should load the BVH into physicsController.octree
+                const success = physicsController.loadOctree(arrayBuffer); // physicsController.loadOctree now expects an ArrayBuffer
                 if (success) {
                     onOctreeProgress({ loaded: 1, total: 1 }); // Indicate 100% progress
                     console.log('✔️ Octree loaded from cache for CrocodilosConstruction.');
-                    return physicsController.octree; // Return the loaded octree or a success indicator
+                    // The physicsController.octree (or .mapBVH) is now updated internally
+                    return physicsController.getBVH(); // Return the loaded BVH object
                 } else {
                     console.warn('Failed to load octree from cache. Rebuilding for CrocodilosConstruction...');
                     // Fallback to building if loading fails
@@ -239,11 +237,12 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     await Promise.all([mapLoadPromise, octreePromise]);
 
     // Save the octree after it's built (if it wasn't loaded from cache)
+    // IMPORTANT: Make sure physicsController.saveOctree() returns an ArrayBuffer
     if (!cachedOctreeData) {
         const serializedOctree = physicsController.saveOctree();
         if (serializedOctree) {
             // Convert ArrayBuffer to Base64 string for localStorage
-            const base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(serializedOctree.buffer)));
+            const base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(serializedOctree)));
             localStorage.setItem(OCTREE_CACHE_KEY, base64String);
             console.log('✔️ Octree saved to cache for CrocodilosConstruction.');
         }
@@ -355,24 +354,21 @@ export async function createSigmaCity(scene, physicsController) {
         console.log('Found cached octree for SigmaCity. Attempting to load...');
         octreePromise = Promise.resolve().then(() => {
             try {
-                // Convert base64 string back to ArrayBuffer, then to DataView
                 const binaryString = atob(cachedOctreeData);
                 const len = binaryString.length;
                 const bytes = new Uint8Array(len);
                 for (let i = 0; i < len; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
-                const dataView = new DataView(bytes.buffer);
+                const arrayBuffer = bytes.buffer; // This is the ArrayBuffer that MeshBVH.deserialize expects
 
-                // Attempt to deserialize and apply to main environment mesh (or all meshes)
-                const success = physicsController.loadOctree(dataView); // This method should load the BVH into physicsController.octree
+                const success = physicsController.loadOctree(arrayBuffer); // physicsController.loadOctree now expects an ArrayBuffer
                 if (success) {
-                    onOctreeProgress({ loaded: 1, total: 1 }); // Indicate 100% progress
+                    onOctreeProgress({ loaded: 1, total: 1 });
                     console.log('✔️ Octree loaded from cache for SigmaCity.');
-                    return physicsController.octree; // Return the loaded octree or a success indicator
+                    return physicsController.getBVH(); // Return the loaded BVH object
                 } else {
                     console.warn('Failed to load octree from cache. Rebuilding for SigmaCity...');
-                    // Fallback to building if loading fails
                     return mapLoadPromise.then(group => {
                         return physicsController.buildOctree(group, (evt) => {
                             onOctreeProgress(evt);
@@ -382,7 +378,6 @@ export async function createSigmaCity(scene, physicsController) {
             } catch (e) {
                 console.error('Error processing cached octree data for SigmaCity:', e);
                 console.warn('Rebuilding octree due to cache error for SigmaCity...');
-                // Fallback to building if there's an error with cached data
                 return mapLoadPromise.then(group => {
                     return physicsController.buildOctree(group, (evt) => {
                         onOctreeProgress(evt);
@@ -409,10 +404,11 @@ export async function createSigmaCity(scene, physicsController) {
     await Promise.all([mapLoadPromise, octreePromise]);
 
     // Save the octree after it's built (if it wasn't loaded from cache)
+    // IMPORTANT: Make sure physicsController.saveOctree() returns an ArrayBuffer
     if (!cachedOctreeData) {
         const serializedOctree = physicsController.saveOctree();
         if (serializedOctree) {
-            const base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(serializedOctree.buffer)));
+            const base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(serializedOctree)));
             localStorage.setItem(OCTREE_CACHE_KEY, base64String);
             console.log('✔️ Octree saved to cache for SigmaCity.');
         }
