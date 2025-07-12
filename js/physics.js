@@ -1,13 +1,13 @@
+// physics.js (Updated to use OctreeV2's toJSON and fromJSON)
+
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 // Make sure this path is correct for your local OctreeV2.js file
 import { OctreeV2 } from './OctreeV2.js';
 // Updated path for direct browser use
 import { Capsule } from 'https://unpkg.com/three@0.152.0/examples/jsm/math/Capsule.js';
-// Removing this import as you are now using OctreeV2 exclusively
-// import { Octree } from 'three/examples/jsm/math/Octree.js';
 
 // Uncomment for debugging:
-// import { OctreeHelper } from 'three/examples/jsm/helpers/OctreeHelper.js';
+import { OctreeHelper } from 'three/examples/jsm/helpers/OctreeHelper.js'; // Ensure you import this if using it
 
 import { sendSoundEvent } from "./network.js";
 
@@ -121,61 +121,55 @@ export class PhysicsController {
         this.debugCapsuleMesh = null;
     }
 
-    // New method to load the Octree from localStorage
-    async loadOctree(onProgress = () => {}) {
+    // --- REVISED: Load Octree (No longer from localStorage, but prepared for file loading) ---
+    async loadOctree(octreeData, onProgress = () => {}) {
         return new Promise((resolve, reject) => {
-            console.log("Attempting to load Octree from localStorage...");
-            const savedOctreeString = localStorage.getItem('gameOctreeMap'); // Using a specific key
-            if (savedOctreeString) {
-                try {
-                    const octreeData = JSON.parse(savedOctreeString);
-                    this.worldOctree = OctreeV2.fromJSON(octreeData);
-                    console.log("Octree loaded successfully from localStorage!");
-                    onProgress({ loaded: 1, total: 1 }); // Report 100% completion
-                    this.updateOctreeHelper(); // Update helper if debugging
-                    resolve();
-                } catch (e) {
-                    console.error("Error parsing or loading Octree from localStorage:", e);
-                    reject(e); // Reject if there's an error in parsing
-                }
-            } else {
-                console.log("No saved Octree found in localStorage.");
-                onProgress({ loaded: 0, total: 1 }); // Report 0% if no saved data
-                resolve(); // Resolve, but indicate no data was loaded
+            if (!octreeData) {
+                console.warn("No Octree data provided to load.");
+                onProgress({ loaded: 0, total: 1 });
+                resolve(false); // Indicate failure to load due to no data
+                return;
+            }
+
+            console.log("Attempting to load Octree from provided data...");
+            try {
+                this.worldOctree = OctreeV2.fromJSON(octreeData);
+                console.log("Octree loaded successfully from provided data!");
+                onProgress({ loaded: 1, total: 1 }); // Report 100% completion
+                this.updateOctreeHelper(); // Update helper if debugging
+                resolve(true); // Indicate successful load
+            } catch (e) {
+                console.error("Error parsing or loading Octree from data:", e);
+                reject(e); // Reject if there's an error in parsing
             }
         });
     }
 
-    // New method to save the Octree to localStorage
+    // --- REVISED: Save Octree (Returns JSON object, not ArrayBuffer) ---
     saveOctree() {
         if (!this.worldOctree) {
             console.warn("No Octree to save.");
-            return;
+            return null;
         }
         try {
-            const octreeData = this.worldOctree.toJSON();
-            const jsonString = JSON.stringify(octreeData);
-            localStorage.setItem('gameOctreeMap', jsonString); // Using a specific key
-            console.log("Octree saved to localStorage!");
+            const octreeData = this.worldOctree.toJSON(); // Returns a plain JS object
+            console.log("Octree data extracted for saving.");
+            return octreeData; // Return the JavaScript object
         } catch (e) {
-            console.error("Error saving Octree to localStorage:", e);
+            console.error("Error extracting Octree data:", e);
+            return null;
         }
     }
 
     // Helper to update or add the OctreeHelper for debugging
     updateOctreeHelper() {
-        // You'll need access to your THREE.Scene object here.
-        // Assuming 'this.scene' is your THREE.Scene instance.
         if (this.octreeHelper) {
             this.scene.remove(this.octreeHelper);
             this.octreeHelper.dispose();
         }
         // Only add if the octree exists and you want debugging
-        if (this.worldOctree && typeof THREE.OctreeHelper !== 'undefined') {
-             // You'll need to import OctreeHelper at the top:
-             // import { OctreeHelper } from 'three/examples/jsm/helpers/OctreeHelper.js';
-             // and pass 'THREE' to the constructor as it's the global namespace for Three.js
-            this.octreeHelper = new THREE.OctreeHelper(this.worldOctree); // Removed color, using default for simplicity
+        if (this.worldOctree && typeof OctreeHelper !== 'undefined') { // Check for imported OctreeHelper
+            this.octreeHelper = new OctreeHelper(this.worldOctree);
             this.scene.add(this.octreeHelper);
             console.log("OctreeHelper added/updated in scene.");
         }
@@ -215,7 +209,7 @@ export class PhysicsController {
                 });
                 console.log("Octree built successfully.");
                 this.updateOctreeHelper(); // Update helper after build
-                resolve();
+                resolve(this.worldOctree); // Resolve with the built octree
             } catch (err) {
                 console.error("Error building Octree:", err);
                 reject(err);
@@ -369,14 +363,14 @@ export class PhysicsController {
 
         // If your debug capsule mesh is active, update its scale/position here
         // if (this.debugCapsuleMesh) {
-        //    // Adjust geometry size for debug mesh (CapsuleGeometry takes radius, length)
-        //    // Length of the cylinder part = total height - 2 * radius
-        //    const capsuleLength = Math.max(0, this.currentHeight - 2 * COLLIDER_RADIUS);
-        //    this.debugCapsuleMesh.geometry.dispose(); // Dispose old geometry
-        //    this.debugCapsuleMesh.geometry = new THREE.CapsuleGeometry(COLLIDER_RADIUS, capsuleLength, 10, 20);
-        //    // Position the mesh based on the collider's bottom point (start.y)
-        //    this.debugCapsuleMesh.position.copy(this.playerCollider.start);
-        //    this.debugCapsuleMesh.position.y += (COLLIDER_RADIUS + capsuleLength / 2); // Center the mesh on the capsule axis
+        //     // Adjust geometry size for debug mesh (CapsuleGeometry takes radius, length)
+        //     // Length of the cylinder part = total height - 2 * radius
+        //     const capsuleLength = Math.max(0, this.currentHeight - 2 * COLLIDER_RADIUS);
+        //     this.debugCapsuleMesh.geometry.dispose(); // Dispose old geometry
+        //     this.debugCapsuleMesh.geometry = new THREE.CapsuleGeometry(COLLIDER_RADIUS, capsuleLength, 10, 20);
+        //     // Position the mesh based on the collider's bottom point (start.y)
+        //     this.debugCapsuleMesh.position.copy(this.playerCollider.start);
+        //     this.debugCapsuleMesh.position.y += (COLLIDER_RADIUS + capsuleLength / 2); // Center the mesh on the capsule axis
         // }
     }
 
@@ -481,8 +475,8 @@ export class PhysicsController {
 
         // Update debug capsule mesh position if active
         // if (this.debugCapsuleMesh) {
-        //    this.debugCapsuleMesh.position.copy(this.playerCollider.start);
-        //    this.debugCapsuleMesh.position.y += (this.currentHeight / 2);
+        //     this.debugCapsuleMesh.position.copy(this.playerCollider.start);
+        //     this.debugCapsuleMesh.position.y += (this.currentHeight / 2);
         // }
 
 
