@@ -417,7 +417,7 @@ export async function createSigmaCity(scene, physicsController) {
     // For development, uncomment to generate the file once.
     // For deployment, comment this out after you have your hosted .json file.
     //
-     if (!OCTREE_FILE_URL || OCTREE_FILE_URL === 'path/to/your/uploaded/sigma_city_octree.json') {
+   //  if (!OCTREE_FILE_URL || OCTREE_FILE_URL === 'path/to/your/uploaded/sigma_city_octree.json') {
          const octreeData = physicsController.saveOctree(); // This now returns a JS object
          if (octreeData) {
              const jsonString = JSON.stringify(octreeData);
@@ -433,7 +433,7 @@ export async function createSigmaCity(scene, physicsController) {
              console.log('✔️ Octree (JSON) downloaded as sigma_city_octree.json');
              console.warn('Upload this file to your preferred hosting/storage solution and update OCTREE_FILE_URL!');
          }
-     }
+  //   }
 
     // when fully done
     loaderUI.onComplete(() => {
