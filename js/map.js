@@ -1,4 +1,4 @@
-// js/map.js (Updated for Octree Saving/Loading)
+// js/map.js (Updated for downloading BVH data)
 
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
@@ -122,7 +122,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
 
     // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb';
-    const OCTREE_CACHE_KEY = 'crocodilos_construction_octree_data'; // Unique key for this map's octree cache
+    // No OCTREE_CACHE_KEY for localStorage anymore, as we're downloading/uploading
 
     // 1) Load the GLB into the scene, wiring up a progress callback
     let gltfGroup = null; // Declare gltfGroup here
@@ -171,62 +171,19 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build or load the octree
+    // 2) Once GLB is added, build the octree
     let onOctreeProgress = () => {};
     let octreePromise;
 
-    const cachedOctreeData = localStorage.getItem(OCTREE_CACHE_KEY);
-
-    if (cachedOctreeData) {
-        console.log('Found cached octree for CrocodilosConstruction. Attempting to load...');
-        octreePromise = Promise.resolve().then(() => {
-            try {
-                // Convert base64 string back to ArrayBuffer
-                const binaryString = atob(cachedOctreeData);
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                const arrayBuffer = bytes.buffer; // This is the ArrayBuffer that MeshBVH.deserialize expects
-
-                // Attempt to deserialize and apply to main environment mesh (or all meshes)
-                const success = physicsController.loadOctree(arrayBuffer); // physicsController.loadOctree now expects an ArrayBuffer
-                if (success) {
-                    onOctreeProgress({ loaded: 1, total: 1 }); // Indicate 100% progress
-                    console.log('✔️ Octree loaded from cache for CrocodilosConstruction.');
-                    // The physicsController.octree (or .mapBVH) is now updated internally
-                    return physicsController.getBVH(); // Return the loaded BVH object
-                } else {
-                    console.warn('Failed to load octree from cache. Rebuilding for CrocodilosConstruction...');
-                    // Fallback to building if loading fails
-                    return mapLoadPromise.then(group => {
-                        return physicsController.buildOctree(group, (evt) => {
-                            onOctreeProgress(evt);
-                        });
-                    });
-                }
-            } catch (e) {
-                console.error('Error processing cached octree data for CrocodilosConstruction:', e);
-                console.warn('Rebuilding octree due to cache error for CrocodilosConstruction...');
-                // Fallback to building if there's an error with cached data
-                return mapLoadPromise.then(group => {
-                    return physicsController.buildOctree(group, (evt) => {
-                        onOctreeProgress(evt);
-                    });
-                });
-            }
+    // --- NEW LOGIC: Instead of loading from localStorage, we assume a manual file load ---
+    // For initial development/testing, you might still want to trigger a build
+    // For production, you'd likely fetch the BVH file from a known URL
+    console.log('Building new octree for CrocodilosConstruction (will allow saving to file)...');
+    octreePromise = mapLoadPromise.then(group => {
+        return physicsController.buildOctree(group, (evt) => {
+            onOctreeProgress(evt);
         });
-
-    } else {
-        console.log('No cached octree found for CrocodilosConstruction. Building new octree...');
-        octreePromise = mapLoadPromise.then(group => {
-            // physicsController.buildOctree now returns a promise and takes the progress callback
-            return physicsController.buildOctree(group, (evt) => {
-                onOctreeProgress(evt);
-            });
-        });
-    }
+    });
 
     // track octree build at 10%, with live percent updates
     loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
@@ -236,16 +193,20 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     // wait for both loading steps
     await Promise.all([mapLoadPromise, octreePromise]);
 
-    // Save the octree after it's built (if it wasn't loaded from cache)
-    // IMPORTANT: Make sure physicsController.saveOctree() returns an ArrayBuffer
-    if (!cachedOctreeData) {
-        const serializedOctree = physicsController.saveOctree();
-        if (serializedOctree) {
-            // Convert ArrayBuffer to Base64 string for localStorage
-            const base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(serializedOctree)));
-            localStorage.setItem(OCTREE_CACHE_KEY, base64String);
-            console.log('✔️ Octree saved to cache for CrocodilosConstruction.');
-        }
+    // --- NEW: Trigger a download of the built octree after it's ready ---
+    const serializedOctree = physicsController.saveOctree(); // This should return an ArrayBuffer
+    if (serializedOctree) {
+        const blob = new Blob([serializedOctree], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'crocodilos_construction_octree.bvh'; // Suggest a filename
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('✔️ Octree (BVH) downloaded as crocodilos_construction_octree.bvh');
+        console.warn('Upload this file to your preferred hosting/storage solution.');
     }
 
 
@@ -294,8 +255,7 @@ export async function createSigmaCity(scene, physicsController) {
 
     // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb';
-    const OCTREE_CACHE_KEY = 'sigma_city_octree_data'; // Unique key for this map's octree cache
-
+    // No OCTREE_CACHE_KEY for localStorage anymore
 
     // 1) Load the GLB into the scene, wiring up a progress callback
     let gltfGroup = null; // Declare gltfGroup here
@@ -344,56 +304,16 @@ export async function createSigmaCity(scene, physicsController) {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build or load the octree
+    // 2) Once GLB is added, build the octree
     let onOctreeProgress = () => {};
     let octreePromise;
 
-    const cachedOctreeData = localStorage.getItem(OCTREE_CACHE_KEY);
-
-    if (cachedOctreeData) {
-        console.log('Found cached octree for SigmaCity. Attempting to load...');
-        octreePromise = Promise.resolve().then(() => {
-            try {
-                const binaryString = atob(cachedOctreeData);
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                const arrayBuffer = bytes.buffer; // This is the ArrayBuffer that MeshBVH.deserialize expects
-
-                const success = physicsController.loadOctree(arrayBuffer); // physicsController.loadOctree now expects an ArrayBuffer
-                if (success) {
-                    onOctreeProgress({ loaded: 1, total: 1 });
-                    console.log('✔️ Octree loaded from cache for SigmaCity.');
-                    return physicsController.getBVH(); // Return the loaded BVH object
-                } else {
-                    console.warn('Failed to load octree from cache. Rebuilding for SigmaCity...');
-                    return mapLoadPromise.then(group => {
-                        return physicsController.buildOctree(group, (evt) => {
-                            onOctreeProgress(evt);
-                        });
-                    });
-                }
-            } catch (e) {
-                console.error('Error processing cached octree data for SigmaCity:', e);
-                console.warn('Rebuilding octree due to cache error for SigmaCity...');
-                return mapLoadPromise.then(group => {
-                    return physicsController.buildOctree(group, (evt) => {
-                        onOctreeProgress(evt);
-                    });
-                });
-            }
+    console.log('Building new octree for SigmaCity (will allow saving to file)...');
+    octreePromise = mapLoadPromise.then(group => {
+        return physicsController.buildOctree(group, (evt) => {
+            onOctreeProgress(evt);
         });
-
-    } else {
-        console.log('No cached octree found for SigmaCity. Building new octree...');
-        octreePromise = mapLoadPromise.then(group => {
-            return physicsController.buildOctree(group, (evt) => {
-                onOctreeProgress(evt);
-            });
-        });
-    }
+    });
 
     // track octree build at 10%, with live percent updates
     loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
@@ -403,15 +323,20 @@ export async function createSigmaCity(scene, physicsController) {
     // wait for both loading steps
     await Promise.all([mapLoadPromise, octreePromise]);
 
-    // Save the octree after it's built (if it wasn't loaded from cache)
-    // IMPORTANT: Make sure physicsController.saveOctree() returns an ArrayBuffer
-    if (!cachedOctreeData) {
-        const serializedOctree = physicsController.saveOctree();
-        if (serializedOctree) {
-            const base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(serializedOctree)));
-            localStorage.setItem(OCTREE_CACHE_KEY, base64String);
-            console.log('✔️ Octree saved to cache for SigmaCity.');
-        }
+    // --- NEW: Trigger a download of the built octree after it's ready ---
+    const serializedOctree = physicsController.saveOctree(); // This should return an ArrayBuffer
+    if (serializedOctree) {
+        const blob = new Blob([serializedOctree], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'sigma_city_octree.bvh'; // Suggest a filename
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('✔️ Octree (BVH) downloaded as sigma_city_octree.bvh');
+        console.warn('Upload this file to your preferred hosting/storage solution.');
     }
 
     // when fully done
