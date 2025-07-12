@@ -170,7 +170,6 @@ export class PhysicsController {
         // Only add if the octree exists and you want debugging
         if (this.worldOctree && typeof OctreeHelper !== 'undefined') { // Check for imported OctreeHelper
             this.octreeHelper = new OctreeHelper(this.worldOctree);
-            this.scene.add(this.octreeHelper);
             console.log("OctreeHelper added/updated in scene.");
         }
     }
