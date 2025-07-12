@@ -1,21 +1,27 @@
-// js/map.js (Updated for downloading BVH data)
+// js/map.js (Updated for downloading OctreeV2 JSON data)
 
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+// We are no longer using three-mesh-bvh for octree functionalities,
+// so remove these specific imports if they're not used elsewhere.
+// If you're using three-mesh-bvh for raycasting on meshes *separate* from your OctreeV2, keep them.
+// Given your physics.js only uses OctreeV2 for collision, it's safer to remove these
+// to avoid confusion or unused imports.
+/*
 import {
     computeBoundsTree,
     disposeBoundsTree,
     acceleratedRaycast
-    // Removed: serializeBoundsTree, deserializeBoundsTree
 } from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
 
 // ─── BVH Setup ────────────────────────────────────────────────────────────
+// If you remove the above imports, you should also remove these lines
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
-
+*/
 
 // ─── Helper: build sequential indices if none present ────────────────────────
 function generateSequentialIndices(vertexCount) {
@@ -122,7 +128,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
 
     // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb';
-    // No OCTREE_CACHE_KEY for localStorage anymore, as we're downloading/uploading
+    const OCTREE_FILE_URL = 'path/to/your/uploaded/crocodilos_construction_octree.json'; // <--- IMPORTANT: Update this path after uploading!
 
     // 1) Load the GLB into the scene, wiring up a progress callback
     let gltfGroup = null; // Declare gltfGroup here
@@ -144,7 +150,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                         if (child.material.map) {
                             child.material.map.anisotropy = 4;
                         }
-                        // Ensure geometry has indices for BVH
+                        // Ensure geometry has indices for BVH (if still using for other raycasting/BVH needs)
                         if (!child.geometry.index) {
                             child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
                         }
@@ -171,21 +177,58 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build the octree
+    // 2) Once GLB is added, build or load the octree
     let onOctreeProgress = () => {};
     let octreePromise;
 
-    // --- NEW LOGIC: Instead of loading from localStorage, we assume a manual file load ---
-    // For initial development/testing, you might still want to trigger a build
-    // For production, you'd likely fetch the BVH file from a known URL
-    console.log('Building new octree for CrocodilosConstruction (will allow saving to file)...');
-    octreePromise = mapLoadPromise.then(group => {
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
+    // --- REVISED: Try to load from file first, then fallback to build ---
+    if (OCTREE_FILE_URL && OCTREE_FILE_URL !== 'path/to/your/uploaded/crocodilos_construction_octree.json') {
+        console.log(`Attempting to load octree for CrocodilosConstruction from ${OCTREE_FILE_URL}...`);
+        octreePromise = fetch(OCTREE_FILE_URL)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json(); // Expecting JSON data
+            })
+            .then(octreeJsonData => {
+                return physicsController.loadOctree(octreeJsonData, (evt) => {
+                    onOctreeProgress(evt);
+                });
+            })
+            .then(success => {
+                if (success) {
+                    console.log('✔️ Octree loaded successfully from file for CrocodilosConstruction.');
+                    return physicsController.worldOctree; // Assuming worldOctree is set in physicsController
+                } else {
+                    console.warn('Failed to load octree from file. Rebuilding for CrocodilosConstruction...');
+                    return mapLoadPromise.then(group => {
+                        return physicsController.buildOctree(group, (evt) => {
+                            onOctreeProgress(evt);
+                        });
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error fetching or loading octree file for CrocodilosConstruction:', error);
+                console.warn('Rebuilding octree due to file load error for CrocodilosConstruction...');
+                return mapLoadPromise.then(group => {
+                    return physicsController.buildOctree(group, (evt) => {
+                        onOctreeProgress(evt);
+                    });
+                });
+            });
+    } else {
+        console.log('No specific octree file URL provided or URL is placeholder. Building new octree...');
+        octreePromise = mapLoadPromise.then(group => {
+            return physicsController.buildOctree(group, (evt) => {
+                onOctreeProgress(evt);
+            });
         });
-    });
+    }
 
-    // track octree build at 10%, with live percent updates
+
+    // track octree build/load at 10%, with live percent updates
     loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
         onOctreeProgress = cb;
     });
@@ -193,21 +236,29 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     // wait for both loading steps
     await Promise.all([mapLoadPromise, octreePromise]);
 
-    // --- NEW: Trigger a download of the built octree after it's ready ---
-    const serializedOctree = physicsController.saveOctree(); // This should return an ArrayBuffer
-    if (serializedOctree) {
-        const blob = new Blob([serializedOctree], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'crocodilos_construction_octree.bvh'; // Suggest a filename
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        console.log('✔️ Octree (BVH) downloaded as crocodilos_construction_octree.bvh');
-        console.warn('Upload this file to your preferred hosting/storage solution.');
-    }
+    // --- REVISED: Trigger a download of the built octree if it was just built ---
+    // This part should only run if you want to generate a new file,
+    // not if you're consistently loading from a hosted URL.
+    // For development, uncomment to generate the file once.
+    // For deployment, comment this out after you have your hosted .json file.
+    //
+    // if (!OCTREE_FILE_URL || OCTREE_FILE_URL === 'path/to/your/uploaded/crocodilos_construction_octree.json') {
+    //     const octreeData = physicsController.saveOctree(); // This now returns a JS object
+    //     if (octreeData) {
+    //         const jsonString = JSON.stringify(octreeData);
+    //         const blob = new Blob([jsonString], { type: 'application/json' });
+    //         const url = URL.createObjectURL(blob);
+    //         const a = document.createElement('a');
+    //         a.href = url;
+    //         a.download = 'crocodilos_construction_octree.json'; // Suggest a JSON filename
+    //         document.body.appendChild(a);
+    //         a.click();
+    //         document.body.removeChild(a);
+    //         URL.revokeObjectURL(url);
+    //         console.log('✔️ Octree (JSON) downloaded as crocodilos_construction_octree.json');
+    //         console.warn('Upload this file to your preferred hosting/storage solution and update OCTREE_FILE_URL!');
+    //     }
+    // }
 
 
     // when fully done
@@ -255,7 +306,7 @@ export async function createSigmaCity(scene, physicsController) {
 
     // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb';
-    // No OCTREE_CACHE_KEY for localStorage anymore
+    const OCTREE_FILE_URL = 'path/to/your/uploaded/sigma_city_octree.json'; // <--- IMPORTANT: Update this path after uploading!
 
     // 1) Load the GLB into the scene, wiring up a progress callback
     let gltfGroup = null; // Declare gltfGroup here
@@ -304,18 +355,57 @@ export async function createSigmaCity(scene, physicsController) {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build the octree
+    // 2) Once GLB is added, build or load the octree
     let onOctreeProgress = () => {};
     let octreePromise;
 
-    console.log('Building new octree for SigmaCity (will allow saving to file)...');
-    octreePromise = mapLoadPromise.then(group => {
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
+    // --- REVISED: Try to load from file first, then fallback to build ---
+    if (OCTREE_FILE_URL && OCTREE_FILE_URL !== 'path/to/your/uploaded/sigma_city_octree.json') {
+        console.log(`Attempting to load octree for SigmaCity from ${OCTREE_FILE_URL}...`);
+        octreePromise = fetch(OCTREE_FILE_URL)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json(); // Expecting JSON data
+            })
+            .then(octreeJsonData => {
+                return physicsController.loadOctree(octreeJsonData, (evt) => {
+                    onOctreeProgress(evt);
+                });
+            })
+            .then(success => {
+                if (success) {
+                    console.log('✔️ Octree loaded successfully from file for SigmaCity.');
+                    return physicsController.worldOctree; // Assuming worldOctree is set in physicsController
+                } else {
+                    console.warn('Failed to load octree from file. Rebuilding for SigmaCity...');
+                    return mapLoadPromise.then(group => {
+                        return physicsController.buildOctree(group, (evt) => {
+                            onOctreeProgress(evt);
+                        });
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error fetching or loading octree file for SigmaCity:', error);
+                console.warn('Rebuilding octree due to file load error for SigmaCity...');
+                return mapLoadPromise.then(group => {
+                    return physicsController.buildOctree(group, (evt) => {
+                        onOctreeProgress(evt);
+                    });
+                });
+            });
+    } else {
+        console.log('No specific octree file URL provided or URL is placeholder. Building new octree...');
+        octreePromise = mapLoadPromise.then(group => {
+            return physicsController.buildOctree(group, (evt) => {
+                onOctreeProgress(evt);
+            });
         });
-    });
+    }
 
-    // track octree build at 10%, with live percent updates
+    // track octree build/load at 10%, with live percent updates
     loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
         onOctreeProgress = cb;
     });
@@ -323,21 +413,27 @@ export async function createSigmaCity(scene, physicsController) {
     // wait for both loading steps
     await Promise.all([mapLoadPromise, octreePromise]);
 
-    // --- NEW: Trigger a download of the built octree after it's ready ---
-    const serializedOctree = physicsController.saveOctree(); // This should return an ArrayBuffer
-    if (serializedOctree) {
-        const blob = new Blob([serializedOctree], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'sigma_city_octree.bvh'; // Suggest a filename
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        console.log('✔️ Octree (BVH) downloaded as sigma_city_octree.bvh');
-        console.warn('Upload this file to your preferred hosting/storage solution.');
-    }
+    // --- REVISED: Trigger a download of the built octree if it was just built ---
+    // For development, uncomment to generate the file once.
+    // For deployment, comment this out after you have your hosted .json file.
+    //
+    // if (!OCTREE_FILE_URL || OCTREE_FILE_URL === 'path/to/your/uploaded/sigma_city_octree.json') {
+    //     const octreeData = physicsController.saveOctree(); // This now returns a JS object
+    //     if (octreeData) {
+    //         const jsonString = JSON.stringify(octreeData);
+    //         const blob = new Blob([jsonString], { type: 'application/json' });
+    //         const url = URL.createObjectURL(blob);
+    //         const a = document.createElement('a');
+    //         a.href = url;
+    //         a.download = 'sigma_city_octree.json'; // Suggest a JSON filename
+    //         document.body.appendChild(a);
+    //         a.click();
+    //         document.body.removeChild(a);
+    //         URL.revokeObjectURL(url);
+    //         console.log('✔️ Octree (JSON) downloaded as sigma_city_octree.json');
+    //         console.warn('Upload this file to your preferred hosting/storage solution and update OCTREE_FILE_URL!');
+    //     }
+    // }
 
     // when fully done
     loaderUI.onComplete(() => {
