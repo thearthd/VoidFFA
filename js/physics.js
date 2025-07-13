@@ -1,8 +1,7 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import { OctreeV2 } from './OctreeV2.js'; // Ensure this path is correct relative to your project
+import { OctreeV2 } from './OctreeV2.js';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
-// Removed the import for the old Octree as it's no longer used
-// import { Octree } from 'three/examples/jsm/math/Octree.js';
+import { Octree } from 'three/examples/jsm/math/Octree.js';
 // Uncomment for debugging:
 // import { OctreeHelper } from 'three/examples/jsm/helpers/OctreeHelper.js';
 
@@ -75,13 +74,13 @@ export class PhysicsController {
             new THREE.Vector3(0, STAND_HEIGHT - COLLIDER_RADIUS, 0),
             COLLIDER_RADIUS
         );
-
+        
         this.playerVelocity = new THREE.Vector3();
         this.playerDirection = new THREE.Vector3();
         this.playerOnFloor = false;
         this.isGrounded = false; // More descriptive, often used for general ground checks
 
-        this.worldOctree = new OctreeV2(); // Initialize with OctreeV2
+        this.worldOctree = new OctreeV2();
 
         this.mouseTime = 0;
 
@@ -111,7 +110,7 @@ export class PhysicsController {
         this.isAim = false;
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
-        this.fallDelay = 300;
+this.fallDelay = 300;
         // Debugging Helpers (Optional, but highly recommended for collision issues)
         // Uncomment these to visualize the Octree and Player Capsule
         // this.octreeHelper = new OctreeHelper(this.worldOctree);
@@ -146,11 +145,10 @@ export class PhysicsController {
 
 
             // Clear any existing Octree data to ensure a fresh build
-            // Ensure worldOctree is always an OctreeV2 instance
-            if (this.worldOctree instanceof OctreeV2) {
+            if (this.worldOctree) {
                 this.worldOctree.clear();
             } else {
-                this.worldOctree = new OctreeV2(); // Re-initialize as OctreeV2 if it somehow got changed
+                this.worldOctree = new Octree();
             }
 
             // Call fromGraphNode on the Octree instance.
@@ -400,30 +398,30 @@ export class PhysicsController {
 
         // Landing sound logic // Half a second in milliseconds
 
-        if (!this.prevGround && this.isGrounded) {
-            // Check if falling distance was significant before playing land sound
-            if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
-                this.landAudio.currentTime = 0;
-                this.landAudio.play().catch(() => { });
-                sendSoundEvent("landingThud", "land", this._pos());
-            }
-            this.fallStartY = null; // Reset fall start Y
-            // Clear any pending fall start timer if we land
-            if (this.fallStartTimer) {
-                clearTimeout(this.fallStartTimer);
-                this.fallStartTimer = null;
-            }
-        } else if (!this.isGrounded && this.fallStartY === null) {
-            // If not grounded and fallStartY hasn't been set yet,
-            // start a timer to set it after the delay.
-            if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
-                this.fallStartTimer = setTimeout(() => {
-                    this.fallStartY = this.camera.position.y; // Set fallStartY after delay
-                    // console.log("fallStartY set after delay:", this.fallStartY);
-                    this.fallStartTimer = null; // Reset the timer ID
-                }, this.fallDelay);
-            }
-        }
+if (!this.prevGround && this.isGrounded) {
+    // Check if falling distance was significant before playing land sound
+    if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
+        this.landAudio.currentTime = 0;
+        this.landAudio.play().catch(() => { });
+        sendSoundEvent("landingThud", "land", this._pos());
+    }
+    this.fallStartY = null; // Reset fall start Y
+    // Clear any pending fall start timer if we land
+    if (this.fallStartTimer) {
+        clearTimeout(this.fallStartTimer);
+        this.fallStartTimer = null;
+    }
+} else if (!this.isGrounded && this.fallStartY === null) {
+    // If not grounded and fallStartY hasn't been set yet,
+    // start a timer to set it after the delay.
+    if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
+        this.fallStartTimer = setTimeout(() => {
+            this.fallStartY = this.camera.position.y; // Set fallStartY after delay
+          //  console.log("fallStartY set after delay:", this.fallStartY);
+            this.fallStartTimer = null; // Reset the timer ID
+        }, this.fallDelay);
+    }
+}
 
         // Set camera position relative to the capsule's current height and position
         this.camera.position.x = this.playerCollider.start.x;
