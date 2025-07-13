@@ -488,6 +488,10 @@ await initSceneSigmaCity();
 console.warn(`Unknown mapName: ${mapName}. Skipping specific scene initialization.`);
 }
 
+const octreeData = physicsController.worldOctree;
+const jsonString = JSON.stringify(octreeData, null, 2); // 'null, 2' for pretty-printing
+console.log(jsonString);
+    
         console.log("starting6");
 initInput();
 initChatUI();
