@@ -1,13 +1,13 @@
 export const SOUND_CONFIG = {
     // Weapon Sounds
     'deagle': {
-        'shot': { volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' },
+        'shot': { volume: 1, hearingRange: 85, rolloffFactor: 2, distanceModel: 'linear' },
         'reloadStart': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'reloadEnd': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'pull': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     'ak-47': {
-        'shot': { volume: 1, hearingRange: 50, rolloffFactor: 2, distanceModel: 'linear' },
+        'shot': { volume: 1, hearingRange: 75, rolloffFactor: 2, distanceModel: 'linear' },
         'reloadStart': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'reloadEnd': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'pull': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
@@ -15,7 +15,7 @@ export const SOUND_CONFIG = {
     'knife': {
         'shot': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'hit': { volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' }, // e.g., hitting another player or surface
-        'pull': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
+        'pull': { volume: 0.15, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     'marshal': { // Assuming 'marshal' is a shotgun/rifle type
         'shot': { volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' },
@@ -30,7 +30,7 @@ export const SOUND_CONFIG = {
         'walk': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     'landingThud': {
-        'land': { volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' }
+        'land': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     // Add more general physics sounds as needed, e.g., 'objectImpact', 'glassBreak'
     'objectImpact': {
