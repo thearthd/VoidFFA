@@ -16,7 +16,7 @@ const preload = src => {
     img.src = src;
 };
 
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('menuCanvas');
 const ctx = canvas.getContext('2d');
 const canvasWidth = canvas.width;
 const canvasHeight = canvas.height;
