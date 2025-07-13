@@ -7,7 +7,7 @@ import {
 	Vector3
 } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 
- import { Capsule } from 'three/examples/jsm/math/Capsule.js';
+ import { Capsule } from 'three/examples/jsm/math/Capsule.js'; 
 
 const _v1 = new Vector3();
 const _v2 = new Vector3();
@@ -166,7 +166,7 @@ class OctreeV2 {
 				const { octree, level } = this._splitQueue.shift(); // Get the next cell to process
 
 				// --- DEBUG LOG: Processing Cell ---
-			//	console.log([Octree Debug] Processing cell: Level ${level}, Triangles: ${octree.triangles.length}, Queue size: ${this._splitQueue.length + 1} (before shift));
+			//	console.log(`[Octree Debug] Processing cell: Level ${level}, Triangles: ${octree.triangles.length}, Queue size: ${this._splitQueue.length + 1} (before shift)`);
 				// --- END DEBUG LOG ---
 
 
@@ -196,7 +196,7 @@ class OctreeV2 {
 					const trianglesToRedistribute = octree.triangles.splice(0);
 
 					// --- DEBUG LOG: Triangles Redistributed ---
-				//	console.log([Octree Debug] Redistributing ${trianglesToRedistribute.length} triangles from current cell.);
+				//	console.log(`[Octree Debug] Redistributing ${trianglesToRedistribute.length} triangles from current cell.`);
 					// --- END DEBUG LOG ---
 
 					while ( triangle = trianglesToRedistribute.pop() ) {
@@ -214,7 +214,7 @@ class OctreeV2 {
 							// Push to queue for further splitting in future batches
 							this._splitQueue.push({ octree: subTrees[i], level: level + 1 });
 							// --- DEBUG LOG: Child Added to Queue ---
-						//	console.log([Octree Debug] Child cell added to queue: Level ${level + 1}, Triangles: ${len}. New queue size: ${this._splitQueue.length});
+						//	console.log(`[Octree Debug] Child cell added to queue: Level ${level + 1}, Triangles: ${len}. New queue size: ${this._splitQueue.length}`);
 							// --- END DEBUG LOG ---
 						}
 
@@ -233,7 +233,7 @@ class OctreeV2 {
 				const overallProgress = this._addPhaseWeight + (currentSplitProgress * this._buildPhaseWeight);
 				this._onProgressCallback({ loaded: overallProgress, total: 1 });
 				// --- DEBUG LOG: Progress Update ---
-				//console.log([Octree Debug] Progress: ${overallProgress.toFixed(4)} (Cells processed: ${this._cellsProcessedForSplit}, Queue: ${this._splitQueue.length}));
+				//console.log(`[Octree Debug] Progress: ${overallProgress.toFixed(4)} (Cells processed: ${this._cellsProcessedForSplit}, Queue: ${this._splitQueue.length})`);
 				// --- END DEBUG LOG ---
 			}
 
@@ -346,7 +346,7 @@ class OctreeV2 {
 			const line2 = _line2.set( lines[ i ][ 0 ], lines[ i ][ 1 ] );
 
 			// This line was calling a non-existent method.
-			// Replaced with the correct lineToLineClosestPoints helper function.
+			// Replaced with the correct `lineToLineClosestPoints` helper function.
 			lineToLineClosestPoints( line1, line2, _point1, _point2 );
 
 			if ( _point1.distanceToSquared( _point2 ) < r2 ) {
@@ -571,7 +571,7 @@ class OctreeV2 {
 
 		let totalMeshTriangles = 0;
 		group.traverse( ( obj ) => {
-			if ( obj.isMesh === true ) { // Removed this.layers.test( obj.layers ) as Layers is not in this version
+			if ( obj.isMesh === true ) { // Removed `this.layers.test( obj.layers )` as Layers is not in this version
 				const geometry = obj.geometry;
 				const positionAttribute = geometry.getAttribute( 'position' );
 				if (positionAttribute) {
@@ -591,7 +591,7 @@ class OctreeV2 {
 
 		group.traverse( ( obj ) => {
 
-			if ( obj.isMesh === true ) { // Removed this.layers.test( obj.layers )
+			if ( obj.isMesh === true ) { // Removed `this.layers.test( obj.layers )`
 
 				let geometry, isTemp = false;
 
@@ -684,36 +684,6 @@ class OctreeV2 {
 
 	}
 
-    /**
-     * Returns a JSON-serializable representation of the OctreeV2 instance.
-     * This method is automatically called by JSON.stringify().
-     * It serializes the structural components (box, triangles, subTrees)
-     * and excludes transient internal state related to the build process.
-     */
-    toJSON() {
-        // Serialize triangles: Each triangle consists of three Vector3 points (a, b, c).
-        // JSON.stringify will automatically serialize the x, y, z properties of Vector3.
-        const serializedTriangles = this.triangles.map(t => ({
-            a: t.a, // Removed .toJSON()
-            b: t.b, // Removed .toJSON()
-            c: t.c  // Removed .toJSON()
-        }));
-
-        // Recursively serialize sub-trees.
-        const serializedSubTrees = this.subTrees.map(st => st.toJSON());
-
-        return {
-            // Box3 properties (min, max) are Vector3s, which JSON.stringify handles directly.
-            box: this.box ? this.box : null, // Removed .toJSON()
-            triangles: serializedTriangles,
-            subTrees: serializedSubTrees
-            // Internal properties like _totalTrianglesAdded, _totalTriangleCount,
-            // _onProgressCallback, _splitQueue, _cellsProcessedForSplit,
-            // and _totalCellsToSplitEstimate are related to the build process
-            // and are not part of the static structure of the octree.
-            // Therefore, they are intentionally excluded from serialization.
-        };
-    }
 }
 
 export { OctreeV2 };
