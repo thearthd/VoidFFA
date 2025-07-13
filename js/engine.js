@@ -238,6 +238,7 @@ class ImageShape extends Shape {
 
 
 function gameLoop() {
+   console.log("test");
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     // sort and draw shapes by layer
