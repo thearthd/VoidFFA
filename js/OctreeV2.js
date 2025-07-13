@@ -7,7 +7,7 @@ import {
 	Vector3
 } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 
-import { Capsule } from 'https://unpkg.com/three@0.152.0/examples/jsm/math/Capsule.js'; // Updated path for direct browser use
+ import { Capsule } from 'three/examples/jsm/math/Capsule.js'; 
 
 const _v1 = new Vector3();
 const _v2 = new Vector3();
@@ -684,81 +684,6 @@ class OctreeV2 {
 
 	}
 
-	/**
-	 * Converts the OctreeV2 instance into a plain JavaScript object suitable for JSON serialization.
-	 * @returns {object} A serializable representation of the Octree.
-	 */
-	toJSON() {
-		const data = {
-			box: this.box ? { // Only include box if it exists
-				min: { x: this.box.min.x, y: this.box.min.y, z: this.box.min.z },
-				max: { x: this.box.max.x, y: this.box.max.y, z: this.box.max.z }
-			} : null,
-			bounds: this.bounds ? { // Include bounds if it exists
-				min: { x: this.bounds.min.x, y: this.bounds.min.y, z: this.bounds.min.z },
-				max: { x: this.bounds.max.x, y: this.bounds.max.y, z: this.bounds.max.z }
-			} : null,
-			triangles: [],
-			subTrees: []
-		};
-
-		// Serialize triangles
-		for (const triangle of this.triangles) {
-			data.triangles.push({
-				a: { x: triangle.a.x, y: triangle.a.y, z: triangle.a.z },
-				b: { x: triangle.b.x, y: triangle.b.y, z: triangle.b.z },
-				c: { x: triangle.c.x, y: triangle.c.c, z: triangle.c.z }
-			});
-		}
-
-		// Recursively serialize sub-trees
-		for (const subTree of this.subTrees) {
-			data.subTrees.push(subTree.toJSON()); // Recursive call
-		}
-
-		return data;
-	}
-
-	/**
-	 * Creates an OctreeV2 instance from a plain JavaScript object (e.g., loaded from JSON).
-	 * @param {object} jsonObj The JSON-parsed object representing the Octree.
-	 * @returns {OctreeV2} A new OctreeV2 instance reconstructed from the data.
-	 */
-	static fromJSON(jsonObj) {
-		const box = jsonObj.box ?
-			new Box3(
-				new Vector3(jsonObj.box.min.x, jsonObj.box.min.y, jsonObj.box.min.z),
-				new Vector3(jsonObj.box.max.x, jsonObj.box.max.y, jsonObj.box.max.z)
-			) : new Box3(); // Default to empty Box3 if no box data
-
-		const octree = new OctreeV2(box);
-
-		// Reconstruct bounds if available, otherwise default to a clone of the box
-		if (jsonObj.bounds) {
-			octree.bounds = new Box3(
-				new Vector3(jsonObj.bounds.min.x, jsonObj.bounds.min.y, jsonObj.bounds.min.z),
-				new Vector3(jsonObj.bounds.max.x, jsonObj.bounds.max.y, jsonObj.bounds.max.z)
-			);
-		} else {
-			octree.bounds = box.clone();
-		}
-
-		// Reconstruct triangles
-		for (const triData of jsonObj.triangles) {
-			octree.triangles.push(new Triangle(
-				new Vector3(triData.a.x, triData.a.y, triData.a.z),
-				new Vector3(triData.b.x, triData.b.y, triData.b.z),
-				new Vector3(triData.c.x, triData.c.y, triData.c.z)
-			));
-		}
-
-		// Recursively reconstruct sub-trees
-		for (const subTreeData of jsonObj.subTrees) {
-			octree.subTrees.push(OctreeV2.fromJSON(subTreeData)); // Recursive call
-		}
-
-		return octree;
-	}
 }
 
 export { OctreeV2 };
