@@ -78,16 +78,12 @@ export class Lantern {
                 lanternGroup.traverse(child => {
                     if (!child.isMesh) return; // Only process meshes
 
-                    // In Three.js 0.152.0, OBJLoader from jsm/loaders should return BufferGeometry.
-                    // The `fromGeometry` method on BufferGeometry is deprecated and removed.
-                    // We only need to ensure an index is present for MeshBVH.
+                    // Ensure BufferGeometry. OBJLoader from jsm/loaders should return BufferGeometry.
+                    // However, if an old THREE.Geometry is encountered, convert it.
                     if (child.geometry && !(child.geometry instanceof THREE.BufferGeometry)) {
-                        console.error('Non-BufferGeometry found for lantern mesh:', child.name, 'This should not happen with modern OBJLoader.');
-                        // If this error occurs, it means OBJLoader is not returning BufferGeometry,
-                        // or an older Geometry object is somehow being used.
-                        // In a real scenario, you might need a more robust conversion here
-                        // if you were dealing with very old Three.js versions or custom loaders.
-                        // For now, we assume modern loaders provide BufferGeometry.
+                        console.warn('Converting non-BufferGeometry to BufferGeometry for BVH:', child.name);
+                        // Correctly call the static method fromGeometry
+                        child.geometry = THREE.BufferGeometry.fromGeometry(child.geometry);
                     }
 
                     // Ensure geometry has an index for BVH, if not, create sequential indices
@@ -201,11 +197,12 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                 // Traverse all children of the loaded model
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
-                        // Ensure it's a BufferGeometry. GLTFLoader typically provides BufferGeometry.
-                        // The `fromGeometry` method is deprecated and removed in modern Three.js.
-                        // If a non-BufferGeometry is found here, it indicates an issue with the loader or model.
+                        // Ensure BufferGeometry. GLTFLoader typically provides BufferGeometry.
+                        // However, if an old THREE.Geometry is encountered, convert it.
                         if (child.geometry && !(child.geometry instanceof THREE.BufferGeometry)) {
-                            console.error('Non-BufferGeometry found for GLB mesh:', child.name, 'This should not happen with modern GLTFLoader.');
+                            console.warn('Converting non-BufferGeometry to BufferGeometry for BVH:', child.name);
+                            // Correctly call the static method fromGeometry
+                            child.geometry = THREE.BufferGeometry.fromGeometry(child.geometry);
                         }
 
                         child.castShadow = true; // Enable shadow casting for the mesh
@@ -327,11 +324,12 @@ export async function createSigmaCity(scene, physicsController) {
                 // Traverse all children of the loaded model
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
-                        // Ensure it's a BufferGeometry. GLTFLoader typically provides BufferGeometry.
-                        // The `fromGeometry` method is deprecated and removed in modern Three.js.
-                        // If a non-BufferGeometry is found here, it indicates an issue with the loader or model.
+                        // Ensure BufferGeometry. GLTFLoader typically provides BufferGeometry.
+                        // However, if an old THREE.Geometry is encountered, convert it.
                         if (child.geometry && !(child.geometry instanceof THREE.BufferGeometry)) {
-                            console.error('Non-BufferGeometry found for GLB mesh:', child.name, 'This should not happen with modern GLTFLoader.');
+                            console.warn('Converting non-BufferGeometry to BufferGeometry for BVH:', child.name);
+                            // Correctly call the static method fromGeometry
+                            child.geometry = THREE.BufferGeometry.fromGeometry(child.geometry);
                         }
                         child.castShadow = true;
                         child.receiveShadow = true;
