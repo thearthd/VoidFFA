@@ -237,7 +237,7 @@ class ImageShape extends Shape {
 }
 
 
-function gameLoop() {
+export function gameLoop() {
    console.log("test");
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
@@ -248,8 +248,6 @@ function gameLoop() {
     }
     requestAnimationFrame(gameLoop);
 }
-
-requestAnimationFrame(gameLoop);
 
 
 function makeButton(shape, onClick) {
