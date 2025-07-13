@@ -1,9 +1,20 @@
+// js/PhysicsController.js (Updated)
+
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import { OctreeV2 } from './OctreeV2.js';
+// import { OctreeV2 } from './OctreeV2.js'; // No longer needed
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
-import { Octree } from 'three/examples/jsm/math/Octree.js';
+// import { Octree } from 'three/examples/jsm/math/Octree.js'; // No longer needed
+
+// Import MeshBVH for collision detection
+import {
+    MeshBVH,
+    acceleratedRaycast, // Already imported in map.js but good for self-contained context
+    computeBoundsTree,
+    disposeBoundsTree
+} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
+
 // Uncomment for debugging:
-// import { OctreeHelper } from 'three/examples/jsm/helpers/OctreeHelper.js';
+// import { BVHVisualizer } from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/build/three-mesh-bvh.module.esm.js'; // For visualizing BVH
 
 import { sendSoundEvent } from "./network.js";
 
@@ -57,8 +68,6 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10; // New constant for maximum horizontal speed
 
-// STEPS_PER_FRAME has been removed
-
 // Vector helpers to avoid re-allocations
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
@@ -80,7 +89,8 @@ export class PhysicsController {
         this.playerOnFloor = false;
         this.isGrounded = false; // More descriptive, often used for general ground checks
 
-        this.worldOctree = new OctreeV2();
+        // Initialize worldBVH (instead of worldOctree)
+        this.worldBVH = null; // Will be set after model loading and BVH build
 
         this.mouseTime = 0;
 
@@ -110,11 +120,10 @@ export class PhysicsController {
         this.isAim = false;
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
-this.fallDelay = 300;
+        this.fallDelay = 300;
         // Debugging Helpers (Optional, but highly recommended for collision issues)
-        // Uncomment these to visualize the Octree and Player Capsule
-        // this.octreeHelper = new OctreeHelper(this.worldOctree);
-        // this.scene.add(this.octreeHelper);
+        // Uncomment these to visualize the BVH and Player Capsule
+        // this.bvhVisualizer = null; // Will be set after BVH build
 
         // const capsuleGeometry = new THREE.CapsuleGeometry(COLLIDER_RADIUS, STAND_HEIGHT - 2 * COLLIDER_RADIUS, 10, 20);
         // const capsuleMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.5 });
@@ -122,57 +131,63 @@ this.fallDelay = 300;
         // this.scene.add(this.debugCapsuleMesh);
     }
 
-    buildOctree(group, onProgress = () => {}) {
+    // Renamed from buildOctree to buildBVH
+    buildBVH(group, onProgress = () => {}) {
         return new Promise((resolve, reject) => {
             if (!group) {
-                console.warn("Attempted to build Octree with no group provided.");
+                console.warn("Attempted to build BVH with no group provided.");
                 onProgress({ loaded: 1, total: 1 }); // Immediately report 100% if no group
                 resolve();
                 return;
             }
 
-            console.log("Starting Octree build from group geometry...");
+            console.log("Starting BVH build from group geometry...");
 
-            // --- DEBUG LOG: Check mesh count ---
-            let meshCount = 0;
+            let totalFaces = 0;
+            const meshes = [];
             group.traverse((obj) => {
                 if (obj.isMesh) {
-                    meshCount++;
+                    meshes.push(obj);
+                    // Ensure geometry has an index for BVH
+                    if (!obj.geometry.index) {
+                        obj.geometry.setIndex(generateSequentialIndices(obj.geometry.attributes.position.count));
+                    }
+                    totalFaces += obj.geometry.index ? obj.geometry.index.count / 3 : obj.geometry.attributes.position.count / 3;
                 }
             });
-            console.log(`DEBUG: Group passed to Octree contains ${meshCount} meshes.`);
-            // --- END DEBUG LOG ---
 
+            console.log(`DEBUG: Group passed to BVH contains ${meshes.length} meshes with ~${totalFaces} faces.`);
 
-            // Clear any existing Octree data to ensure a fresh build
-            if (this.worldOctree) {
-                this.worldOctree.clear();
-            } else {
-                this.worldOctree = new Octree();
-            }
+            // Build BVH for each mesh first
+            const buildPromises = meshes.map((mesh, index) => {
+                return new Promise(meshResolve => {
+                    // computeBoundsTree adds the bvh to mesh.geometry.boundsTree
+                    mesh.geometry.computeBoundsTree();
+                    onProgress({ loaded: index + 1, total: meshes.length });
+                    meshResolve();
+                });
+            });
 
-            // Call fromGraphNode on the Octree instance.
-            // This modified method now accepts the progress callback and returns a Promise.
-            this.worldOctree.fromGraphNode(group, ({ loaded, total }) => {
-                // Pass the progress event directly to the external onProgress callback
-                onProgress({ loaded, total });
-            }).then(() => {
-                console.log("Octree built successfully.");
+            Promise.all(buildPromises).then(() => {
+                // Now create a single MeshBVH from all the individual meshes
+                // This creates a top-level BVH for efficient overall scene queries
+                this.worldBVH = new MeshBVH(meshes); // Pass the array of meshes
 
-                // Optional: Add/Update OctreeHelper for visualization
+                console.log("BVH built successfully.");
+
+                // Optional: Add/Update BVHVisualizer for visualization
                 // You'll need access to your THREE.Scene object here if you uncomment this.
-                // Example:
-                // if (this.octreeHelper) {
-                //    scene.remove(this.octreeHelper);
-                //    this.octreeHelper.dispose();
+                // if (this.bvhVisualizer) {
+                //    this.scene.remove(this.bvhVisualizer);
+                //    this.bvhVisualizer.dispose();
                 // }
-                // this.octreeHelper = new OctreeHelper(this.worldOctree, 0xff0000);
-                // scene.add(this.octreeHelper);
-                // console.log("OctreeHelper added to scene.");
+                // this.bvhVisualizer = new BVHVisualizer(this.worldBVH);
+                // this.scene.add(this.bvhVisualizer);
+                // console.log("BVHVisualizer added to scene.");
 
-                resolve(); // Resolve the promise when Octree reports completion
+                resolve(); // Resolve the promise when BVH reports completion
             }).catch(err => {
-                console.error("Error building Octree:", err);
+                console.error("Error building BVH:", err);
                 reject(err);
             });
         });
@@ -183,38 +198,70 @@ this.fallDelay = 300;
     }
 
     playerCollisions() {
-        const result = this.worldOctree.capsuleIntersect(this.playerCollider);
-
-        // Reset each frame
-        this.playerOnFloor = false;
-        this.isGrounded = false;
-
-        if (result) {
-            const normal = result.normal;
-            const depth = result.depth;
-
-            // Floor if normal is “up” enough
-            this.playerOnFloor = normal.y > 0.5;
-            this.isGrounded = this.playerOnFloor;
-
-            const SKIN = 0.02; // 2 cm
-            if (depth > SKIN) {
-                // translate out by (penetration – SKIN), so you stay SKIN above the surface
-                this.playerCollider.translate(
-                    _vector1.copy(normal).multiplyScalar(depth - SKIN)
-                );
-            }
-            // Slide along walls / surfaces
-            if (this.playerVelocity.dot(normal) < 0) {
-                _vector2.copy(this.playerVelocity).projectOnPlane(normal);
-                this.playerVelocity.copy(_vector2);
-            }
-
-            // Kill tiny downward drift when grounded
-            if (this.playerOnFloor && Math.abs(this.playerVelocity.y) < 0.05) {
-                this.playerVelocity.y = 0;
-            }
+        // Ensure BVH is built before attempting collision checks
+        if (!this.worldBVH) {
+            this.playerOnFloor = false;
+            this.isGrounded = false;
+            return;
         }
+
+        // Use worldBVH.shapecast for capsule intersection
+        const result = this.worldBVH.shapecast({
+            collider: this.playerCollider,
+            // You can provide a custom callback to gather all intersections
+            // or just let it return the first one it finds (default behavior)
+            // if it returns 'hit', it means an intersection was found.
+            // Check three-mesh-bvh documentation for more advanced use of the callback
+            // For simple capsule-world collision, this setup is common.
+            // Here, we'll store the hit result to check for normals and depth
+            intersectsBounds: box => this.playerCollider.intersectsBox(box),
+            // The callback for when an intersection is found
+            // returns `true` if an intersection is found and the iteration should stop
+            // or `false` to continue looking for the closest one.
+            callback: (geo, tri, i, a, b, c) => {
+                const triPoint = _vector3;
+                const capsulePoint = _vector1;
+
+                const distance = this.playerCollider.closestPointToTriangle(tri.a, tri.b, tri.c, capsulePoint, triPoint);
+
+                if (distance < 0) {
+                    const normal = _vector2.subVectors(capsulePoint, triPoint).normalize();
+                    const depth = this.playerCollider.radius - distance; // Distance is negative when penetrating
+
+                    this.playerOnFloor = normal.y > 0.5;
+                    this.isGrounded = this.playerOnFloor;
+
+                    const SKIN = 0.02; // 2 cm
+                    if (depth > SKIN) {
+                        this.playerCollider.translate(
+                            _vector1.copy(normal).multiplyScalar(depth - SKIN)
+                        );
+                    }
+                    // Slide along walls / surfaces
+                    if (this.playerVelocity.dot(normal) < 0) {
+                        _vector2.copy(this.playerVelocity).projectOnPlane(normal);
+                        this.playerVelocity.copy(_vector2);
+                    }
+
+                    // Kill tiny downward drift when grounded
+                    if (this.playerOnFloor && Math.abs(this.playerVelocity.y) < 0.05) {
+                        this.playerVelocity.y = 0;
+                    }
+                    return true; // Stop at the first significant intersection
+                }
+            }
+        });
+
+        // Reset each frame for playerOnFloor and isGrounded if no collision was found
+        // The callback handles setting these if a collision is found.
+        if (!result) {
+            this.playerOnFloor = false;
+            this.isGrounded = false;
+        }
+
+        // The previous logic for checking result.normal and result.depth
+        // is now integrated into the `shapecast` callback.
+        // We ensure that `playerOnFloor` and `isGrounded` are correctly updated based on the collision.
     }
 
     updatePlayer(deltaTime) {
@@ -369,7 +416,6 @@ this.fallDelay = 300;
 
     update(deltaTime, input) {
         deltaTime = Math.min(0.05, deltaTime); // Cap deltaTime to prevent "explosions"
-        // stepDt is no longer needed since STEPS_PER_FRAME is removed
 
         this.prevGround = this.isGrounded; // Store previous ground state
 
@@ -390,38 +436,35 @@ this.fallDelay = 300;
         } else if (this.isGrounded && currentSpeedXZ <= FOOT_DISABLED_THRESHOLD) {
             this.footAcc = 0; // Reset footstep accumulator when stopped
         }
-        // console.log(speedFrac);
-        // Now calling controls and updatePlayer once per frame with deltaTime
+        
         this.controls(deltaTime, input);
         this.updatePlayer(deltaTime);
         this.teleportIfOob();
 
-        // Landing sound logic // Half a second in milliseconds
-
-if (!this.prevGround && this.isGrounded) {
-    // Check if falling distance was significant before playing land sound
-    if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
-        this.landAudio.currentTime = 0;
-        this.landAudio.play().catch(() => { });
-        sendSoundEvent("landingThud", "land", this._pos());
-    }
-    this.fallStartY = null; // Reset fall start Y
-    // Clear any pending fall start timer if we land
-    if (this.fallStartTimer) {
-        clearTimeout(this.fallStartTimer);
-        this.fallStartTimer = null;
-    }
-} else if (!this.isGrounded && this.fallStartY === null) {
-    // If not grounded and fallStartY hasn't been set yet,
-    // start a timer to set it after the delay.
-    if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
-        this.fallStartTimer = setTimeout(() => {
-            this.fallStartY = this.camera.position.y; // Set fallStartY after delay
-          //  console.log("fallStartY set after delay:", this.fallStartY);
-            this.fallStartTimer = null; // Reset the timer ID
-        }, this.fallDelay);
-    }
-}
+        // Landing sound logic
+        if (!this.prevGround && this.isGrounded) {
+            // Check if falling distance was significant before playing land sound
+            if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
+                this.landAudio.currentTime = 0;
+                this.landAudio.play().catch(() => { });
+                sendSoundEvent("landingThud", "land", this._pos());
+            }
+            this.fallStartY = null; // Reset fall start Y
+            // Clear any pending fall start timer if we land
+            if (this.fallStartTimer) {
+                clearTimeout(this.fallStartTimer);
+                this.fallStartTimer = null;
+            }
+        } else if (!this.isGrounded && this.fallStartY === null) {
+            // If not grounded and fallStartY hasn't been set yet,
+            // start a timer to set it after the delay.
+            if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
+                this.fallStartTimer = setTimeout(() => {
+                    this.fallStartY = this.camera.position.y; // Set fallStartY after delay
+                    this.fallStartTimer = null; // Reset the timer ID
+                }, this.fallDelay);
+            }
+        }
 
         // Set camera position relative to the capsule's current height and position
         this.camera.position.x = this.playerCollider.start.x;
