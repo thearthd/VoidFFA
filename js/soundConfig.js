@@ -1,36 +1,36 @@
 export const SOUND_CONFIG = {
     // Weapon Sounds
     'deagle': {
-        'shot': { volume: 1, hearingRange: 300, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'reloadStart': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'reloadEnd': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'pull': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' }
+        'shot': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadStart': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadEnd': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'pull': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     'ak-47': {
-        'shot': { volume: 1, hearingRange: 200, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'reloadStart': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'reloadEnd': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'pull': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' }
+        'shot': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadStart': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadEnd': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'pull': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     'knife': {
-        'shot': { volume: 1, hearingRange: 20, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'hit': { volume: 1, hearingRange: 50, rolloffFactor: 0.4, distanceModel: 'linear' }, // e.g., hitting another player or surface
-        'pull': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' }
+        'shot': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'hit': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }, // e.g., hitting another player or surface
+        'pull': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     'marshal': { // Assuming 'marshal' is a shotgun/rifle type
-        'shot': { volume: 1, hearingRange: 500, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'reloadStart': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'reloadEnd': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linearr' },
-        'pull': { volume: 1, hearingRange: 25, rolloffFactor: 0.4, distanceModel: 'linear' }
+        'shot': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadStart': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadEnd': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linearr' },
+        'pull': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
 
     // Physics Sounds (example)
     'footstep': {
-        'run': { volume: 1, hearingRange: 150, rolloffFactor: 0.4, distanceModel: 'linear' },
-        'walk': { volume: 1, hearingRange: 150, rolloffFactor: 0.4, distanceModel: 'linear' }
+        'run': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'walk': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     'landingThud': {
-        'land': { volume: 1, hearingRange: 150, rolloffFactor: 0.4, distanceModel: 'linear' }
+        'land': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     // Add more general physics sounds as needed, e.g., 'objectImpact', 'glassBreak'
     'objectImpact': {
