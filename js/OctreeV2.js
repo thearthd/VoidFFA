@@ -692,19 +692,19 @@ class OctreeV2 {
      */
     toJSON() {
         // Serialize triangles: Each triangle consists of three Vector3 points (a, b, c).
-        // Vector3 has its own toJSON() method.
+        // JSON.stringify will automatically serialize the x, y, z properties of Vector3.
         const serializedTriangles = this.triangles.map(t => ({
-            a: t.a.toJSON(),
-            b: t.b.toJSON(),
-            c: t.c.toJSON()
+            a: t.a, // Removed .toJSON()
+            b: t.b, // Removed .toJSON()
+            c: t.c  // Removed .toJSON()
         }));
 
         // Recursively serialize sub-trees.
         const serializedSubTrees = this.subTrees.map(st => st.toJSON());
 
         return {
-            // Box3 has a toJSON() method that returns { min: {x,y,z}, max: {x,y,z} }
-            box: this.box ? this.box.toJSON() : null,
+            // Box3 properties (min, max) are Vector3s, which JSON.stringify handles directly.
+            box: this.box ? this.box : null, // Removed .toJSON()
             triangles: serializedTriangles,
             subTrees: serializedSubTrees
             // Internal properties like _totalTrianglesAdded, _totalTriangleCount,
