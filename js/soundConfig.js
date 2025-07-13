@@ -26,7 +26,7 @@ export const SOUND_CONFIG = {
 
     // Physics Sounds (example)
     'footstep': {
-        'run': { volume: 1, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'run': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'walk': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
     'landingThud': {
