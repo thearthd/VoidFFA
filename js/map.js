@@ -1,4 +1,4 @@
-// js/map.js (Keep as is from the last update)
+// js/map.js (Updated)
 
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
@@ -8,9 +8,11 @@ import {
     computeBoundsTree,
     disposeBoundsTree,
     acceleratedRaycast,
+    MeshBVH, // We'll need this in PhysicsController, but good to ensure it's available
 } from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
 
 // ─── BVH Setup ────────────────────────────────────────────────────────────
+// These extend THREE prototypes to enable BVH functionality on geometries and meshes
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -84,10 +86,10 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     window.envMeshes = [];
     window.mapReady = false;
 
-    // Initialize loader UI with two milestones: 70% for GLB, 30% for octree
+    // Initialize loader UI with two milestones: 70% for GLB, 30% for BVH
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
-    loaderUI.show('Loading CrocodilosConstruction Map & Building Octree...', mapLoadPercentages);
+    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, BVH is 30%
+    loaderUI.show('Loading CrocodilosConstruction Map & Building BVH...', mapLoadPercentages);
 
     // scaling and spawn points
     const SCALE = 5;
@@ -143,11 +145,15 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                             child.material.map.anisotropy = 4;
                         }
                         window.envMeshes.push(child);
+                        // Ensure geometry has an index for BVH
+                        if (!child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
                     }
                 });
 
                 console.log('✔️ GLB mesh loaded into scene.');
-                resolve(gltfGroup); // Resolve with the group so octree can use it
+                resolve(gltfGroup); // Resolve with the group so BVH can use it
             },
             // progress callback
             evt => {
@@ -165,27 +171,27 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build the octree
-    let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        // physicsController.buildOctree now returns a promise and takes the progress callback
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
+    // 2) Once GLB is added, build the BVH
+    let onBVHProgress = () => {};
+    const bvhPromise = mapLoadPromise.then(group => {
+        // physicsController.buildBVH now returns a promise and takes the progress callback
+        return physicsController.buildBVH(group, (evt) => {
+            onBVHProgress(evt);
         });
     });
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
+    // track BVH build at 30%, with live percent updates
+    loaderUI.track(mapLoadPercentages[1], bvhPromise, cb => {
+        onBVHProgress = cb;
     });
 
     // wait for both loading steps
-    await Promise.all([mapLoadPromise, octreePromise]);
+    await Promise.all([mapLoadPromise, bvhPromise]);
 
     // when fully done
     loaderUI.onComplete(() => {
         window.mapReady = true;
-        console.log('🗺️ Map + Octree fully ready!');
+        console.log('🗺️ Map + BVH fully ready!');
     });
 
     return spawnPoints;
@@ -197,10 +203,10 @@ export async function createSigmaCity(scene, physicsController) {
     window.envMeshes = [];
     window.mapReady = false;
 
-    // initialize loader UI with two milestones: 70% for GLB, 30% for octree
+    // initialize loader UI with two milestones: 70% for GLB, 30% for BVH
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
-    loaderUI.show('Loading SigmaCity Map & Building Octree...', mapLoadPercentages);
+    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, BVH is 30%
+    loaderUI.show('Loading SigmaCity Map & Building BVH...', mapLoadPercentages);
 
     // scaling and spawn points
     const SCALE = 2;
@@ -249,14 +255,15 @@ export async function createSigmaCity(scene, physicsController) {
                             child.material.map.anisotropy = 4;
                         }
                         window.envMeshes.push(child);
-                    }
-                    if (child.isMesh && child.geometry && !child.geometry.index) {
-                        child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        // Ensure geometry has an index for BVH
+                        if (!child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
                     }
                 });
 
                 console.log('✔️ GLB mesh loaded into scene.');
-                resolve(gltfGroup); // Resolve with the group so octree can use it
+                resolve(gltfGroup); // Resolve with the group so BVH can use it
             },
             // progress callback
             evt => {
@@ -274,26 +281,26 @@ export async function createSigmaCity(scene, physicsController) {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build the octree
-    let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
+    // 2) Once GLB is added, build the BVH
+    let onBVHProgress = () => {};
+    const bvhPromise = mapLoadPromise.then(group => {
+        return physicsController.buildBVH(group, (evt) => {
+            onBVHProgress(evt);
         });
     });
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
+    // track BVH build at 30%, with live percent updates
+    loaderUI.track(mapLoadPercentages[1], bvhPromise, cb => {
+        onBVHProgress = cb;
     });
 
     // wait for both loading steps
-    await Promise.all([mapLoadPromise, octreePromise]);
+    await Promise.all([mapLoadPromise, bvhPromise]);
 
     // when fully done
     loaderUI.onComplete(() => {
         window.mapReady = true;
-        console.log('🗺️ Map + Octree fully ready!');
+        console.log('🗺️ Map + BVH fully ready!');
     });
 
     return spawnPoints;
