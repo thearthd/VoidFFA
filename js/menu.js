@@ -216,11 +216,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
-
-
-    var circle = new Circle(250);
-    circle.setPosition(415, 300);
-    circle.setOpacity(0);
-    circle.setColor(color);
-    add(circle);
-    circle.layer = 11;
