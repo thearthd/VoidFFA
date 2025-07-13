@@ -1,5 +1,4 @@
 // js/map.js (Updated with Geometry Conversion)
-// l
 
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
@@ -28,7 +27,7 @@ function generateSequentialIndices(vertexCount) {
 // ─── Lantern class ─────────────────────────────────────────────────────────
 export class Lantern {
     constructor(parent, position, scale = 1, lightOptions = {}) {
-        this.container = new THREE.Object3D();
+        this.container = new THREE.Object3();
         this.container.position.copy(position);
         parent.add(this.container);
 
@@ -256,7 +255,7 @@ export async function createSigmaCity(scene, physicsController) {
             gltf => {
                 gltfGroup = gltf.scene; // Assign to gltfGroup
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                glttfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
                 scene.add(gltfGroup);
 
                 // enable shadows and anisotropy on all meshes
