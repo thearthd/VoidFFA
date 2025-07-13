@@ -1,4 +1,4 @@
-// js/map.js (Updated)
+// js/map.js (Updated with Geometry Conversion)
 
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
@@ -8,11 +8,10 @@ import {
     computeBoundsTree,
     disposeBoundsTree,
     acceleratedRaycast,
-    MeshBVH, // We'll need this in PhysicsController, but good to ensure it's available
+    MeshBVH,
 } from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
 
 // ─── BVH Setup ────────────────────────────────────────────────────────────
-// These extend THREE prototypes to enable BVH functionality on geometries and meshes
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -45,6 +44,14 @@ export class Lantern {
 
                 lanternGroup.traverse(child => {
                     if (!child.isMesh) return;
+                    // Ensure BufferGeometry
+                    if (child.geometry && !(child.geometry instanceof THREE.BufferGeometry)) {
+                        child.geometry = new THREE.BufferGeometry().fromGeometry(child.geometry);
+                        console.warn('Converted non-BufferGeometry to BufferGeometry for BVH:', child.name);
+                    }
+                    if (child.geometry && !child.geometry.index) {
+                        child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                    }
                     child.material = new THREE.MeshStandardMaterial({
                         color: 0xffffff,
                         roughness: 0.8,
@@ -139,6 +146,11 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                 // enable shadows and anisotropy on all meshes
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
+                        // Crucial: Convert to BufferGeometry if it's not already
+                        if (child.geometry && !(child.geometry instanceof THREE.BufferGeometry)) {
+                            child.geometry = new THREE.BufferGeometry().fromGeometry(child.geometry);
+                            console.warn('Converted non-BufferGeometry to BufferGeometry for BVH:', child.name);
+                        }
                         child.castShadow = true;
                         child.receiveShadow = true;
                         if (child.material.map) {
@@ -243,12 +255,17 @@ export async function createSigmaCity(scene, physicsController) {
             gltf => {
                 gltfGroup = gltf.scene; // Assign to gltfGroup
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+                glttfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
                 scene.add(gltfGroup);
 
                 // enable shadows and anisotropy on all meshes
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
+                        // Crucial: Convert to BufferGeometry if it's not already
+                        if (child.geometry && !(child.geometry instanceof THREE.BufferGeometry)) {
+                            child.geometry = new THREE.BufferGeometry().fromGeometry(child.geometry);
+                            console.warn('Converted non-BufferGeometry to BufferGeometry for BVH:', child.name);
+                        }
                         child.castShadow = true;
                         child.receiveShadow = true;
                         if (child.material.map) {
