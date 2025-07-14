@@ -65,9 +65,11 @@ const _vector2 = new THREE.Vector3();
 const _vector3 = new THREE.Vector3();
 
 export class PhysicsController {
-    constructor(camera, scene) {
+    // Modified constructor to accept playerModel
+    constructor(camera, scene, playerModel = null) {
         this.camera = camera;
         this.scene = scene;
+        this.playerModel = playerModel; // Store the player's 3D model
 
         this.playerCollider = new Capsule(
             new THREE.Vector3(0, COLLIDER_RADIUS, 0),
@@ -79,6 +81,7 @@ export class PhysicsController {
         this.playerDirection = new THREE.Vector3();
         this.playerOnFloor = false;
         this.isGrounded = false; // More descriptive, often used for general ground checks
+        this.groundNormal = new THREE.Vector3(0, 1, 0); // Store the normal of the ground
 
         this.worldOctree = new OctreeV2();
 
@@ -110,7 +113,7 @@ export class PhysicsController {
         this.isAim = false;
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
-this.fallDelay = 300;
+        this.fallDelay = 300;
         // Debugging Helpers (Optional, but highly recommended for collision issues)
         // Uncomment these to visualize the Octree and Player Capsule
         // this.octreeHelper = new OctreeHelper(this.worldOctree);
@@ -188,6 +191,7 @@ this.fallDelay = 300;
         // Reset each frame
         this.playerOnFloor = false;
         this.isGrounded = false;
+        this.groundNormal.set(0, 1, 0); // Reset ground normal to default up
 
         if (result) {
             const normal = result.normal;
@@ -196,6 +200,10 @@ this.fallDelay = 300;
             // Floor if normal is “up” enough
             this.playerOnFloor = normal.y > 0.5;
             this.isGrounded = this.playerOnFloor;
+
+            if (this.playerOnFloor) {
+                this.groundNormal.copy(normal); // Store the actual ground normal
+            }
 
             const SKIN = 0.02; // 2 cm
             if (depth > SKIN) {
@@ -210,10 +218,11 @@ this.fallDelay = 300;
                 this.playerVelocity.copy(_vector2);
             }
 
-            // Kill tiny downward drift when grounded
-            if (this.playerOnFloor && Math.abs(this.playerVelocity.y) < 0.05) {
-                this.playerVelocity.y = 0;
-            }
+            // Kill tiny downward drift when grounded - This logic needs refinement for slopes
+            // We want to apply gravity along the slope, not just zero out Y
+            // if (this.playerOnFloor && Math.abs(this.playerVelocity.y) < 0.05) {
+            //     this.playerVelocity.y = 0;
+            // }
         }
     }
 
@@ -221,18 +230,40 @@ this.fallDelay = 300;
         let damping = Math.exp(-4 * deltaTime) - 1; // Standard damping
 
         if (!this.playerOnFloor) {
-            // Apply gravity
+            // Apply gravity straight down when in the air
             this.playerVelocity.y -= GRAVITY * deltaTime;
             damping *= 0.1; // Less damping when in air
         } else {
-            // When on floor, if there's residual downward velocity, it should be handled
-            // by the collision response now, but as a fallback, ensure it's not sinking.
-            if (this.playerVelocity.y < 0) {
-                this.playerVelocity.y = 0;
+            // **Slope Snapping Logic**
+            // When on the floor, apply a component of gravity along the ground normal.
+            // This pulls the player down the slope.
+            const gravityComponent = _vector3.copy(this.groundNormal).multiplyScalar(-GRAVITY * deltaTime);
+            this.playerVelocity.add(gravityComponent);
+
+            // Project the velocity onto the ground plane defined by the normal.
+            // This ensures movement is along the surface and prevents sinking.
+            this.playerVelocity.projectOnPlane(this.groundNormal);
+
+            // Add a small downward nudge to ensure constant contact,
+            // especially on very shallow slopes or flat ground, to prevent "floating".
+            // Only do this if not actively jumping or going uphill.
+            if (this.groundNormal.y > 0.99) { // Close to flat ground
+                if (this.playerVelocity.y < 0) { // If there's any slight downward drift
+                    this.playerVelocity.y = 0; // Prevent sinking into flat ground
+                }
+            } else {
+                // For slopes, ensure a slight downward push along the normal if not moving up
+                if (this.playerVelocity.dot(this.groundNormal) > 0) {
+                    // If moving "up" relative to the normal, allow it
+                } else {
+                    // Otherwise, ensure there's a slight downward component
+                    // to keep the player "stuck" to the slope
+                    this.playerVelocity.add(_vector3.copy(this.groundNormal).multiplyScalar(-0.1)); // Small constant force
+                }
             }
         }
 
-        // Apply damping to horizontal velocity
+        // Apply damping to horizontal velocity (now considering the projected velocity)
         this.playerVelocity.x += this.playerVelocity.x * damping;
         this.playerVelocity.z += this.playerVelocity.z * damping;
 
@@ -292,11 +323,18 @@ this.fallDelay = 300;
         if (moveDirection.lengthSq() > 0) {
             moveDirection.normalize();
             // Apply acceleration based on the normalized direction and effective acceleration
+            // When on a slope, we want to accelerate *along* the slope, not just horizontally.
+            // Project the desired movement direction onto the ground normal.
+            if (this.playerOnFloor) {
+                moveDirection.projectOnPlane(this.groundNormal);
+            }
             this.playerVelocity.add(moveDirection.multiplyScalar(effectiveAcceleration * deltaTime));
         }
 
         if (this.playerOnFloor) {
             if (input.jump) {
+                // Apply jump velocity strictly upwards in world space, regardless of slope.
+                // This gives a consistent jump height.
                 this.playerVelocity.y = JUMP_VELOCITY;
                 this.playerOnFloor = false; // Player is no longer on the floor after jumping
                 this.isGrounded = false;
@@ -319,7 +357,7 @@ this.fallDelay = 300;
         // If your debug capsule mesh is active, update its scale/position here
         // if (this.debugCapsuleMesh) {
         //    // Adjust geometry size for debug mesh (CapsuleGeometry takes radius, length)
-        //    // Length of the cylinder part = total height - 2 * radius
+        //    // Length of the cylinder part = total height - 2 * COLLIDER_RADIUS
         //    const capsuleLength = Math.max(0, this.currentHeight - 2 * COLLIDER_RADIUS);
         //    this.debugCapsuleMesh.geometry.dispose(); // Dispose old geometry
         //    this.debugCapsuleMesh.geometry = new THREE.CapsuleGeometry(COLLIDER_RADIUS, capsuleLength, 10, 20);
@@ -357,6 +395,7 @@ this.fallDelay = 300;
         this.isGrounded = false;
         this.jumpTriggered = false; // Reset jump flag on setting position
         this.fallStartY = null; // Reset fall start Y on setting position
+        this.groundNormal.set(0, 1, 0); // Reset ground normal on teleport
 
         // Update camera position to match the new player collider position.
         // Camera eye level is typically slightly above the capsule's start.y.
@@ -396,37 +435,69 @@ this.fallDelay = 300;
         this.updatePlayer(deltaTime);
         this.teleportIfOob();
 
-        // Landing sound logic // Half a second in milliseconds
-
-if (!this.prevGround && this.isGrounded) {
-    // Check if falling distance was significant before playing land sound
-    if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
-        this.landAudio.currentTime = 0;
-        this.landAudio.play().catch(() => { });
-        sendSoundEvent("landingThud", "land", this._pos());
-    }
-    this.fallStartY = null; // Reset fall start Y
-    // Clear any pending fall start timer if we land
-    if (this.fallStartTimer) {
-        clearTimeout(this.fallStartTimer);
-        this.fallStartTimer = null;
-    }
-} else if (!this.isGrounded && this.fallStartY === null) {
-    // If not grounded and fallStartY hasn't been set yet,
-    // start a timer to set it after the delay.
-    if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
-        this.fallStartTimer = setTimeout(() => {
-            this.fallStartY = this.camera.position.y; // Set fallStartY after delay
-          //  console.log("fallStartY set after delay:", this.fallStartY);
-            this.fallStartTimer = null; // Reset the timer ID
-        }, this.fallDelay);
-    }
-}
+        // Landing sound logic
+        if (!this.prevGround && this.isGrounded) {
+            // Check if falling distance was significant before playing land sound
+            if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
+                this.landAudio.currentTime = 0;
+                this.landAudio.play().catch(() => { });
+                sendSoundEvent("landingThud", "land", this._pos());
+            }
+            this.fallStartY = null; // Reset fall start Y
+            // Clear any pending fall start timer if we land
+            if (this.fallStartTimer) {
+                clearTimeout(this.fallStartTimer);
+                this.fallStartTimer = null;
+            }
+        } else if (!this.isGrounded && this.fallStartY === null) {
+            // If not grounded and fallStartY hasn't been set yet,
+            // start a timer to set it after the delay.
+            if (!this.fallStartTimer) { // Only set a new timer if one isn't already active
+                this.fallStartTimer = setTimeout(() => {
+                    this.fallStartY = this.camera.position.y; // Set fallStartY after delay
+                //  console.log("fallStartY set after delay:", this.fallStartY);
+                    this.fallStartTimer = null; // Reset the timer ID
+                }, this.fallDelay);
+            }
+        }
 
         // Set camera position relative to the capsule's current height and position
         this.camera.position.x = this.playerCollider.start.x;
         this.camera.position.z = this.playerCollider.start.z;
         this.camera.position.y = this.playerCollider.start.y + (this.currentHeight * 0.9); // 90% of current height for eye level
+
+        // **NEW: Apply feet/model rotation if grounded**
+        if (this.isGrounded && this.playerModel) {
+            const smoothingFactor = 0.15; // Adjust for faster/slower rotation (0-1)
+
+            const playerWorldForward = new THREE.Vector3();
+            this.camera.getWorldDirection(playerWorldForward); // Get camera's forward
+            playerWorldForward.y = 0; // Flatten it to horizontal
+            playerWorldForward.normalize();
+
+            // Calculate the 'right' vector, ensuring it's perpendicular to both current forward and ground normal
+            const playerWorldRight = new THREE.Vector3().crossVectors(playerWorldForward, this.groundNormal).normalize();
+            
+            // Calculate the 'forward' vector that is perpendicular to the ground normal and the new right vector
+            const finalForward = new THREE.Vector3().crossVectors(this.groundNormal, playerWorldRight).normalize();
+            
+            const orientationMatrix = new THREE.Matrix4();
+            // makeBasis takes (xAxis, yAxis, zAxis) - which correspond to (right, up, forward) for the player model
+            orientationMatrix.makeBasis(playerWorldRight, this.groundNormal, finalForward); 
+            
+            const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(orientationMatrix);
+
+            // Smoothly interpolate the player model's quaternion
+            this.playerModel.quaternion.slerp(targetQuaternion, smoothingFactor);
+        } else if (this.playerModel) {
+            // If not grounded, smoothly return to upright (or keep previous rotation)
+            // This prevents the model from staying tilted after leaving a slope.
+            // You might want to remove this if you want the player model to tilt in air.
+            const upAlignmentQuaternion = new THREE.Quaternion();
+            upAlignmentQuaternion.setFromUnitVectors(this.playerModel.up, new THREE.Vector3(0, 1, 0));
+            this.playerModel.quaternion.slerp(upAlignmentQuaternion, 0.05); // Slower return to upright
+        }
+
 
         // Update debug capsule mesh position if active
         // if (this.debugCapsuleMesh) {
