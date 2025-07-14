@@ -14,7 +14,7 @@ import Stats from 'stats.js';
 import { createSigmaCity, createCrocodilosConstruction } from "./map.js"; // Keep both map creation functions
 import { getMapConfig } from "./firebase-config.js"; // Import getMapConfig
 import { initNetwork, sendPlayerUpdate, localPlayerId, remotePlayers, updateHealth, updateShield, initializeAudioManager, startSoundListener, dbRefs } from "./network.js"; // Import dbRefs from network.js
-import { initMenuUI, showWinnerOnMenu, gameLoop as menuGameLoop } from "./menu.js"; // Import showWinnerOnMenu and menuGameLoop
+import { showWinnerOnMenu, gameLoop as menuGameLoop } from "./menu.js"; // Import showWinnerOnMenu and menuGameLoop
 import {
     initChatUI,
     addChatMessage,
