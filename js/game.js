@@ -3,7 +3,7 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 
 import { EffectComposer } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/RenderPass.js";
+import { RenderPass }    from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/UnrealBloomPass.js";
 
 import { ShaderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/ShaderPass.js";
@@ -11,13 +11,10 @@ import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/
 import Stats from 'stats.js';
 
 
-import { createSigmaCity } from "./map.js";
-import { createCrocodilosConstruction } from "./map.js";
-
-// Updated imports for network.js
-import { initNetwork, sendPlayerUpdate, localPlayerId, remotePlayers, updateHealth, updateShield, initializeAudioManager, startSoundListener, disconnectPlayer } from "./network.js";
-import { getGameDbRefs as getDbRefs, firebase } from "./firebase-config.js"; // Renamed import to avoid conflict
-import { initMenuUI } from "./menu.js"; // This import is not directly used in game.js, but kept for context consistency
+import { createSigmaCity, createCrocodilosConstruction } from "./map.js"; // Keep both map creation functions
+import { getMapConfig } from "./firebase-config.js"; // Import getMapConfig
+import { initNetwork, sendPlayerUpdate, localPlayerId, remotePlayers, updateHealth, updateShield, initializeAudioManager, startSoundListener, dbRefs } from "./network.js"; // Import dbRefs from network.js
+import { initMenuUI, showWinnerOnMenu, gameLoop as menuGameLoop } from "./menu.js"; // Import showWinnerOnMenu and menuGameLoop
 import {
     initChatUI,
     addChatMessage,
@@ -30,19 +27,17 @@ import {
     updateAmmoDisplay,
     createHealthBar,
     updateHealthShieldUI,
-    createTracer,
-    removeBulletHole // Import removeBulletHole for cleanup
+    createTracer
 } from "./ui.js";
 
 import { initInput, inputState, postFrameCleanup } from "./input.js";
 import { PhysicsController } from "./physics.js";
-import { WeaponController, _prototypeModels, getWeaponModel, activeTracers } from "./weapons.js";
-
+import { WeaponController, _prototypeModels, getWeaponModel, activeTracers }  from "./weapons.js";
 let detailsEnabled;
 let renderPass;
 const bodyColor = Math.floor(Math.random() * 0xffffff);
 
-const FIXED_WIDTH = 1920;
+const FIXED_WIDTH  = 1920;
 const FIXED_HEIGHT = 1080;
 
 let scene, camera, renderer, composer, bloomPass, fog;
@@ -50,120 +45,82 @@ window.camera = window.camera || new THREE.PerspectiveCamera(75, window.innerWid
 window.scene = window.scene || new THREE.Scene();
 
 let dirLight, hemi;
-export let localPlayer = null; // Export localPlayer for external access (e.g., menu.js)
+let localPlayer = null;
 let physicsController;
 let weaponController;
 let spawnPoints = [];
 
 const KILLSTREAK_SOUNDS = {
-    1: 'https://codehs.com/uploads/5626b4ea9d389c0936a1971b1f3a6beb',
-    2: 'https://codehs.com/uploads/3b7b1aa5c4a9f532aa16ac0d7f4ffdb5',
-    3: 'https://codehs.com/uploads/81976fee406a0346b5b75de70c7e2c0e',
-    4: 'https://codehs.com/uploads/b337a894983ddc58e778bdb76eb0efe4',
-    5: 'https://codehs.com/uploads/03edb8ea396418fbc3630d1262c7e991',
-    6: 'https://codehs.com/uploads/413cb56b57597f40aa223dc6488eecca',
-    7: 'https://codehs.com/uploads/f4bca7128545c430257bc59d0c169e45',
-    8: 'https://codehs.com/uploads/373998fa75359ae1ca6462fe1b023bf7',
-    9: 'https://codehs.com/uploads/bac5a38abad4d17c00f7adf629af9063',
+    1:  'https://codehs.com/uploads/5626b4ea9d389c0936a1971b1f3a6beb',
+    2:  'https://codehs.com/uploads/3b7b1aa5c4a9f532aa16ac0d7f4ffdb5',
+    3:  'https://codehs.com/uploads/81976fee406a0346b5b75de70c7e2c0e',
+    4:  'https://codehs.com/uploads/b337a894983ddc58e778bdb76eb0efe4',
+    5:  'https://codehs.com/uploads/03edb8ea396418fbc3630d1262c7e991',
+    6:  'https://codehs.com/uploads/413cb56b57597f40aa223dc6488eecca',
+    7:  'https://codehs.com/uploads/f4bca7128545c430257bc0c169e45',
+    8:  'https://codehs.com/uploads/373998fa75359ae1ca6462fe1b023bf7',
+    9:  'https://codehs.com/uploads/bac5a38abad4d17c00f7adf629af9063',
     10: 'https://codehs.com/uploads/c2645a73d7b76fa17634d8a4f2ffd15a'
 };
-let chatInput; // This is an HTML element reference, should be in UI or passed
+let chatInput;
 let respawnOverlay = null;
-let respawnButton = null;
-let fadeOverlay = null;
+let respawnButton  = null;
+let fadeOverlay    = null;
 
-let sceneNum = 0;
+let sceneNum = 0; // 1 for CrocodilosConstruction, 2 for SigmaCity
 
 let deathTheme = new Audio("https://codehs.com/uploads/720078943b931e7eb258b01fb10f1fba");
 deathTheme.loop = true;
 deathTheme.volume = 0.5;
 
 const windSound = new Audio(
-    "https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa"
+"https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa"
 );
-windSound.loop = true;
+windSound.loop   = true;
 windSound.volume = 0.1;
 
 const forestNoise = new Audio(
-    "https://codehs.com/uploads/e26ad4fc80829f48ecd9b470fe84987d"
+"https://codehs.com/uploads/e26ad4fc80829f48ecd9b470fe84987d"
 );
-forestNoise.loop = true;
+forestNoise.loop   = true;
 forestNoise.volume = 0.15;
 
 
-const bulletHoleMeshes = {}; // This is managed in ui.js now, can be removed here
+const bulletHoleMeshes = {};
 
 const initialPlayerHealth = 100;
 const initialPlayerShield = 50;
 const initialPlayerWeapon = "knife";
 
-window.remotePlayers = {}; // This is also exported from network.js, consider consolidating
-window.collidables = [];
-window.envMeshes = [];
+window.remotePlayers = {};
+window.collidables      = [];
+window.envMeshes       = [];
+window.isGameActive = false; // New flag to track if game is active
 
-let chatPruneInterval = null; // These intervals should be managed by network.js
-let killsPruneInterval = null; // These intervals should be managed by network.js
-let activeRecoils = [];
-let weaponAmmo = {};
+let chatPruneInterval      = null;
+let killsPruneInterval     = null;
+let activeRecoils          = [];
+let weaponAmmo             = {};
 let playerVisibilityTimeouts = {};
 
-let playersRef = null; // Game-specific playersRef
-let chatRef = null;
-let killsRef = null;
-let mapStateRef = null;
-let gameDataRef = null; // New: Game-specific gameDataRef
+// These are now managed by network.js and accessed via `dbRefs` import
+// let playersRef = null;
+// let chatRef = null;
+// let killsRef = null;
+// let mapStateRef = null;
 
-// Game mode related variables (Requirement 1)
-let gameTimer = 0; // Current game time in seconds
-let maxGameTime = 600; // Default 10 minutes (600 seconds)
-let maxKills = 50; // Default 50 kills for FFA
-let gameMode = "FFA"; // Default game mode
-let gameStartTime = 0; // Timestamp when the game actually started
-let gameIntervalId = null; // To store the interval ID for the game timer
-
-// UI element for game timer (Requirement 1)
-let gameTimerDisplay = null;
-let rafId = null; // Request Animation Frame ID
-
-/**
- * Sets game configuration received from Firebase.
- * This function is called by network.js when gameDataRef updates.
- * @param {number} timer - The game timer in seconds.
- * @param {number} kills - The max kills for win condition.
- * @param {string} mode - The game mode (e.g., "FFA").
- */
-export function setGameSettings(timer, kills, mode) {
-    maxGameTime = timer;
-    maxKills = kills;
-    gameMode = mode;
-    console.log(`Game settings updated: Timer=${maxGameTime}s, Max Kills=${maxKills}, Mode=${gameMode}`);
-    // You might want to update a UI element here to show the timer/score limits
-    if (gameTimerDisplay) {
-        gameTimerDisplay.textContent = `Time: ${formatTime(maxGameTime)} | Kills: ${maxKills}`;
-    }
-}
-
-/**
- * Formats time in seconds into MM:SS format.
- * @param {number} totalSeconds - Total seconds to format.
- * @returns {string} Formatted time string (MM:SS).
- */
-function formatTime(totalSeconds) {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = Math.floor(totalSeconds % 60);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-}
+let gameAnimationId = null; // To store the requestAnimationFrame ID for the game loop
 
 export function initGlobalFogAndShadowParams() {
     window.originalFogParams = {
-        type: "exp2",
-        color: 0x888888,
+        type:    "exp2",
+        color:    0x888888,
         density: 0.015
     };
 }
 
 function createFog() {
-    const fp = originalFogParams;
+    const fp = window.originalFogParams;
     if (fp.type === "exp2") {
         window.scene.fog = new THREE.FogExp2(fp.color, fp.density);
     } else if (fp.type === "linear") {
@@ -239,6 +196,7 @@ function destroyBloom() {
     }
 }
 
+let starField = null; // Declare starField here
 
 function createStars() {
     if (sceneNum !== 1) return; // Only create for CrocodilosConstruction
@@ -285,6 +243,8 @@ function destroyStars() {
         starField = null;
     }
 }
+
+let worldFog = null; // Declare worldFog here
 
 /**
  * Creates the fog dots specifically for CrocodilosConstruction.
@@ -376,28 +336,23 @@ export function toggleSceneDetails(isOn) {
 
 // Crosshair
 
-const BASE_GAP = 2;
+const BASE_GAP      = 2;
 const SPREAD_SCALAR = 50;
 
 export function updateCrosshair(spreadAngle) {
     if (window.localPlayer?.isDead) return;
 
-    const up = document.getElementById("line-up");
-    const down = document.getElementById("line-down");
-    const left = document.getElementById("line-left");
-    const right = document.getElementById("line-right");
-
-    if (!up || !down || !left || !right) {
-        console.warn("Crosshair elements not found in UI.");
-        return;
-    }
-
     const gap = BASE_GAP + spreadAngle * SPREAD_SCALAR;
 
-    up.style.top = `${-gap - up.clientHeight}px`;
-    down.style.top = `${gap}px`;
+    const up    = document.getElementById("line-up");
+    const down  = document.getElementById("line-down");
+    const left  = document.getElementById("line-left");
+    const right = document.getElementById("line-right");
+
+    up.style.top    = `${-gap - up.clientHeight}px`;
+    down.style.top  = `${gap}px`;
     left.style.left = `${-gap - left.clientWidth}px`;
-    right.style.left = `${gap}px`;
+    right.style.left= `${gap}px`;
 
     document.getElementById("crosshair").style.display = "";
 }
@@ -405,20 +360,24 @@ export function updateCrosshair(spreadAngle) {
 // Hit Pulse
 
 const pendingRestore = {};
-const originalColor = {};
+const originalColor  = {};
 
 async function pulsePlayerHit(victimId) {
-    const playerRef = playersRef.child(victimId);
+    const playerRef = dbRefs.playersRef.child(victimId); // Use dbRefs from network.js
     const flashColor = 0xff0000;
-    const PULSE_MS = 200;
+    const PULSE_MS   = 200;
 
     // 0) If we don't yet know their originalColor, fetch & stash it once
     if (typeof originalColor[victimId] !== 'number') {
         try {
-            const snap = await playerRef.child('bodyColor').once('value');
+            const snap      = await playerRef.child('bodyColor').once('value');
             const trueColor = snap.val();
             if (typeof trueColor === 'number') {
                 originalColor[victimId] = trueColor;
+                //  console.log(
+                //    `[pulsePlayerHit] Stashed originalColor for ${victimId}: ` +
+                //    `0x${trueColor.toString(16).padStart(6, '0')}`
+                //   );
             } else {
                 console.warn(
                     `[pulsePlayerHit] Can't flash ${victimId}, bodyColor is not a number:`,
@@ -438,121 +397,118 @@ async function pulsePlayerHit(victimId) {
     }
 
     // 2) Flash RED immediately
+    //  console.log(`[pulsePlayerHit] Flashing ${victimId} RED`);
     await playerRef.update({ bodyColor: flashColor });
 
     // 3) Schedule restore back to the stashed original color
     pendingRestore[victimId] = setTimeout(async () => {
         const orig = originalColor[victimId];
+        //  console.log(
+        //    `[pulsePlayerHit] Restoring ${victimId} to ` +
+        //    `0x${orig.toString(16).padStart(6, '0')}`
+        //   );
         try {
             await playerRef.update({ bodyColor: orig });
         } catch (err) {
             console.error('[pulsePlayerHit] Error restoring color:', err);
         }
         delete pendingRestore[victimId];
+        // leave originalColor in place for future hits
     }, PULSE_MS);
 }
 
 // Game Start
-export async function startGame(username, mapName, initialDetailsEnabled) {
-    console.log("starting game...");
+export async function startGame(username, gameId, initialDetailsEnabled) { // Changed mapName to gameId
+    console.log("starting");
     detailsEnabled = initialDetailsEnabled;
+    window.isGameActive = true; // Set game active flag
 
     initGlobalFogAndShadowParams();
 
+    console.log("starting2");
     window.isGamePaused = false;
-    document.getElementById("menu-overlay").style.display = "none"; // Ensure HTML menu is hidden
+    document.getElementById("menu-overlay").style.display = "none";
     document.body.classList.add("game-active");
     document.getElementById("game-container").style.display = "block";
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
 
-    // The gameId is now passed to initNetwork from menu.js
-    // initNetwork will get dbRefs for the specific game instance
-    const gameId = localStorage.getItem("currentJoinedGameId"); // Retrieve the gameId from localStorage
-    if (!gameId) {
-        console.error("No game ID found in localStorage. Cannot start game.");
-        // Fallback to menu or show error
-        if (window.disconnectAndReturnToMenu) {
-            window.disconnectAndReturnToMenu();
-        } else {
-            location.reload(); // Hard reload if menu function not available
-        }
+    console.log("starting3");
+    console.log(username, gameId, initialDetailsEnabled); // Log gameId
+    // Call initGameNetwork which now only calls network.initNetwork
+    await initGameNetwork(username, gameId); // Pass gameId
+    console.log("starting31");
+
+    // After initGameNetwork (and thus network.initNetwork) completes,
+    // localPlayerId should be set in network.js and available via import if needed.
+    // Also, dbRefs should be available via import.
+    let playerId = localPlayerId; // Use imported localPlayerId
+    console.log("starting32");
+
+    if (!playerId && dbRefs && dbRefs.playersRef) { // dbRefs should be set now
+        playerId = dbRefs.playersRef.push().key; // Only generate if not already in localStorage
+        console.log("starting33");
+        localStorage.setItem("playerId", playerId);
+        console.log("starting34");
+    } else if (!playerId && !dbRefs) {
+        console.error("Critical Error: dbRefs is null after initGameNetwork. Cannot generate playerId.");
         return;
     }
 
-    await initNetwork(username, gameId); // Pass the stored gameId
-
-    // After initNetwork (and thus network.initNetwork) completes,
-    // localPlayerId and dbRefs should be set in network.js and available via import.
-    const currentDbRefs = getDbRefs(gameId); // Use getDbRefs to get the current game's refs
-    playersRef = currentDbRefs.playersRef;
-    chatRef = currentDbRefs.chatRef;
-    killsRef = currentDbRefs.killsRef;
-    mapStateRef = currentDbRefs.mapStateRef;
-    gameDataRef = currentDbRefs.gameDataRef; // Get the gameDataRef
-
-    if (!localPlayerId) { // Check localPlayerId after initNetwork
-        console.error("Local player ID not set after network init. This is unexpected.");
-        if (window.disconnectAndReturnToMenu) {
-            window.disconnectAndReturnToMenu();
-        } else {
-            location.reload();
-        }
-        return;
-    }
+    console.log("starting4");
 
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
 
     weaponController = new WeaponController(
         window.camera,
-        playersRef, // Pass playersRef for damage updates
-        mapStateRef.child("bullets"), // Pass the specific bullet holes reference
+        dbRefs.playersRef, // Use dbRefs from network.js
+        dbRefs.mapStateRef.child("bullets"), // Use dbRefs from network.js
         createTracer,
-        localPlayerId, // Pass local player ID for weapon actions
+        playerId, // Pass local player ID for weapon actions
         physicsController
     );
     window.weaponController = weaponController; // Expose globally if needed
+    
+    console.log("starting5");
+
+    // Get mapName from game settings in Firebase
+    const gameSettingsSnap = await dbRefs.gameSettingsRef.once('value');
+    const gameSettings = gameSettingsSnap.val();
+    const mapName = gameSettings ? gameSettings.mapName : null;
+
+    if (!mapName) {
+        console.error("Map name not found in game settings. Cannot start game.");
+        return;
+    }
+
+    const mapConfig = getMapConfig(mapName); // Get map config based on mapName
 
     // --- CONDITIONAL SCENE INITIALIZATION BASED ON MAPNAME ---
     if (mapName === "CrocodilosConstruction") {
-        await initSceneCrocodilosConstruction();
+        await initSceneCrocodilosConstruction(mapConfig); // Pass mapConfig
     } else if (mapName === "SigmaCity") {
-        await initSceneSigmaCity();
+        await initSceneSigmaCity(mapConfig); // Pass mapConfig
     } else {
         console.warn(`Unknown mapName: ${mapName}. Skipping specific scene initialization.`);
-        // Default to a basic scene if map is unknown
-        await initSceneCrocodilosConstruction(); // Fallback
     }
-
+    
+    console.log("starting6");
     initInput();
     initChatUI();
     initBulletHoles(); // Now correctly initialized and listening via network.js/ui.js events
     initializeAudioManager(window.camera, scene);
     startSoundListener();
-
-    // Create game timer display UI element
-    gameTimerDisplay = document.createElement('div');
-    gameTimerDisplay.id = 'game-timer-display';
-    Object.assign(gameTimerDisplay.style, {
-        position: 'absolute',
-        top: '20px',
-        right: '20px',
-        color: 'white',
-        fontSize: '1.5rem',
-        fontFamily: 'monospace',
-        textShadow: '2px 2px 4px rgba(0,0,0,0.7)',
-        zIndex: '1000'
-    });
-    document.getElementById('hud').appendChild(gameTimerDisplay);
-
-
+    
+    console.log("starting7");
     // Get a spawn point
     const spawn = findFurthestSpawn();
 
     // Initialize localPlayer object
-    localPlayer = { // Assign to the exported localPlayer
-        id: localPlayerId,
+    // DO NOT include initialPlayerHealth, initialPlayerShield, initialPlayerWeapon directly
+    // in this object, as you only need 'health', 'shield', 'weapon'.
+    window.localPlayer = {
+        id: playerId,
         username,
         x: spawn.x,
         y: spawn.y,
@@ -570,22 +526,19 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
         isAirborne: false,
         isDead: false
     };
-    window.localPlayer = localPlayer; // Also set on window for compatibility
-
     console.log("window.localPlayer before animate():", window.localPlayer);
-
     // Set initial camera position based on local player's spawn
     window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
     window.camera.lookAt(
         new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z)
-            .add(new THREE.Vector3(0, 0, -1))
+        .add(new THREE.Vector3(0, 0, -1))
     );
 
     // Initial Firebase setup for local player
-    if (playersRef && window.localPlayer) {
+    if (dbRefs.playersRef && window.localPlayer) { // Use dbRefs from network.js
         window.localPlayer.trueColor = window.localPlayer.bodyColor;
         // Send a clean object to Firebase, without the "initialPlayer..." constants
-        await playersRef.child(localPlayerId).set({
+        await dbRefs.playersRef.child(playerId).set({
             id: window.localPlayer.id,
             username: window.localPlayer.username,
             x: window.localPlayer.x,
@@ -604,14 +557,15 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
             lastUpdate: Date.now() // Add a timestamp for pruning inactive players
         }).then(() => {
             console.log("Local player initial state set in Firebase.");
-            // onDisconnect is now handled in network.js
+            dbRefs.playersRef.child(playerId).onDisconnect().remove(); // Keep this!
+
             updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // Initial UI update
         }).catch(error => {
             console.error("[startGame] Error setting local player data:", error);
             updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // Fallback UI update
         });
     } else {
-        console.error("Cannot set initial player data: playersRef or localPlayer is null.");
+        console.error("Cannot set initial player data: dbRefs.playersRef or localPlayer is null.");
         return;
     }
 
@@ -645,9 +599,9 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
         window.localPlayer.weapon = choice;
 
         // Update Firebase: crucial to reflect weapon change for other players
-        if (playersRef && localPlayerId) {
+        if (dbRefs.playersRef && localPlayerId) { // Use dbRefs from network.js
             try {
-                await playersRef.child(localPlayerId).update({ weapon: choice });
+                await dbRefs.playersRef.child(localPlayerId).update({ weapon: choice });
             } catch (error) {
                 console.error("Failed to update weapon in Firebase:", error);
             }
@@ -658,8 +612,8 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
         const restoreAmmo = weaponAmmo[choice];
         weaponController.ammoInMagazine =
             restoreAmmo !== undefined
-                ? restoreAmmo
-                : weaponController.stats.magazineSize;
+            ? restoreAmmo
+            : weaponController.stats.magazineSize;
 
         updateInventory(window.localPlayer.weapon); // Only pass current weapon key
         updateAmmoDisplay(
@@ -679,83 +633,140 @@ export async function startGame(username, mapName, initialDetailsEnabled) {
     }
 
     createLeaderboardOverlay();
-    startTimer(); // Start the game timer (Requirement 1)
-    animate(); // Start the game loop
+    gameAnimationId = requestAnimationFrame(animate); // Start the game loop and store its ID
 }
 
-/**
- * Starts the game timer and updates the UI.
- * This is called once the game starts.
- */
-function startTimer() {
-    gameStartTime = Date.now(); // Record the start time
-    if (gameIntervalId) clearInterval(gameIntervalId); // Clear any existing timer
-
-    gameIntervalId = setInterval(() => {
-        const elapsedSeconds = Math.floor((Date.now() - gameStartTime) / 1000);
-        gameTimer = Math.max(0, maxGameTime - elapsedSeconds); // Countdown
-
-        if (gameTimerDisplay) {
-            gameTimerDisplay.textContent = `Time: ${formatTime(gameTimer)} | Kills: ${localPlayer.kills}/${maxKills}`; // Update local player kills
-        }
-
-        if (gameTimer <= 0) {
-            clearInterval(gameIntervalId);
-            gameIntervalId = null;
-            console.log("Game time ended. Determining winner...");
-            determineWinnerByTime(); // Determine winner when time runs out
-        }
-    }, 1000); // Update every second
-}
-
-/**
- * Determines the winner when the game timer runs out.
- * This function should only be called by one client (e.g., the host or a designated client)
- * or use a transaction to prevent race conditions. For simplicity, we'll let any client trigger it.
- */
-async function determineWinnerByTime() {
-    if (!gameDataRef || !playersRef) {
-        console.error("Cannot determine winner: gameDataRef or playersRef not initialized.");
-        return;
+export function stopGameAnimationAndCleanup() {
+    console.log("Stopping game animation and cleaning up...");
+    if (gameAnimationId) {
+        cancelAnimationFrame(gameAnimationId);
+        gameAnimationId = null;
     }
 
-    // Use a transaction to ensure only one client sets the winner
-    gameDataRef.transaction(currentData => {
-        if (currentData && currentData.status === "finished" && currentData.winner) {
-            // Game already finished, no need to determine winner again
-            return;
+    // Stop all Firebase listeners for the current game
+    if (dbRefs) {
+        if (dbRefs.playersRef) dbRefs.playersRef.off();
+        if (dbRefs.chatRef) dbRefs.chatRef.off();
+        if (dbRefs.killsRef) dbRefs.killsRef.off();
+        if (dbRefs.tracersRef) dbRefs.tracersRef.off();
+        if (dbRefs.soundsRef) dbRefs.soundsRef.off();
+        if (dbRefs.mapStateRef) {
+            dbRefs.mapStateRef.child("bullets").off();
         }
-        return {}; // Return an empty object to proceed with the transaction
-    }, async (error, committed, snapshot) => {
-        if (error) {
-            console.error("Firebase transaction for winner failed:", error);
-            return;
-        }
-        if (!committed) {
-            console.log("Another client already committed the winner.");
-            return;
-        }
+        if (dbRefs.gameSettingsRef) dbRefs.gameSettingsRef.off();
+        if (dbRefs.gameWinnerRef) dbRefs.gameWinnerRef.off();
 
-        // Fetch all player data to find the winner
-        const playersSnapshot = await playersRef.once('value');
-        let highestKills = -1;
-        let winnerName = "No Winner"; // Default if no players or kills
+        // Remove local player data from Firebase
+        if (localPlayerId) {
+            dbRefs.playersRef.child(localPlayerId).remove().catch(err => console.error("Failed to remove local player on cleanup:", err));
+        }
+    }
 
-        playersSnapshot.forEach(playerSnap => {
-            const playerData = playerSnap.val();
-            if (playerData.kills > highestKills) {
-                highestKills = playerData.kills;
-                winnerName = playerData.username;
+    // Clear all remote players from the scene and local storage
+    for (const id in window.remotePlayers) {
+        removeRemotePlayer(id);
+    }
+    window.remotePlayers = {}; // Clear the map
+
+    // Clear all Three.js scene objects (except camera, which is reused)
+    while (scene.children.length > 0) {
+        const obj = scene.children[0];
+        if (obj !== window.camera) { // Keep the camera, it's reused
+            scene.remove(obj);
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                if (Array.isArray(obj.material)) {
+                    obj.material.forEach(m => m.dispose());
+                } else {
+                    obj.material.dispose();
+                }
             }
-        });
+            if (obj.children) { // Recursively dispose children
+                obj.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(m => m.dispose());
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                });
+            }
+        }
+    }
 
-        // Update gameDataRef with the winner and status
-        await gameDataRef.update({
-            winner: winnerName,
-            status: "finished",
-            finishedAt: firebase.database.ServerValue.TIMESTAMP
-        }).catch(err => console.error("Failed to set winner in gameData after timer:", err));
-    });
+    // Dispose renderer and composer if they exist
+    if (renderer) {
+        renderer.dispose();
+        renderer.domElement.remove();
+        window.renderer = null;
+        renderer = null;
+    }
+    if (composer) {
+        composer.dispose();
+        window.composer = null;
+        composer = null;
+    }
+    if (bloomPass) {
+        bloomPass.dispose();
+        window.bloomPass = null;
+        bloomPass = null;
+    }
+    if (renderPass) {
+        renderPass.dispose();
+        window.renderPass = null;
+        renderPass = null;
+    }
+
+    // Stop ambient sounds
+    if (windSound) {
+        windSound.pause();
+        windSound.currentTime = 0;
+    }
+    if (forestNoise) {
+        forestNoise.pause();
+        forestNoise.currentTime = 0;
+    }
+    if (deathTheme) {
+        deathTheme.pause();
+        deathTheme.currentTime = 0;
+    }
+    if (audioManagerInstance) {
+        audioManagerInstance.stopAll();
+        // audioManagerInstance = null; // Don't nullify, might be reused
+    }
+
+    // Reset game state flags
+    window.isGameActive = false;
+    window.localPlayer = null;
+    window.mapReady = false;
+    window.collidables = [];
+    window.envMeshes = [];
+    window.spawnPoints = [];
+    activeRecoils = [];
+    weaponAmmo = {};
+    playerVisibilityTimeouts = {};
+
+    // Hide all game UI elements
+    document.getElementById("game-container").style.display = 'none';
+    document.getElementById("hud").style.display = "none";
+    document.getElementById("crosshair").style.display = "none";
+    document.getElementById("buy-menu").classList.add("hidden");
+    document.getElementById("scoreboard").classList.add("hidden");
+    document.getElementById("respawn-overlay").classList.add("hidden");
+    document.getElementById("fade-overlay").style.opacity = "0";
+    document.getElementById("leaderboard-overlay").style.display = "none";
+
+    // Re-enable menu canvas
+    document.getElementById("menuCanvas").style.display = 'block';
+    document.body.classList.remove("game-active");
+    document.exitPointerLock(); // Ensure pointer lock is released
+
+    // Restart menu animation loop if it was stopped
+    if (!menuAnimationId) {
+        menuGameLoop();
+    }
 }
 
 
@@ -779,33 +790,30 @@ function setupDetailToggle() {
                 scene.fog = new THREE.Fog(fp.color, fp.near, fp.far);
             }
             renderer.shadowMap.enabled = true;
-            dirLight.castShadow = true;
+            dirLight.castShadow       = true;
             window.bloomPass.strength = window.originalBloomStrength;
-            btn.textContent = "Details: On";
+            btn.textContent           = "Details: On";
         } else {
-            scene.fog = null;
+            scene.fog                 = null;
             renderer.shadowMap.enabled = false;
-            dirLight.castShadow = false;
-            window.bloomPass.strength = 0;
-            btn.textContent = "Details: Off";
+            dirLight.castShadow        = false;
+            window.bloomPass.strength  = 0;
+            btn.textContent            = "Details: Off";
         }
     });
 
     btn.textContent = detailsEnabled ? "Details: On" : "Details: Off";
-
+    
 }
 
 
 // Scene Initialization
 
-let skyMesh, starField, worldFog; // Added worldFog here to match createFogDots/destroyFogDots
+let skyMesh; // Removed starField from here, declared locally in createStars()
 
-export async function initSceneCrocodilosConstruction() { // Make initSceneCrocodilosConstruction async
+export async function initSceneCrocodilosConstruction(mapConfig) { // Added mapConfig parameter
     sceneNum = 1;
     console.log("Initializing CrocodilosConstruction scene...");
-
-    // Clear existing scene objects before re-initializing
-    clearThreeJsScene();
 
     // 1. Scene
     scene = new THREE.Scene();
@@ -823,7 +831,7 @@ export async function initSceneCrocodilosConstruction() { // Make initSceneCroco
 
 
     window.camera.rotation.order = "YXZ";
-    scene.add(window.camera);
+    scene.add( window.camera );
 
 
     // 3. Renderer
@@ -854,7 +862,7 @@ export async function initSceneCrocodilosConstruction() { // Make initSceneCroco
 
     // --- Map and Physics Initialization ---
     // AWAIT the creation of the map and spawn points
-    spawnPoints = await createCrocodilosConstruction(scene, physicsController);
+    spawnPoints = await createCrocodilosConstruction(scene, physicsController); // This function uses mapConfig internally from firebase-config.js
     window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual array
 
     const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
@@ -871,7 +879,7 @@ export async function initSceneCrocodilosConstruction() { // Make initSceneCroco
     // --- Window Resize Handling ---
     function onWindowResize() {
         const container = document.getElementById("game-container");
-        const displayWidth = container.clientWidth;
+        const displayWidth  = container.clientWidth;
         const displayHeight = container.clientHeight;
 
         // 1) Render & post‑process at fixed 1280×720
@@ -879,7 +887,7 @@ export async function initSceneCrocodilosConstruction() { // Make initSceneCroco
         if (composer) composer.setSize(FIXED_WIDTH, FIXED_HEIGHT);
 
         // 2) Stretch the canvas via CSS to fill the container
-        renderer.domElement.style.width = `${displayWidth}px`;
+        renderer.domElement.style.width  = `${displayWidth}px`;
         renderer.domElement.style.height = `${displayHeight}px`;
 
         // 3) Update camera to match the display aspect ratio
@@ -905,7 +913,7 @@ export async function initSceneCrocodilosConstruction() { // Make initSceneCroco
         // 6) Resize HUD overlay
         const hud = document.getElementById("hud");
         if (hud) {
-            hud.style.width = `${displayWidth}px`;
+            hud.style.width  = `${displayWidth}px`;
             hud.style.height = `${displayHeight}px`;
         }
     }
@@ -914,12 +922,9 @@ export async function initSceneCrocodilosConstruction() { // Make initSceneCroco
     onWindowResize(); // Call once initially to set the correct sizes
 }
 
-export async function initSceneSigmaCity() { // Make initSceneCrocodilosConstruction async
+export async function initSceneSigmaCity(mapConfig) { // Added mapConfig parameter
     sceneNum = 2;
     console.log("Initializing SigmaCity scene...");
-
-    // Clear existing scene objects before re-initializing
-    clearThreeJsScene();
 
     scene = new THREE.Scene();
     const skyColor = new THREE.Color(0x87CEEB);
@@ -939,7 +944,7 @@ export async function initSceneSigmaCity() { // Make initSceneCrocodilosConstruc
 
 
     window.camera.rotation.order = "YXZ";
-    scene.add(window.camera);
+    scene.add( window.camera );
 
 
     // 3. Renderer
@@ -970,7 +975,7 @@ export async function initSceneSigmaCity() { // Make initSceneCrocodilosConstruc
 
     // --- Map and Physics Initialization ---
     // AWAIT the creation of the map and spawn points
-    spawnPoints = await createSigmaCity(scene, physicsController);
+    spawnPoints = await createSigmaCity(scene, physicsController); // This function uses mapConfig internally from firebase-config.js
     window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual array
 
     const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
@@ -988,7 +993,7 @@ export async function initSceneSigmaCity() { // Make initSceneCrocodilosConstruc
     // --- Window Resize Handling ---
     function onWindowResize() {
         const container = document.getElementById("game-container");
-        const displayWidth = container.clientWidth;
+        const displayWidth  = container.clientWidth;
         const displayHeight = container.clientHeight;
 
         // 1) Render & post‑process at fixed 1280×720
@@ -996,7 +1001,7 @@ export async function initSceneSigmaCity() { // Make initSceneCrocodilosConstruc
         if (composer) composer.setSize(FIXED_WIDTH, FIXED_HEIGHT);
 
         // 2) Stretch the canvas via CSS to fill the container
-        renderer.domElement.style.width = `${displayWidth}px`;
+        renderer.domElement.style.width  = `${displayWidth}px`;
         renderer.domElement.style.height = `${displayHeight}px`;
 
         // 3) Update camera to match the display aspect ratio
@@ -1022,7 +1027,7 @@ export async function initSceneSigmaCity() { // Make initSceneCrocodilosConstruc
         // 6) Resize HUD overlay
         const hud = document.getElementById("hud");
         if (hud) {
-            hud.style.width = `${displayWidth}px`;
+            hud.style.width  = `${displayWidth}px`;
             hud.style.height = `${displayHeight}px`;
         }
     }
@@ -1033,31 +1038,27 @@ export async function initSceneSigmaCity() { // Make initSceneCrocodilosConstruc
 
 
 // js/game.js (modify existing initGameNetwork)
-export async function initGameNetwork(username, playerId, mapName) {
-    // This function is now largely redundant as network.js handles initNetwork directly.
-    // However, we keep it to retrieve the game-specific dbRefs for game.js's internal use.
-    const gameId = localStorage.getItem("currentJoinedGameId"); // Ensure we get the correct gameId
-    if (!gameId) {
-        console.error("[game.js] initGameNetwork: No currentJoinedGameId found in localStorage.");
-        return;
-    }
-    const currentDbRefs = getDbRefs(gameId); // Use getGameDbRefs from firebase-config.js
-    playersRef = currentDbRefs.playersRef;
-    chatRef = currentDbRefs.chatRef;
-    killsRef = currentDbRefs.killsRef;
-    mapStateRef = currentDbRefs.mapStateRef;
-    gameDataRef = currentDbRefs.gameDataRef; // Assign gameDataRef
+export async function initGameNetwork(username, gameId) { // Changed playerId to gameId
+    // network.js will now handle setting up all Firebase listeners and
+    // distributing data via callbacks or by updating global `remotePlayers` object.
+    // It will also pass dbRefs to ui.js.
+    await initNetwork(username, gameId); // network.js handles playerId internally now, pass gameId
+
+    // Now, you can get the *references* if game.js needs them directly for specific operations,
+    // but the listeners are handled by network.js.
+    // dbRefs is now imported directly from network.js
     console.log("[game.js] initGameNetwork complete. Network listeners handled by network.js.");
+    // No need for duplicate listeners here!
 }
 
 
 export function pruneChat() {
-    chatRef
+    dbRefs.chatRef // Use imported dbRefs
         .orderByChild("timestamp")
         .limitToFirst(1)
         .once("value", (snap) => {
             if (snap.exists()) {
-                chatRef.once("value", (allSnap) => {
+                dbRefs.chatRef.once("value", (allSnap) => { // Use imported dbRefs
                     if (allSnap.numChildren() > 10) {
                         snap.forEach((child) => child.ref.remove());
                     }
@@ -1067,12 +1068,12 @@ export function pruneChat() {
 }
 
 export function pruneKills() {
-    killsRef
+    dbRefs.killsRef // Use imported dbRefs
         .orderByChild("timestamp")
         .limitToFirst(1)
         .once("value", (snap) => {
             if (snap.exists()) {
-                killsRef.once("value", (allSnap) => {
+                dbRefs.killsRef.once("value", (allSnap) => { // Use imported dbRefs
                     if (allSnap.numChildren() > 5) {
                         snap.forEach((child) => child.ref.remove());
                     }
@@ -1119,7 +1120,7 @@ export function addRemotePlayer(data) {
                     if (Array.isArray(obj.material)) {
                         obj.material.forEach(m => m.dispose());
                     } else {
-                        m.dispose(); // Dispose of single material
+                        obj.material.dispose();
                     }
                 }
             });
@@ -1191,7 +1192,7 @@ export function addRemotePlayer(data) {
         // You'll need to load a font first. This is an example, replace with your font path.
         // Common Three.js fonts are in node_modules/three/examples/fonts/
         const fontLoader = new FontLoader();
-        fontLoader.load('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+        fontLoader.load('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/fonts/helvetiker_regular.typeface.json', function(font) {
             const textGeometry = new TextGeometry(data.username, {
                 font: font,
                 size: 0.1, // Adjust size as needed
@@ -1216,7 +1217,7 @@ export function addRemotePlayer(data) {
             );
             nameMesh.userData.isPlayerName = true;
             group.add(nameMesh);
-        }, undefined, function (err) {
+        }, undefined, function(err) {
             console.error('An error happened loading the font:', err);
         });
 
@@ -1263,96 +1264,6 @@ export function addRemotePlayer(data) {
 }
 
 
-/**
- * Clears the Three.js scene of all objects, disposing of geometries and materials.
- * This is crucial for preventing memory leaks when changing maps or ending a game.
- */
-function clearThreeJsScene() {
-    console.log("Clearing Three.js scene...");
-    if (!scene) {
-        console.warn("Scene is null, cannot clear.");
-        return;
-    }
-
-    // Stop all sounds from AudioManager before clearing scene
-    if (window.audioManager) {
-        window.audioManager.stopAll();
-    }
-
-    // Dispose of existing scene objects
-    scene.traverse(object => {
-        if (!object.isMesh && !object.isLight && !object.isGroup && !object.isLine && !object.isPoints) return;
-
-        // Skip player models and their children, as they are managed by remotePlayers/localPlayer
-        // and will be removed explicitly or re-added.
-        // However, if we are clearing the scene for a full game reset, we should remove them.
-        // For a full reset (like returning to menu), we want to remove everything.
-        if (object.geometry) {
-            object.geometry.dispose();
-        }
-        if (object.material) {
-            if (Array.isArray(object.material)) {
-                object.material.forEach(material => material.dispose());
-            } else {
-                object.material.dispose();
-            }
-        }
-        if (object.parent) {
-            object.parent.remove(object);
-        }
-    });
-
-    // Clear all remote players from the tracking object
-    for (const id in remotePlayers) {
-        if (remotePlayers[id].group) {
-            scene.remove(remotePlayers[id].group); // Ensure group is removed from scene
-            remotePlayers[id].group.traverse(obj => { // Dispose of its children
-                if (obj.geometry) obj.geometry.dispose();
-                if (obj.material) {
-                    if (Array.isArray(obj.material)) {
-                        obj.material.forEach(m => m.dispose());
-                    } else {
-                        obj.material.dispose();
-                    }
-                }
-            });
-        }
-        delete remotePlayers[id];
-    }
-    // Clear local player reference
-    localPlayer = null;
-    window.localPlayer = null;
-
-    // Clear environment meshes and collidables
-    window.envMeshes = [];
-    window.collidables = [];
-
-    // Clear bullet holes from UI (they are meshes in the scene)
-    for (const key in bulletHoleMeshes) { // Assuming bulletHoleMeshes is still managed here or in UI
-        removeBulletHole(key); // Call the UI function to remove and dispose
-    }
-
-    // Dispose of main scene elements if they exist
-    if (skyMesh) { scene.remove(skyMesh); skyMesh.geometry.dispose(); skyMesh.material.dispose(); skyMesh = null; }
-    if (starField) { scene.remove(starField); starField.geometry.dispose(); starField.material.dispose(); starField = null; }
-    if (worldFog) { scene.remove(worldFog); worldFog.geometry.dispose(); worldFog.material.dispose(); worldFog = null; }
-    if (dirLight) { scene.remove(dirLight); dirLight.dispose(); dirLight = null; }
-    if (hemi) { scene.remove(hemi); hemi.dispose(); hemi = null; }
-    if (composer) { composer.dispose(); composer = null; }
-    if (renderer && renderer.domElement.parentNode) {
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
-        renderer.dispose();
-        renderer = null;
-    }
-    // Re-create a new scene and camera to ensure a clean slate
-    window.scene = new THREE.Scene();
-    window.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    window.camera.rotation.order = "YXZ"; // Ensure order is set for new camera
-    window.scene.add(window.camera); // Add camera to the new scene
-    console.log("Three.js scene cleared and re-initialized.");
-}
-
-
 // ─── bullet-proof removeRemotePlayer ─────────────────────────────────────────
 export function removeRemotePlayer(id) {
     const rp = window.remotePlayers[id];
@@ -1360,21 +1271,10 @@ export function removeRemotePlayer(id) {
     // Remove model if still in scene
     if (rp && rp.group && rp.group.parent) {
         scene.remove(rp.group);
-        // Dispose of resources
-        rp.group.traverse(obj => {
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                if (Array.isArray(obj.material)) {
-                    obj.material.forEach(m => m.dispose());
-                } else {
-                    obj.material.dispose();
-                }
-            }
-        });
         console.log(`[removeRemotePlayer] Removed model for player ${id}`);
     }
 
-    // Clear any pending hide‐timeouts
+    // Clear any pending hide-timeouts
     clearTimeout(playerVisibilityTimeouts[id]);
     delete playerVisibilityTimeouts[id];
 
@@ -1417,7 +1317,7 @@ export function updateRemotePlayer(data) {
         if (!rp.group.userData.isFalling) {
             rp.group.userData.isFalling = true;
             rp.group.userData.velocityY = 0;
-            // Optionally record starting Y: 
+            // Optionally record starting Y: 
             // rp.group.userData.deathStartY = rp.group.position.y;
         }
         // Keep visible so falling is seen; animate loop will hide after threshold.
@@ -1439,7 +1339,7 @@ export function updateRemotePlayer(data) {
         rp.bodyMesh.material.color.setHex(colorToUse);
     }
 
-    // Weapon change → clear any in‑flight swing timer and reset
+    // Weapon change → clear any in-flight swing timer and reset
     if (data.weapon !== rp.currentWeapon) {
         if (rp.swingAnim && rp.swingAnim.timerId != null) {
             clearTimeout(rp.swingAnim.timerId);
@@ -1475,7 +1375,7 @@ export function updateRemotePlayer(data) {
 
     // Knife swing request → start timer once
     if (data.knifeSwing && !rp.swingAnim.active && rp.currentWeapon === 'knife') {
-        data.knifeSwing = false;  // consume the flag
+        data.knifeSwing = false;  // consume the flag
         rp.swingAnim.active = true;
         const rpm = 120;
         const duration = 60_000 / rpm;
@@ -1499,10 +1399,10 @@ export function updateRemotePlayer(data) {
 
     // Animate ongoing swing
     if (rp.swingAnim.active && rp.currentWeapon === 'knife') {
-        const now = performance.now();
+        const now      = performance.now();
         const elapsed = now - rp.swingAnim.startTime;
-        const t = Math.min(elapsed / rp.swingAnim.duration, 1);
-        const maxF = rp.swingAnim.heavy ? 0.9 : 1.2;
+        const t        = Math.min(elapsed / rp.swingAnim.duration, 1);
+        const maxF     = rp.swingAnim.heavy ? 0.9 : 1.2;
         const swingAng = maxF * Math.sin(Math.PI * t);
         const { MathUtils } = THREE;
 
@@ -1551,7 +1451,7 @@ setInterval(cleanUpRemotePlayers, 1000);
 
 // — SPAWN SELECTION —
 function findFurthestSpawn() {
-    //  console.log("Finding furthest spawn point...");
+    //  console.log("Finding furthest spawn point...");
     const spawnPoints = window.spawnPoints; // Correctly reference the global spawnPoints
 
     if (!spawnPoints || !Array.isArray(spawnPoints) || spawnPoints.length === 0) {
@@ -1606,7 +1506,7 @@ function findFurthestSpawn() {
     const randomIndex = Math.floor(Math.random() * top3Furthest.length);
     const chosenSpawn = top3Furthest[randomIndex].spawnPoint;
 
-    //  console.log(`Chosen spawn point: (${chosenSpawn.x}, ${chosenSpawn.y}, ${chosenSpawn.z}) with distance ${top3Furthest[randomIndex].distance}`);
+    //  console.log(`Chosen spawn point: (${chosenSpawn.x}, ${chosenSpawn.y}, ${chosenSpawn.z}) with distance ${top3Furthest[randomIndex].distance}`);
 
     return chosenSpawn;
 }
@@ -1636,10 +1536,10 @@ function createFadeOverlay() {
         width: "100%",
         height: "100%",
         background: "#000",
-        opacity: "0",            // start fully transparent
+        opacity: "0",         // start fully transparent
         transition: "opacity 1s ease-in-out",
-        pointerEvents: "none",   // clicks pass through while transparent
-        zIndex: "5",             // Above HUD (z=2), below respawn (z=6)
+        pointerEvents: "none",   // clicks pass through while transparent
+        zIndex: "5",          // Above HUD (z=2), below respawn (z=6)
     });
     document.body.appendChild(fadeOverlay);
     // console.log("[createFadeOverlay] Fade overlay added to DOM.");
@@ -1653,16 +1553,16 @@ function createRedOverlay() {
     redOverlay = document.createElement("div");
     redOverlay.id = "full-red-overlay";
     Object.assign(redOverlay.style, {
-        position: "fixed",
-        top: "0",
-        left: "0",
-        width: "100%",
-        height: "100%",
-        background: "rgba(255, 0, 0, 1)",   // fully-opaque red
-        opacity: "0",                    // start fully transparent
-        transition: "opacity 0.5s ease-out",// fade in/out
-        zIndex: "9999",                 // on top of everything
-        pointerEvents: "none",                 // allow clicks through when hidden
+        position:      "fixed",
+        top:           "0",
+        left:          "0",
+        width:         "100%",
+        height:        "100%",
+        background:    "rgba(255, 0, 0, 1)",    // fully-opaque red
+        opacity:       "0",                     // start fully transparent
+        transition:    "opacity 0.5s ease-out",// fade in/out
+        zIndex:        "9999",                  // on top of everything
+        pointerEvents: "none",                  // allow clicks through when hidden
     });
 
     document.body.appendChild(redOverlay);
@@ -1670,20 +1570,20 @@ function createRedOverlay() {
 }
 
 const hitArrowCSS = `
- #hit-direction-arrow {
-   position: absolute;
-   top: 50%;
-   left: 50%;
-   transform: translate(-50%, -50%) rotate(0deg); /* Initial rotation */
-   width: 80px; /* Adjust size as needed */
-   height: 80px; /* Adjust size as needed */
-   background-color: rgba(255, 0, 0, 0.7); /* Red arrow */
-   clip-path: polygon(0% 20%, 60% 20%, 60% 0%, 100% 50%, 60% 100%, 60% 80%, 0% 80%);
-   opacity: 0;
-   transition: opacity 0.1s ease-out, transform 0.1s ease-out; /* Faster transitions for a snappier feel */
-   pointer-events: none; /* Allows clicks to pass through */
-   z-index: 1000; /* Ensure it's on top */
- }
+    #hit-direction-arrow {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(0deg); /* Initial rotation */
+        width: 80px; /* Adjust size as needed */
+        height: 80px; /* Adjust size as needed */
+        background-color: rgba(255, 0, 0, 0.7); /* Red arrow */
+        clip-path: polygon(0% 20%, 60% 20%, 60% 0%, 100% 50%, 60% 100%, 60% 80%, 0% 80%);
+        opacity: 0;
+        transition: opacity 0.1s ease-out, transform 0.1s ease-out; /* Faster transitions for a snappier feel */
+        pointer-events: none; /* Allows clicks to pass through */
+        z-index: 1000; /* Ensure it's on top */
+    }
 `;
 
 // Inject the CSS into the head of the document
@@ -1698,6 +1598,7 @@ if (!hitDirectionArrow) {
     hitDirectionArrow.id = 'hit-direction-arrow';
     document.body.appendChild(hitDirectionArrow);
 }
+
 
 function showHitDirectionArrow(angle) {
     hitDirectionArrow.style.transition = 'opacity 0.1s ease-out, transform 0.1s ease-out';
@@ -1717,7 +1618,7 @@ function pulseScreenRed() {
     createRedOverlay();
     // Bring it up quickly
     redOverlay.style.pointerEvents = "auto"; // block input briefly if you want
-    redOverlay.style.opacity = "0.8";        // semi-strong flash
+    redOverlay.style.opacity = "0.8";        // semi-strong flash
 
     // After a short hold, fade back to transparent
     setTimeout(() => {
@@ -1738,15 +1639,15 @@ function createWhiteOverlay() {
     whiteOverlay = document.createElement("div");
     whiteOverlay.id = "full-white-overlay";
     Object.assign(whiteOverlay.style, {
-        position: "fixed",
-        top: "0",
-        left: "0",
-        width: "100%",
-        height: "100%",
-        background: "rgba(255, 255, 255, 1)", // fully-opaque white
-        opacity: "0",                     // start fully transparent
-        transition: "opacity 0.5s ease-out",
-        zIndex: "9999",
+        position:      "fixed",
+        top:           "0",
+        left:          "0",
+        width:         "100%",
+        height:        "100%",
+        background:    "rgba(255, 255, 255, 1)", // fully-opaque white
+        opacity:       "0",                      // start fully transparent
+        transition:    "opacity 0.5s ease-out",
+        zIndex:        "9999",
         pointerEvents: "none",
     });
 
@@ -1785,8 +1686,8 @@ function createRespawnOverlay() {
         width: "100%",
         height: "100%",
         background: "rgba(0, 0, 0, 0.75)",
-        zIndex: "6",            // Above fade overlay
-        display: "none",        // Hidden until death
+        zIndex: "6",          // Above fade overlay
+        display: "none",      // Hidden until death
         alignItems: "center",
         justifyContent: "center",
         pointerEvents: "auto",
@@ -1821,20 +1722,20 @@ function createLeaderboardOverlay() {
     const overlay = document.createElement("div");
     overlay.id = "leaderboard-overlay";
     Object.assign(overlay.style, {
-        position: "fixed",
-        top: "10px",
-        right: "10px",
-        background: "rgba(0,0,0,0.85)",
-        color: "#fff",
-        padding: "12px 16px",
-        borderRadius: "8px",
-        fontFamily: "Arial, sans-serif",
-        zIndex: "10",
-        pointerEvents: "none",
-        display: "block",      // default to visible
-        maxHeight: "70vh",
-        overflowY: "auto",
-        minWidth: "240px",
+        position:       "fixed",
+        top:            "10px",
+        right:          "10px",
+        background:     "rgba(0,0,0,0.85)",
+        color:          "#fff",
+        padding:        "12px 16px",
+        borderRadius:   "8px",
+        fontFamily:     "Arial, sans-serif",
+        zIndex:         "10",
+        pointerEvents:  "none",
+        display:        "block",     // default to visible
+        maxHeight:      "70vh",
+        overflowY:      "auto",
+        minWidth:       "240px",
     });
 
     // 2) Title
@@ -1857,24 +1758,24 @@ function createLeaderboardOverlay() {
         fontSize: "0.9rem"
     });
     table.innerHTML = `
-   <thead>
-     <tr>
-       <th style="padding:4px;">Name</th>
-       <th style="padding:4px;">K</th>
-       <th style="padding:4px;">D</th>
-       <th style="padding:4px;">KS</th>
-     </tr>
-   </thead>
-   <tbody id="leaderboard-body">
-     <tr><td colspan="4" style="padding:4px; text-align:center;">Loading…</td></tr>
-   </tbody>
- `;
+        <thead>
+            <tr>
+                <th style="padding:4px;">Name</th>
+                <th style="padding:4px;">K</th>
+                <th style="padding:4px;">D</th>
+                <th style="padding:4px;">KS</th>
+            </tr>
+        </thead>
+        <tbody id="leaderboard-body">
+            <tr><td colspan="4" style="padding:4px; text-align:center;">Loading…</td></tr>
+        </tbody>
+    `;
     overlay.appendChild(table);
 
     document.body.appendChild(overlay);
 
     // 4) Firebase listener
-    playersRef.on("value", snapshot => {
+    dbRefs.playersRef.on("value", snapshot => { // Use imported dbRefs
         const players = [];
         snapshot.forEach(snap => {
             const d = snap.val();
@@ -1887,7 +1788,7 @@ function createLeaderboardOverlay() {
                 });
             }
         });
-        players.sort((a, b) => b.kills - a.kills || b.ks - a.ks);
+        players.sort((a,b) => b.kills - a.kills || b.ks - a.ks);
 
         const tbody = document.getElementById("leaderboard-body");
         tbody.innerHTML = "";
@@ -1897,11 +1798,11 @@ function createLeaderboardOverlay() {
             players.forEach(p => {
                 const row = document.createElement("tr");
                 row.innerHTML = `
-         <td style="padding:4px;">${p.name}</td>
-         <td style="padding:4px;">${p.kills}</td>
-         <td style="padding:4px;">${p.deaths}</td>
-         <td style="padding:4px;">${p.ks}</td>
-       `;
+                    <td style="padding:4px;">${p.name}</td>
+                    <td style="padding:4px;">${p.kills}</td>
+                    <td style="padding:4px;">${p.deaths}</td>
+                    <td style="padding:4px;">${p.ks}</td>
+                `;
                 tbody.appendChild(row);
             });
         }
@@ -1928,7 +1829,7 @@ export function handleLocalDeath() {
     if (window.localPlayer) {
         // 1. Mark the player dead
         window.localPlayer.isDead = true;
-        //  console.log("[DEBUG] window.localPlayer.isDead set to:", window.localPlayer.isDead);
+        //  console.log("[DEBUG] window.localPlayer.isDead set to:", window.localPlayer.isDead);
 
         // 2. Remove any physics bodies (if you’re using a physics engine)
 
@@ -1937,18 +1838,18 @@ export function handleLocalDeath() {
             // assume each collider has userData.playerId === localPlayer.id
             return !(obj.userData.isPlayerBodyPart && obj.userData.playerId === window.localPlayer.id);
         });
-        //  console.log("[DEBUG] Stripped out localPlayer collidables, remaining:", window.collidables.length);
+        //  console.log("[DEBUG] Stripped out localPlayer collidables, remaining:", window.collidables.length);
 
         // 4. Optionally hide the model in the scene (if you want)
         if (window.localPlayer.group && window.localPlayer.group.parent) {
             scene.remove(window.localPlayer.group);
-            //  console.log("[DEBUG] Removed localPlayer model from scene");
+            //  console.log("[DEBUG] Removed localPlayer model from scene");
         }
 
         // 5. Trigger your respawn UI
         if (typeof showRespawn === "function") {
             showRespawn();
-            //    console.log("[DEBUG] showRespawn() called.");
+            //    console.log("[DEBUG] showRespawn() called.");
         } else {
             console.error("[DEBUG ERROR] showRespawn function is not defined!");
         }
@@ -1960,7 +1861,7 @@ export function handleLocalDeath() {
 
 // Make sure that the 'respawnPlayer' function is defined globally as well.
 // If you haven't already, define it similar to this example:
-window.respawnPlayer = function () {
+window.respawnPlayer = function() {
     if (window.localPlayer) {
         window.localPlayer.isDead = false;
         window.localPlayer.health = 100;
@@ -1980,9 +1881,9 @@ function respawnPlayer() {
     // UI + audio reset
     deathTheme.currentTime = 0;
     deathTheme.pause();
-    if (sceneNum == 1) {
+    if (sceneNum == 1) { // CrocodilosConstruction
         windSound.play().catch(err => console.warn(err));
-    } else if (sceneNum == 2) {
+    } else if (sceneNum == 2) { // SigmaCity
         forestNoise.play().catch(err => console.warn(err));
     }
 
@@ -2037,7 +1938,7 @@ function respawnPlayer() {
     }
 
     // 7) Pointer-lock & input reset
-    //  console.log("[respawnPlayer] Re-entering pointer lock");
+    //  console.log("[respawnPlayer] Re-entering pointer lock");
     document.body.classList.add("game-active");
 
     // 8) Weapon & HUD reset
@@ -2058,7 +1959,7 @@ function respawnPlayer() {
     }
 
     // 9) Sync alive state to Firebase
-    playersRef.child(window.localPlayer.id).update({
+    dbRefs.playersRef.child(window.localPlayer.id).update({ // Use imported dbRefs
         x: spawn.x,
         y: spawn.y,
         z: spawn.z,
@@ -2072,51 +1973,12 @@ function respawnPlayer() {
 // — MAIN ANIMATION LOOP —
 // js/game.js (or wherever your main loop lives)
 
-let hiddenInterval = null; // This seems unused, can be removed
-
-/**
- * Stops or resumes the game animation loop.
- * @param {boolean} stop - True to stop, false to resume.
- */
-export function stopGameAnimation(stop) {
-    if (stop) {
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
-            console.log("Game animation loop stopped.");
-        }
-        if (gameIntervalId) {
-            clearInterval(gameIntervalId);
-            gameIntervalId = null;
-            console.log("Game timer stopped.");
-        }
-        // Clear the scene and remote players when stopping the game
-        clearThreeJsScene();
-        // Stop all sounds
-        if (window.audioManager) {
-            window.audioManager.stopAll();
-        }
-        // Hide game timer display
-        if (gameTimerDisplay && gameTimerDisplay.parentNode) {
-            gameTimerDisplay.parentNode.removeChild(gameTimerDisplay);
-            gameTimerDisplay = null;
-        }
-    } else {
-        if (!rafId) { // Only resume if not already running
-            animate();
-            console.log("Game animation loop resumed.");
-        }
-        if (!gameIntervalId && gameTimer > 0) { // Only resume timer if it was active
-            startTimer();
-            console.log("Game timer resumed.");
-        }
-    }
-}
-
+let hiddenInterval = null;
+// let rafId = null; // Renamed to gameAnimationId
 
 export function animate(timestamp) {
     // Schedule the next frame immediately
-    rafId = requestAnimationFrame(animate); // Store the ID
+    gameAnimationId = requestAnimationFrame(animate);
 
     // Throttle to 60fps: bail out if we're too early
     const FRAME_INTERVAL = 1000 / 60; // ≈16.67ms
@@ -2159,7 +2021,7 @@ export function animate(timestamp) {
                 forestNoise.currentTime = 0;
                 forestNoise.pause();
                 deathTheme.currentTime = 0;
-                deathTheme.play().catch(() => { });
+                deathTheme.play().catch(() => {});
             }
             if (fadeOverlay) {
                 fadeOverlay.style.pointerEvents = "auto";
@@ -2183,7 +2045,7 @@ export function animate(timestamp) {
             const g = rp.group;
             if (g?.userData.isFalling) {
                 g.userData.velocityY += GRAVITY * delta;
-                g.position.y -= g.userData.velocityY * delta;
+                g.position.y    -= g.userData.velocityY * delta;
                 if (g.position.y < -20) {
                     g.userData.isFalling = false;
                     g.userData.velocityY = 0;
@@ -2194,7 +2056,7 @@ export function animate(timestamp) {
 
         // Sky and fog rotation
         if (skyMesh && starField) {
-            skyMesh.rotation.x += 0.0001;
+            skyMesh.rotation.x   += 0.0001;
             starField.rotation.x += 0.00008;
         }
         if (window.worldFog) {
@@ -2211,11 +2073,11 @@ export function animate(timestamp) {
         weaponController.update(
             inputState, delta,
             {
-                velocity: physState.velocity,
-                isCrouched: inputState.crouch,
+                velocity:    physState.velocity,
+                isCrouched:  inputState.crouch,
                 physicsController,
                 collidables: window.collidables,
-                stats: weaponController.stats
+                stats:       weaponController.stats
             }
         );
 
@@ -2229,8 +2091,6 @@ export function animate(timestamp) {
                 activeTracers.splice(i, 1);
             }
         }
-
-
 
         // Network sync
         sendPlayerUpdate({
@@ -2257,14 +2117,14 @@ export function animate(timestamp) {
             weaponAmmo[oldW] = weaponController.getCurrentAmmo();
             const newW = inputState.weaponSwitch;
             window.localPlayer.weapon = newW;
-            if (playersRef && window.localPlayer.id) {
-                playersRef.child(window.localPlayer.id).update({ weapon: newW });
+            if (dbRefs.playersRef && localPlayerId) { // Use imported dbRefs
+                dbRefs.playersRef.child(localPlayerId).update({ weapon: newW });
             } else {
                 console.warn("Cannot update local player weapon in Firebase");
             }
             weaponController.equipWeapon(newW);
             weaponController.ammoInMagazine = weaponAmmo[newW] ?? weaponController.stats.magazineSize;
-            updateInventory(weaponController.ammoInMagazine, weaponController.stats.magazineSize); // Corrected to use ammoInMagazine
+            updateInventory(weaponController.getCurrentAmmo(), weaponController.getMaxAmmo());
             updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
             inputState.weaponSwitch = null;
             if (newW === "knife") activeRecoils.length = 0;
@@ -2272,11 +2132,11 @@ export function animate(timestamp) {
 
         // Mouse look + recoil
         const baseSens = parseFloat(localStorage.getItem("sensitivity") || "5.00");
-        const aimMul = inputState.aim ? (window.localPlayer.weapon === "marshal" ? 0.15 : 0.5) : 1;
+        const aimMul  = inputState.aim ? (window.localPlayer.weapon === "marshal" ? 0.15 : 0.5) : 1;
         const finalSens = baseSens * aimMul;
         window.camera.rotation.y -= inputState.mouseDX * finalSens * 0.002;
         let newPitch = window.camera.rotation.x - inputState.mouseDY * finalSens * 0.002;
-        window.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, newPitch));
+        window.camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, newPitch));
         // Recoil processing
         {
             const now = performance.now() / 1000;
@@ -2319,10 +2179,6 @@ export function animate(timestamp) {
 
 function resetWeaponPose(weaponKey, mesh) {
     const M = THREE.MathUtils;
-    if (!mesh) {
-        console.warn(`resetWeaponPose(): mesh is null for weapon "${weaponKey}"`);
-        return;
-    }
     switch (weaponKey) {
         case "knife":
             mesh.scale.set(0.0007, 0.0007, 0.0007);
@@ -2356,21 +2212,12 @@ function resetWeaponPose(weaponKey, mesh) {
 
 function attachWeaponToPlayer(playerId, weaponName) {
     const key = weaponName.replace(/-/g, "").toLowerCase();
-    const rp = window.remotePlayers[playerId];
+    const rp  = window.remotePlayers[playerId];
     if (!rp) return;
 
     // 1) Clear any previous model
     while (rp.weaponRoot.children.length) {
-        const child = rp.weaponRoot.children[0];
-        rp.weaponRoot.remove(child);
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) {
-            if (Array.isArray(child.material)) {
-                child.material.forEach(m => m.dispose());
-            } else {
-                child.material.dispose();
-            }
-        }
+        rp.weaponRoot.remove(rp.weaponRoot.children[0]);
     }
     // clear any old reference
     rp.weaponMesh = null;
@@ -2494,7 +2341,7 @@ function animateDeath(targetId) {
 function applyDamageToRemote(targetId, damage, killerInfo) {
     //console.log('[applyDamageToRemote] for', targetId, 'damage=', damage);
 
-    if (targetId === window.localPlayer.id) {
+    if (targetId === localPlayerId) { // Use imported localPlayerId
         // ONLY store the killer's position if the local player is the target
         if (killerInfo && killerInfo.id) {
             const killerEntry = window.remotePlayers[killerInfo.id];
@@ -2517,7 +2364,7 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
         return;
     }
 
-    playersRef.child(targetId).once('value')
+    dbRefs.playersRef.child(targetId).once('value') // Use imported dbRefs
         .then(snap => {
             const data = snap.val();
             if (!data || data.isDead) return;
@@ -2540,7 +2387,7 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
             };
 
             if (newHP <= 0) {
-                //  console.log('[applyDamageToRemote] →', targetId, 'died');
+                //  console.log('[applyDamageToRemote] →', targetId, 'died');
                 Object.assign(updateData, {
                     deaths: (data.deaths || 0) + 1,
                     ks: 0,
@@ -2549,11 +2396,11 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                 });
 
                 // Update victim
-                return playersRef.child(targetId)
+                return dbRefs.playersRef.child(targetId) // Use imported dbRefs
                     .update(updateData)
                     .then(() => {
                         // Update killer stats
-                        return playersRef.child(window.localPlayer.id).once('value')
+                        return dbRefs.playersRef.child(localPlayerId).once('value') // Use imported dbRefs and localPlayerId
                             .then(snap2 => {
                                 const kd = snap2.val() || {};
                                 const newKills = (kd.kills || 0) + 1;
@@ -2562,14 +2409,14 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                                 window.localPlayer.kills = newKills;
                                 window.localPlayer.ks = newKS;
 
-                                return playersRef.child(window.localPlayer.id)
+                                return dbRefs.playersRef.child(localPlayerId) // Use imported dbRefs and localPlayerId
                                     .update({
                                         kills: newKills,
                                         ks: newKS
                                     })
                                     .then(() => {
                                         // Play kill-streak sound for local player
-                                        if (killerInfo.id === window.localPlayer.id) {
+                                        if (killerInfo.id === localPlayerId) { // Use imported localPlayerId
                                             const streak = newKS >= 10 ? 10 : newKS;
                                             // Assuming KILLSTREAK_SOUNDS is defined elsewhere
                                             const url = typeof KILLSTREAK_SOUNDS !== 'undefined' ? KILLSTREAK_SOUNDS[streak] : null;
@@ -2579,19 +2426,32 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                                             }
                                             pulseScreenWhite();
                                         }
+
+                                        // Check for win condition after updating killer's kills
+                                        if (dbRefs.gameSettingsRef) { // Use imported dbRefs
+                                            dbRefs.gameSettingsRef.once('value').then(settingsSnap => {
+                                                const settings = settingsSnap.val();
+                                                if (settings && settings.gameMode === "FFA" && settings.killLimit) {
+                                                    if (newKills >= settings.killLimit) {
+                                                        dbRefs.gameWinnerRef.set({ winnerId: localPlayerId, winnerName: window.localPlayer.username, timestamp: firebase.database.ServerValue.TIMESTAMP }) // Use imported dbRefs and localPlayerId
+                                                            .catch(err => console.error("Failed to set game winner:", err));
+                                                    }
+                                                }
+                                            }).catch(err => console.error("Failed to read game settings for win condition:", err));
+                                        }
                                     });
                             });
                     })
                     .then(() => {
                         // Handle UI after updates
                         animateDeath(targetId);
-                        if (targetId === window.localPlayer.id) {
+                        if (targetId === localPlayerId) { // Use imported localPlayerId
                             handleLocalDeath();
                         }
                         // Record kill event
                         // Assuming killsRef is defined elsewhere
-                        if (typeof killsRef !== 'undefined') {
-                            return killsRef.push({
+                        if (dbRefs.killsRef) { // Use imported dbRefs
+                            return dbRefs.killsRef.push({
                                 killer: window.localPlayer.username,
                                 victim: data.username,
                                 weapon: window.localPlayer.weapon,
@@ -2606,7 +2466,7 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                 if (typeof pulsePlayerHit !== 'undefined') {
                     pulsePlayerHit(targetId);
                 }
-                return playersRef.child(targetId)
+                return dbRefs.playersRef.child(targetId) // Use imported dbRefs
                     .update(updateData);
             }
         })
@@ -2619,22 +2479,24 @@ window.applyDamageToRemote = applyDamageToRemote; // Make globally accessible
 // — CLEANUP ON UNLOAD —
 // Ensure player data is removed from Firebase when the window is closed/reloaded
 window.addEventListener("beforeunload", () => {
-    if (localPlayer) {
-        // This is now handled by disconnectPlayer in network.js
-        // playersRef.child(localPlayer.id).remove();
-        disconnectPlayer(); // Call the network function to handle cleanup
+    if (localPlayerId && dbRefs && dbRefs.playersRef) { // Use imported localPlayerId and dbRefs
+        dbRefs.playersRef.child(localPlayerId).remove(); // Use imported localPlayerId and dbRefs
     }
     // Clear pruning intervals to prevent memory leaks
-    clearInterval(chatPruneInterval); // These are likely managed by network.js now
-    clearInterval(killsPruneInterval); // These are likely managed by network.js now
-    stopGameAnimation(true); // Ensure animation stops on unload
+    clearInterval(chatPruneInterval);
+    clearInterval(killsPruneInterval);
 });
 
 
 document.addEventListener("bulletHoleRemoved", (e) => {
     const { id } = e.detail;
-    // bulletHoleMeshes is no longer used here, ui.js handles the actual meshes
-    // The event is handled by ui.js's removeBulletHole
+    const hole = bulletHoleMeshes[id];
+    if (hole) {
+        scene.remove(hole);
+        hole.geometry.dispose();
+        hole.material.dispose();
+        delete bulletHoleMeshes[id];
+    }
 });
 
 document.addEventListener("keydown", (e) => {
@@ -2675,45 +2537,23 @@ function checkForDamagePulse() {
 
         // If there's information about the last damage source, show the arrow
         if (lastDamageSourcePosition) {
-            const localPlayerPos = new THREE.Vector3(window.localPlayer.x, window.localPlayer.y, window.localPlayer.z); // Get local player's position
+            const localPlayerPos = window.localPlayer.position; // Assuming localPlayer has a position
 
             // Calculate angle from damage source to local player
             const deltaX = lastDamageSourcePosition.x - localPlayerPos.x;
-            const deltaZ = lastDamageSourcePosition.z - localPlayerPos.z; // Use Z for horizontal plane
+            const deltaY = lastDamageSourcePosition.y - localPlayerPos.y;
 
-            // Calculate angle relative to the player's forward direction (which is -Z in Three.js)
-            // Player's forward vector in horizontal plane (assuming rotY is around Y-axis)
-            const playerForwardX = -Math.sin(window.camera.rotation.y);
-            const playerForwardZ = -Math.cos(window.camera.rotation.y);
+            const angleRad = Math.atan2(deltaY, deltaX);
+            let angleDeg = angleRad * (180 / Math.PI);
 
-            // Vector from source to player
-            const toPlayerX = -deltaX;
-            const toPlayerZ = -deltaZ;
-
-            // Calculate angle between player's forward and vector to source
-            // Dot product for angle cosine
-            const dot = playerForwardX * toPlayerX + playerForwardZ * toPlayerZ;
-            // Cross product for angle sign (determines left/right)
-            const cross = playerForwardX * toPlayerZ - playerForwardZ * toPlayerX;
-
-            const angleRad = Math.atan2(cross, dot); // Angle in radians
-            let angleDeg = THREE.MathUtils.radToDeg(angleRad);
-
-            // Adjust angle to make 0 degrees point forward on the arrow UI
-            // The arrow should point FROM the source TO the player.
-            // If source is behind player, arrow points forward (0 deg).
-            // If source is to player's right, arrow points left (-90 deg).
-            // If source is to player's left, arrow points right (90 deg).
-            // The atan2(cross, dot) gives angle from forward to target.
-            // So if source is at player's right (cross is positive), angle is positive,
-            // we want arrow to point left (negative angle).
-            // If source is at player's left (cross is negative), angle is negative,
-            // we want arrow to point right (positive angle).
-            // So, simply negate the angle.
-            angleDeg = -angleDeg;
+            // Adjust angle to make 0 degrees point up, and arrow points from source to player
+            // If source is right (+X), arrow should point left (180 deg)
+            // If source is up (-Y), arrow should point down (90 deg)
+            // This flips the angle to point *towards* the player from the source.
+            angleDeg = (angleDeg + 180) % 360;
 
             showHitDirectionArrow(angleDeg);
-            console.log(`Hit from angle: ${angleDeg.toFixed(2)} deg`);
+            console.log(angleDeg);
             // Clear the damage source info after using it
             lastDamageSourcePosition = null;
         }
