@@ -12,7 +12,8 @@ horse power
 // --- All imports moved to the top ---
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { createGameUI, initBulletHoles } from "./ui.js";
-import { startGame, toggleSceneDetails, stopGameAnimation, disconnectPlayer } from "./game.js"; // Added stopGameAnimation, disconnectPlayer
+import { startGame, toggleSceneDetails, stopGameAnimation } from "./game.js"; // Added stopGameAnimation, disconnectPlayer
+import { disconnectPlayer } from "./network.js";
 import { initNetwork, localPlayerId, dbRefs } from "./network.js"; // Added dbRefs
 import { getMenuDbRefs, getGameDbRefs } from "./firebase-config.js"; // Added getMenuDbRefs, getGameDbRefs
 
