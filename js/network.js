@@ -3,8 +3,7 @@ import {
     addRemotePlayer,
     removeRemotePlayer as removeRemotePlayerModel,
     updateRemotePlayer,
-    handleLocalDeath, // Assuming this handles respawn too
-    endGameAndShowWinner // New function to call when game ends
+    handleLocalDeath // Assuming this handles respawn too
 } from "./game.js";
 import { pruneChat, pruneKills } from "./game.js"; // pruneChat and pruneKills are not used in this snippet
 import { Player } from "./player.js"; // Player class is not used in this snippet
@@ -24,6 +23,8 @@ import {
 } from "./ui.js";
 import { WeaponController } from "./weapons.js";
 import { AudioManager } from "./AudioManager.js";
+
+import { showWinnerOnMenu } from "./menu.js";
 
 const PHYSICS_SOUNDS = {
     footstep: { run: 'https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba' },
