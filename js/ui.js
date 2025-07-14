@@ -21,8 +21,8 @@ export function setUIDbRefs(dbRefsObject) {
 }
 
 /* —————————————————————————————————————————————————————————————————————
-   GAME UI ELEMENTS (dynamically created)
-   ————————————————————————————————————————————————————————————————————— */
+    GAME UI ELEMENTS (dynamically created)
+    ————————————————————————————————————————————————————————————————————— */
 
 /**
  * Dynamically creates and appends all necessary in-game UI elements
@@ -36,62 +36,48 @@ export function createGameUI(gameWrapper) {
         return;
     }
 
+    // Clear existing UI elements from gameWrapper to prevent duplicates on re-entry
+    while (gameWrapper.firstChild) {
+        gameWrapper.removeChild(gameWrapper.firstChild);
+    }
+
     // --- Create and append Crosshair ---
-    const crosshair = document.createElement('crosshair');
-    crosshair.style.display = 'block'; // Or 'none' if dynamically shown
-    gameWrapper.appendChild(crosshair);
+    // The crosshair div is now part of the HTML directly, so we just ensure it's visible.
+    // It's managed by game.js's updateCrosshair and visibility.
 
     // --- Create and append Scope Overlay ---
-    const scopeOverlay = document.createElement('div');
-    scopeOverlay.id = 'scopeOverlay';
-    scopeOverlay.innerHTML = `
-        <div class="reticle">
-            <div class="circle"></div>
-            <div class="line horizontal left"></div>
-            <div class="line horizontal right"></div>
-            <div class="line vertical up"></div>
-            <div class="line vertical down"></div>
-        </div>
-    `;
-    gameWrapper.appendChild(scopeOverlay);
+    // The scopeOverlay div is now part of the HTML directly.
 
     // --- Create and append Buy Menu ---
-    const buyMenu = document.createElement('div');
-    buyMenu.id = 'buy-menu';
-    buyMenu.classList.add('hidden'); // Start hidden
-    buyMenu.innerHTML = `
-        <h2>Buy Menu (FREE)</h2>
-        <button id="buy-deagle">Get Deagle</button>
-        <button id="buy-ak">Get AK-47</button>
-        <button id="close-buy">Close</button>
-    `;
-    gameWrapper.appendChild(buyMenu);
+    // The buy-menu div is now part of the HTML directly.
 
     // --- Create and append HUD elements container ---
-    const hud = document.createElement('div');
-    hud.id = 'hud';
-    Object.assign(hud.style, {
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none', // Allow clicks to pass through by default
-        zIndex: '500',
-    });
-    gameWrapper.appendChild(hud);
+    // The hud div is now part of the HTML directly.
+    const hud = document.getElementById('hud');
+    if (!hud) {
+        console.error("HUD element not found! Cannot append UI elements.");
+        return;
+    }
+    // Ensure HUD is cleared too if it's reused
+    while (hud.firstChild) {
+        hud.removeChild(hud.firstChild);
+    }
 
     // --- Append Kill Feed to HUD ---
-    const killFeed = document.createElement('kill-feed');
+    const killFeed = document.createElement('div'); // Changed to div as per HTML
+    killFeed.id = 'kill-feed';
     hud.appendChild(killFeed);
 
     // --- Append Chat Box to HUD ---
-    const chatBox = document.createElement('chat-box');
+    const chatBox = document.createElement('div'); // Changed to div as per HTML
+    chatBox.id = 'chat-box';
+    chatBox.innerHTML = `
+        <div id="chat-messages"></div>
+        <input type="text" id="chat-input" maxlength="100" placeholder="(` + '`' + `) to Chat | (C) to Open/Close" />
+    `;
     hud.appendChild(chatBox);
-    // REMOVED: document.getElementById('chat-input').style.display = 'none';
-    // The chat input will now be visible by default.
-    // You'll likely need a separate mechanism to toggle its visibility based on key presses.
-
+    // Initial state: hidden, will be toggled by input.js
+    chatBox.style.display = 'none'; // Initially hidden, as per your HTML style
 
     // --- Append Scoreboard to HUD ---
     const scoreboard = document.createElement('div');
@@ -143,20 +129,14 @@ export function createGameUI(gameWrapper) {
     hud.appendChild(inventory); // Append to hud
 
     // --- Create and append Respawn Overlay ---
-    // Assuming createRespawnOverlay function exists elsewhere
-    createRespawnOverlay(gameWrapper); // Call a dedicated function for respawn overlay
+    // The respawn-overlay div is now part of the HTML directly.
+    // It's managed by game.js's showRespawn/hideRespawn
 
     // --- Create and append Loading Progress ---
-    const loadingProgress = document.createElement('div');
-    loadingProgress.id = 'loading-progress';
-    loadingProgress.classList.add('hidden'); // Start hidden
-    loadingProgress.textContent = 'Loading... 0%';
-    gameWrapper.appendChild(loadingProgress);
+    // The loading-progress div is now part of the HTML directly.
 
     // --- Create and append Damage Overlay ---
-    const damageOverlay = document.createElement('div');
-    damageOverlay.id = 'damage-overlay';
-    gameWrapper.appendChild(damageOverlay);
+    // The damage-overlay div is now part of the HTML directly.
 
     // --- Create and append Ammo Display ---
     const ammoDiv = document.createElement("div");
@@ -172,21 +152,21 @@ export function createGameUI(gameWrapper) {
         zIndex: "1000",
         pointerEvents: "none",
     });
-    gameWrapper.appendChild(ammoDiv); // Append to gameWrapper
-
+    hud.appendChild(ammoDiv); // Append to hud, not gameWrapper
 
     // Initialize listeners for interactive UI elements
-    // Assuming initChatUI and initBuyMenuEvents functions exist elsewhere
     initChatUI();
     initBuyMenuEvents();
+    // Re-initialize respawn overlay as it's created dynamically in game.js
+    // createRespawnOverlay(gameWrapper); // This is now done in game.js
 }
 /* —————————————————————————————————————————————————————————————————————
-   HEALTH + SHIELD BAR (Three.js version – unchanged from your ui.js)
-   ————————————————————————————————————————————————————————————————————— */
+    HEALTH + SHIELD BAR (Three.js version – unchanged from your ui.js)
+    ————————————————————————————————————————————————————————————————————— */
 export function createHealthBar() {
-    const width = 1.5;    // X size (horizontal length)
-    const height = 0.2;  // Y size (vertical height of each bar)
-    const depth = 0.05;  // Z size (thickness of each bar)
+    const width = 1.5;    // X size (horizontal length)
+    const height = 0.2;  // Y size (vertical height of each bar)
+    const depth = 0.05;  // Z size (thickness of each bar)
 
     const group = new THREE.Group();
 
@@ -243,8 +223,8 @@ export function createHealthBar() {
 }
 
 /* —————————————————————————————————————————————————————————————————————
-   CHAT, KILLFEED, SCOREBOARD, RESPAWN, BUY MENU, INVENTORY, AMMO
-   ————————————————————————————————————————————————————————————————————— */
+    CHAT, KILLFEED, SCOREBOARD, RESPAWN, BUY MENU, INVENTORY, AMMO
+    ————————————————————————————————————————————————————————————————————— */
 
 // Chat UI: send on Enter (with 2-second cooldown)
 export function initChatUI() {
@@ -253,8 +233,9 @@ export function initChatUI() {
     let chatCooldown = false;
 
     // Toggle chat input visibility
-
-
+    // This is now handled by input.js directly, but the event listener needs to be here
+    // to ensure chatBox is correctly referenced.
+    // The 'C' key logic is in input.js, which toggles 'display: none' for #chat-box.
 
     if (chatInput) {
         chatInput.addEventListener("keydown", (e) => {
@@ -302,8 +283,6 @@ export function addChatMessage(username, text, chatId) {
         return [first, second];
     }
 
-    const paragraphs = splitIntoParagraphs(fullText);
-
     const wrapper = document.createElement('div');
     wrapper.dataset.chatId = chatId;
     wrapper.classList.add('chat-message');
@@ -326,527 +305,300 @@ export function addChatMessage(username, text, chatId) {
             if (uiDbRefs && uiDbRefs.chatRef) {
                 uiDbRefs.chatRef.child(oldId).remove().catch(err => console.error("Failed to remove old chat message from Firebase:", err));
             } else {
-                console.warn("Firebase chat reference not initialized in UI for pruning. Chat message not removed from Firebase.");
+                console.warn("uiDbRefs or chatRef not available for pruning old chat messages.");
             }
         }
     }
-
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
 }
 
-
-// Kill Feed: show last 5 entries
 export function updateKillFeed(killer, victim, weapon, killId) {
-    const feed = document.getElementById("kill-feed");
-    if (!feed) {
+    const killFeed = document.getElementById("kill-feed");
+    if (!killFeed) {
         console.error("Kill feed container not found! ID: 'kill-feed'");
         return;
     }
 
-    // 1) Create & append the new entry
-    const entry = document.createElement("div");
-    entry.textContent = `${killer} → ${victim} [${weapon}]`;
-    entry.dataset.killId = killId;
-    feed.appendChild(entry);
+    const killEntry = document.createElement("div");
+    killEntry.dataset.killId = killId;
+    killEntry.textContent = `${killer} killed ${victim} with ${weapon}`;
+    killEntry.style.opacity = "0"; // Start invisible for fade-in
+    killEntry.style.transition = "opacity 0.5s ease-in";
+    killFeed.appendChild(killEntry);
 
-    // 2) If this pushes us over 5 entries, remove the oldest immediately
-    if (feed.children.length > 5) {
-        const oldest = feed.firstElementChild;
-        const oldId = oldest.dataset.killId;
-        if (oldest) { // Ensure oldest exists before removing
-            oldest.remove();         // remove from UI
-            // Check if uiDbRefs and killsRef are available before attempting to remove from Firebase
-            if (uiDbRefs && uiDbRefs.killsRef) {
-                uiDbRefs.killsRef.child(oldId).remove().catch(err => console.error("Failed to remove old kill entry from Firebase:", err)); // remove from Firebase
-            } else {
-                console.warn("Firebase kills reference not initialized in UI for pruning. Kill entry not removed from Firebase.");
-            }
-        }
-    }
-
-    // 3) Still auto-expire this entry after 10 seconds if it's still present
+    // Trigger fade-in
     setTimeout(() => {
-        if (entry.parentNode) { // Check if it's still in the DOM
-            entry.remove();
-            // Check if uiDbRefs and killsRef are available before attempting to remove from Firebase
-            if (uiDbRefs && uiDbRefs.killsRef) {
-                uiDbRefs.killsRef.child(killId).remove().catch(err => console.error("Failed to remove timed-out kill entry from Firebase:", err));
-            } else {
-                console.warn("Firebase kills reference not initialized in UI for removal. Kill entry not removed from Firebase.");
+        killEntry.style.opacity = "1";
+    }, 10); // Small delay to ensure transition applies
+
+    // Fade out and remove after 5 seconds
+    setTimeout(() => {
+        killEntry.style.transition = "opacity 1s ease-out";
+        killEntry.style.opacity = "0";
+        killEntry.addEventListener("transitionend", () => {
+            if (killEntry.parentNode) {
+                killFeed.removeChild(killEntry);
             }
-        }
-    }, 10000);
-}
-
-// Scoreboard: populate with players’ username, kills, deaths, ks
-export function updateScoreboard(dbRefPlayers) {
-    const tbody = document.querySelector("#score-table tbody");
-    if (!tbody) {
-        console.error("Scoreboard table body not found! Selector: '#score-table tbody'");
-        return;
-    }
-    tbody.innerHTML = "";
-    // dbRefPlayers is already passed correctly from network.js
-    dbRefPlayers.once("value", (snapshot) => {
-        snapshot.forEach((child) => {
-            const data = child.val();
-            const row = document.createElement("tr");
-            row.innerHTML = `<td>${data.username}</td><td>${data.kills}</td><td>${data.deaths}</td><td>${data.ks}</td>`;
-            tbody.appendChild(row);
         });
-    }).catch(err => console.error("Failed to update scoreboard:", err));
-}
+    }, 5000); // 5 seconds display time
 
-// Show/hide scoreboard with custom events
-document.addEventListener("showScoreboard", () => {
-    document.getElementById("scoreboard")?.classList.remove("hidden");
-});
-document.addEventListener("hideScoreboard", () => {
-    document.getElementById("scoreboard")?.classList.add("hidden");
-});
-
-// Buy Menu & Buttons
-function initBuyMenuEvents() {
-    document.addEventListener("toggleBuy", () => {
-        const buyMenu = document.getElementById("buy-menu");
-        buyMenu?.classList.toggle("hidden");
-        // Ensure pointer events are re-enabled when visible
-        if (buyMenu && !buyMenu.classList.contains('hidden')) {
-            buyMenu.style.pointerEvents = 'auto';
-        } else if (buyMenu) {
-            buyMenu.style.pointerEvents = 'none';
+    // Enforce max 5 kill feed entries
+    while (killFeed.childElementCount > 5) {
+        const oldest = killFeed.firstElementChild;
+        if (oldest) {
+            killFeed.removeChild(oldest);
         }
-    });
-
-    document.getElementById("buy-deagle")?.addEventListener("click", () => {
-        window.dispatchEvent(new CustomEvent("buyWeapon", { detail: "deagle" }));
-        document.getElementById("buy-menu")?.classList.add("hidden");
-    });
-
-    document.getElementById("buy-ak")?.addEventListener("click", () => {
-        window.dispatchEvent(new CustomEvent("buyWeapon", { detail: "ak-47" }));
-        document.getElementById("buy-menu")?.classList.add("hidden");
-    });
-
-    document.getElementById("close-buy")?.addEventListener("click", () => {
-        document.getElementById("buy-menu")?.classList.add("hidden");
-    });
-}
-
-// Respawn UI
-// ----------------------------
-
-// Create the respawn overlay element (hidden by default)
-export function createRespawnOverlay(parentEl) {
-    const existing = document.getElementById("respawn-overlay");
-    if (existing) existing.remove();
-
-    const overlay = document.createElement("div");
-    overlay.id = "respawn-overlay";
-    overlay.classList.add("hidden");
-    Object.assign(overlay.style, {
-        position: "absolute",
-        top: "0",
-        left: "0",
-        width: "100%",
-        height: "100%",
-        backgroundColor: "rgba(0, 0, 0, 0.75)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexDirection: "column",
-        zIndex: "1000",
-        fontFamily: "Arial, sans-serif",
-        color: "white",
-        pointerEvents: 'none', // By default, not interactive when hidden
-    });
-
-    const deathMsg = document.createElement("div");
-    deathMsg.textContent = "You Died";
-    deathMsg.style.fontSize = "48px";
-    deathMsg.style.marginBottom = "20px";
-    overlay.appendChild(deathMsg);
-
-    const promptMsg = document.createElement("div");
-    promptMsg.id = "respawn-prompt";
-    promptMsg.textContent = "Press SPACE to respawn";
-    promptMsg.style.fontSize = "24px";
-    overlay.appendChild(promptMsg);
-
-    const respawnBtn = document.createElement("button");
-    respawnBtn.id = "respawn-btn";
-    respawnBtn.textContent = "Respawn Now";
-    Object.assign(respawnBtn.style, {
-        padding: '10px 20px',
-        fontSize: '18px',
-        backgroundColor: '#6a0dad',
-        color: 'white',
-        border: 'none',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        marginTop: '15px',
-    });
-    respawnBtn.addEventListener('click', () => {
-        hideRespawn();
-        if (typeof window.respawnPlayer === "function") {
-            window.respawnPlayer();
-        }
-    });
-    overlay.appendChild(respawnBtn);
-
-
-    parentEl.appendChild(overlay); // Append to the gameWrapper
-}
-
-// Show the respawn overlay
-export function showRespawn() {
-    const overlay = document.getElementById("respawn-overlay");
-    if (overlay) {
-        overlay.classList.remove("hidden");
-        overlay.style.pointerEvents = 'auto'; // Make it interactive
     }
 }
 
-// Hide the respawn overlay
-export function hideRespawn() {
-    const overlay = document.getElementById("respawn-overlay");
-    if (overlay) {
-        overlay.classList.add("hidden");
-        overlay.style.pointerEvents = 'none'; // Make it non-interactive
-    }
-}
-
-/* —————————————————————————————————————————————————————————————————————
-   INVENTORY + HEALTH & SHIELD BARS (HTML version)
-   ————————————————————————————————————————————————————————————————————— */
-export function initInventory(currentWeaponKey) {
-    const inv = document.getElementById("inventory");
-    if (!inv) {
-        console.error("Inventory container not found! ID: 'inventory'");
+export function updateScoreboard(playersRef) {
+    const scoreboardBody = document.getElementById("score-table")?.querySelector("tbody");
+    if (!scoreboardBody) {
+        console.error("Scoreboard body not found!");
         return;
     }
 
-    // Clear existing content and prepare parent for absolute positioning if needed
-    inv.innerHTML = "";
-    const parent = inv.parentNode;
-    if (getComputedStyle(parent).position === 'static') {
-        parent.style.position = 'relative';
+    playersRef.once("value", (snapshot) => {
+        const players = [];
+        snapshot.forEach((snap) => {
+            const d = snap.val();
+            if (d && d.username) {
+                players.push({
+                    name: d.username,
+                    kills: d.kills || 0,
+                    deaths: d.deaths || 0,
+                    ks: d.ks || 0,
+                    id: d.id // Include player ID
+                });
+            }
+        });
+        players.sort((a, b) => b.kills - a.kills || b.ks - a.ks); // Sort by kills, then killstreak
+
+        scoreboardBody.innerHTML = ""; // Clear existing rows
+        if (players.length === 0) {
+            const row = document.createElement("tr");
+            row.innerHTML = `<td colspan="4" style="text-align: center;">No players in game</td>`;
+            scoreboardBody.appendChild(row);
+        } else {
+            players.forEach((p) => {
+                const row = document.createElement("tr");
+                // Highlight local player
+                if (window.localPlayer && p.id === window.localPlayer.id) {
+                    row.style.backgroundColor = "rgba(0, 255, 0, 0.2)"; // Light green highlight
+                }
+                row.innerHTML = `
+                    <td style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">${p.name}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">${p.kills}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">${p.deaths}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">${p.ks}</td>
+                `;
+                scoreboardBody.appendChild(row);
+            });
+        }
+    });
+}
+
+
+export function updateHealthShieldUI(health, shield) {
+    const healthBarFill = document.getElementById("health-bar-fill");
+    const shieldBarFill = document.getElementById("shield-bar-fill");
+
+    if (healthBarFill) {
+        healthBarFill.style.width = `${Math.max(0, health)}%`;
+        healthBarFill.style.backgroundColor = health > 20 ? "#0f0" : "#f00"; // Green for high, red for low
+    }
+    if (shieldBarFill) {
+        shieldBarFill.style.width = `${Math.max(0, shield * 2)}%`; // Assuming 50 shield max, so 100% width for 50 shield
+        shieldBarFill.style.backgroundColor = "#00f"; // Blue for shield
+    }
+}
+
+export function initInventory(initialWeaponKey) {
+    const inventoryContainer = document.getElementById("inventory");
+    if (!inventoryContainer) {
+        console.error("Inventory container not found!");
+        return;
     }
 
-    const oldHS = document.getElementById("health-shield-container");
-    if (oldHS) oldHS.remove();
+    // Clear existing slots before re-initializing
+    inventoryContainer.innerHTML = '';
 
-    const hsContainer = document.createElement("div");
-    hsContainer.id = "health-shield-container";
-    Object.assign(hsContainer.style, {
-        position: "absolute",
-        display: "flex",
-        flexDirection: "column",
-        zIndex: "10"
-    });
-    parent.appendChild(hsContainer);
+    const weaponOrder = ["knife", "deagle", "ak-47", "marshal"]; // Define the order
 
-    // ── Build Health Bar ──
-    const healthBarBg = document.createElement("div");
-    Object.assign(healthBarBg.style, {
-        position: "relative",
-        backgroundColor: "#222",
-        width: "150px", // Increased for better visibility
-        height: "20px",
-        marginBottom: "4px"
-    });
-    const healthBarFill = document.createElement("div");
-    healthBarFill.id = "health-bar-fill";
-    Object.assign(healthBarFill.style, {
-        backgroundColor: "#0f0",
-        width: "100%", // Start full
-        height: "100%",
-        transition: 'width 0.1s linear' // Smooth transition for fill
-    });
-    const healthText = document.createElement("div");
-    healthText.id = "health-text";
-    Object.assign(healthText.style, {
-        position: "absolute",
-        color: "#fff",
-        width: "100%",
-        textAlign: "center",
-        top: "0",
-        fontWeight: "bold",
-        color: "#000" // Text color
-    });
-    healthText.textContent = "100 / 100";
-    healthBarBg.append(healthBarFill, healthText);
-    hsContainer.appendChild(healthBarBg);
-
-    // ── Build Shield Bar ──
-    const shieldBarBg = document.createElement("div");
-    Object.assign(shieldBarBg.style, {
-        position: "relative",
-        backgroundColor: "#222",
-        width: "150px", // Increased for better visibility
-        height: "20px",
-        marginBottom: "8px"
-    });
-    const shieldBarFill = document.createElement("div");
-    shieldBarFill.id = "shield-bar-fill";
-    Object.assign(shieldBarFill.style, {
-        backgroundColor: "#26f",
-        width: "100%", // Start full
-        height: "100%",
-        transition: 'width 0.1s linear' // Smooth transition for fill
-    });
-    const shieldText = document.createElement("div");
-    shieldText.id = "shield-text";
-    Object.assign(shieldText.style, {
-        position: "absolute",
-        width: "100%",
-        textAlign: "center",
-        top: "0",
-        fontWeight: "bold",
-        color: "#000" // Text color
-    });
-    shieldText.textContent = "50 / 50";
-    shieldBarBg.append(shieldBarFill, shieldText);
-    hsContainer.appendChild(shieldBarBg);
-
-    // 5) INVENTORY SLOTS
-    const weaponKeys = ["knife", "deagle", "ak-47", "marshal"];
-    for (const key of weaponKeys) {
+    weaponOrder.forEach((weaponKey, index) => {
         const slot = document.createElement("div");
         slot.classList.add("inventory-slot");
-        slot.id = `inv-${key}`;
-        Object.assign(slot.style, {
-            backgroundColor: '#333',
-            color: '#fff',
-            padding: '8px 12px',
-            border: '1px solid #555',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            transition: 'background-color 0.2s, border-color 0.2s',
-            pointerEvents: 'auto', // Inventory slots should be interactive
+        slot.dataset.weapon = weaponKey;
+        slot.textContent = `${index + 1}: ${weaponKey.toUpperCase()}`; // Display number and name
+
+        // Add click listener for weapon switching (only if not pointer-events: none)
+        slot.addEventListener('click', () => {
+            // Dispatch a custom event that game.js can listen to for weapon switching
+            window.dispatchEvent(new CustomEvent('buyWeapon', { detail: weaponKey }));
         });
-        const nameAbbrev = document.createElement("span");
-        switch (key) {
-            case "knife": nameAbbrev.textContent = "KNIFE"; break;
-            case "deagle": nameAbbrev.textContent = "DEAG"; break;
-            case "ak-47": nameAbbrev.textContent = "AK47"; break;
-            case "marshal": nameAbbrev.textContent = "MARL"; break;
-        }
-        slot.appendChild(nameAbbrev);
-        if (key === currentWeaponKey) {
-            slot.classList.add("selected");
-            slot.style.borderColor = '#0f0'; // Highlight selected
-            slot.style.backgroundColor = '#444';
-        }
-        inv.appendChild(slot);
-    }
 
-    // 6) Positioning function for Health/Shield relative to Inventory
-    function updateHSPosition() {
-        // Recalculate based on inventory's final position after its contents are built
-        const invRect = inv.getBoundingClientRect();
-        const parentRect = parent.getBoundingClientRect();
+        inventoryContainer.appendChild(slot);
+    });
 
-        // Position health/shield container relative to its parent
-        const top = invRect.top - parentRect.top;
-        // Position to the right of the inventory, plus a small gap
-        const left = (invRect.left - parentRect.left) + inv.offsetWidth + 8;
-        hsContainer.style.top = `${top}px`;
-        hsContainer.style.left = `${left}px`;
-        // Match width to inventory for alignment or set fixed width
-        hsContainer.style.width = `${healthBarBg.style.width}`; // Or inv.offsetWidth, whichever fits design
-    }
-
-    // Call once to set initial position
-    updateHSPosition();
-
-    // Re-position on resize or scroll
-    window.addEventListener("resize", updateHSPosition);
-    window.addEventListener("scroll", updateHSPosition);
+    // Set initial selection
+    updateInventory(initialWeaponKey);
 }
-
 
 export function updateInventory(currentWeaponKey) {
     const slots = document.querySelectorAll(".inventory-slot");
-    slots.forEach((s) => {
-        s.classList.remove("selected");
-        s.style.borderColor = '#555'; // Reset border color
-        s.style.backgroundColor = '#333'; // Reset background color
-    });
-    const currentSlot = document.getElementById(`inv-${currentWeaponKey}`);
-    if (currentSlot) {
-        currentSlot.classList.add("selected");
-        currentSlot.style.borderColor = '#0f0'; // Highlight selected
-        currentSlot.style.backgroundColor = '#444';
-    }
-}
-
-let lastValidHp = 100;
-let lastValidShield = 50;
-
-export function updateHealthShieldUI(hp, shield) {
-    const validHp = typeof hp === 'number' && !Number.isNaN(hp);
-    const validShield = typeof shield === 'number' && !Number.isNaN(shield);
-
-    const rawHp = validHp ? hp : lastValidHp;
-    const rawShield = validShield ? shield : lastValidShield;
-
-    const clampedHp = Math.max(0, Math.min(rawHp, 100));
-    const clampedShield = Math.max(0, Math.min(rawShield, 50));
-
-    lastValidHp = clampedHp;
-    lastValidShield = clampedShield;
-
-    const healthFrac = clampedHp / 100;
-    const shieldFrac = clampedShield / 50;
-
-    const healthFill = document.getElementById("health-bar-fill");
-    const healthText = document.getElementById("health-text");
-    if (healthFill) {
-        healthFill.style.width = `${healthFrac * 100}%`;
-    }
-    if (healthText) {
-        healthText.textContent = `${clampedHp} / 100`;
-    }
-
-    const shieldFill = document.getElementById("shield-bar-fill");
-    const shieldText = document.getElementById("shield-text");
-    if (shieldFill) {
-        shieldFill.style.width = `${shieldFrac * 100}%`;
-    }
-    if (shieldText) {
-        shieldText.textContent = `${clampedShield} / 50`;
-    }
-}
-
-const activeTracers = {};
-const bulletHoles = {}; // Keep this map to track active bullet hole meshes
-
-/* —————————————————————————————————————————————————————————————————————
-   BULLET TRACERS & HOLES (updated to export add/remove functions)
-   ————————————————————————————————————————————————————————————————————— */
-
-export function createTracer(fromVec, toVec, weaponKey) { // <--- ADDED weaponKey
-    if (!window.scene) {
-        console.warn("UI: window.scene not set, cannot create tracer.");
-        return;
-    }
-
-    const dist = fromVec.distanceTo(toVec);
-    if (dist < 0.001) {
-        console.warn("⚠️ Tracer distance is extremely small—skipping draw.");
-        return;
-    }
-
-    // Pass the weaponKey to AnimatedTracer
-    new AnimatedTracer(fromVec, toVec, 250, weaponKey); // <--- ADDED weaponKey
-}
-
-export function removeTracer(key) {
-    const line = activeTracers[key];
-    if (!line) return;
-
-    if (line.parent) window.scene.remove(line);
-    if (line.geometry) line.geometry.dispose();
-    if (line.material) line.material.dispose();
-
-    delete activeTracers[key];
-}
-
-// Exported function to add a bullet hole (logic moved from initBulletHoles's event listener)
-export function addBulletHole(holeData, firebaseKey) {
-    // Rely on window.scene existing
-    if (!window.scene) {
-        console.warn("UI: window.scene not set, cannot add bullet hole.");
-        return;
-    }
-    // Prevent adding duplicates if somehow triggered multiple times for the same key
-    if (bulletHoles[firebaseKey]) return;
-
-    const { x, y, z, nx, ny, nz, timeCreated } = holeData;
-
-    const holeGeom = new THREE.CircleGeometry(0.15, 16);
-    const holeMat = new THREE.MeshBasicMaterial({
-        color: 0x111111,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.8,
-    });
-    const hole = new THREE.Mesh(holeGeom, holeMat);
-    hole.position.set(x, y, z); // Set position directly from data
-
-    // Orient the bullet hole to face along its normal
-    const normal = new THREE.Vector3(nx, ny, nz);
-    hole.lookAt(new THREE.Vector3().addVectors(hole.position, normal));
-
-    // Offset slightly along the normal to prevent Z-fighting with map geometry
-    hole.position.addScaledVector(normal, 0.001);
-
-    window.scene.add(hole);
-    bulletHoles[firebaseKey] = hole;
-
-    // Local visual fade out for bullet holes
-    const fadeDuration = 5; // seconds
-    // Calculate how much time has already passed since creation (for existing holes fetched on join)
-    const age = (Date.now() - timeCreated) / 1000;
-    const startTime = performance.now() / 1000 - age; // Adjust start time based on age
-
-    const animateFade = () => {
-        // Only proceed if the hole still exists in our local tracking and scene
-        if (!bulletHoles[firebaseKey] || !hole.parent) return;
-
-        const now = performance.now() / 1000;
-        const elapsed = now - startTime;
-        if (elapsed >= fadeDuration) {
-            // Ensure removal and cleanup if fade is complete
-            if (hole.parent) window.scene.remove(hole);
-            hole.geometry.dispose();
-            hole.material.dispose();
-            delete bulletHoles[firebaseKey];
+    slots.forEach(slot => {
+        if (slot.dataset.weapon === currentWeaponKey) {
+            slot.classList.add("selected");
         } else {
-            // Apply opacity based on elapsed time
-            hole.material.opacity = THREE.MathUtils.lerp(0.8, 0, elapsed / fadeDuration);
-            requestAnimationFrame(animateFade);
+            slot.classList.remove("selected");
         }
-    };
-    requestAnimationFrame(animateFade);
+    });
 }
 
-// Exported function to remove a bullet hole (logic moved from initBulletHoles's event listener)
-export function removeBulletHole(firebaseKey) {
-    const hole = bulletHoles[firebaseKey];
-    if (hole) {
-        if (hole.parent) window.scene.remove(hole);
-        hole.geometry.dispose();
-        hole.material.dispose();
-        delete bulletHoles[firebaseKey];
+export function initAmmoDisplay(initialWeaponKey, maxAmmo) {
+    const ammoDisplay = document.getElementById("ammo-display");
+    if (ammoDisplay) {
+        ammoDisplay.textContent = `${maxAmmo}/${maxAmmo}`; // Initial display
     }
-}
-
-// initBulletHoles no longer needs to listen for custom events, as network.js will call functions directly.
-// It can be removed or repurposed if there are other initialization needs for bullet holes.
-// For now, it will simply log a message.
-export function initBulletHoles() {
-    console.log("UI: initBulletHoles called. Direct calls from network.js for add/remove expected.");
-}
-
-
-/* —————————————————————————————————————————————————————————————————————
-   AMMO DISPLAY (unchanged)
-   ————————————————————————————————————————————————————————————————————— */
-let ammoDiv = null;
-export function initAmmoDisplay(weaponKey, maxAmmo) {
-    // AmmoDiv is now created dynamically within createGameUI.
-    // We just need to get the reference here.
-    ammoDiv = document.getElementById("ammo-display");
-    if (!ammoDiv) {
-        console.warn("Ammo display div not found after UI creation.");
-        return;
-    }
-    ammoDiv.innerText = `Ammo: ${maxAmmo} / ${maxAmmo}`;
 }
 
 export function updateAmmoDisplay(currentAmmo, maxAmmo) {
-    if (!ammoDiv) return;
-    ammoDiv.innerText = `Ammo: ${currentAmmo} / ${maxAmmo}`;
+    const ammoDisplay = document.getElementById("ammo-display");
+    if (ammoDisplay) {
+        ammoDisplay.textContent = `${currentAmmo}/${maxAmmo}`;
+    }
 }
+
+// Bullet Holes
+const bulletHoleMeshes = {}; // Store references to bullet hole meshes
+
+export function initBulletHoles() {
+    // This function is now mainly a placeholder.
+    // The actual Firebase listener for bullet holes is in network.js,
+    // which calls addBulletHole and removeBulletHole in this ui.js.
+    console.log("Bullet hole UI initialized. Listening for Firebase events.");
+}
+
+export function addBulletHole(holeData, holeId) {
+    if (!window.scene) {
+        console.warn("Cannot add bullet hole: Three.js scene not available.");
+        return;
+    }
+
+    // Create a small cylinder or plane for the bullet hole
+    const geometry = new THREE.CylinderGeometry(0.02, 0.02, 0.001, 8); // Small flat cylinder
+    const material = new THREE.MeshBasicMaterial({ color: 0x333333, transparent: true, opacity: 1 }); // Dark grey
+
+    const bulletHoleMesh = new THREE.Mesh(geometry, material);
+    bulletHoleMesh.position.set(holeData.x, holeData.y, holeData.z);
+
+    // Orient the bullet hole to face away from the normal (nx, ny, nz)
+    // The normal indicates the direction the surface is facing.
+    // We want the bullet hole to lie flat on that surface.
+    // The cylinder's default orientation is along the Y-axis.
+    // We need to rotate it so its Y-axis aligns with the surface normal.
+    const normal = new THREE.Vector3(holeData.nx, holeData.ny, holeData.nz);
+    const upVector = new THREE.Vector3(0, 1, 0); // Default cylinder 'up'
+    const quaternion = new THREE.Quaternion();
+    quaternion.setFromUnitVectors(upVector, normal);
+    bulletHoleMesh.applyQuaternion(quaternion);
+
+    // Slightly offset the bullet hole along its normal to avoid z-fighting
+    bulletHoleMesh.position.addScaledVector(normal, 0.001); // Small offset
+
+    bulletHoleMesh.userData.holeId = holeId; // Store ID for removal
+    window.scene.add(bulletHoleMesh);
+    bulletHoleMeshes[holeId] = bulletHoleMesh;
+
+    // Fade out over time
+    const fadeDuration = 4000; // 4 seconds fade out
+    const fadeStart = Date.now();
+
+    function animateFade() {
+        const elapsed = Date.now() - fadeStart;
+        if (elapsed < fadeDuration) {
+            const opacity = 1 - (elapsed / fadeDuration);
+            bulletHoleMesh.material.opacity = opacity;
+            if (bulletHoleMeshes[holeId]) { // Ensure it still exists before requesting next frame
+                requestAnimationFrame(animateFade);
+            }
+        } else {
+            // Fully faded, remove it
+            removeBulletHole(holeId);
+        }
+    }
+    animateFade(); // Start fading
+}
+
+export function removeBulletHole(holeId) {
+    const mesh = bulletHoleMeshes[holeId];
+    if (mesh && mesh.parent) {
+        mesh.parent.remove(mesh);
+        mesh.geometry.dispose();
+        if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(m => m.dispose());
+        } else {
+            mesh.material.dispose();
+        }
+        delete bulletHoleMeshes[holeId];
+        // console.log(`Bullet hole ${holeId} removed and disposed.`);
+    }
+}
+
+
+export function createTracer(start, end, tracerId) {
+    if (!window.scene) {
+        console.warn("Cannot create tracer: Three.js scene not available.");
+        return;
+    }
+    const tracer = new AnimatedTracer(start, end, window.scene, tracerId);
+    // AnimatedTracer manages its own addition/removal from scene
+    return tracer;
+}
+
+
+function initBuyMenuEvents() {
+    const buyMenu = document.getElementById("buy-menu");
+    const buyDeagleBtn = document.getElementById("buy-deagle");
+    const buyAk47Btn = document.getElementById("buy-ak47");
+    const buyArmorBtn = document.getElementById("buy-armor");
+
+    if (buyMenu) {
+        // Initially hide the buy menu as per HTML
+        buyMenu.style.display = 'none';
+    }
+
+    if (buyDeagleBtn) {
+        buyDeagleBtn.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('buyWeapon', { detail: 'deagle' }));
+            buyMenu.style.display = 'none'; // Hide menu after purchase
+        });
+    }
+    if (buyAk47Btn) {
+        buyAk47Btn.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('buyWeapon', { detail: 'ak-47' }));
+            buyMenu.style.display = 'none'; // Hide menu after purchase
+        });
+    }
+    if (buyArmorBtn) {
+        buyArmorBtn.addEventListener('click', () => {
+            // Logic for buying armor (e.g., dispatch an event for game.js to handle)
+            console.log("Buy Armor clicked!");
+            buyMenu.style.display = 'none'; // Hide menu after purchase
+        });
+    }
+
+    // Toggle buy menu visibility with 'B' key (or whatever key you choose)
+    document.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'b' && document.activeElement !== document.getElementById('chat-input')) {
+            if (buyMenu.style.display === 'none') {
+                buyMenu.style.display = 'block'; // Show if hidden
+            } else {
+                buyMenu.style.display = 'none'; // Hide if visible
+            }
+        }
+    });
+}
+
+// Initial call to set up buy menu events
+document.addEventListener('DOMContentLoaded', initBuyMenuEvents);
