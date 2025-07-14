@@ -9,6 +9,12 @@
 horse power
 */
 
+// --- All imports moved to the top ---
+import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
+import { createGameUI, initBulletHoles } from "./ui.js"; // Placeholder, actual ui.js content needed for full functionality
+import { startGame, toggleSceneDetails } from "./game.js"; // Placeholder, actual game.js content needed for full functionality
+import { initNetwork } from "./network.js"; // Placeholder, actual network.js content needed for full functionality
+
 // --- Start of engine.js content ---
 
 // Export utility functions and classes
@@ -616,12 +622,6 @@ export function removeGifBG() {
 
 // --- Start of myMenu.js content ---
 
-// External imports (assuming these files exist in the same directory or are handled by a module bundler)
-import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import { createGameUI, initBulletHoles } from "./ui.js"; // Placeholder, actual ui.js content needed for full functionality
-import { startGame, toggleSceneDetails } from "./game.js"; // Placeholder, actual game.js content needed for full functionality
-import { initNetwork } from "./network.js"; // Placeholder, actual network.js content needed for full functionality
-
 // Global window properties related to Three.js (as defined in original myMenu.js)
 window.scene = new THREE.Scene();
 window.renderer = {
@@ -820,7 +820,28 @@ let crocoPlayButton = createAnimatedButton(
     getWidth()/1.5, getHeight()-200, // Position towards the right bottom
     1920/6 - 25, 1080/8, // Hitbox dimensions
     () => { 
-        console.log("crocoPlayButton"); 
+        console.log("crocoPlayButton clicked, starting CrocodilosConstruction map.");
+        const username = localStorage.getItem("username") || "Guest";
+        const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
+        const menuOverlay = document.getElementById("menu-overlay");
+        const gameWrapper = document.getElementById('game-container');
+
+        if (menuOverlay) {
+            menuOverlay.classList.add("hidden");
+        }
+        // Hide the canvas itself if it's the main menu display
+        if (canvas) {
+            canvas.style.display = 'none';
+        }
+        if (gameWrapper) {
+            gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
+            createGameUI(gameWrapper);
+            initNetwork(username, "CrocodilosConstruction");
+            startGame(username, "CrocodilosConstruction", detailsEnabled);
+            console.log(`Game started for map: CrocodilosConstruction, Username: ${username}, Details Enabled: ${detailsEnabled}.`);
+        } else {
+            console.error("game-container element not found! Cannot start game.");
+        }
     }
 );
 
@@ -830,7 +851,28 @@ let sigmaPlayButton = createAnimatedButton(
     getWidth()/3, getHeight()-200, // Position towards the left bottom
     1920/6 - 25, 1080/8, // Hitbox dimensions
     () => { 
-        console.log("sigmaPlayButton"); 
+        console.log("sigmaPlayButton clicked, starting SigmaCity map.");
+        const username = localStorage.getItem("username") || "Guest";
+        const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
+        const menuOverlay = document.getElementById("menu-overlay");
+        const gameWrapper = document.getElementById('game-container');
+
+        if (menuOverlay) {
+            menuOverlay.classList.add("hidden");
+        }
+        // Hide the canvas itself if it's the main menu display
+        if (canvas) {
+            canvas.style.display = 'none';
+        }
+        if (gameWrapper) {
+            gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
+            createGameUI(gameWrapper);
+            initNetwork(username, "SigmaCity");
+            startGame(username, "SigmaCity", detailsEnabled);
+            console.log(`Game started for map: SigmaCity, Username: ${username}, Details Enabled: ${detailsEnabled}.`);
+        } else {
+            console.error("game-container element not found! Cannot start game.");
+        }
     }
 );
 
@@ -856,8 +898,8 @@ function menu(){
 menu();
 
 /**
- * Function called when the "Play" button is clicked.
- * Clears the current menu and displays the play sub-menu options.
+ * Function called when the "Play" button (canvas-drawn) is clicked.
+ * Clears the current menu and displays the canvas-based map selection options.
  */
 function playButtonHit(){
     removeAll(); // Remove all existing shapes from the canvas
@@ -865,18 +907,18 @@ function playButtonHit(){
     add(background); // Re-add background
     add(crocoPlayButton.image); // Add new play options
     add(sigmaPlayButton.image);
-    // Note: The hitboxes for crocoPlayButton and sigmaPlayButton are not explicitly
-    // added to the drawing list here, but they are made clickable by `createAnimatedButton`.
-    // If they need to be drawn (e.g., for debugging), they should be added.
+    // Ensure their hitboxes are also added to the clickableShapes array for interaction
+    // (This is handled by createAnimatedButton, but explicitly adding them here
+    // for clarity if they were removed by removeAll)
+    makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
+    makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
 }
 
 
 /**
  * Initializes the main menu UI, handling username entry, map selection,
- * sensitivity settings, and the details toggle.
- *
- * This function is now the primary entry point for the menu page.
- * It also handles the redirection to game.html and subsequent game initialization.
+ * sensitivity settings, and the details toggle. This function primarily
+ * interacts with HTML elements for the menu.
  */
 export function initMenuUI() {
     const menuOverlay = document.getElementById("menu-overlay");
@@ -897,7 +939,7 @@ export function initMenuUI() {
     const sensitivityInput = document.getElementById("sensitivity-input");
     const toggleDetailsBtn = document.getElementById("toggle-details-btn");
 
-    const mapButtons = document.querySelectorAll(".map-btn");
+    const mapButtons = document.querySelectorAll(".map-btn"); // HTML map selection buttons
 
     let username = localStorage.getItem("username");
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
@@ -925,9 +967,10 @@ export function initMenuUI() {
     }
 
     // --- Event Listeners for Main Menu Buttons (HTML-based) ---
+    // These HTML buttons are distinct from the canvas buttons.
     if (htmlPlayButton) {
         htmlPlayButton.addEventListener("click", () => {
-            console.log("Play button clicked (showing map selection)");
+            console.log("HTML Play button clicked (showing map selection)");
             showPanel(mapSelect);
         });
     }
@@ -940,7 +983,7 @@ export function initMenuUI() {
 
     if (htmlCareerButton) {
         htmlCareerButton.addEventListener("click", () => {
-            console.log("Career button clicked!");
+            console.log("HTML Career button clicked!");
         });
     }
 
@@ -999,7 +1042,7 @@ export function initMenuUI() {
         });
     }
 
-    // --- Map Selection Logic ---
+    // --- Map Selection Logic (for HTML buttons) ---
     mapButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
             username = localStorage.getItem("username");
@@ -1011,16 +1054,21 @@ export function initMenuUI() {
             const mapName = btn.dataset.map;
             localStorage.setItem("detailsEnabled", currentDetailsEnabled.toString());
 
-            console.log(`Player clicked play for map: ${mapName}, Username: ${username}, Details Enabled: ${currentDetailsEnabled}`);
+            console.log(`Player clicked HTML map button for map: ${mapName}, Username: ${username}, Details Enabled: ${currentDetailsEnabled}`);
 
             // Hide the menu overlay to reveal the game
             if (menuOverlay) {
                 menuOverlay.classList.add("hidden");
             }
+            // Hide the canvas if the HTML menu is taking over
+            if (canvas) {
+                canvas.style.display = 'none';
+            }
 
             // Initialize game UI and start the game
             const gameWrapper = document.getElementById('game-container');
             if (gameWrapper) {
+                gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
                 createGameUI(gameWrapper); // Create game UI elements
                 initNetwork(username, mapName); // Initialize network for multiplayer
                 startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true"); // Start the game
@@ -1040,7 +1088,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Always initialize the menu UI if we are on index.html or the root path
     if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
         console.log("Attempting to initialize Menu UI on index.html...");
-        initMenuUI();
+        initMenuUI(); // Initialize the HTML-based menu
+        menu(); // Initialize the canvas-based menu
         console.log("Menu UI initialization process started.");
     } else {
         // This block handles cases where the page might be game.html or similar,
