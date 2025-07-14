@@ -188,7 +188,7 @@ let sigmaPlayButton = createAnimatedButton(
 );
 
 
-function menu(){
+export function menu(){
     add(logo);
     add(background);
     add(playButton.image);
