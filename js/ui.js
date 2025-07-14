@@ -479,6 +479,17 @@ export function initBulletHoles() {
     console.log("Bullet hole UI initialized. Listening for Firebase events.");
 }
 
+export function removeTracer(key) {
+    const line = activeTracers[key];
+    if (!line) return;
+
+    if (line.parent) window.scene.remove(line);
+    if (line.geometry) line.geometry.dispose();
+    if (line.material) line.material.dispose();
+
+    delete activeTracers[key];
+}
+
 export function addBulletHole(holeData, holeId) {
     if (!window.scene) {
         console.warn("Cannot add bullet hole: Three.js scene not available.");
