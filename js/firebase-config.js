@@ -23,6 +23,17 @@ const configs = {
   }
 };
 
+const menuConfig = {
+  apiKey: "AIzaSyBmLJjnsXye8oBBpbtTZu0W9-cmEl8QM8s",
+  authDomain: "voidffa-menu.firebaseapp.com",
+  databaseURL: "https://voidffa-menu-default-rtdb.firebaseio.com",
+  projectId: "voidffa-menu",
+  storageBucket: "voidffa-menu.firebasestorage.app",
+  messagingSenderId: "775839090279",
+  appId: "1:775839090279:web:1dfa69158b5e2b0ce436c2",
+  measurementId: "G-X9CKZX4C74"
+}
+
 // Keep track of initialized apps
 const apps = {};
 
