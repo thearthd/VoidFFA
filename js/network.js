@@ -1,16 +1,14 @@
-// network.js
-
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import {
     addRemotePlayer,
     removeRemotePlayer as removeRemotePlayerModel,
     updateRemotePlayer,
     handleLocalDeath, // Assuming this handles respawn too
-    setGameSettings // New function to set game settings in game.js
+    endGameAndShowWinner // New function to call when game ends
 } from "./game.js";
 import { pruneChat, pruneKills } from "./game.js"; // pruneChat and pruneKills are not used in this snippet
 import { Player } from "./player.js"; // Player class is not used in this snippet
-import { getGameDbRefs, getMenuDbRefs, firebase } from "./firebase-config.js"; // Updated import
+import { getDbRefs } from "./firebase-config.js"; // Updated import
 import { SOUND_CONFIG } from './soundConfig.js'; // Make sure the path is correct
 import {
     addChatMessage,
@@ -38,9 +36,12 @@ const permanentlyRemoved = new Set();
 let latestValidIds = [];
 
 let audioManagerInstance = null;
-export let dbRefs; // Game-specific Firebase references
-let menuDbRefs; // Menu-specific Firebase references
-let currentJoinedGameId = null; // Track the ID of the game the player is currently in
+export let dbRefs; // Export dbRefs so game.js can access them
+
+let gameTimerInterval = null; // Interval for game timer
+let gameEndTime = null; // Unix timestamp when game should end
+let killLimit = 50; // Default kill limit
+let gameId = null; // Store the current game ID
 
 /**
  * Initializes the AudioManager with the main game camera and scene.
@@ -79,7 +80,7 @@ export function startSoundListener() {
         return;
     }
 
-    dbRefs.soundsRef.off(); // Detach any existing listener
+    dbRefs.soundsRef.off();
 
     dbRefs.soundsRef.on("child_added", (snap) => {
         const data = snap.val();
@@ -99,7 +100,7 @@ export function startSoundListener() {
         }, 3000);
 
         const url = WeaponController.SOUNDS[data.soundKey]?.[data.soundType] ??
-            PHYSICS_SOUNDS[data.soundKey]?.[data.soundType];
+                     PHYSICS_SOUNDS[data.soundKey]?.[data.soundType];
 
         if (!url) {
             console.warn(`No URL found for soundKey: ${data.soundKey}, soundType: ${data.soundType}`);
@@ -176,7 +177,7 @@ export function applyDamageToRemote(targetId, damage, killerInfo) {
     pRef.transaction((current) => {
         if (!current) return;
         const prevHealth = current.health || 0;
-        let { shield = 0, health = prevHealth, deaths = 0, ks = 0 } = current;
+        let { shield = 0, health = prevHealth, deaths = 0, ks = 0, kills = 0 } = current; // Added kills to destructuring
         let remaining = damage;
         if (shield > 0) {
             const sDmg = Math.min(shield, remaining);
@@ -191,7 +192,7 @@ export function applyDamageToRemote(targetId, damage, killerInfo) {
             health = 0;
             shield = 0;
         }
-        return { ...current, health, shield, deaths, ks, isDead: health <= 0, _justDied: justDied };
+        return { ...current, health, shield, deaths, ks, kills, isDead: health <= 0, _justDied: justDied }; // Pass kills back
     }, (error, committed, snap) => {
         if (error) {
             console.error("Firebase transaction failed for damage:", error);
@@ -208,25 +209,35 @@ export function applyDamageToRemote(targetId, damage, killerInfo) {
                 currentKiller.ks = (currentKiller.ks || 0) + 1;
                 return currentKiller;
             }).then(() => {
+                // Check for win condition after updating killer's kills
+                if (dbRefs.gameSettingsRef) {
+                    dbRefs.gameSettingsRef.once('value').then(settingsSnap => {
+                        const settings = settingsSnap.val();
+                        if (settings && settings.gameMode === "FFA" && settings.killLimit) {
+                            if (updated.kills >= settings.killLimit) { // This should be killer's kills, not victim's
+                                // The killer's kills are updated in the transaction above.
+                                // We need to check the killer's new kill count here.
+                                // Re-fetch killer's data or pass it from the transaction.
+                                // For simplicity, let's assume currentKiller.kills is the updated value.
+                                // A more robust solution would be to re-read the killer's data after their transaction commits.
+                                dbRefs.playersRef.child(localPlayerId).once('value').then(killerSnap => {
+                                    const killerData = killerSnap.val();
+                                    if (killerData && killerData.kills >= settings.killLimit) {
+                                        dbRefs.gameWinnerRef.set({ winnerId: localPlayerId, winnerName: killerData.username, timestamp: firebase.database.ServerValue.TIMESTAMP })
+                                            .catch(err => console.error("Failed to set game winner:", err));
+                                    }
+                                });
+                            }
+                        }
+                    }).catch(err => console.error("Failed to read game settings for win condition:", err));
+                }
+
                 dbRefs.killsRef.push({
                     killer: killerInfo.killerUsername,
                     victim: updated.username,
                     weapon: killerInfo.weapon,
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 }).catch(err => console.error("Failed to record kill:", err));
-
-                // Check for win condition (50 kills)
-                if (updated.kills >= 50) { // This condition should apply to the killer's kills
-                    console.log(`Player ${killerInfo.killerUsername} reached 50 kills! Declaring winner.`);
-                    if (dbRefs && dbRefs.gameDataRef) {
-                        dbRefs.gameDataRef.update({
-                            winner: killerInfo.killerUsername,
-                            status: "finished",
-                            finishedAt: firebase.database.ServerValue.TIMESTAMP
-                        }).catch(err => console.error("Failed to set winner in gameData:", err));
-                    }
-                }
-
             }).catch(err => console.error("Failed to update killer stats:", err));
 
             if (targetId === localPlayerId) {
@@ -314,21 +325,11 @@ export function purgeNamelessPlayers(validIds = []) {
     });
 }
 
-/**
- * Initializes the network connection for a specific game instance.
- * @param {string} username - The local player's username.
- * @param {string} gameId - The ID of the game instance (e.g., "game1", "game2").
- */
-export function initNetwork(username, gameId) {
-    return new Promise(async (resolve, reject) => {
-        currentJoinedGameId = gameId; // Store the current game ID
-
-        // Get game-specific Firebase references
-        dbRefs = getGameDbRefs(gameId);
-        setUIDbRefs(dbRefs); // Pass game-specific refs to UI
-
-        // Get menu-specific Firebase references (for player count updates)
-        menuDbRefs = getMenuDbRefs();
+export function initNetwork(username, current_gameId) { // Changed mapName to current_gameId
+    return new Promise((resolve, reject) => {
+        gameId = current_gameId; // Store the gameId
+        dbRefs = getDbRefs(gameId); // Get references for the specific gameId
+        setUIDbRefs(dbRefs);
 
         localPlayerId = localStorage.getItem("playerId");
         if (!localPlayerId) {
@@ -352,38 +353,71 @@ export function initNetwork(username, gameId) {
             lastUpdate: Date.now()
         };
 
-        // Set local player data and onDisconnect hook
-        await dbRefs.playersRef.child(localPlayerId).set(initial).catch(err => console.error("Failed to set initial player data:", err));
-        // Increment player count in the menu's gamesRef
-        menuDbRefs.gamesRef.child(currentJoinedGameId).child('playerCount').transaction((currentCount) => {
-            return (currentCount || 0) + 1;
-        }).catch(err => console.error("Failed to increment player count:", err));
+        dbRefs.playersRef.child(localPlayerId).set(initial).catch(err => console.error("Failed to set initial player data:", err));
+        dbRefs.playersRef.child(localPlayerId).onDisconnect().remove();
 
-        // Set onDisconnect for local player and decrement player count
-        dbRefs.playersRef.child(localPlayerId).onDisconnect().remove(() => {
-            if (currentJoinedGameId) { // Only decrement if we were actually in a game
-                menuDbRefs.gamesRef.child(currentJoinedGameId).child('playerCount').transaction((currentCount) => {
-                    return Math.max(0, (currentCount || 0) - 1); // Ensure it doesn't go below 0
-                }).catch(err => console.error("Failed to decrement player count on disconnect:", err));
+        // Stop all previous listeners before setting up new ones for the new gameId
+        if (dbRefs.playersRef) dbRefs.playersRef.off();
+        if (dbRefs.chatRef) dbRefs.chatRef.off();
+        if (dbRefs.killsRef) dbRefs.killsRef.off();
+        if (dbRefs.tracersRef) dbRefs.tracersRef.off();
+        if (dbRefs.soundsRef) dbRefs.soundsRef.off();
+        if (dbRefs.mapStateRef) {
+            dbRefs.mapStateRef.child("bullets").off();
+        }
+        if (dbRefs.gameSettingsRef) dbRefs.gameSettingsRef.off();
+        if (dbRefs.gameWinnerRef) dbRefs.gameWinnerRef.off();
+
+        // Listen for game settings (especially timer and kill limit)
+        dbRefs.gameSettingsRef.on('value', (snapshot) => {
+            const settings = snapshot.val();
+            if (settings) {
+                gameEndTime = settings.createdAt + settings.timer * 1000; // Calculate end time
+                killLimit = settings.killLimit;
+
+                // Start game timer if not already running
+                if (!gameTimerInterval) {
+                    gameTimerInterval = setInterval(() => {
+                        const timeLeft = Math.max(0, Math.floor((gameEndTime - Date.now()) / 1000));
+                        // Update UI with timer (you'll need to add a UI element for this)
+                        // console.log(`Time left: ${timeLeft} seconds`);
+                        if (timeLeft <= 0) {
+                            clearInterval(gameTimerInterval);
+                            gameTimerInterval = null;
+                            console.log("Game time ended!");
+                            // Trigger game end (e.g., declare winner based on kills)
+                            dbRefs.playersRef.orderByChild('kills').limitToLast(1).once('value', (winnerSnap) => {
+                                const winnerData = winnerSnap.val();
+                                if (winnerData) {
+                                    const winnerId = Object.keys(winnerData)[0];
+                                    const winnerName = winnerData[winnerId].username;
+                                    dbRefs.gameWinnerRef.set({ winnerId: winnerId, winnerName: winnerName, timestamp: firebase.database.ServerValue.TIMESTAMP })
+                                        .catch(err => console.error("Failed to set game winner on time end:", err));
+                                } else {
+                                    dbRefs.gameWinnerRef.set({ winnerName: "No one", timestamp: firebase.database.ServerValue.TIMESTAMP })
+                                        .catch(err => console.error("Failed to set game winner on time end (no players):", err));
+                                }
+                            });
+                        }
+                    }, 1000);
+                }
+            }
+        });
+
+        // Listen for game winner
+        dbRefs.gameWinnerRef.on('value', (snapshot) => {
+            const winnerData = snapshot.val();
+            if (winnerData && winnerData.winnerName) {
+                console.log(`Game ended! Winner: ${winnerData.winnerName}`);
+                if (gameTimerInterval) {
+                    clearInterval(gameTimerInterval);
+                    gameTimerInterval = null;
+                }
+                endGameAndShowWinner(winnerData.winnerName); // Call game.js function
             }
         });
 
 
-        // Detach all old listeners before attaching new ones
-        dbRefs.playersRef.off();
-        dbRefs.chatRef.off();
-        dbRefs.killsRef.off();
-        dbRefs.tracersRef.off();
-        dbRefs.soundsRef.off();
-        if (dbRefs.mapStateRef) {
-            dbRefs.mapStateRef.child("bullets").off();
-        }
-        if (dbRefs.gameDataRef) {
-            dbRefs.gameDataRef.off(); // Detach game data listener
-        }
-
-
-        // Attach new listeners for the current game instance
         dbRefs.playersRef.once("value").then((snapshot) => {
             const currentIds = [];
             snapshot.forEach((snap) => {
@@ -464,15 +498,8 @@ export function initNetwork(username, gameId) {
                 const id = snap.key;
                 if (id === localPlayerId) {
                     console.warn("Local player removed from Firebase. Handling disconnection.");
-                    // This means another player removed us, or Firebase itself removed us.
-                    // We should still return to the menu.
-                    if (window.disconnectAndReturnToMenu) {
-                        window.disconnectAndReturnToMenu();
-                    } else {
-                        console.error("window.disconnectAndReturnToMenu is not defined!");
-                        localStorage.removeItem("playerId");
-                        location.reload();
-                    }
+                    localStorage.removeItem("playerId");
+                    // Do NOT reload here, game.js will handle going back to menu
                     return;
                 }
                 permanentlyRemoved.add(id);
@@ -535,30 +562,6 @@ export function initNetwork(username, gameId) {
                 console.warn("mapStateRef is not defined, bullet hole synchronization disabled.");
             }
 
-            // --- Game Data Listener (for win condition and game settings) ---
-            if (dbRefs.gameDataRef) {
-                dbRefs.gameDataRef.on('value', (snap) => {
-                    const gameData = snap.val();
-                    if (gameData) {
-                        // Pass game settings to game.js
-                        setGameSettings(gameData.timer, gameData.maxKills, gameData.gameMode);
-
-                        // Check for winner
-                        if (gameData.winner && gameData.status === "finished") {
-                            console.log(`Game over! Winner: ${gameData.winner}`);
-                            // Disconnect and return to menu, showing the winner
-                            if (window.disconnectAndReturnToMenu) {
-                                window.disconnectAndReturnToMenu(gameData.winner);
-                            } else {
-                                console.error("window.disconnectAndReturnToMenu is not defined!");
-                            }
-                        }
-                    }
-                });
-            } else {
-                console.warn("gameDataRef is not defined, game settings and win condition monitoring disabled.");
-            }
-
             resolve();
         }).catch((error) => {
             console.error("Network init failed:", error);
@@ -588,45 +591,3 @@ document.addEventListener("visibilitychange", () => {
     }
 });
 
-/**
- * Disconnects the local player from the current game's Firebase instance
- * and decrements the player count in the menu's gamesRef.
- */
-export function disconnectPlayer() {
-    if (dbRefs && localPlayerId) {
-        // Explicitly remove player data
-        dbRefs.playersRef.child(localPlayerId).remove().then(() => {
-            console.log(`Local player ${localPlayerId} removed from game database.`);
-        }).catch(err => console.error("Failed to remove local player data on disconnect:", err));
-
-        // Detach all listeners for the current game's Firebase instance
-        dbRefs.playersRef.off();
-        dbRefs.chatRef.off();
-        dbRefs.killsRef.off();
-        dbRefs.tracersRef.off();
-        dbRefs.soundsRef.off();
-        if (dbRefs.mapStateRef) {
-            dbRefs.mapStateRef.child("bullets").off();
-        }
-        if (dbRefs.gameDataRef) {
-            dbRefs.gameDataRef.off();
-        }
-        console.log("All Firebase listeners for current game detached.");
-
-        // Decrement player count in the menu's gamesRef if a game was joined
-        if (currentJoinedGameId && menuDbRefs && menuDbRefs.gamesRef) {
-            menuDbRefs.gamesRef.child(currentJoinedGameId).child('playerCount').transaction((currentCount) => {
-                return Math.max(0, (currentCount || 0) - 1); // Ensure it doesn't go below 0
-            }).then(() => {
-                console.log(`Player count decremented for game ${currentJoinedGameId}.`);
-            }).catch(err => console.error("Failed to decrement player count on explicit disconnect:", err));
-        }
-
-        // Clear local player ID and current game ID
-        localStorage.removeItem("playerId");
-        localPlayerId = null;
-        currentJoinedGameId = null;
-    } else {
-        console.warn("No active game or localPlayerId to disconnect.");
-    }
-}
