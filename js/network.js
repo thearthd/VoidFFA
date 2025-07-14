@@ -30,7 +30,7 @@ const PHYSICS_SOUNDS = {
     footstep: { run: 'https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba' },
     landingThud: { land: 'https://codehs.com/uploads/600ab769d99d74647db55a468b19761f' }
 };
-
+// ok
 export let localPlayerId = null;
 export const remotePlayers = {};
 const permanentlyRemoved = new Set();
