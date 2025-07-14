@@ -1,94 +1,63 @@
 // firebase-config.js
 
-// Firebase v8 compatibility imports (assuming you're using v8 syntax for new features)
-// Make sure firebase is loaded globally, e.g., via <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-// and <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+const configs = {
+  CrocodilosConstruction: {
+      apiKey: "AIzaSyDEULlbzl5Sylo-zGHvRIOrd6AOWp4GcxA",
+      authDomain: "d-shooter-fa105.firebaseapp.com",
+      databaseURL: "https://d-shooter-fa105-default-rtdb.firebaseio.com",
+      projectId: "d-shooter-fa105",
+      storageBucket: "d-shooter-fa105.firebasestorage.app",
+      messagingSenderId: "573466540294",
+      appId: "1:573466540294:web:b131bfb11220fe35848687",
+      measurementId: "G-KKRN5DVEMF"
+  },
+  SigmaCity: {
+      apiKey: "AIzaSyAlp49gDO5XCQe9KvHH-yVzo1TrFUv_rGY",
+      authDomain: "sigmacity-27a9e.firebaseapp.com",
+      databaseURL: "https://sigmacity-27a9e-default-rtdb.firebaseio.com",
+      projectId: "sigmacity-27a9e",
+      storageBucket: "sigmacity-27a9e.firebasestorage.app",
+      messagingSenderId: "1056288231871",
+      appId: "1:1056288231871:web:d4b35d473de14dfb98910a",
+      measurementId: "G-76TZ6XF8WL"
+  }
+};
 
 const menuConfig = {
-    apiKey: "AIzaSyBmLJjnsXye8oBBpbtTZu0W9-cmEl8QM8s",
-    authDomain: "voidffa-menu.firebaseapp.com",
-    databaseURL: "https://voidffa-menu-default-rtdb.firebaseio.com",
-    projectId: "voidffa-menu",
-    storageBucket: "voidffa-menu.firebasestorage.app",
-    messagingSenderId: "775839090279",
-    appId: "1:775839090279:web:1dfa69158b5e2b0ce436c2",
-    measurementId: "G-X9CKZX4C74"
-};
-
-// Map configurations will now be referenced by mapName, not gameId
-// Their details (like GLB URL, scale, spawn points) are hardcoded here.
-const mapConfigs = {
-    "SigmaCity": {
-        mapName: "SigmaCity",
-        GLB_MODEL_URL: 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb',
-        SCALE: 2,
-        spawnPoints: [
-            new THREE.Vector3(0, 15, 0),
-        ],
-    },
-    "CrocodilosConstruction": {
-        mapName: "CrocodilosConstruction",
-        GLB_MODEL_URL: 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb',
-        SCALE: 5,
-        spawnPoints: [
-            new THREE.Vector3(-14, 7, -36), // 1
-            new THREE.Vector3(-2, 2, 37), // 2
-            new THREE.Vector3(0, 2, 0), // 3
-            new THREE.Vector3(2, 7, 34), // 4
-            new THREE.Vector3(-5, 2, -38), // 5
-            new THREE.Vector3(-18, 2, 12), // 6
-            new THREE.Vector3(11, 2, 23), // 7
-            new THREE.Vector3(-7, 7, -1), // 8
-        ],
-    }
-};
+  apiKey: "AIzaSyBmLJjnsXye8oBBpbtTZu0W9-cmEl8QM8s",
+  authDomain: "voidffa-menu.firebaseapp.com",
+  databaseURL: "https://voidffa-menu-default-rtdb.firebaseio.com",
+  projectId: "voidffa-menu",
+  storageBucket: "voidffa-menu.firebasestorage.app",
+  messagingSenderId: "775839090279",
+  appId: "1:775839090279:web:1dfa69158b5e2b0ce436c2",
+  measurementId: "G-X9CKZX4C74"
+}
 
 // Keep track of initialized apps
-let menuAppInstance = null; // For the menu database connection
+const apps = {};
 
 /**
- * Initializes (or returns) the Firebase App + Database for the menu.
- * This app instance will be used for all game lobby and game-specific data.
+ * Initialize (or return) a compat App + Database for the given mapName.
+ * @param {"LobotomyLinework"|"SigmaCity"} mapName
  */
-export function getMenuDbRefs() {
-    if (!menuAppInstance) {
-        menuAppInstance = firebase.initializeApp(menuConfig, "menuApp");
-    }
-    const database = menuAppInstance.database();
-    return {
-        gamesRef: database.ref("games/"), // Root collection for all game lobbies
+export function getDbRefs(mapName) {
+  if (!configs[mapName]) {
+    throw new Error(`Unknown mapName: ${mapName}`);
+  }
+  if (!apps[mapName]) {
+    // initializeApp returns firebase.app.App
+    const app = firebase.initializeApp(configs[mapName], mapName);
+    const database = app.database();
+    apps[mapName] = {
+      playersRef: database.ref("players/"),
+      chatRef:    database.ref("chat/"),
+      mapStateRef:database.ref("mapState/"),
+      killsRef:   database.ref("kills/"),
+      tracersRef: database.ref("tracers/"),
+      soundsRef:  database.ref("sounds/")
     };
-}
-
-/**
- * Initialize (or return) Firebase database references for a specific game instance.
- * These references point to paths under /games/{gameId}/ within the menu database.
- * @param {string} gameId - The ID of the game (e.g., "game1", "game2")
- */
-export function getDbRefs(gameId) {
-    // Ensure the menu app is initialized first to get the database instance
-    const menuDbRefs = getMenuDbRefs();
-    const database = menuAppInstance.database(); // Use the database from the menu app instance
-
-    // Construct game-specific references
-    return {
-        playersRef: database.ref(`games/${gameId}/players/`),
-        chatRef: database.ref(`games/${gameId}/chat/`),
-        mapStateRef: database.ref(`games/${gameId}/mapState/`),
-        killsRef: database.ref(`games/${gameId}/kills/`),
-        tracersRef: database.ref(`games/${gameId}/tracers/`),
-        soundsRef: database.ref(`games/${gameId}/sounds/`),
-        gameSettingsRef: database.ref(`games/${gameId}/settings/`), // Reference to game settings (timer, kill limit, gamemode, mapName)
-        gameWinnerRef: database.ref(`games/${gameId}/winner/`),     // Reference to store game winner
-    };
-}
-
-/**
- * Retrieves map configuration details based on the mapName.
- * @param {string} mapName - The name of the map (e.g., "SigmaCity", "CrocodilosConstruction")
- * @returns {object} The map configuration object.
- */
-export function getMapConfig(mapName) {
-    return mapConfigs[mapName];
+  }
+  return apps[mapName];
 }
 
