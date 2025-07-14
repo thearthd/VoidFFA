@@ -56,7 +56,7 @@ const KILLSTREAK_SOUNDS = {
     3:  'https://codehs.com/uploads/81976fee406a0346b5b75de70c7e2c0e',
     4:  'https://codehs.com/uploads/b337a894983ddc58e778bdb76eb0efe4',
     5:  'https://codehs.com/uploads/03edb8ea396418fbc3630d1262c7e991',
-    6:  'https://codehs.com/uploads/413cb56b57597f40aa223dc6488eecca',
+    6:  'https://codehs.com/uploads/413cb56b57597f40aa223dc64688eecca',
     7:  'https://codehs.com/uploads/f4bca7128545c430257bc0c169e45',
     8:  'https://codehs.com/uploads/373998fa75359ae1ca6462fe1b023bf7',
     9:  'https://codehs.com/uploads/bac5a38abad4d17c00f7adf629af9063',
