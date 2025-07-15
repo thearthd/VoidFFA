@@ -1015,7 +1015,7 @@ export function initMenuUI() {
                 document.getElementById("game-logo").classList.add("hidden");
                 const gameLoogo = document.getElementById('game-logo');
                 // Remove the canvas-drawn logo immediately after username is saved
-                gameLoogo.style.display = none;
+                gameLoogo.style.display = 'none';
                 
                 // Potentially show a different HTML panel if desired, e.g., the main HTML menu
                 // For now, it just transitions to the canvas menu.
