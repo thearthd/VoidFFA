@@ -881,7 +881,6 @@ let sigmaPlayButton = createAnimatedButton(
  */
 function menu(){
     add(logo);
-    add(background);
     add(playButton.image);
     add(settingsButton.image);
     add(careerButton.image);
@@ -904,7 +903,6 @@ menu();
 function playButtonHit(){
     removeAll(); // Remove all existing shapes from the canvas
     add(logo); // Re-add logo
-    add(background); // Re-add background
     add(crocoPlayButton.image); // Add new play options
     add(sigmaPlayButton.image);
     // Ensure their hitboxes are also added to the clickableShapes array for interaction
