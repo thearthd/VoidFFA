@@ -1013,7 +1013,7 @@ export function initMenuUI() {
                 
                 // Hide the HTML game logo
                 document.getElementById("game-logo").classList.add("hidden");
-                const gameLoogo = document.getElementById('game-logo');
+                const gameLoogo = document.getElementById('menu-overlay');
                 // Remove the canvas-drawn logo immediately after username is saved
                 gameLoogo.style.display = 'none';
                 
