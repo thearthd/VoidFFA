@@ -961,6 +961,9 @@ export function initMenuUI() {
             document.getElementById("game-logo").classList.add("hidden"); // Hide the HTML game logo
             // Do not hide the canvas-drawn logo here, it's part of the `menu()` function
             // to be drawn. The `logo.setOpacity(0)` or `remove(logo)` will be used later.
+                const gameLoogo = document.getElementById('game-logo');
+                // Remove the canvas-drawn logo immediately after username is saved
+                gameLoogo.style.display = 'none';
         } else {
             // If no username, show the prompt
             showPanel(usernamePrompt);
@@ -1013,7 +1016,7 @@ export function initMenuUI() {
                 
                 // Hide the HTML game logo
                 document.getElementById("game-logo").classList.add("hidden");
-                const gameLoogo = document.getElementById('menu-overlay');
+                const gameLoogo = document.getElementById('game-logo');
                 // Remove the canvas-drawn logo immediately after username is saved
                 gameLoogo.style.display = 'none';
                 
