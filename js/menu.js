@@ -839,7 +839,7 @@ let crocoPlayButton = createAnimatedButton(
             canvas.style.display = 'none';
         }
         if (gameWrapper) {
-            menuSong.stop();
+            menuSong.pause();
             gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
             createGameUI(gameWrapper);
             initNetwork(username, "CrocodilosConstruction");
@@ -871,7 +871,7 @@ let sigmaPlayButton = createAnimatedButton(
             canvas.style.display = 'none';
         }
         if (gameWrapper) {
-            menuSong.stop();
+            menuSong.pause();
             gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
             createGameUI(gameWrapper);
             initNetwork(username, "SigmaCity");
@@ -1107,7 +1107,7 @@ export function initMenuUI() {
             // Initialize game UI and start the game
             const gameWrapper = document.getElementById('game-container');
             if (gameWrapper) {
-                menuSong.stop();
+                menuSong.pause();
                 gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
                 createGameUI(gameWrapper); // Create game UI elements
                 initNetwork(username, mapName); // Initialize network for multiplayer
