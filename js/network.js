@@ -44,10 +44,6 @@ export let dbRefs;
  * @param {THREE.Camera} camera The main game camera that follows the player.
  * @param {THREE.Scene} scene The main game scene.
  */
- 
- 
- 
- 
 export function initializeAudioManager(camera, scene) {
   console.log("Attempting to initialize AudioManager...");
   console.log("Camera received:", camera);
@@ -73,65 +69,65 @@ export function initializeAudioManager(camera, scene) {
  * This should be called AFTER initializeAudioManager has successfully run.
  */
 export function startSoundListener() {
-    if (!dbRefs || !dbRefs.soundsRef) {
-        console.error("Cannot start sound listener: dbRefs or soundsRef not initialized.");
-        return;
+  if (!dbRefs || !dbRefs.soundsRef) {
+    console.error("Cannot start sound listener: dbRefs or soundsRef not initialized.");
+    return;
+  }
+
+  dbRefs.soundsRef.off();
+
+  dbRefs.soundsRef.on("child_added", (snap) => {
+    const data = snap.val();
+    const soundRef = snap.ref;
+
+    if (!data || data.shooter === localPlayerId) {
+      if (data.shooter === localPlayerId) {
+        setTimeout(() => {
+          soundRef.remove().catch(err => console.error("Failed to remove own sound event from Firebase:", err));
+        }, 10000);
+      }
+      return;
     }
 
-    dbRefs.soundsRef.off();
+    setTimeout(() => {
+      soundRef.remove().catch(err => console.error("Failed to remove sound event from Firebase after 10s:", err));
+    }, 3000);
 
-    dbRefs.soundsRef.on("child_added", (snap) => {
-        const data = snap.val();
-        const soundRef = snap.ref;
+    const url = WeaponController.SOUNDS[data.soundKey]?.[data.soundType] ??
+      PHYSICS_SOUNDS[data.soundKey]?.[data.soundType];
 
-        if (!data || data.shooter === localPlayerId) {
-            if (data.shooter === localPlayerId) {
-                setTimeout(() => {
-                    soundRef.remove().catch(err => console.error("Failed to remove own sound event from Firebase:", err));
-                }, 10000);
-            }
-            return;
-        }
+    if (!url) {
+      console.warn(`No URL found for soundKey: ${data.soundKey}, soundType: ${data.soundType}`);
+      return;
+    }
 
-        setTimeout(() => {
-            soundRef.remove().catch(err => console.error("Failed to remove sound event from Firebase after 10s:", err));
-        }, 3000);
+    const worldPos = new THREE.Vector3(data.x, data.y, data.z);
 
-        const url = WeaponController.SOUNDS[data.soundKey]?.[data.soundType] ??
-                    PHYSICS_SOUNDS[data.soundKey]?.[data.soundType];
-
-        if (!url) {
-            console.warn(`No URL found for soundKey: ${data.soundKey}, soundType: ${data.soundType}`);
-            return;
-        }
-
-        const worldPos = new THREE.Vector3(data.x, data.y, data.z);
-
-        if (audioManagerInstance) {
-            // Get sound properties from SOUND_CONFIG
-            const soundProps = SOUND_CONFIG[data.soundKey]?.[data.soundType];
-            if (soundProps) {
-                audioManagerInstance.playSpatial(
-                    url,
-                    worldPos,
-                    {
-                        loop: soundProps.loop ?? false, // Default to false if not specified
-                        volume: soundProps.volume,
-                        hearingRange: soundProps.hearingRange,
-                        rolloffFactor: soundProps.rolloffFactor,
-                        distanceModel: soundProps.distanceModel
-                    }
-                );
-            } else {
-                // Fallback to default values if not found in SOUND_CONFIG
-                console.warn(`Sound properties not found for ${data.soundKey}:${data.soundType}. Playing with defaults.`);
-                audioManagerInstance.playSpatial(url, worldPos, { loop: false, volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' });
-            }
-        } else {
-            console.warn("AudioManager not initialized when trying to play spatial sound (after startSoundListener called).");
-        }
-    });
-    console.log("Firebase sound listener started.");
+    if (audioManagerInstance) {
+      // Get sound properties from SOUND_CONFIG
+      const soundProps = SOUND_CONFIG[data.soundKey]?.[data.soundType];
+      if (soundProps) {
+        audioManagerInstance.playSpatial(
+          url,
+          worldPos,
+          {
+            loop: soundProps.loop ?? false, // Default to false if not specified
+            volume: soundProps.volume,
+            hearingRange: soundProps.hearingRange,
+            rolloffFactor: soundProps.rolloffFactor,
+            distanceModel: soundProps.distanceModel
+          }
+        );
+      } else {
+        // Fallback to default values if not found in SOUND_CONFIG
+        console.warn(`Sound properties not found for ${data.soundKey}:${data.soundType}. Playing with defaults.`);
+        audioManagerInstance.playSpatial(url, worldPos, { loop: false, volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' });
+      }
+    } else {
+      console.warn("AudioManager not initialized when trying to play spatial sound (after startSoundListener called).");
+    }
+  });
+  console.log("Firebase sound listener started.");
 }
 
 export function sendPlayerUpdate(data) {
@@ -255,38 +251,38 @@ export function sendBulletHole(pos) {
 }
 
 export function sendSoundEvent(soundKey, soundType, position) {
-    if (dbRefs && dbRefs.soundsRef) {
-        // We will send all the relevant sound properties to Firebase
-        const soundProps = SOUND_CONFIG[soundKey]?.[soundType];
-        if (!soundProps) {
-            console.warn(`Sound properties for ${soundKey}:${soundType} not found in SOUND_CONFIG. Event will be sent with minimal data.`);
-            dbRefs.soundsRef.push({
-                soundKey, soundType,
-                x: position.x, y: position.y, z: position.z,
-                shooter: localPlayerId,
-                time: firebase.database.ServerValue.TIMESTAMP
-            }).catch(err => console.error("Failed to send sound event:", err));
-            return;
-        }
-
-        dbRefs.soundsRef.push({
-            soundKey,
-            soundType,
-            x: position.x,
-            y: position.y,
-            z: position.z,
-            shooter: localPlayerId,
-            time: firebase.database.ServerValue.TIMESTAMP,
-            // Include sound properties for the receiving end to use
-            volume: soundProps.volume,
-            hearingRange: soundProps.hearingRange,
-            rolloffFactor: soundProps.rolloffFactor,
-            distanceModel: soundProps.distanceModel,
-            loop: soundProps.loop ?? false // Ensure loop status is also sent
-        }).catch(err => console.error("Failed to send sound event:", err));
-    } else {
-        console.warn("Attempted to send sound event before network initialized or dbRefs.soundsRef is null.");
+  if (dbRefs && dbRefs.soundsRef) {
+    // We will send all the relevant sound properties to Firebase
+    const soundProps = SOUND_CONFIG[soundKey]?.[soundType];
+    if (!soundProps) {
+      console.warn(`Sound properties for ${soundKey}:${soundType} not found in SOUND_CONFIG. Event will be sent with minimal data.`);
+      dbRefs.soundsRef.push({
+        soundKey, soundType,
+        x: position.x, y: position.y, z: position.z,
+        shooter: localPlayerId,
+        time: firebase.database.ServerValue.TIMESTAMP
+      }).catch(err => console.error("Failed to send sound event:", err));
+      return;
     }
+
+    dbRefs.soundsRef.push({
+      soundKey,
+      soundType,
+      x: position.x,
+      y: position.y,
+      z: position.z,
+      shooter: localPlayerId,
+      time: firebase.database.ServerValue.TIMESTAMP,
+      // Include sound properties for the receiving end to use
+      volume: soundProps.volume,
+      hearingRange: soundProps.hearingRange,
+      rolloffFactor: soundProps.rolloffFactor,
+      distanceModel: soundProps.distanceModel,
+      loop: soundProps.loop ?? false // Ensure loop status is also sent
+    }).catch(err => console.error("Failed to send sound event:", err));
+  } else {
+    console.warn("Attempted to send sound event before network initialized or dbRefs.soundsRef is null.");
+  }
 }
 
 export function purgeNamelessPlayers(validIds = []) {
@@ -299,6 +295,45 @@ export function purgeNamelessPlayers(validIds = []) {
     }
   });
 }
+
+/**
+ * Disconnects a player from the game, removing their data from Firebase and local game state.
+ * This function should be called when a player explicitly leaves the game or is detected as disconnected.
+ * @param {string} playerId The ID of the player to disconnect.
+ */
+export function disconnectPlayer(playerId) {
+  if (!dbRefs || !dbRefs.playersRef) {
+    console.warn("Cannot disconnect player: dbRefs not initialized.");
+    return;
+  }
+
+  if (playerId === localPlayerId) {
+    console.log("Disconnecting local player:", playerId);
+    // Remove local player's data from Firebase
+    dbRefs.playersRef.child(playerId).remove()
+      .then(() => {
+        console.log(`Local player ${playerId} removed from Firebase.`);
+        localStorage.removeItem("playerId"); // Clear local storage for a clean slate
+        // Optionally, redirect or show a disconnect message
+        // For now, we'll just reload as in the existing child_removed listener
+        location.reload();
+      })
+      .catch(err => console.error("Failed to remove local player from Firebase:", err));
+
+    // Clear local player ID
+    localPlayerId = null;
+  } else {
+    console.log("Disconnecting remote player:", playerId);
+    // Remove the remote player's model and data from local state
+    removeRemotePlayerModel(playerId);
+    delete remotePlayers[playerId];
+    permanentlyRemoved.add(playerId); // Add to permanently removed set to prevent re-addition
+  }
+
+  // You might also want to explicitly remove any player-specific listeners here
+  // For example, if you had listeners on individual player's health or other stats.
+}
+
 
 export function initNetwork(username, mapName) {
   return new Promise((resolve, reject) => {
@@ -328,8 +363,10 @@ export function initNetwork(username, mapName) {
     };
 
     dbRefs.playersRef.child(localPlayerId).set(initial).catch(err => console.error("Failed to set initial player data:", err));
+    // Firebase onDisconnect automatically handles removal when the client disconnects
     dbRefs.playersRef.child(localPlayerId).onDisconnect().remove();
 
+    // Detach all existing listeners to prevent duplicates on re-initialization
     dbRefs.playersRef.off();
     dbRefs.chatRef.off();
     dbRefs.killsRef.off();
@@ -407,7 +444,7 @@ export function initNetwork(username, mapName) {
           updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
           if (window.localPlayer.bodyMesh && typeof data.bodyColor === "number" &&
-              window.localPlayer.bodyMesh.material.color.getHex() !== data.bodyColor) {
+            window.localPlayer.bodyMesh.material.color.getHex() !== data.bodyColor) {
             window.localPlayer.bodyMesh.material.color.setHex(data.bodyColor);
           }
         } else {
@@ -448,13 +485,13 @@ export function initNetwork(username, mapName) {
         });
       }, 60000);
 
-dbRefs.tracersRef.on("child_added", (snap) => {
-  const { ox, oy, oz, tx, ty, tz, shooter } = snap.val();
-  const tracerRef = snap.ref;
-  setTimeout(() => tracerRef.remove().catch(err => console.error("Failed to remove tracer from Firebase:", err)), 1000);
-  // Removed this line: if (shooter === localPlayerId) return;
-  createTracer(new THREE.Vector3(ox, oy, oz), new THREE.Vector3(tx, ty, tz), snap.key);
-});
+      dbRefs.tracersRef.on("child_added", (snap) => {
+        const { ox, oy, oz, tx, ty, tz, shooter } = snap.val();
+        const tracerRef = snap.ref;
+        setTimeout(() => tracerRef.remove().catch(err => console.error("Failed to remove tracer from Firebase:", err)), 1000);
+        // Removed this line: if (shooter === localPlayerId) return;
+        createTracer(new THREE.Vector3(ox, oy, oz), new THREE.Vector3(tx, ty, tz), snap.key);
+      });
       dbRefs.tracersRef.on("child_removed", (snap) => {
         removeTracer(snap.key);
       });
