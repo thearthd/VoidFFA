@@ -333,7 +333,7 @@ export function disconnectPlayer(playerId) {
   // You might also want to explicitly remove any player-specific listeners here
   // For example, if you had listeners on individual player's health or other stats.
 }
-
+window.disconnectPlayer = disconnectPlayer;
 
 export function initNetwork(username, mapName) {
   return new Promise((resolve, reject) => {
