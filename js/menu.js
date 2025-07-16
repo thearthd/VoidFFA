@@ -30,6 +30,10 @@ const ctx = canvas.getContext('2d');
 let canvasWidth = canvas.width;
 let canvasHeight = canvas.height;
 
+let menuSong = new Audio("https://codehs.com/uploads/7ab8d31b9bb147e3952841963f6f3769");
+menuSong.volume = 0.4;
+menuSong.play();
+
 /**
  * Sets the canvas dimensions to a fixed size (1920x1080) and updates
  * the global canvasWidth and canvasHeight variables.
@@ -834,6 +838,7 @@ let crocoPlayButton = createAnimatedButton(
             canvas.style.display = 'none';
         }
         if (gameWrapper) {
+            menuSong.stop();
             gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
             createGameUI(gameWrapper);
             initNetwork(username, "CrocodilosConstruction");
@@ -865,6 +870,7 @@ let sigmaPlayButton = createAnimatedButton(
             canvas.style.display = 'none';
         }
         if (gameWrapper) {
+            menuSong.stop();
             gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
             createGameUI(gameWrapper);
             initNetwork(username, "SigmaCity");
@@ -1100,6 +1106,7 @@ export function initMenuUI() {
             // Initialize game UI and start the game
             const gameWrapper = document.getElementById('game-container');
             if (gameWrapper) {
+                menuSong.stop();
                 gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
                 createGameUI(gameWrapper); // Create game UI elements
                 initNetwork(username, mapName); // Initialize network for multiplayer
