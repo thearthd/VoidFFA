@@ -32,6 +32,7 @@ let canvasHeight = canvas.height;
 
 let menuSong = new Audio("https://codehs.com/uploads/7ab8d31b9bb147e3952841963f6f3769");
 menuSong.volume = 0.4;
+menuSong.loop = true;
 menuSong.play();
 
 /**
