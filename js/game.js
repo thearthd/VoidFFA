@@ -1862,210 +1862,213 @@ let hiddenInterval = null;
 let rafId = null;
 
 export function animate(timestamp) {
+  // If localPlayerId is null, it means the local player has disconnected, so stop the animation loop.
+  if (localPlayerId === null) {
+    console.log("Local player disconnected. Stopping animation loop.");
+    return; // This prevents requestAnimationFrame from being called again.
+  }
+
+  // Schedule the next frame immediately
+  requestAnimationFrame(animate);
+
+  // Throttle to 60fps: bail out if we're too early
+  const FRAME_INTERVAL = 1000 / 60; // ≈16.67ms
+  if (!animate.lastTime) {
+    // first frame
+    animate.lastTime = timestamp;
+  }
+  const deltaMs = timestamp - animate.lastTime;
+  if (deltaMs < FRAME_INTERVAL) {
+    return;
+  }
+  // carry over any "extra" time to keep smoother timing
+  animate.lastTime = timestamp - (deltaMs % FRAME_INTERVAL);
+
+  // Convert to seconds for your logic
+  const delta = deltaMs / 1000;
+
+  // ——— Your existing logic starts here ———
+  if (!physicsController || !weaponController) {
+    console.warn("Skipping animate(): controllers not yet initialized");
+    return;
+  }
+  if (!window.mapReady) {
+    return;
+  }
+  if (!window.localPlayer) {
+    console.warn("Skipping animate(): window.localPlayer is not initialized.");
+    postFrameCleanup();
+    return;
+  }
+
+  try {
+    // Death screen logic
+    if (window.localPlayer.isDead) {
+      const cross = document.getElementById("crosshair");
+      if (cross) cross.style.display = "none";
+      if (deathTheme.paused) {
+        windSound.currentTime = 0;
+        windSound.pause();
+        forestNoise.currentTime = 0;
+        forestNoise.pause();
+        deathTheme.currentTime = 0;
+        deathTheme.play().catch(() => {});
+      }
+      if (fadeOverlay) {
+        fadeOverlay.style.pointerEvents = "auto";
+        fadeOverlay.style.opacity = "1";
+      }
+      if (respawnOverlay) respawnOverlay.style.display = "flex";
+      composer.render();
+      postFrameCleanup();
+      return;
+    }
+
+    // Normal game update
+    checkForDamagePulse();
+    if (weaponController.stats.speedModifier != null) {
+      physicsController.setSpeedModifier(weaponController.stats.speedModifier);
+    }
+
+    // Remote players falling
+    const GRAVITY = 9.8;
+    Object.values(window.remotePlayers).forEach(rp => {
+      const g = rp.group;
+      if (g?.userData.isFalling) {
+        g.userData.velocityY += GRAVITY * delta;
+        g.position.y -= g.userData.velocityY * delta;
+        if (g.position.y < -20) {
+          g.userData.isFalling = false;
+          g.userData.velocityY = 0;
+          g.visible = false;
+        }
+      }
+    });
+
+    // Sky and fog rotation
+    if (skyMesh && starField) {
+      skyMesh.rotation.x += 0.0001;
+      starField.rotation.x += 0.00008;
+    }
+    if (window.worldFog) {
+      window.worldFog.rotation.y += delta * 0.005;
+      const nowMs = performance.now();
+      window.worldFog.position.x += Math.sin(nowMs * 0.0001) * delta * 2;
+      window.worldFog.position.z += Math.cos(nowMs * 0.0001) * delta * 2;
+    }
+
+    // Physics & input update
+    const physState = physicsController.update(delta, inputState, window.collidables);
+
+    // Weapon update
+    weaponController.update(
+      inputState, delta, {
+        velocity: physState.velocity,
+        isCrouched: inputState.crouch,
+        physicsController,
+        collidables: window.collidables,
+        stats: weaponController.stats
+      }
+    );
+
+
+    for (let i = activeTracers.length - 1; i >= 0; i--) {
+      const tracer = activeTracers[i];
+      tracer.update(delta); // Pass the calculated delta (in seconds)
+
+      if (tracer.remove) {
+        tracer.dispose();
+        activeTracers.splice(i, 1);
+      }
+    }
 
 
 
-// Schedule the next frame immediately
-requestAnimationFrame(animate);
+    // Network sync
+    sendPlayerUpdate({
+      x: physState.x,
+      y: physState.y,
+      z: physState.z,
+      rotY: physState.rotY,
+      weapon: window.localPlayer.weapon,
+      knifeSwing: window.localPlayer.knifeSwing || false,
+      knifeHeavy: window.localPlayer.knifeHeavy || false
+    });
+    window.localPlayer.knifeSwing = false;
+    window.localPlayer.knifeHeavy = false;
 
-// Throttle to 60fps: bail out if we're too early
-const FRAME_INTERVAL = 1000 / 60; // ≈16.67ms
-if (!animate.lastTime) {
-// first frame
-animate.lastTime = timestamp;
-}
-const deltaMs = timestamp - animate.lastTime;
-if (deltaMs < FRAME_INTERVAL) {
-return;
-}
-// carry over any "extra" time to keep smoother timing
-animate.lastTime = timestamp - (deltaMs % FRAME_INTERVAL);
+    // Remote avatars update
+    for (const id in window.remotePlayers) {
+      const rp = window.remotePlayers[id];
+      if (rp.data) updateRemotePlayer(rp.data);
+    }
 
-// Convert to seconds for your logic
-const delta = deltaMs / 1000;
+    // Weapon switching
+    if (inputState.weaponSwitch) {
+      const oldW = window.localPlayer.weapon;
+      weaponAmmo[oldW] = weaponController.getCurrentAmmo();
+      const newW = inputState.weaponSwitch;
+      window.localPlayer.weapon = newW;
+      if (playersRef && window.localPlayer.id) {
+        playersRef.child(window.localPlayer.id).update({ weapon: newW });
+      } else {
+        console.warn("Cannot update local player weapon in Firebase");
+      }
+      weaponController.equipWeapon(newW);
+      weaponController.ammoInMagazine = weaponAmmo[newW] ?? weaponController.stats.magazineSize;
+      updateInventory(weaponController.getCurrentAmmo(), weaponController.getMaxAmmo());
+      updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
+      inputState.weaponSwitch = null;
+      if (newW === "knife") activeRecoils.length = 0;
+    }
 
-// ——— Your existing logic starts here ———
-if (!physicsController || !weaponController) {
-console.warn("Skipping animate(): controllers not yet initialized");
-return;
-}
-if (!window.mapReady) {
-return;
-}
-if (!window.localPlayer) {
-console.warn("Skipping animate(): window.localPlayer is not initialized.");
-postFrameCleanup();
-return;
-}
+    // Mouse look + recoil
+    const baseSens = parseFloat(localStorage.getItem("sensitivity") || "5.00");
+    const aimMul = inputState.aim ? (window.localPlayer.weapon === "marshal" ? 0.15 : 0.5) : 1;
+    const finalSens = baseSens * aimMul;
+    window.camera.rotation.y -= inputState.mouseDX * finalSens * 0.002;
+    let newPitch = window.camera.rotation.x - inputState.mouseDY * finalSens * 0.002;
+    window.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, newPitch));
+    // Recoil processing
+    {
+      const now = performance.now() / 1000;
+      let totalOffset = 0;
+      for (let i = activeRecoils.length - 1; i >= 0; i--) {
+        const r = activeRecoils[i];
+        const t = (now - r.start) / r.duration;
+        if (t >= 1) {
+          activeRecoils.splice(i, 1);
+          continue;
+        }
+        totalOffset += r.angle * (1 - t);
+      }
+      window.camera.rotation.x += totalOffset;
+    }
 
-try {
+    // Rebuild collidables
+    if (window.mapReady) {
+      window.collidables = [...window.envMeshes];
+      for (const otherId in window.remotePlayers) {
+        if (otherId === window.localPlayer.id) continue;
+        const other = window.remotePlayers[otherId];
+        if (other.group?.visible) {
+          other.group.traverse(child => {
+            if (child.isMesh && child.userData?.isPlayerBodyPart) {
+              window.collidables.push(child);
+            }
+          });
+        }
+      }
+    }
 
+    // Render
+    composer.render();
 
-// Death screen logic
-if (window.localPlayer.isDead) {
-const cross = document.getElementById("crosshair");
-if (cross) cross.style.display = "none";
-if (deathTheme.paused) {
-windSound.currentTime = 0;
-windSound.pause();
-forestNoise.currentTime = 0;
-forestNoise.pause();
-deathTheme.currentTime = 0;
-deathTheme.play().catch(() => {});
-}
-if (fadeOverlay) {
-fadeOverlay.style.pointerEvents = "auto";
-fadeOverlay.style.opacity = "1";
-}
-if (respawnOverlay) respawnOverlay.style.display = "flex";
-composer.render();
-postFrameCleanup();
-return;
-}
-
-// Normal game update
-checkForDamagePulse();
-if (weaponController.stats.speedModifier != null) {
-physicsController.setSpeedModifier(weaponController.stats.speedModifier);
-}
-
-// Remote players falling
-const GRAVITY = 9.8;
-Object.values(window.remotePlayers).forEach(rp => {
-const g = rp.group;
-if (g?.userData.isFalling) {
-g.userData.velocityY += GRAVITY * delta;
-g.position.y    -= g.userData.velocityY * delta;
-if (g.position.y < -20) {
-g.userData.isFalling = false;
-g.userData.velocityY = 0;
-g.visible = false;
-}
-}
-});
-
-// Sky and fog rotation
-if (skyMesh && starField) {
-skyMesh.rotation.x   += 0.0001;
-starField.rotation.x += 0.00008;
-}
-if (window.worldFog) {
-window.worldFog.rotation.y += delta * 0.005;
-const nowMs = performance.now();
-window.worldFog.position.x += Math.sin(nowMs * 0.0001) * delta * 2;
-window.worldFog.position.z += Math.cos(nowMs * 0.0001) * delta * 2;
-}
-
-// Physics & input update
-const physState = physicsController.update(delta, inputState, window.collidables);
-
-// Weapon update
-weaponController.update(
-inputState, delta,
-{
-velocity:    physState.velocity,
-isCrouched:  inputState.crouch,
-physicsController,
-collidables: window.collidables,
-stats:       weaponController.stats
-}
-);
-
-
-for (let i = activeTracers.length - 1; i >= 0; i--) {
-const tracer = activeTracers[i];
-tracer.update(delta); // Pass the calculated delta (in seconds)
-
-if (tracer.remove) {
-tracer.dispose();
-activeTracers.splice(i, 1);
-}
-}
-
-
-
-// Network sync
-sendPlayerUpdate({
-x: physState.x,
-y: physState.y,
-z: physState.z,
-rotY: physState.rotY,
-weapon: window.localPlayer.weapon,
-knifeSwing: window.localPlayer.knifeSwing || false,
-knifeHeavy: window.localPlayer.knifeHeavy || false
-});
-window.localPlayer.knifeSwing = false;
-window.localPlayer.knifeHeavy = false;
-
-// Remote avatars update
-for (const id in window.remotePlayers) {
-const rp = window.remotePlayers[id];
-if (rp.data) updateRemotePlayer(rp.data);
-}
-
-// Weapon switching
-if (inputState.weaponSwitch) {
-const oldW = window.localPlayer.weapon;
-weaponAmmo[oldW] = weaponController.getCurrentAmmo();
-const newW = inputState.weaponSwitch;
-window.localPlayer.weapon = newW;
-if (playersRef && window.localPlayer.id) {
-playersRef.child(window.localPlayer.id).update({ weapon: newW });
-} else {
-console.warn("Cannot update local player weapon in Firebase");
-}
-weaponController.equipWeapon(newW);
-weaponController.ammoInMagazine = weaponAmmo[newW] ?? weaponController.stats.magazineSize;
-updateInventory(weaponController.getCurrentAmmo(), weaponController.getMaxAmmo());
-updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
-inputState.weaponSwitch = null;
-if (newW === "knife") activeRecoils.length = 0;
-}
-
-// Mouse look + recoil
-const baseSens = parseFloat(localStorage.getItem("sensitivity") || "5.00");
-const aimMul  = inputState.aim ? (window.localPlayer.weapon === "marshal" ? 0.15 : 0.5) : 1;
-const finalSens = baseSens * aimMul;
-window.camera.rotation.y -= inputState.mouseDX * finalSens * 0.002;
-let newPitch = window.camera.rotation.x - inputState.mouseDY * finalSens * 0.002;
-window.camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, newPitch));
-// Recoil processing
-{
-const now = performance.now() / 1000;
-let totalOffset = 0;
-for (let i = activeRecoils.length - 1; i >= 0; i--) {
-const r = activeRecoils[i];
-const t = (now - r.start) / r.duration;
-if (t >= 1) { activeRecoils.splice(i, 1); continue; }
-totalOffset += r.angle * (1 - t);
-}
-window.camera.rotation.x += totalOffset;
-}
-
-// Rebuild collidables
-if (window.mapReady) {
-window.collidables = [...window.envMeshes];
-for (const otherId in window.remotePlayers) {
-if (otherId === window.localPlayer.id) continue;
-const other = window.remotePlayers[otherId];
-if (other.group?.visible) {
-other.group.traverse(child => {
-if (child.isMesh && child.userData?.isPlayerBodyPart) {
-window.collidables.push(child);
-}
-});
-}
-}
-}
-
-// Render
-composer.render();
-
-} catch (err) {
-console.error("Error in animate:", err);
-} finally {
-postFrameCleanup();
-}
+  } catch (err) {
+    console.error("Error in animate:", err);
+  } finally {
+    postFrameCleanup();
+  }
 }
 
 
