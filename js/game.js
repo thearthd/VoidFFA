@@ -1865,6 +1865,13 @@ export function animate(timestamp) {
   // If localPlayerId is null, it means the local player has disconnected, so stop the animation loop.
   if (localPlayerId === null) {
     console.log("Local player disconnected. Stopping animation loop.");
+
+window.isGamePaused = true;
+document.getElementById("menu-overlay").style.display = "flex";
+document.getElementById("game-container").style.display = "none";
+document.getElementById("hud").style.display = "none";
+document.getElementById("crosshair").style.display = "none";
+      
     return; // This prevents requestAnimationFrame from being called again.
   }
 
