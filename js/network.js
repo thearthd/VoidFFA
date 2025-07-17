@@ -1,6 +1,7 @@
 // network.js
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-
+import firebase from 'firebase/app'; // Import firebase for ServerValue.TIMESTAMP
+import 'firebase/database'; // Import database module
 
 // New imports for game slot management
 import {
@@ -359,9 +360,9 @@ export async function endGameCleanup() {
         console.log("Kills listener detached.");
     }
     if (mapStateListener && dbRefs.mapStateRef) {
-        dbRefs.mapStateRef.off("value", mapStateListener);
+        dbRefs.mapStateRef.child("bullets").off("child_added", mapStateListener); // Specific child listener
         mapStateListener = null;
-        console.log("MapState listener detached.");
+        console.log("MapState/bullets listener detached.");
     }
     if (tracersListener && dbRefs.tracersRef) {
         dbRefs.tracersRef.off("child_added", tracersListener);
@@ -374,7 +375,7 @@ export async function endGameCleanup() {
         console.log("Sounds listener detached.");
     }
     if (gameConfigListener && dbRefs.gameConfigRef) {
-        dbRefs.gameConfigRef.off("value", gameConfigListener);
+        dbRefs.gameConfigRef.off("value", gameConfigListener); // Detach game config listeners
         gameConfigListener = null;
         console.log("GameConfig listener detached.");
     }
@@ -390,7 +391,8 @@ export async function endGameCleanup() {
         try {
             await dbRefs.playersRef.child(localPlayerId).remove();
             console.log(`Local player '${localPlayerId}' explicitly removed from Firebase.`);
-            dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel(); // Cancel onDisconnect
+            // Also cancel onDisconnect for this player if it was still active
+            dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel();
         } catch (error) {
             console.error(`Error removing local player '${localPlayerId}' from Firebase during cleanup:`, error);
         }
@@ -400,15 +402,11 @@ export async function endGameCleanup() {
     if (activeGameSlotName) {
         await releaseGameSlot(activeGameSlotName);
         console.log(`Game slot '${activeGameSlotName}' released.`);
+        // Clear local storage for this slot
+        localStorage.removeItem(`playerId-${activeGameSlotName}`);
         activeGameSlotName = null;
     }
 
-    // Clear local player ID and related storage for this game slot
-    // This was previously `localStorage.removeItem(`playerId-${localPlayerId}`);` which was incorrect.
-    // It should use `activeGameSlotName` which is the key for the localStorage item.
-    if (activeGameSlotName) { // Ensure activeGameSlotName is valid before removing
-        localStorage.removeItem(`playerId-${activeGameSlotName}`);
-    }
     localPlayerId = null; // Mark local player as no longer active
 
     // Clear global dbRefs and remote players array
@@ -416,12 +414,12 @@ export async function endGameCleanup() {
     for (const id in remotePlayers) {
         removeRemotePlayerModel(id); // Remove Three.js models
     }
-    // Assuming remotePlayers is a global object, clear it.
-    // If it's imported, you might need a function to clear it in the module where it's defined.
-    // For now, if it's `export const remotePlayers = {};`, directly clearing it here won't work across modules.
-    // A better pattern for remotePlayers might be a class or a function that returns it.
-    // For simplicity, assuming `window.remotePlayers` for now if it's globally managed.
-    window.remotePlayers = {};
+    // Assuming remotePlayers is a global object for now, if it's not and managed internally,
+    // you might need a dedicated function like `clearRemotePlayers()` in game.js if it owns the object.
+    // For this context, it's exported and can be cleared directly.
+    for (const key in remotePlayers) {
+        delete remotePlayers[key];
+    }
     permanentlyRemoved.clear();
     latestValidIds = [];
 
@@ -464,9 +462,9 @@ export async function initNetwork(username, mapName, ffaEnabled) {
 
     // --- CONSOLE LOG ADDED HERE ---
     if (dbRefs.playersRef && dbRefs.playersRef.database && dbRefs.playersRef.database.app_ && dbRefs.playersRef.database.app_.options) {
-        console.log(`[network.js] All game-specific Firebase operations will target: ${dbRefs.playersRef.database.app_.options.databaseURL}`);
+        console.log(`[network.js] Game is connected to Firebase database: ${dbRefs.playersRef.database.app_.options.databaseURL}`);
     } else {
-        console.warn("[network.js] Could not determine database URL from dbRefs.playersRef.database.app_.options.");
+        console.warn("[network.js] Could not determine database URL from dbRefs.playersRef.database.app_.options. This might be expected if dbRefs are not fully initialized yet or structure is different.");
     }
     console.log("[network.js] dbRefs after claiming slot (from network.js):", dbRefs);
     // --- END CONSOLE LOG ---
@@ -477,6 +475,13 @@ export async function initNetwork(username, mapName, ffaEnabled) {
         localPlayerId = storedPlayerId;
         console.log(`[network.js] Re-using localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
     } else {
+        // Ensure that dbRefs.playersRef is available before trying to push
+        if (!dbRefs.playersRef) {
+             console.error("[network.js] dbRefs.playersRef is not defined. Cannot generate localPlayerId.");
+             // Attempt to release the slot if it was claimed but playerRef isn't ready
+             if (activeGameSlotName) await releaseGameSlot(activeGameSlotName);
+             return false;
+        }
         localPlayerId = dbRefs.playersRef.push().key; // Generate a new player ID
         localStorage.setItem(`playerId-${activeGameSlotName}`, localPlayerId);
         console.log(`[network.js] Generated new localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
@@ -516,6 +521,8 @@ export async function initNetwork(username, mapName, ffaEnabled) {
             title: 'Firebase Error',
             text: 'Could not write initial player data. Please check connection and try again.'
         });
+        // Release the slot if we failed to set initial player data
+        if (activeGameSlotName) await releaseGameSlot(activeGameSlotName);
         return false;
     }
 
@@ -542,7 +549,12 @@ export async function initNetwork(username, mapName, ffaEnabled) {
 // --- Listener Setup Functions ---
 
 function setupPlayersListener(playersRef) {
-    if (playersListener) playersRef.off("value", playersListener); // Detach previous
+    // Detach previous listeners before attaching new ones
+    playersRef.off("value");
+    playersRef.off("child_added");
+    playersRef.off("child_changed");
+    playersRef.off("child_removed");
+
     playersListener = playersRef.on("value", (fullSnap) => {
         const allIds = [];
         fullSnap.forEach(s => allIds.push(s.key));
@@ -551,7 +563,6 @@ function setupPlayersListener(playersRef) {
         updateScoreboard(playersRef); // Update UI scoreboard
     });
 
-    playersRef.off("child_added"); // Detach previous
     playersRef.on("child_added", (snap) => {
         const data = snap.val();
         const id = data.id;
@@ -568,7 +579,6 @@ function setupPlayersListener(playersRef) {
         addRemotePlayer(data);
     });
 
-    playersRef.off("child_changed"); // Detach previous
     playersRef.on("child_changed", (snap) => {
         const data = snap.val();
         const id = data.id;
@@ -604,7 +614,6 @@ function setupPlayersListener(playersRef) {
         }
     });
 
-    playersRef.off("child_removed"); // Detach previous
     playersRef.on("child_removed", (snap) => {
         const id = snap.key;
         if (id === localPlayerId) {
@@ -657,7 +666,12 @@ function setupMapStateListener(mapStateRef) {
         console.warn("mapStateRef is not defined, bullet hole synchronization disabled.");
         return;
     }
-    if (mapStateListener) mapStateRef.off("child_added", mapStateListener); // Detach previous
+    // Detach previous listeners for bullets child
+    if (mapStateListener) {
+        mapStateRef.child("bullets").off("child_added", mapStateListener);
+        mapStateRef.child("bullets").off("child_removed");
+    }
+
     mapStateListener = mapStateRef.child("bullets").on("child_added", (snap) => {
         const hole = snap.val();
         const holeKey = snap.key;
@@ -670,7 +684,6 @@ function setupMapStateListener(mapStateRef) {
         }, Math.max(0, 5000 - (Date.now() - (hole.timeCreated || 0)))); // Ensure positive timeout
     });
 
-    mapStateRef.child("bullets").off("child_removed"); // Detach previous
     mapStateRef.child("bullets").on("child_removed", (snap) => {
         removeBulletHole(snap.key); // Call UI function to remove locally
     });
