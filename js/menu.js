@@ -1134,6 +1134,7 @@ const gameData = {
 
         // 2) try to claim a slot
         const slotResult = await claimGameSlot(username, formValues.map, true);
+         await gamesRef.child(gameId).child('status').set("starting");
         if (!slotResult) {
             // 🔥 Dispose of the just-created game
             await newGameRef.remove();
