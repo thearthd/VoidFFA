@@ -600,6 +600,7 @@ activeGameId = gameId;
 export async function fullCleanup(gameId) {
   console.log("[fullCleanup] START, gameId =", gameId);
 
+  // ✅ Capture BEFORE cleanup wipes it
   const slotName = activeGameSlotName;
   const playerId = localPlayerId;
 
@@ -608,7 +609,7 @@ export async function fullCleanup(gameId) {
     await endGameCleanup();
     console.log("[fullCleanup] ✓ endGameCleanup complete");
 
-    // 2) Ensure slotName is valid before continuing
+    // 2) Validate slotName BEFORE using it
     if (!slotName) {
       throw new Error("No active game slot. Cannot continue fullCleanup.");
     }
@@ -617,11 +618,10 @@ export async function fullCleanup(gameId) {
     const rootRef = slotApp.database().ref();
     console.log("[fullCleanup] ✓ slot rootRef acquired for", slotName);
 
-    // 3) Delete the slot’s own /game metadata
+    // 3) Delete game data
     await rootRef.child("game").remove();
     console.log("[fullCleanup] ✓ removed /game node");
 
-    // 4) Clear every other per‑slot branch
     await Promise.all([
       rootRef.child("players").remove(),
       rootRef.child("chat").remove(),
@@ -633,20 +633,19 @@ export async function fullCleanup(gameId) {
     ]);
     console.log("[fullCleanup] ✓ cleared players, chat, kills, mapState, tracers, sounds, gameConfig");
 
-    // 5) Remove the lobby entry while gameId is still valid
+    // 4) Remove from lobby
     if (gameId) {
-      console.log(`[fullCleanup] removing gamesRef/${gameId}`);
       await gamesRef.child(gameId).remove();
       console.log(`[fullCleanup] ✓ removed lobby entry gamesRef/${gameId}`);
     } else {
       console.warn("[fullCleanup] no gameId provided, skipping lobby removal");
     }
 
-    // 6) Free the slot in slotsRef
+    // 5) Free the slot in slotsRef
     await releaseGameSlot(slotName);
     console.log(`[fullCleanup] ✓ releaseGameSlot(${slotName}) complete`);
 
-    // 7) Dispose Three.js scene graph
+    // 6) Dispose Three.js
     if (window.scene) {
       disposeThreeScene(window.scene);
       window.scene = null;
@@ -657,7 +656,7 @@ export async function fullCleanup(gameId) {
       console.log("[fullCleanup] ✓ camera reference cleared");
     }
 
-    // 8) Clear in-memory references
+    // 7) Clear pointers
     activeGameSlotName = null;
     localPlayerId = null;
 
