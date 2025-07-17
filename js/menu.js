@@ -18,7 +18,7 @@ horse power
 // Assuming `gamesRef` is made globally available by firebase-config.js for simplicity in CodeHS.
 // If not, you may need to explicitly define it here using `firebase.app("menuApp").database().ref("games")`
 // provided `firebase` SDK is loaded.
-
+// f
 // If `gamesRef` is not automatically global, uncomment and use this (requires Firebase SDK loaded):
 // const gamesRef = firebase.app("menuApp").database().ref("games");
 
