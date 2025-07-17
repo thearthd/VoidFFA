@@ -1,7 +1,7 @@
 // menu.js
 
 /*
-      _____,,;;;`;        ;';;;,,_____
+     _____,,;;;`;        ;';;;,,_____
 ,~(  )  , )~~\ |        |/~( ,  (  )~;
 ' / / --`--,          .--'-- \ \ `
   /  \    | '          ` |    /  \
@@ -848,10 +848,16 @@ let currentMenuObjects = [];
 function createAndAddButton(imagePath, x, y, width, height, onClick, text = "") {
     let buttonObj = createAnimatedButton(imagePath, width, height, x, y, width, height, onClick);
     add(buttonObj.image);
-    add(buttonObj.text);
+    // Only add text if it's not empty, consistent with the instruction to remove all texts
+    if (text !== "") {
+        add(buttonObj.text);
+    }
     makeButton(buttonObj.hitbox, buttonObj.hitbox.onClick); // Use hitbox's stored onClick
     buttonObj.setText(text);
-    currentMenuObjects.push(buttonObj.image, buttonObj.hitbox, buttonObj.text);
+    currentMenuObjects.push(buttonObj.image, buttonObj.hitbox);
+    if (text !== "") {
+        currentMenuObjects.push(buttonObj.text);
+    }
     return buttonObj;
 }
 
@@ -863,12 +869,13 @@ function clearMenuCanvas() {
         remove(obj);
     }
     currentMenuObjects = [];
+    removeAll(); // Also clears shapes array and clickableShapes array
 }
 
 // Player username
 let username = localStorage.getItem("username") || "Player" + Math.floor(Math.random() * 1000); // Default if not set
 
-// Button Definitions using the reusable createAnimatedButton function
+
 let playButton = createAnimatedButton(
     "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
     1920 / 6, 1080 / 6, // Original width and height
@@ -879,7 +886,7 @@ let playButton = createAnimatedButton(
         playButtonHit(); // Call function to change menu state
     }
 );
-playButton.setText("Play");
+// playButton.setText("Play"); // REMOVED TEXT
 
 let gamesButton = createAnimatedButton(
     "https://codehs.com/uploads/2fe6d45e0875e166cfe5f0e5343fc3b5", // Provided games button image
@@ -891,34 +898,43 @@ let gamesButton = createAnimatedButton(
         gamesButtonHit();
     }
 );
-gamesButton.setText("Games");
+// gamesButton.setText("Games"); // REMOVED TEXT
 
 let settingsButton = createAnimatedButton(
     "https://codehs.com/uploads/b3e2a8dfe6107e2af96ce74f9799b0f8",
     1920 / 8, 1080 / 8,
     getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 + leftbuttonSpacing * 0.5, // Position below Games
     1920 / 8, 1080 / 10,
-    () => { console.log("Settings button hit"); }
+    () => {
+        console.log("Settings button hit");
+        settingsButtonHit(); // Call new function for settings screen
+    }
 );
-settingsButton.setText("Settings");
+// settingsButton.setText("Settings"); // REMOVED TEXT
 
 let careerButton = createAnimatedButton(
     "https://codehs.com/uploads/afd818ac19ff0bbd919c766a1625071e",
     1920 / 8, 1080 / 8,
     getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 + leftbuttonSpacing * 1.5, // Position below Settings
     1920 / 8, 1080 / 10,
-    () => { console.log("Career button hit"); }
+    () => {
+        console.log("Career button hit");
+        careerButtonHit(); // Call new function for career screen
+    }
 );
-careerButton.setText("Career");
+// careerButton.setText("Career"); // REMOVED TEXT
 
 let loadoutButton = createAnimatedButton(
     "https://codehs.com/uploads/765a0c87dc6d5d571ff25f139003227f",
     1920 / 8, 1080 / 8,
     getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 + leftbuttonSpacing * 2.5, // Position below Career
     1920 / 8, 1080 / 10,
-    () => { console.log("Loadout button hit"); }
+    () => {
+        console.log("Loadout button hit");
+        loadoutButtonHit(); // Call new function for loadout screen
+    }
 );
-loadoutButton.setText("Loadout");
+// loadoutButton.setText("Loadout"); // REMOVED TEXT
 
 // These two buttons are for a sub-menu after "Play" is hit (Direct Join options)
 let crocoPlayButton = createAnimatedButton(
@@ -970,28 +986,28 @@ createGameBtn.setText("Create Game");
  */
 function menu() {
     clearMenuCanvas(); // Clear anything previously on canvas
-    add(background);
+    // add(background); // REMOVED BACKGROUND
     add(logo);
 
     // Add main menu buttons
     add(playButton.image);
-    add(playButton.text);
+    // add(playButton.text); // REMOVED TEXT
     makeButton(playButton.hitbox, playButton.hitbox.onClick);
 
     add(gamesButton.image);
-    add(gamesButton.text);
+    // add(gamesButton.text); // REMOVED TEXT
     makeButton(gamesButton.hitbox, gamesButton.hitbox.onClick);
 
     add(settingsButton.image);
-    add(settingsButton.text);
+    // add(settingsButton.text); // REMOVED TEXT
     makeButton(settingsButton.hitbox, settingsButton.hitbox.onClick);
 
     add(careerButton.image);
-    add(careerButton.text);
+    // add(careerButton.text); // REMOVED TEXT
     makeButton(careerButton.hitbox, careerButton.hitbox.onClick);
 
     add(loadoutButton.image);
-    add(loadoutButton.text);
+    // add(loadoutButton.text); // REMOVED TEXT
     makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
 
     let title = new Text("VOID FFA", "60pt Arial");
@@ -999,6 +1015,7 @@ function menu() {
     title.setPosition(getWidth() / 2, 100);
     add(title);
     currentMenuObjects.push(title);
+    currentMenuObjects.push(playButton.image, playButton.hitbox, gamesButton.image, gamesButton.hitbox, settingsButton.image, settingsButton.hitbox, careerButton.image, careerButton.hitbox, loadoutButton.image, loadoutButton.hitbox);
 }
 
 // Helper to start game after menu hides
@@ -1108,7 +1125,7 @@ async function createGameButtonHit() {
             gamemode: formValues.gamemode,
             host: username,
             createdAt: firebase.database.ServerValue.TIMESTAMP,
-            status: "waiting", // Initial status
+            status: "starting", // Changed from "waiting" to "starting"
             players: {
                 [username]: true // Host is the first player
             }
@@ -1147,7 +1164,7 @@ async function createGameButtonHit() {
  */
 async function gamesButtonHit() {
     clearMenuCanvas();
-    add(background); // Re-add background
+    // add(background); // REMOVED BACKGROUND
     add(logo);
 
     let loadingText = new Text("Loading games...", "30pt Arial");
@@ -1163,7 +1180,7 @@ async function gamesButtonHit() {
         if (gamesObject) {
             for (let gameId in gamesObject) {
                 // Only show games not in progress or completed, and with players still
-                if (gamesObject[gameId].status === "waiting") { // You might want to refine this
+                if (gamesObject[gameId].status === "waiting" || gamesObject[gameId].status === "starting") { // Added "starting" status
                     allGames.push({ id: gameId, ...gamesObject[gameId] });
                 }
             }
@@ -1190,7 +1207,7 @@ async function gamesButtonHit() {
  */
 function displayGamesPage(page) {
     clearMenuCanvas(); // Clear existing game elements and pagination buttons
-    add(background);
+    // add(background); // REMOVED BACKGROUND
     add(logo);
 
     let title = new Text("Available Games", "40pt Arial");
@@ -1256,6 +1273,8 @@ function displayGamesPage(page) {
             );
             // Re-adjust joinBtn text position if needed
             joinBtn.text.setPosition(joinBtn.image.x + joinBtn.image.getWidth() / 2, joinBtn.image.y + joinBtn.image.getHeight() / 2);
+            joinBtn.image.setLayer(4); // Ensure arrows are visible
+            joinBtn.hitbox.setLayer(16);
             currentMenuObjects.push(joinBtn.image, joinBtn.text, joinBtn.hitbox);
         }
     }
@@ -1326,6 +1345,75 @@ function addBackButton() {
     backButton.image.setLayer(4); // Ensure back button is visible
     backButton.hitbox.setLayer(16);
     currentMenuObjects.push(backButton.image, backButton.text, backButton.hitbox);
+}
+
+/**
+ * Handles the "Settings" button click.
+ * Clears the current menu and displays a placeholder settings screen.
+ */
+function settingsButtonHit() {
+    clearMenuCanvas();
+    add(logo);
+    let title = new Text("Settings", "40pt Arial");
+    title.setColor("#ffffff");
+    title.setPosition(getWidth() / 2, 100);
+    add(title);
+    currentMenuObjects.push(title);
+
+    // You can add your settings UI elements here
+    let settingsText = new Text("Adjust your game settings here.", "30pt Arial");
+    settingsText.setColor("#aaaaaa");
+    settingsText.setPosition(getWidth() / 2, getHeight() / 2);
+    add(settingsText);
+    currentMenuObjects.push(settingsText);
+
+    addBackButton();
+}
+
+/**
+ * Handles the "Career" button click.
+ * Clears the current menu and displays a placeholder career screen.
+ */
+function careerButtonHit() {
+    clearMenuCanvas();
+    add(logo);
+    let title = new Text("Career Progression", "40pt Arial");
+    title.setColor("#ffffff");
+    title.setPosition(getWidth() / 2, 100);
+    add(title);
+    currentMenuObjects.push(title);
+
+    // You can add your career UI elements here
+    let careerText = new Text("View your stats and achievements.", "30pt Arial");
+    careerText.setColor("#aaaaaa");
+    careerText.setPosition(getWidth() / 2, getHeight() / 2);
+    add(careerText);
+    currentMenuObjects.push(careerText);
+
+    addBackButton();
+}
+
+/**
+ * Handles the "Loadout" button click.
+ * Clears the current menu and displays a placeholder loadout screen.
+ */
+function loadoutButtonHit() {
+    clearMenuCanvas();
+    add(logo);
+    let title = new Text("Customize Loadout", "40pt Arial");
+    title.setColor("#ffffff");
+    title.setPosition(getWidth() / 2, 100);
+    add(title);
+    currentMenuObjects.push(title);
+
+    // You can add your loadout UI elements here
+    let loadoutText = new Text("Equip weapons and gear.", "30pt Arial");
+    loadoutText.setColor("#aaaaaa");
+    loadoutText.setPosition(getWidth() / 2, getHeight() / 2);
+    add(loadoutText);
+    currentMenuObjects.push(loadoutText);
+
+    addBackButton();
 }
 
 
