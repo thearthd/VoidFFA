@@ -2,7 +2,16 @@
 // This file contains the OctreeV2 class and its helper functions,
 // extracted from the previous HTML Canvas for modularity.
 
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
+import {
+	Box3,
+	Line3,
+	Plane,
+	Sphere,
+	Triangle,
+	Vector3
+} from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
+
+ import { Capsule } from 'three/examples/jsm/math/Capsule.js'; 
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
