@@ -481,6 +481,23 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     window.isFFAActive = ffaEnabled;
 
+    // --- IMPORTANT CHANGE HERE ---
+    // Ensure playersRef is initialized BEFORE you try to use it.
+    // The initGameNetwork function should either:
+    // 1. Return the initialized 'playersRef'
+    // 2. Set the global 'playersRef' variable *before* this point.
+    // I'm assuming 'initGameNetwork' is where your Firebase setup happens.
+    // If it's a separate file, make sure to import 'playersRef' from it.
+    await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
+
+    // Now, AFTER initGameNetwork has completed (and thus playersRef should be set),
+    // we can proceed to use playersRef.
+    // Add a check to be safe:
+    if (!playersRef) {
+        console.error("Critical Error: playersRef is not initialized after initGameNetwork.");
+        return; // Cannot proceed without Firebase reference
+    }
+
     if (ffaEnabled) {
         console.log("FFA mode is enabled. Game will last 10 minutes.");
         gameEndTime = Date.now() + (10 * 60 * 1000);
@@ -510,10 +527,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             }
         }, 1000);
 
-        // --- NEW: Firebase Listener for Kill Threshold ---
-        // This listener will check for any player reaching 40 kills
+        // This is the line that was causing the error at 515:43
+        // It should now be safe because playersRef is guaranteed to be initialized.
         playersKillsListener = playersRef.on("value", (snapshot) => {
-            if (!window.isFFAActive) return; // Only run this check if FFA is enabled
+            if (!window.isFFAActive) return;
 
             let gameEndedByKillThreshold = false;
             snapshot.forEach(childSnap => {
@@ -521,14 +538,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 if (player && typeof player.kills === 'number' && player.kills >= 40) {
                     console.log(`Firebase: Player ${player.username} reached 40 kills! Triggering game end.`);
                     gameEndedByKillThreshold = true;
-                    // Important: Break out of forEach if a winner is found to prevent
-                    // determineWinnerAndEndGame from being called multiple times.
-                    // This is not a true 'break' but a flag.
                 }
             });
 
             if (gameEndedByKillThreshold) {
-                // Detach listener immediately to prevent re-triggering
                 if (playersKillsListener) {
                     playersRef.off("value", playersKillsListener);
                     playersKillsListener = null;
@@ -536,7 +549,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 determineWinnerAndEndGame();
             }
         });
-        // --- END NEW ---
 
     } else {
         if (gameTimerElement) {
