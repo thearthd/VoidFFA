@@ -683,7 +683,7 @@ let leftbuttonSpacing = 150; // Spacing for menu buttons
 
 // Main logo image for the menu
 let logo = new ImageShape("https://codehs.com/uploads/8b490deb914374d0ca27f9ab21fac591");
-logo.setSize(300, 150); // Adjusted size for better visibility
+logo.setSize(1920/8, 1080/8); // Adjusted size for better visibility
 logo.setPosition(getWidth() / 2 - logo.getWidth() / 2, getHeight() / 32);
 logo.setLayer(10); // Ensure logo is drawn on top
 
