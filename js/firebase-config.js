@@ -55,6 +55,12 @@ initializeMenuFirebase();
 // Metadata of slots in the lobby DB
 export const slotsRef = menuApp.database().ref("slots");
 
+export let activeGameId = null;
+
+// inside initNetwork(), after you do:
+//   const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
+activeGameId = gameId;
+
 const gameApps = {};
 
 /**
@@ -108,9 +114,18 @@ export async function claimGameSlot(username, map, ffaEnabled) {
  * Release the slot by clearing /game in its own DB and marking it free in lobby.
  */
 export async function releaseGameSlot(slotName) {
+  // 1) Mark the slot free
   await slotsRef.child(slotName).set({ status: "free" });
+
+  // 2) Clear the per‑slot game data
   const app = gameApps[slotName];
   if (app) {
     await app.database().ref("game").remove();
+  }
+
+  // 3) Also remove the lobby node under /games/{activeGameId}
+  if (activeGameId) {
+    await gamesRef.child(activeGameId).remove();
+    activeGameId = null;
   }
 }
