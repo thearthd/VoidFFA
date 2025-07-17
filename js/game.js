@@ -9,7 +9,7 @@ import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/exam
 import { ShaderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/ShaderPass.js";
 import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/shaders/CopyShader.js";
 import Stats from 'stats.js';
-import { dbRefs } from "./network.js";
+import { dbRefs, disposeGame } from "./network.js";
 
 import { createSigmaCity } from "./map.js";
 import { createCrocodilosConstruction } from "./map.js";
@@ -255,12 +255,12 @@ async function determineWinnerAndEndGame() {
         playersKillsListener = null;
         console.log("Detached players kill listener.");
     }
-
+    await disposeGame();
     // Crucially, this loop is what causes the local player to disconnect and reload
     playerIdsToDisconnect.forEach(id => {
         disconnectPlayer(id);
     });
-
+    
     // You might also consider a slight delay before calling disconnectPlayer(localPlayer.id)
     // to allow other players to get the "game ended" message if you implement one,
     // but for now, this ensures the localStorage save happens first.
