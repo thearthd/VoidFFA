@@ -1027,7 +1027,6 @@ function menu() {
     // add(loadoutButton.text); // REMOVED TEXT
     makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
 
-    currentMenuObjects.push(title);
     currentMenuObjects.push(playButton.image, playButton.hitbox, gamesButton.image, gamesButton.hitbox, settingsButton.image, settingsButton.hitbox, careerButton.image, careerButton.hitbox, loadoutButton.image, loadoutButton.hitbox);
 }
 
