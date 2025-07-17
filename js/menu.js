@@ -15,7 +15,6 @@ horse power
 // For CodeHS, if files are concatenated, the order in the project matters.
 // import { gamesRef } from "./firebase-config.js"; // This line is for modular JS.
 // In a typical CodeHS setup, you might rely on global variables or ensure firebase-config runs first.
-// Assuming `gamesRef` is made globally available by firebase-config.js for simplicity in CodeHS.
 // If not, you may need to explicitly define it here using `firebase.app("menuApp").database().ref("games")`
 // provided `firebase` SDK is loaded.
 // f
@@ -693,7 +692,7 @@ let background = new Rectangle(getWidth(), getHeight());
 background.setLayer(1); // Drawn behind other elements
 background.setColor("#222222");
 
-const TARGET_SCALE_FACTOR = 1.1; // Scale up to 110% on hover
+const TARGET_SCALE_FACTOR = 1.0; // Scale up to 110% on hover for text (was 1.1)
 const ANIMATION_DURATION = 200; // milliseconds for hover animation
 const FRAME_RATE = 20; // milliseconds per frame (50 frames per second)
 const NUM_ANIMATION_STEPS = ANIMATION_DURATION / FRAME_RATE;
@@ -737,6 +736,9 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     buttonText.setColor("#ffffff");
     buttonText.setLayer(4); // Layer above the image
     buttonText.setPosition(xPos + originalWidth / 2, yPos + originalHeight / 2); // Center text on button
+    buttonText.originalFontSize = 20; // Store original font size for scaling
+    buttonText.originalX = buttonText.x; // Store original text position
+    buttonText.originalY = buttonText.y;
 
     let buttonHitbox = new Rectangle(hitboxWidth, hitboxHeight);
     // Position the hitbox relative to the button's actual position, centering vertically
@@ -774,8 +776,12 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
 
             buttonImage.setSize(newWidth, newHeight);
             buttonImage.setPosition(newX, newY);
-            // Update text position to stay centered
-            buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
+
+            // Update text font size and position to stay centered (if text is present)
+            if (buttonText.text) {
+                buttonText.font = `${buttonText.originalFontSize * currentScale}pt Arial`;
+                buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
+            }
 
 
             if (t === 1) {
@@ -812,15 +818,22 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
 
             buttonImage.setSize(newWidth, newHeight);
             buttonImage.setPosition(newX, newY);
-            // Update text position to stay centered
-            buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
+
+            // Update text font size and position (if text is present)
+            if (buttonText.text) {
+                buttonText.font = `${buttonText.originalFontSize * currentScale}pt Arial`;
+                buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
+            }
 
             if (t === 1) {
                 clearInterval(animationInterval); // Stop animation when complete
                 // Reset to original size and position precisely
                 buttonImage.setSize(buttonImage.originalWidth, buttonImage.originalHeight);
                 buttonImage.setPosition(buttonImage.originalX, buttonImage.originalY);
-                buttonText.setPosition(buttonImage.originalX + buttonImage.originalWidth / 2, buttonImage.originalY + buttonImage.originalHeight / 2);
+                if (buttonText.text) {
+                    buttonText.font = `${buttonText.originalFontSize}pt Arial`;
+                    buttonText.setPosition(buttonImage.originalX + buttonImage.originalWidth / 2, buttonImage.originalY + buttonImage.originalHeight / 2);
+                }
             }
         }, FRAME_RATE);
     };
@@ -833,6 +846,42 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     };
     return buttonObject;
 }
+
+/**
+ * Creates and sets up a clickable rectangle.
+ * @param {number} xPos - The x-position (top-left) of the rectangle.
+ * @param {number} yPos - The y-position (top-left) of the rectangle.
+ * @param {number} width - The width of the rectangle.
+ * @param {number} height - The height of the rectangle.
+ * @param {string} color - The fill color of the rectangle.
+ * @param {Function} onClickCallback - The function to call when the rectangle is clicked.
+ * @returns {object} The created Rectangle shape.
+ */
+function createClickableRectangle(xPos, yPos, width, height, color, onClickCallback) {
+    let rect = new Rectangle(width, height);
+    rect.setPosition(xPos, yPos);
+    rect.setColor(color);
+    rect.setLayer(3); // Default layer for clickable boxes
+    rect.onClick = onClickCallback;
+
+    let animationInterval = null;
+    const initialColor = color;
+    const hoverColor = "rgba(100, 100, 100, 0.7)"; // Slightly lighter on hover
+
+    rect.onHover = () => {
+        if (animationInterval) clearInterval(animationInterval);
+        rect.setColor(hoverColor);
+    };
+
+    rect.onUnhover = () => {
+        if (animationInterval) clearInterval(animationInterval);
+        rect.setColor(initialColor);
+    };
+
+    makeButton(rect, rect.onClick);
+    return rect;
+}
+
 
 // Global array to store fetched games
 let allGames = [];
@@ -1236,17 +1285,25 @@ function displayGamesPage(page) {
             const game = gamesToDisplay[i];
             const displayY = yStart + i * gameEntryHeight;
 
-            // Game entry background (optional, but good for visual separation)
-            let gameBg = new Rectangle(getWidth() * 0.8, 100);
-            gameBg.setColor("rgba(50, 50, 50, 0.7)");
-            gameBg.setPosition(getWidth() * 0.1, displayY - gameBg.getHeight() / 2 + 30);
+            // Game entry background (clickable)
+            let gameBg = createClickableRectangle(
+                getWidth() * 0.1,
+                displayY - 50, // Adjust Y to center it relative to the text
+                getWidth() * 0.8,
+                100, // Height of the clickable box
+                "rgba(50, 50, 50, 0.7)",
+                () => {
+                    console.log(`Attempting to join game: ${game.id} on map: ${game.map}`);
+                    initAndStartGame(username, game.map, game.id);
+                }
+            );
             add(gameBg);
             currentMenuObjects.push(gameBg);
 
             // Game Name
             let gameNameText = new Text(game.gameName, "25pt Arial");
             gameNameText.setColor("#55eeff");
-            gameNameText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 4, displayY);
+            gameNameText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 2, displayY); // Centered within the box
             gameNameText.setLayer(4);
             add(gameNameText);
             currentMenuObjects.push(gameNameText);
@@ -1254,28 +1311,10 @@ function displayGamesPage(page) {
             // Map and Mode
             let detailsText = new Text(`Map: ${game.map} | Mode: ${game.gamemode} | Host: ${game.host}`, "15pt Arial");
             detailsText.setColor("#999999");
-            detailsText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 4, displayY + 30);
+            detailsText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 2, displayY + 30); // Centered within the box
             detailsText.setLayer(4);
             add(detailsText);
             currentMenuObjects.push(detailsText);
-
-            // Join Button
-            let joinBtn = createAndAddButton(
-                "https://codehs.com/uploads/2fe6d45e0875e166cfe5f0e5343fc3b5", // Re-using games button image
-                100, 50, // Small size for join button
-                getWidth() * 0.9 - 110, displayY, // Position to the right within the entry
-                100, 50, // Hitbox size
-                () => {
-                    console.log(`Attempting to join game: ${game.id} on map: ${game.map}`);
-                    initAndStartGame(username, game.map, game.id);
-                },
-                "Join"
-            );
-            // Re-adjust joinBtn text position if needed
-            joinBtn.text.setPosition(joinBtn.image.x + joinBtn.image.getWidth() / 2, joinBtn.image.y + joinBtn.image.getHeight() / 2);
-            joinBtn.image.setLayer(4); // Ensure arrows are visible
-            joinBtn.hitbox.setLayer(16);
-            currentMenuObjects.push(joinBtn.image, joinBtn.text, joinBtn.hitbox);
         }
     }
 
