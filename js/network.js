@@ -641,7 +641,7 @@ export async function fullCleanup(gameId) {
     window.camera = null;
   }
   console.log("[fullCleanup] Three.js scene disposed.");
-    console.log("activeGameId);
+    console.log(activeGameId);
   // 8) now safe to clear our in‑memory pointer
   activeGameId = null;
 
