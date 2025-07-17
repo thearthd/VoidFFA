@@ -9,7 +9,7 @@ import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/exam
 import { ShaderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/ShaderPass.js";
 import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/shaders/CopyShader.js";
 import Stats from 'stats.js';
-
+import { dbRefs } from "./network.js";
 
 import { createSigmaCity } from "./map.js";
 import { createCrocodilosConstruction } from "./map.js";
@@ -112,7 +112,7 @@ let playersRef = null;
 let chatRef = null;
 let killsRef = null;
 let mapStateRef = null;
-
+let gameConfigRef  = null;    // ← add this
 
 export function initGlobalFogAndShadowParams() {
 
@@ -522,6 +522,12 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     console.warn("Network init failed.");
     return;
   }
+  playersRef    = dbRefs.playersRef;
+  chatRef       = dbRefs.chatRef;
+  killsRef      = dbRefs.killsRef;
+  mapStateRef   = dbRefs.mapStateRef;
+  gameConfigRef = dbRefs.gameConfigRef;
+    
     // Ensure our per‑slot refs exist
     if (!dbRefs || !dbRefs.playersRef || !dbRefs.mapStateRef || !dbRefs.gameConfigRef) {
         console.error("Missing Firebase refs after initNetwork. Aborting startGame.");
