@@ -61,9 +61,9 @@ const gameApps = {};
  * Claim the first free slot by inspecting its own /game node.
  */
 export async function claimGameSlot(username, map, ffaEnabled) {
-  let chosenKey = null;
-  let chosenApp = null;
+  let chosenKey = null, chosenApp = null;
 
+  // Find the first free slot by checking its own /game node
   for (let slotName in gameDatabaseConfigs) {
     if (!gameApps[slotName]) {
       gameApps[slotName] = firebase.initializeApp(
@@ -82,23 +82,16 @@ export async function claimGameSlot(username, map, ffaEnabled) {
 
   if (!chosenKey) return null;
 
-  // Mark claimed in lobby
-  await slotsRef.child(chosenKey).set({
-    status:     "claimed",
-    host:       username,
+  // --- ONLY write in the slot's own DB, not in lobby ---
+  const rootRef = chosenApp.database().ref();
+  await rootRef.child("game").set({
+    host:      username,
     map,
     ffaEnabled,
-    claimedAt:  firebase.database.ServerValue.TIMESTAMP
-  });
-
-  // **FIX**: use .ref() (no empty string) to get root of that slot’s DB
-  const rootRef = chosenApp.database().ref();
-  // Reserve /game to lock the slot
-  await rootRef.child("game").set({
     createdAt: firebase.database.ServerValue.TIMESTAMP
   });
 
-  // Build your per‑slot refs
+  // Build your per-slot refs
   const dbRefs = {
     playersRef:    rootRef.child("players"),
     chatRef:       rootRef.child("chat"),
@@ -111,7 +104,6 @@ export async function claimGameSlot(username, map, ffaEnabled) {
 
   return { slotName: chosenKey, dbRefs };
 }
-
 /**
  * Release the slot by clearing /game in its own DB and marking it free in lobby.
  */
