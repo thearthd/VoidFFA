@@ -3,7 +3,7 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 
 import { EffectComposer } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/RenderPass.js";
+import { RenderPass }     from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/UnrealBloomPass.js";
 
 import { ShaderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/ShaderPass.js";
@@ -14,40 +14,41 @@ import Stats from 'stats.js';
 import { createSigmaCity } from "./map.js";
 import { createCrocodilosConstruction } from "./map.js";
 
-// Note: initNetwork will now accept dbRefs as an argument.
-// localPlayerId and remotePlayers are still imported.
 import { initNetwork, sendPlayerUpdate, localPlayerId, remotePlayers, updateHealth, updateShield, initializeAudioManager, startSoundListener, disconnectPlayer } from "./network.js";
-import { claimGameSlot, releaseGameSlot } from './firebase-config.js'; // Keep these imports
+import { claimGameSlot, releaseGameSlot } from './firebase-config.js';
 import { initMenuUI } from "./menu.js";
 import {
-    initChatUI,
-    addChatMessage,
-    updateKillFeed,
-    updateScoreboard,
-    initBulletHoles,
-    initInventory,
-    updateInventory,
-    initAmmoDisplay,
-    updateAmmoDisplay,
-    createHealthBar,
-    updateHealthShieldUI,
-    createTracer
+initChatUI,
+addChatMessage,
+updateKillFeed,
+updateScoreboard,
+initBulletHoles,
+initInventory,
+updateInventory,
+initAmmoDisplay,
+updateAmmoDisplay,
+createHealthBar,
+updateHealthShieldUI,
+createTracer
 } from "./ui.js";
 
 import { initInput, inputState, postFrameCleanup } from "./input.js";
 import { PhysicsController } from "./physics.js";
-import { WeaponController, _prototypeModels, getWeaponModel, activeTracers } from "./weapons.js";
-
+import { WeaponController, _prototypeModels, getWeaponModel, activeTracers }  from "./weapons.js";
 let detailsEnabled;
 let renderPass;
 const bodyColor = Math.floor(Math.random() * 0xffffff);
 
-const FIXED_WIDTH = 1920;
+const FIXED_WIDTH  = 1920;
 const FIXED_HEIGHT = 1080;
+
+
 
 let scene, camera, renderer, composer, bloomPass, fog;
 window.camera = window.camera || new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 window.scene = window.scene || new THREE.Scene();
+
+
 
 let dirLight, hemi;
 let localPlayer = null;
@@ -56,21 +57,21 @@ let weaponController;
 let spawnPoints = [];
 
 const KILLSTREAK_SOUNDS = {
-    1: 'https://codehs.com/uploads/5626b4ea9d389c0936a1971b1f3a6beb',
-    2: 'https://codehs.com/uploads/3b7b1aa5c4a9f532aa16ac0d7f4ffdb5',
-    3: 'https://codehs.com/uploads/81976fee406a0346b5b75de70c7e2c0e',
-    4: 'https://codehs.com/uploads/b337a894983ddc58e778bdb76eb0efe4',
-    5: 'https://codehs.com/uploads/03edb8ea396418fbc3630d1262c7e991',
-    6: 'https://codehs.com/uploads/413cb56b57597f40aa223dc6488eecca',
-    7: 'https://codehs.com/uploads/f4bca7128545c430257bc59d0c169e45',
-    8: 'https://codehs.com/uploads/373998fa5359ae1ca6462fe1b023bf7', // Corrected typo here (was 373998fa5359ae1ca6462fe1b023bf7)
-    9: 'https://codehs.com/uploads/bac5a38abad4d17c00f7adf9063',
-    10: 'https://codehs.com/uploads/c2645a73d7b76fa17634d8a4f2ffd15a'
+1:  'https://codehs.com/uploads/5626b4ea9d389c0936a1971b1f3a6beb',
+2:  'https://codehs.com/uploads/3b7b1aa5c4a9f532aa16ac0d7f4ffdb5',
+3:  'https://codehs.com/uploads/81976fee406a0346b5b75de70c7e2c0e',
+4:  'https://codehs.com/uploads/b337a894983ddc58e778bdb76eb0efe4',
+5:  'https://codehs.com/uploads/03edb8ea396418fbc3630d1262c7e991',
+6:  'https://codehs.com/uploads/413cb56b57597f40aa223dc6488eecca',
+7:  'https://codehs.com/uploads/f4bca7128545c430257bc59d0c169e45',
+8:  'https://codehs.com/uploads/373998fa75359ae1ca6462fe1b023bf7',
+9:  'https://codehs.com/uploads/bac5a38abad4d17c00f7adf629af9063',
+10: 'https://codehs.com/uploads/c2645a73d7b76fa17634d8a4f2ffd15a'
 };
 let chatInput;
 let respawnOverlay = null;
-let respawnButton = null;
-let fadeOverlay = null;
+let respawnButton  = null;
+let fadeOverlay    = null;
 let playersKillsListener = null;
 let sceneNum = 0;
 
@@ -79,16 +80,17 @@ deathTheme.loop = true;
 deathTheme.volume = 0.5;
 
 const windSound = new Audio(
-    "https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa"
+"https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa"
 );
-windSound.loop = true;
+windSound.loop   = true;
 windSound.volume = 0.1;
 
 const forestNoise = new Audio(
-    "https://codehs.com/uploads/e26ad4fc80829f48ecd9b470fe84987d"
+"https://codehs.com/uploads/e26ad4fc80829f48ecd9b470fe84987d"
 );
-forestNoise.loop = true;
+forestNoise.loop   = true;
 forestNoise.volume = 0.15;
+
 
 const bulletHoleMeshes = {};
 
@@ -97,120 +99,113 @@ const initialPlayerShield = 50;
 const initialPlayerWeapon = "knife";
 
 window.remotePlayers = {};
-window.collidables = [];
-window.envMeshes = [];
+window.collidables    = [];
+window.envMeshes      = [];
 
-let chatPruneInterval = null;
-let killsPruneInterval = null;
-let activeRecoils = [];
-let weaponAmmo = {};
+let chatPruneInterval       = null;
+let killsPruneInterval      = null;
+let activeRecoils           = [];
+let weaponAmmo              = {};
 let playerVisibilityTimeouts = {};
-
-// GLOBAL dbRefs variable for the active game database
-export let dbRefs = null; // This will hold the game-specific Firebase references
 
 let playersRef = null;
 let chatRef = null;
 let killsRef = null;
 let mapStateRef = null;
-let gameConfigRef = null; // New ref for game configuration
-
-// Keep track of the game end time for FFA
-let gameEndTime = null;
-let gameInterval = null;
-
-// Global Three.js objects (if they are truly global and not recreated per scene)
-// Added skyMesh and starField based on `animate` function's usage
-let skyMesh = null; // Assuming this is defined somewhere, if not, it will be undefined
-let starField = null; // Assuming this is defined somewhere, if not, it will be undefined
-let worldFog = null; // Assuming this is defined somewhere, if not, it will be undefined
-
-window.originalBloomStrength = 0.5; // Default bloom strength
 
 
 export function initGlobalFogAndShadowParams() {
-    window.originalFogParams = {
-        type: "exp2",
-        color: 0x888888,
-        density: 0.015
-    };
+
+  window.originalFogParams = {
+
+    type:    "exp2",
+
+    color:   0x888888,
+
+    density: 0.015
+
+  };
+
 }
 
 function createFog() {
-    const fp = window.originalFogParams; // Use window.originalFogParams
-    if (fp.type === "exp2") {
-        window.scene.fog = new THREE.FogExp2(fp.color, fp.density);
-    } else if (fp.type === "linear") {
-        window.scene.fog = new THREE.Fog(fp.color, fp.near, fp.far);
-    } else {
-        window.scene.fog = null; // No fog
-    }
+const fp = originalFogParams;
+if (fp.type === "exp2") {
+window.scene.fog = new THREE.FogExp2(fp.color, fp.density);
+} else if (fp.type === "linear") {
+window.scene.fog = new THREE.Fog(fp.color, fp.near, fp.far);
+} else {
+window.scene.fog = null; // No fog
+}
 }
 
 function destroyFog() {
-    window.scene.fog = null;
+window.scene.fog = null;
 }
 
+
+
+
 function enableShadows() {
-    if (!dirLight) {
-        dirLight = new THREE.DirectionalLight(0xffffff, 0.8); // Color, intensity
-        dirLight.position.set(50, 200, 100); // Position the light
-        dirLight.castShadow = true;
+if (!dirLight) {
+dirLight = new THREE.DirectionalLight(0xffffff, 0.8); // Color, intensity
+dirLight.position.set(50, 200, 100); // Position the light
+dirLight.castShadow = true;
 
-        // Shadow map settings (adjust resolution and camera frustum for your scene)
-        dirLight.shadow.mapSize.width = 2048; // Higher resolution for better shadows
-        dirLight.shadow.mapSize.height = 2048;
-        dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 500; // Far plane for shadow camera
-        dirLight.shadow.camera.left = -200;
-        dirLight.shadow.camera.right = 200;
-        dirLight.shadow.camera.top = 200;
-        dirLight.shadow.camera.bottom = -200;
-        // dirLight.shadow.bias = -0.001; // Adjust bias to fight shadow acne if needed
+// Shadow map settings (adjust resolution and camera frustum for your scene)
+dirLight.shadow.mapSize.width = 2048; // Higher resolution for better shadows
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 500; // Far plane for shadow camera
+dirLight.shadow.camera.left = -200;
+dirLight.shadow.camera.right = 200;
+dirLight.shadow.camera.top = 200;
+dirLight.shadow.camera.bottom = -200;
+// dirLight.shadow.bias = -0.001; // Adjust bias to fight shadow acne if needed
 
-        window.scene.add(dirLight);
-    }
-    dirLight.castShadow = true; // Ensure castShadow is true
-    if (renderer) { // Check if renderer is initialized
-        renderer.shadowMap.enabled = true;
-    }
+window.scene.add(dirLight);
+}
+dirLight.castShadow = true; // Ensure castShadow is true
+if (renderer) { // Check if renderer is initialized
+renderer.shadowMap.enabled = true;
+}
 }
 
 function disableShadows() {
-    if (dirLight) {
-        dirLight.castShadow = false; // Disable casting
-        window.scene.remove(dirLight); // Remove from scene
-        dirLight.dispose(); // Release resources
-        dirLight = null; // Set to null for re-creation
-    }
-    if (renderer) { // Check if renderer is initialized
-        renderer.shadowMap.enabled = false;
-    }
+if (dirLight) {
+dirLight.castShadow = false; // Disable casting
+window.scene.remove(dirLight); // Remove from scene
+dirLight.dispose(); // Release resources
+dirLight = null; // Set to null for re-creation
+}
+if (renderer) { // Check if renderer is initialized
+renderer.shadowMap.enabled = false;
+}
 }
 
 function createBloom() {
-    // Ensure composer and renderPass are initialized
-    if (!composer || !renderPass) {
-        console.warn("Composer or RenderPass not initialized. Cannot create Bloom.");
-        return;
-    }
-    if (!bloomPass) { // Only create if it doesn't exist
-        bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight), // Use window dimensions for bloom
-            window.originalBloomStrength, // Use the stored original strength
-            1, // Radius
-            0.6 // Threshold
-        );
-        composer.addPass(bloomPass);
-    }
+// Ensure composer and renderPass are initialized
+if (!composer || !renderPass) {
+console.warn("Composer or RenderPass not initialized. Cannot create Bloom.");
+return;
+}
+if (!bloomPass) { // Only create if it doesn't exist
+bloomPass = new UnrealBloomPass(
+new THREE.Vector2(window.innerWidth, window.innerHeight), // Use window dimensions for bloom
+originalBloomStrength, // Use the stored original strength
+1, // Radius
+0.6 // Threshold
+);
+composer.addPass(bloomPass);
+}
 }
 
 function destroyBloom() {
-    if (bloomPass && composer) {
-        composer.removePass(bloomPass);
-        bloomPass.dispose(); // Release resources
-        bloomPass = null;
-    }
+if (bloomPass && composer) {
+composer.removePass(bloomPass);
+bloomPass.dispose(); // Release resources
+bloomPass = null;
+}
 }
 
 async function determineWinnerAndEndGame() {
@@ -295,350 +290,222 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 function createStars() {
-    if (sceneNum !== 1) return; // Only create for CrocodilosConstruction
+if (sceneNum !== 1) return; // Only create for CrocodilosConstruction
 
-    console.log("Creating stars for CrocodilosConstruction...");
-    if (starField) return; // Already created
+console.log("Creating stars for CrocodilosConstruction...");
+if (starField) return; // Already created
 
-    const starCount = 1000;
-    const positions = new Float32Array(starCount * 3);
+const starCount = 1000;
+const positions = new Float32Array(starCount * 3);
 
-    for (let i = 0; i < starCount; i++) {
-        const theta = Math.random() * 2 * Math.PI;
-        const phi = Math.acos(2 * Math.random() - 1);
-        const r = 90 + Math.random() * 100;
+for (let i = 0; i < starCount; i++) {
+const theta = Math.random() * 2 * Math.PI;
+const phi = Math.acos(2 * Math.random() - 1);
+const r = 90 + Math.random() * 100;
 
-        positions[3 * i] = r * Math.sin(phi) * Math.cos(theta);
-        positions[3 * i + 1] = r * Math.sin(phi) * Math.sin(theta);
-        positions[3 * i + 2] = r * Math.cos(phi);
-    }
+positions[3 * i] = r * Math.sin(phi) * Math.cos(theta);
+positions[3 * i + 1] = r * Math.sin(phi) * Math.sin(theta);
+positions[3 * i + 2] = r * Math.cos(phi);
+}
 
-    const starsGeo = new THREE.BufferGeometry().setAttribute(
-        "position",
-        new THREE.BufferAttribute(positions, 3)
-    );
-    const starsMat = new THREE.PointsMaterial({
-        color: 0xeeeeff,
-        size: 0.5,
-        sizeAttenuation: true,
-        fog: false // Stars should ignore fog
-    });
-    starField = new THREE.Points(starsGeo, starsMat);
-    scene.add(starField);
+const starsGeo = new THREE.BufferGeometry().setAttribute(
+"position",
+new THREE.BufferAttribute(positions, 3)
+);
+const starsMat = new THREE.PointsMaterial({
+color: 0xeeeeff,
+size: 0.5,
+sizeAttenuation: true,
+fog: false // Stars should ignore fog
+});
+starField = new THREE.Points(starsGeo, starsMat);
+scene.add(starField);
 }
 
 /**
- * Destroys the stars specifically for CrocodilosConstruction.
- */
+* Destroys the stars specifically for CrocodilosConstruction.
+*/
 function destroyStars() {
-    if (starField) {
-        console.log("Destroying stars for CrocodilosConstruction...");
-        scene.remove(starField);
-        starField.geometry.dispose();
-        starField.material.dispose();
-        starField = null;
-    }
+if (starField) {
+console.log("Destroying stars for CrocodilosConstruction...");
+scene.remove(starField);
+starField.geometry.dispose();
+starField.material.dispose();
+starField = null;
+}
 }
 
 /**
- * Creates the fog dots specifically for CrocodilosConstruction.
- */
+* Creates the fog dots specifically for CrocodilosConstruction.
+*/
 function createFogDots() {
-    if (sceneNum !== 1) return; // Only create for CrocodilosConstruction
+if (sceneNum !== 1) return; // Only create for CrocodilosConstruction
 
-    console.log("Creating fog dots for CrocodilosConstruction...");
-    if (worldFog) return; // Already created
+console.log("Creating fog dots for CrocodilosConstruction...");
+if (worldFog) return; // Already created
 
-    const BOUNDS = { x: 100, y: 20, z: 100 };
-    const fogCount = 5000;
-    const fogGeo = new THREE.BufferGeometry();
-    const pos = new Float32Array(fogCount * 3);
+const BOUNDS = { x: 100, y: 20, z: 100 };
+const fogCount = 5000;
+const fogGeo = new THREE.BufferGeometry();
+const pos = new Float32Array(fogCount * 3);
 
-    for (let i = 0; i < fogCount; i++) {
-        pos[3 * i] = (Math.random() * 2 - 1) * BOUNDS.x;
-        pos[3 * i + 1] = Math.random() * BOUNDS.y;
-        pos[3 * i + 2] = (Math.random() * 2 - 1) * BOUNDS.z;
-    }
+for (let i = 0; i < fogCount; i++) {
+pos[3 * i] = (Math.random() * 2 - 1) * BOUNDS.x;
+pos[3 * i + 1] = Math.random() * BOUNDS.y;
+pos[3 * i + 2] = (Math.random() * 2 - 1) * BOUNDS.z;
+}
 
-    fogGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    const fogMat = new THREE.PointsMaterial({
-        color: 0xcccccc,
-        size: 0.2,
-        transparent: true,
-        opacity: 0.3,
-        sizeAttenuation: true,
-        fog: true // Fog dots should be affected by fog
-    });
-    worldFog = new THREE.Points(fogGeo, fogMat);
-    scene.add(worldFog);
-    window.worldFog = worldFog; // Keep window.worldFog updated
+fogGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+const fogMat = new THREE.PointsMaterial({
+color: 0xcccccc,
+size: 0.2,
+transparent: true,
+opacity: 0.3,
+sizeAttenuation: true,
+fog: true // Fog dots should be affected by fog
+});
+worldFog = new THREE.Points(fogGeo, fogMat);
+scene.add(worldFog);
+window.worldFog = worldFog; // Keep window.worldFog updated
 }
 
 /**
- * Destroys the fog dots specifically for CrocodilosConstruction.
- */
+* Destroys the fog dots specifically for CrocodilosConstruction.
+*/
 function destroyFogDots() {
-    if (worldFog) {
-        console.log("Destroying fog dots for CrocodilosConstruction...");
-        scene.remove(worldFog);
-        worldFog.geometry.dispose();
-        worldFog.material.dispose();
-        worldFog = null;
-    }
+if (worldFog) {
+console.log("Destroying fog dots for CrocodilosConstruction...");
+scene.remove(worldFog);
+worldFog.geometry.dispose();
+worldFog.material.dispose();
+worldFog = null;
+}
 }
 
 // --- Main toggle function (exported for main.js to call) ---
 
 /**
- * Toggles the creation/destruction of scene details like fog, shadows, bloom, stars, and fog dots.
- * This function is now intelligent about which scene is active.
- * @param {boolean} isOn - True to enable details, false to disable.
- */
+* Toggles the creation/destruction of scene details like fog, shadows, bloom, stars, and fog dots.
+* This function is now intelligent about which scene is active.
+* @param {boolean} isOn - True to enable details, false to disable.
+*/
 export function toggleSceneDetails(isOn) {
-    if (isOn !== detailsEnabled) {
-        detailsEnabled = isOn; // Update internal state
+if (isOn !== detailsEnabled) {
+detailsEnabled = isOn; // Update internal state
 
-        if (isOn) {
-            console.log("Enabling scene details...");
-            // Universal details
-            createFog();
-            enableShadows();
-            createBloom();
+if (isOn) {
+console.log("Enabling scene details...");
+// Universal details
+createFog();
+enableShadows();
+createBloom();
 
-            // Scene-specific details
-            if (sceneNum === 1) { // CrocodilosConstruction specific
-                createStars();
-                createFogDots();
-            }
-            // SigmaCity doesn't have unique details beyond universal ones, so no 'else if (sceneNum === 2)' needed here
-        } else {
-            console.log("Disabling scene details...");
-            // Universal details
-            destroyFog();
-            disableShadows();
-            destroyBloom();
+// Scene-specific details
+if (sceneNum === 1) { // CrocodilosConstruction specific
+createStars();
+createFogDots();
+}
+// SigmaCity doesn't have unique details beyond universal ones, so no 'else if (sceneNum === 2)' needed here
+} else {
+console.log("Disabling scene details...");
+// Universal details
+destroyFog();
+disableShadows();
+destroyBloom();
 
-            // Scene-specific details
-            if (sceneNum === 1) { //CrocodilosConstruction specific
-                destroyStars();
-                destroyFogDots();
-            }
-        }
-    }
+// Scene-specific details
+if (sceneNum === 1) { //CrocodilosConstruction specific
+destroyStars();
+destroyFogDots();
+}
+}
+}
 }
 
 
 // Crosshair
 
-const BASE_GAP = 2;
+const BASE_GAP      = 2;
 const SPREAD_SCALAR = 50;
 
 export function updateCrosshair(spreadAngle) {
-    if (window.localPlayer?.isDead) return;
+if (window.localPlayer?.isDead) return;
 
-    const gap = BASE_GAP + spreadAngle * SPREAD_SCALAR;
+const gap = BASE_GAP + spreadAngle * SPREAD_SCALAR;
 
-    const up = document.getElementById("line-up");
-    const down = document.getElementById("line-down");
-    const left = document.getElementById("line-left");
-    const right = document.getElementById("line-right");
+const up    = document.getElementById("line-up");
+const down  = document.getElementById("line-down");
+const left  = document.getElementById("line-left");
+const right = document.getElementById("line-right");
 
-    up.style.top = `${-gap - up.clientHeight}px`;
-    down.style.top = `${gap}px`;
-    left.style.left = `${-gap - left.clientWidth}px`;
-    right.style.left = `${gap}px`;
+up.style.top    = `${-gap - up.clientHeight}px`;
+down.style.top  = `${gap}px`;
+left.style.left = `${-gap - left.clientWidth}px`;
+right.style.left= `${gap}px`;
 
-    document.getElementById("crosshair").style.display = "";
+document.getElementById("crosshair").style.display = "";
 }
 
 // Hit Pulse
 
 const pendingRestore = {};
-const originalColor = {};
+const originalColor   = {};
 
 async function pulsePlayerHit(victimId) {
-    // Ensure dbRefs is initialized before trying to access playersRef
-    if (!dbRefs || !dbRefs.playersRef) {
-        console.warn("[pulsePlayerHit] dbRefs or playersRef is not initialized. Cannot pulse player hit.");
-        return;
-    }
+const playerRef = playersRef.child(victimId);
+const flashColor = 0xff0000;
+const PULSE_MS   = 200;
 
-    const playerRef = dbRefs.playersRef.child(victimId); // Use dbRefs.playersRef
-    const flashColor = 0xff0000;
-    const PULSE_MS = 200;
-
-    // 0) If we don't yet know their originalColor, fetch & stash it once
-    if (typeof originalColor[victimId] !== 'number') {
-        try {
-            const snap = await playerRef.child('bodyColor').once('value');
-            const trueColor = snap.val();
-            if (typeof trueColor === 'number') {
-                originalColor[victimId] = trueColor;
-                // console.log(
-                //   `[pulsePlayerHit] Stashed originalColor for ${victimId}: ` +
-                //   `0x${trueColor.toString(16).padStart(6, '0')}`
-                //  );
-            } else {
-                console.warn(
-                    `[pulsePlayerHit] Can't flash ${victimId}, bodyColor is not a number:`,
-                    trueColor
-                );
-                return;
-            }
-        } catch (err) {
-            console.error('[pulsePlayerHit] Error reading originalColor:', err);
-            return;
-        }
-    }
-
-    // 1) Cancel any pending restore so we keep flashing
-    if (pendingRestore[victimId]) {
-        clearTimeout(pendingRestore[victimId]);
-    }
-
-    // 2) Flash RED immediately
-    // console.log(`[pulsePlayerHit] Flashing ${victimId} RED`);
-    await playerRef.update({ bodyColor: flashColor });
-
-    // 3) Schedule restore back to the stashed original color
-    pendingRestore[victimId] = setTimeout(async () => {
-        const orig = originalColor[victimId];
-        // console.log(
-        //   `[pulsePlayerHit] Restoring ${victimId} to ` +
-        //   `0x${orig.toString(16).padStart(6, '0')}`
-        //  );
-        try {
-            await playerRef.update({ bodyColor: orig });
-        } catch (err) {
-            console.error('[pulsePlayerHit] Error restoring color:', err);
-        }
-        delete pendingRestore[victimId];
-        // leave originalColor in place for future hits
-    }, PULSE_MS);
+// 0) If we don't yet know their originalColor, fetch & stash it once
+if (typeof originalColor[victimId] !== 'number') {
+try {
+const snap      = await playerRef.child('bodyColor').once('value');
+const trueColor = snap.val();
+if (typeof trueColor === 'number') {
+originalColor[victimId] = trueColor;
+//  console.log(
+//    `[pulsePlayerHit] Stashed originalColor for ${victimId}: ` +
+//    `0x${trueColor.toString(16).padStart(6, '0')}`
+//   );
+} else {
+console.warn(
+`[pulsePlayerHit] Can't flash ${victimId}, bodyColor is not a number:`,
+trueColor
+);
+return;
+}
+} catch (err) {
+console.error('[pulsePlayerHit] Error reading originalColor:', err);
+return;
+}
 }
 
-// Dummy functions for map initialization, replace with actual logic
-async function initSceneCrocodilosConstruction() {
-    console.log("Initializing CrocodilosConstruction scene...");
-    sceneNum = 1; // Set scene number for CrocodilosConstruction
-    // Add your CrocodilosConstruction specific scene setup here
-    const { envMeshes: crocoEnvMeshes, spawnPoints: crocoSpawnPoints } = createCrocodilosConstruction(window.scene);
-    window.envMeshes.push(...crocoEnvMeshes);
-    spawnPoints.push(...crocoSpawnPoints);
-    window.mapReady = true; // Mark map as ready
-    // Re-apply scene details based on current `detailsEnabled` state
-    toggleSceneDetails(detailsEnabled);
+// 1) Cancel any pending restore so we keep flashing
+if (pendingRestore[victimId]) {
+clearTimeout(pendingRestore[victimId]);
 }
 
-async function initSceneSigmaCity() {
-    console.log("Initializing SigmaCity scene...");
-    sceneNum = 2; // Set scene number for SigmaCity
-    // Add your SigmaCity specific scene setup here
-    const { envMeshes: sigmaEnvMeshes, spawnPoints: sigmaSpawnPoints } = createSigmaCity(window.scene);
-    window.envMeshes.push(...sigmaEnvMeshes);
-    spawnPoints.push(...sigmaSpawnPoints);
-    window.mapReady = true; // Mark map as ready
-    // Re-apply scene details based on current `detailsEnabled` state
-    toggleSceneDetails(detailsEnabled);
+// 2) Flash RED immediately
+//  console.log(`[pulsePlayerHit] Flashing ${victimId} RED`);
+await playerRef.update({ bodyColor: flashColor });
+
+// 3) Schedule restore back to the stashed original color
+pendingRestore[victimId] = setTimeout(async () => {
+const orig = originalColor[victimId];
+//  console.log(
+//    `[pulsePlayerHit] Restoring ${victimId} to ` +
+//    `0x${orig.toString(16).padStart(6, '0')}`
+//   );
+try {
+await playerRef.update({ bodyColor: orig });
+} catch (err) {
+console.error('[pulsePlayerHit] Error restoring color:', err);
+}
+delete pendingRestore[victimId];
+// leave originalColor in place for future hits
+}, PULSE_MS);
 }
 
-// Function to create Respawn Overlay - You might have this already in ui.js or a dedicated overlay.js
-function createRespawnOverlay() {
-    respawnOverlay = document.getElementById("respawn-overlay");
-    respawnButton = document.getElementById("respawn-button");
-    if (respawnButton) {
-        respawnButton.addEventListener("click", () => {
-            // Your respawn logic here
-            // This usually involves updating localPlayer.isDead to false
-            // and sending a player update to Firebase with new position, health etc.
-            if (window.localPlayer && dbRefs && dbRefs.playersRef && localPlayerId) {
-                console.log("Attempting to respawn...");
-                window.localPlayer.isDead = false;
-                window.localPlayer.health = initialPlayerHealth;
-                window.localPlayer.shield = initialPlayerShield;
-                window.localPlayer.weapon = initialPlayerWeapon;
-                window.localPlayer.ks = 0; // Reset killstreak on death/respawn
-
-                const spawn = findFurthestSpawn();
-                window.localPlayer.x = spawn.x;
-                window.localPlayer.y = spawn.y;
-                window.localPlayer.z = spawn.z;
-
-                window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-                window.camera.lookAt(
-                    new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z)
-                    .add(new THREE.Vector3(0, 0, -1))
-                );
-
-                dbRefs.playersRef.child(localPlayerId).update({
-                    isDead: false,
-                    health: window.localPlayer.health,
-                    shield: window.localPlayer.shield,
-                    weapon: window.localPlayer.weapon,
-                    ks: window.localPlayer.ks,
-                    x: window.localPlayer.x,
-                    y: window.localPlayer.y,
-                    z: window.localPlayer.z,
-                    lastUpdate: Date.now()
-                }).then(() => {
-                    console.log("Player respawned and updated in Firebase.");
-                    hideRespawn(); // Hide overlay after successful respawn
-                    updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
-                    weaponController.equipWeapon(window.localPlayer.weapon);
-                    updateInventory(window.localPlayer.weapon);
-                    updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
-                    // Ensure sounds return to normal game state
-                    if (deathTheme && !deathTheme.paused) deathTheme.pause();
-                    // if (windSound && windSound.paused) windSound.play().catch(e => console.error("Error playing wind sound:", e));
-                    // if (forestNoise && forestNoise.paused) forestNoise.play().catch(e => console.error("Error playing forest noise:", e));
-                }).catch(error => {
-                    console.error("Error updating player for respawn in Firebase:", error);
-                });
-            }
-        });
-    }
-}
-
-// Function to create Fade Overlay - You might have this already
-function createFadeOverlay() {
-    fadeOverlay = document.getElementById("fade-overlay");
-}
-
-function showRespawn() {
-    if (respawnOverlay) {
-        respawnOverlay.style.display = "flex";
-        respawnOverlay.style.opacity = "1";
-    }
-}
-
-function hideRespawn() {
-    if (respawnOverlay) {
-        respawnOverlay.style.display = "none";
-        respawnOverlay.style.opacity = "0";
-    }
-}
-
-function hideFadeOverlay() {
-    if (fadeOverlay) {
-        fadeOverlay.style.opacity = "0";
-        fadeOverlay.style.pointerEvents = "none"; // Allow clicks through after fading
-    }
-}
-
-function createLeaderboardOverlay() {
-    // This function likely creates/shows the scoreboard UI.
-    // It's good to have it here for organization.
-}
-
-// Utility to find a good spawn point
-function findFurthestSpawn() {
-    // Implement logic to find the furthest spawn point from other players
-    // For now, return a random one
-    if (spawnPoints.length > 0) {
-        return spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
-    }
-    return new THREE.Vector3(0, 1.6, 0); // Default if no spawn points
-}
 
 
 // Game Start
