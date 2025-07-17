@@ -590,6 +590,37 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
 }
 
 // --- Listener Setup Functions ---
+export async function fullCleanup(gameId) {
+  // 1) your old cleanup
+  await endGameCleanup();
+  // 2) release slot & lobby entry
+  if (activeGameSlotName) {
+    await releaseGameSlot(activeGameSlotName);
+  }
+  if (gamesRef && gameId) {
+    await gamesRef.child(gameId).remove();
+  }
+  // 3) wipe per‑slot branches
+  const slotApp = firebase.app(activeGameSlotName + "App");
+  const rootRef = slotApp.database().ref();
+  await Promise.all([
+    rootRef.child("players").remove(),
+    rootRef.child("chat").remove(),
+    rootRef.child("kills").remove(),
+    rootRef.child("mapState").remove(),
+    rootRef.child("tracers").remove(),
+    rootRef.child("sounds").remove(),
+    rootRef.child("gameConfig").remove(),
+  ]);
+  // 4) dispose Three.js
+  if (window.scene) {
+    disposeThreeScene(window.scene);
+    window.scene = null;
+  }
+  if (window.camera) window.camera = null;
+  console.log("[network.js] Full cleanup done for game", gameId);
+}
+
 
 function setupPlayersListener(playersRef) {
     // Detach previous listeners before attaching new ones
