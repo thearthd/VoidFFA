@@ -1031,31 +1031,42 @@ function menu() {
 }
 
 // Helper to start game after menu hides
-function initAndStartGame(username, mapName, gameId = null) {
-    const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
-    const menuOverlay = document.getElementById("menu-overlay");
-    const gameWrapper = document.getElementById('game-container');
+async function initAndStartGame(username, mapName, gameId = null) {
+  const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
+  const menuOverlay   = document.getElementById("menu-overlay");
+  const gameWrapper   = document.getElementById("game-container");
 
-    if (menuOverlay) {
-        menuOverlay.classList.add("hidden");
-    }
-    if (canvas) {
-        canvas.style.display = 'none'; // Hide the canvas
-    }
-    if (gameWrapper) {
-        let ffaEnabled = true; // Assuming FFA is always true for this context
-        menuSong.pause();
-        gameWrapper.style.display = 'block'; // Make game container visible
-        createGameUI(gameWrapper);
-        initBulletHoles(gameWrapper); // Ensure bullet holes are initialized too if part of UI
-        initNetwork(username, mapName, gameId); // Pass gameId for joining
-        startGame(username, mapName, detailsEnabled, ffaEnabled, gameId);
-        console.log(`Game started for map: ${mapName}, Username: ${username}, Details Enabled: ${detailsEnabled}, Game ID: ${gameId}.`);
-    } else {
-        console.error("game-container element not found! Cannot start game.");
-        Swal.fire('Error', 'Game container not found, cannot start game.', 'error');
-        menu(); // Go back to menu if error
-    }
+  // Hide the menu
+  if (menuOverlay) menuOverlay.classList.add("hidden");
+  if (canvas)      canvas.style.display = 'none';
+
+  if (!gameWrapper) {
+    console.error("game-container element not found! Cannot start game.");
+    Swal.fire('Error', 'Game container not found, cannot start game.', 'error');
+    return menu();
+  }
+
+  // Bring up the game UI
+  menuSong.pause();
+  gameWrapper.style.display = 'block';
+  createGameUI(gameWrapper);
+  initBulletHoles(gameWrapper);
+
+  // 1) Attempt to hook into Firebase slot
+  const networkOk = await initNetwork(username, mapName, gameId);
+  if (!networkOk) {
+    // If it failed (slot not found, claim failed, etc.), go back to menu
+    console.warn("Network init failed—returning to menu.");
+    return menu();
+  }
+
+  // 2) Only once the network is live do we actually start the game loop
+  const ffaEnabled = true;  // or however you decide
+  startGame(username, mapName, detailsEnabled, ffaEnabled, gameId);
+  console.log(
+    `Game started for map: ${mapName}, Username: ${username}, ` +
+    `Details: ${detailsEnabled}, Game ID: ${gameId}`
+  );
 }
 
 /**
