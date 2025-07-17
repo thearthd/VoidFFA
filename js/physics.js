@@ -65,8 +65,8 @@ const _vector2 = new THREE.Vector3();
 const _vector3 = new THREE.Vector3();
 
 export class PhysicsController {
-    // Modified constructor to accept playerModel
-    constructor(camera, scene, playerModel = null) {
+    // Modified constructor to accept preloaded Octree and allTriangles
+    constructor(camera, scene, playerModel = null, worldOctree = null, allModelTriangles = []) {
         this.camera = camera;
         this.scene = scene;
         this.playerModel = playerModel; // Store the player's 3D model
@@ -83,7 +83,9 @@ export class PhysicsController {
         this.isGrounded = false; // More descriptive, often used for general ground checks
         this.groundNormal = new THREE.Vector3(0, 1, 0); // Store the normal of the ground
 
-        this.worldOctree = new OctreeV2();
+        // Use preloaded octree if provided, otherwise initialize an empty one
+        this.worldOctree = worldOctree || new OctreeV2();
+        this.allModelTriangles = allModelTriangles; // Store the global array of triangles
 
         this.mouseTime = 0;
 
@@ -116,7 +118,7 @@ export class PhysicsController {
         this.fallDelay = 300;
         // Debugging Helpers (Optional, but highly recommended for collision issues)
         // Uncomment these to visualize the Octree and Player Capsule
-        // this.octreeHelper = new OctreeHelper(this.worldOctree);
+        // this.octreeHelper = new OctreeHelper(this.worldOctree); // Note: OctreeHelper from three-mesh-bvh is different
         // this.scene.add(this.octreeHelper);
 
         // const capsuleGeometry = new THREE.CapsuleGeometry(COLLIDER_RADIUS, STAND_HEIGHT - 2 * COLLIDER_RADIUS, 10, 20);
@@ -125,62 +127,60 @@ export class PhysicsController {
         // this.scene.add(this.debugCapsuleMesh);
     }
 
-    buildOctree(group, onProgress = () => {}) {
-        return new Promise((resolve, reject) => {
-            if (!group) {
-                console.warn("Attempted to build Octree with no group provided.");
-                onProgress({ loaded: 1, total: 1 }); // Immediately report 100% if no group
-                resolve();
-                return;
-            }
-
-            console.log("Starting Octree build from group geometry...");
-
-            // --- DEBUG LOG: Check mesh count ---
-            let meshCount = 0;
-            group.traverse((obj) => {
-                if (obj.isMesh) {
-                    meshCount++;
-                }
-            });
-            console.log(`DEBUG: Group passed to Octree contains ${meshCount} meshes.`);
-            // --- END DEBUG LOG ---
-
-
-            // Clear any existing Octree data to ensure a fresh build
-            if (this.worldOctree) {
-                this.worldOctree.clear();
-            } else {
-                this.worldOctree = new Octree();
-            }
-
-            // Call fromGraphNode on the Octree instance.
-            // This modified method now accepts the progress callback and returns a Promise.
-            this.worldOctree.fromGraphNode(group, ({ loaded, total }) => {
-                // Pass the progress event directly to the external onProgress callback
-                onProgress({ loaded, total });
-            }).then(() => {
-                console.log("Octree built successfully.");
-
-                // Optional: Add/Update OctreeHelper for visualization
-                // You'll need access to your THREE.Scene object here if you uncomment this.
-                // Example:
-                // if (this.octreeHelper) {
-                //    scene.remove(this.octreeHelper);
-                //    this.octreeHelper.dispose();
-                // }
-                // this.octreeHelper = new OctreeHelper(this.worldOctree, 0xff0000);
-                // scene.add(this.octreeHelper);
-                // console.log("OctreeHelper added to scene.");
-
-                resolve(); // Resolve the promise when Octree reports completion
-            }).catch(err => {
-                console.error("Error building Octree:", err);
-                reject(err);
-            });
-        });
+    /**
+     * Sets the world Octree and the global array of triangles.
+     * This is used when an Octree is loaded from a file.
+     * @param {OctreeV2} octreeInstance - The loaded OctreeV2 instance.
+     * @param {Array<THREE.Triangle>} trianglesArray - The flat array of all triangles from the model.
+     */
+    setOctreeAndTriangles(octreeInstance, trianglesArray) {
+        this.worldOctree = octreeInstance;
+        this.allModelTriangles = trianglesArray;
+        console.log("PhysicsController: Octree and triangles set.");
+        // If you had an OctreeHelper, you'd update it here:
+        // if (this.octreeHelper) {
+        //     this.scene.remove(this.octreeHelper);
+        // }
+        // this.octreeHelper = this.worldOctree.generateVisualization(0x00ff00, 4);
+        // this.scene.add(this.octreeHelper);
     }
 
+    /**
+     * Builds the Octree from a Three.js group.
+     * This method is primarily used for building from scratch if a preloaded Octree isn't available.
+     * @param {THREE.Group} group - The Three.js group containing the meshes.
+     * @param {function({loaded: number, total: number}):void} [onProgress] - Callback for progress updates.
+     * @returns {Promise<void>} A promise that resolves when the Octree is built.
+     */
+    async buildOctree(group, onProgress = () => {}) {
+        if (!group) {
+            console.warn("Attempted to build Octree with no group provided.");
+            onProgress({ loaded: 1, total: 1 });
+            return;
+        }
+
+        console.log("Starting Octree build from group geometry...");
+
+        // Clear any existing Octree data to ensure a fresh build
+        if (this.worldOctree) {
+            this.worldOctree.clear();
+        } else {
+            this.worldOctree = new OctreeV2();
+        }
+
+        // fromGraphNode now returns the allTriangles array
+        const extractedTriangles = await this.worldOctree.fromGraphNode(group, onProgress);
+        this.allModelTriangles = extractedTriangles; // Store the extracted triangles
+
+        console.log("Octree built successfully.");
+
+        // Optional: Add/Update OctreeHelper for visualization
+        // if (this.octreeHelper) {
+        //     this.scene.remove(this.octreeHelper);
+        // }
+        // this.octreeHelper = this.worldOctree.generateVisualization(0x00ff00, 4); // Example depth 4
+        // this.scene.add(this.octreeHelper);
+    }
     setSpeedModifier(value) {
         this.speedModifier = value;
     }
