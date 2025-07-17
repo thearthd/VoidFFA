@@ -1142,7 +1142,7 @@ async function createGameButtonHit() {
     const { value: formValues } = await Swal.fire({
         title: 'Create New Game',
         html:
-            <input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game"> +
+            `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
             '<select id="swal-input2" class="swal2-select">' +
             '<option value="">Select Map</option>' +
             '<option value="SigmaCity">SigmaCity</option>' +
@@ -1157,7 +1157,7 @@ async function createGameButtonHit() {
             const map      = document.getElementById('swal-input2').value;
             const mode     = document.getElementById('swal-input3').value;
             if (!gameName || !map || !mode) {
-                Swal.showValidationMessage(Please fill all fields);
+                Swal.showValidationMessage(`Please fill all fields`);
                 return false;
             }
             return { gameName, map, gamemode: mode };
@@ -1195,7 +1195,7 @@ async function createGameButtonHit() {
         // 3) notify & join
         Swal.fire({
             title: 'Game Created!',
-            html: Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>,
+            html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>`,
             icon: 'success',
             confirmButtonText: 'Join Game'
         }).then(res => {
