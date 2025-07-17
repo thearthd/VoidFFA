@@ -43,22 +43,30 @@ const apps = {};
 
 // Initialize (or return) the Firebase app for the menu
 let menuApp = null;
-let gamesRef = null; // Reference to the games node in the menu database
+export let gamesRef = null; // Export directly here so it's accessible by other modules
 
 try {
     // Attempt to get an already initialized app instance named "menuApp"
     menuApp = firebase.app("menuApp");
-    gamesRef = menuApp.database().ref("games");
     console.log("Menu Firebase app 'menuApp' already initialized.");
 } catch (e) {
     // If "menuApp" is not found, initialize it
-    if (e.code === 'app/no-app') {
+    // The error code for no app found is typically 'app/no-app' or 'app/no-app-found'
+    if (e.code === 'app/no-app' || e.code === 'app/no-app-found') {
         console.log("Menu Firebase app 'menuApp' not found, initializing...");
         menuApp = firebase.initializeApp(menuConfig, "menuApp");
-        gamesRef = menuApp.database().ref("games");
     } else {
         console.error("Error with menu Firebase app:", e);
     }
+}
+
+// Ensure gamesRef is set *after* menuApp is definitely initialized
+// This block runs regardless of whether menuApp was newly initialized or retrieved
+if (menuApp) {
+    gamesRef = menuApp.database().ref("games");
+    console.log("gamesRef initialized for menuApp.");
+} else {
+    console.error("Firebase menuApp failed to initialize, gamesRef will not be available.");
 }
 
 /**
@@ -83,7 +91,7 @@ export function getDbRefs(mapName) {
             };
             console.log(`Map Firebase app '${mapName}' already initialized.`);
         } catch (e) {
-            if (e.code === 'app/no-app') {
+            if (e.code === 'app/no-app' || e.code === 'app/no-app-found') {
                 console.log(`Map Firebase app '${mapName}' not found, initializing...`);
                 const app = firebase.initializeApp(configs[mapName], mapName);
                 const database = app.database();
@@ -103,5 +111,4 @@ export function getDbRefs(mapName) {
     return apps[mapName];
 }
 
-// Export the games reference for the menu
-export { gamesRef };
+// No need for a redundant export { gamesRef }; at the bottom if it's already `export let gamesRef = null;`
