@@ -1661,10 +1661,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const gameId = urlParams.get('gameId'); // Get gameId from URL
             if (mapName && gameId) {
                 console.log(`Auto-joining game from URL: Map=${mapName}, GameID=${gameId}`);
-                initAndStartGame(username, mapName, gameId);
+
             } else if (mapName) {
                 console.log(`Auto-starting game from URL (no gameId): Map=${mapName}`);
-                initAndStartGame(username, mapName);
+
             } else {
                 console.warn("No map or game ID found in URL parameters, cannot auto-start game.");
                 // If on a non-root path but no game info, fallback to menu
