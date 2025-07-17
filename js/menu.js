@@ -1230,7 +1230,10 @@ const activeSlots = Object.entries(gamesObj)
         const entryHeight = 150;
 
         for (let i = 0; i < pageSlots.length; i++) {
-            const slotInfo = pageSlots[i];
+    const slotInfo = pageSlots[i];
+    const gameId   = slotInfo.id;    // <-- this is the Firebase key, not slotInfo.slot
+    const slotName = slotInfo.slot;  // e.g. "gameSlot1"
+    const mapName  = slotInfo.map;
             const y = yStart + i * entryHeight;
 
             // Background hitbox
