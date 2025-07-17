@@ -1176,19 +1176,19 @@ async function gamesButtonHit() {
 
     try {
         // Fetch the slots index rather than gamesRef
-        const snapshot = await slotsRef.once('value');
-        const slotsObj = snapshot.val() || {};
+const snapshot = await gamesRef.once('value');
+const gamesObj = snapshot.val() || {};
 
-        // Build a list of all claimed slots
-        const activeSlots = Object.entries(slotsObj)
-            .filter(([slotName, info]) => info.status === "claimed")
-            .map(([slotName, info]) => ({
-                slot: slotName,
-                host: info.host,
-                map:  info.map,
-                claimedAt: info.claimedAt
-            }))
-            .sort((a, b) => b.claimedAt - a.claimedAt);
+const activeSlots = Object.entries(gamesObj)
+    .filter(([id, game]) => game.status === "waiting" || game.status === "starting")
+    .map(([id, game]) => ({
+        id,
+        host: game.host,
+        map: game.map,
+        createdAt: game.createdAt,
+        slot: game.slot
+    }))
+    .sort((a, b) => b.createdAt - a.createdAt);
 
         remove(loadingText);
 
