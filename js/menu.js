@@ -839,11 +839,12 @@ let crocoPlayButton = createAnimatedButton(
             canvas.style.display = 'none';
         }
         if (gameWrapper) {
+            let ffaEnabled = true;
             menuSong.pause();
             gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
             createGameUI(gameWrapper);
             initNetwork(username, "CrocodilosConstruction");
-            startGame(username, "CrocodilosConstruction", detailsEnabled);
+            startGame(username, "CrocodilosConstruction", detailsEnabled, ffaEnabled);
             console.log(`Game started for map: CrocodilosConstruction, Username: ${username}, Details Enabled: ${detailsEnabled}.`);
         } else {
             console.error("game-container element not found! Cannot start game.");
@@ -871,11 +872,12 @@ let sigmaPlayButton = createAnimatedButton(
             canvas.style.display = 'none';
         }
         if (gameWrapper) {
+            let ffaEnabled = true;
             menuSong.pause();
             gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
             createGameUI(gameWrapper);
             initNetwork(username, "SigmaCity");
-            startGame(username, "SigmaCity", detailsEnabled);
+            startGame(username, "SigmaCity", detailsEnabled, ffaEnabled);
             console.log(`Game started for map: SigmaCity, Username: ${username}, Details Enabled: ${detailsEnabled}.`);
         } else {
             console.error("game-container element not found! Cannot start game.");
@@ -1107,11 +1109,12 @@ export function initMenuUI() {
             // Initialize game UI and start the game
             const gameWrapper = document.getElementById('game-container');
             if (gameWrapper) {
+                let ffaEnabled = true;
                 menuSong.pause();
                 gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
                 createGameUI(gameWrapper); // Create game UI elements
                 initNetwork(username, mapName); // Initialize network for multiplayer
-                startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true"); // Start the game
+                startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true", ffaEnabled); // Start the game
                
                 console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
             } else {
