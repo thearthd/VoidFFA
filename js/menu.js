@@ -983,37 +983,6 @@ let loadoutButton = createAnimatedButton(
         loadoutButtonHit(); // Call new function for loadout screen
     }
 );
-// loadoutButton.setText("Loadout"); // REMOVED TEXT
-
-// These two buttons are for a sub-menu after "Play" is hit (Direct Join options)
-let crocoPlayButton = createAnimatedButton(
-    "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a", // Re-using play button image
-    1920 / 6, 1080 / 6, // Original width and height
-    getWidth() / 2 + 100, getHeight() / 2 - 50, // Position towards the right
-    1920 / 6 - 25, 1080 / 8, // Hitbox dimensions
-    () => {
-        console.log("crocoPlayButton clicked, starting CrocodilosConstruction map.");
-        const mapName = "CrocodilosConstruction";
-        // Directly start game logic here (for quick play, not for created games)
-        initAndStartGame(username, mapName);
-    }
-);
-crocoPlayButton.setText("Crocodilos");
-
-
-let sigmaPlayButton = createAnimatedButton(
-    "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a", // Re-using play button image
-    1920 / 6, 1080 / 6, // Original width and height
-    getWidth() / 2 - 1920 / 6 - 100, getHeight() / 2 - 50, // Position towards the left
-    1920 / 6 - 25, 1080 / 8, // Hitbox dimensions
-    () => {
-        console.log("sigmaPlayButton clicked, starting SigmaCity map.");
-        const mapName = "SigmaCity";
-        // Directly start game logic here (for quick play, not for created games)
-        initAndStartGame(username, mapName);
-    }
-);
-sigmaPlayButton.setText("SigmaCity");
 
 // Main Create Game Button (will be on the map selection screen)
 let createGameBtn = createAnimatedButton(
@@ -1026,7 +995,6 @@ let createGameBtn = createAnimatedButton(
         createGameButtonHit();
     }
 );
-createGameBtn.setText("Create Game");
 
 
 /**
@@ -1059,10 +1027,6 @@ function menu() {
     // add(loadoutButton.text); // REMOVED TEXT
     makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
 
-    let title = new Text("VOID FFA", "60pt Arial");
-    title.setColor("#ffffff");
-    title.setPosition(getWidth() / 2, 100);
-    add(title);
     currentMenuObjects.push(title);
     currentMenuObjects.push(playButton.image, playButton.hitbox, gamesButton.image, gamesButton.hitbox, settingsButton.image, settingsButton.hitbox, careerButton.image, careerButton.hitbox, loadoutButton.image, loadoutButton.hitbox);
 }
@@ -1103,22 +1067,7 @@ function playButtonHit() {
     clearMenuCanvas(); // Clear all current canvas objects
 
     add(logo);
-    let title = new Text("Select Map or Create Game", "40pt Arial");
-    title.setColor("#ffffff");
-    title.setPosition(getWidth() / 2, 100);
-    add(title);
-    currentMenuObjects.push(title);
 
-    // Add direct map play buttons
-    add(crocoPlayButton.image);
-    add(crocoPlayButton.text);
-    makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
-    currentMenuObjects.push(crocoPlayButton.image, crocoPlayButton.text, crocoPlayButton.hitbox);
-
-    add(sigmaPlayButton.image);
-    add(sigmaPlayButton.text);
-    makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
-    currentMenuObjects.push(sigmaPlayButton.image, sigmaPlayButton.text, sigmaPlayButton.hitbox);
 
     // Add the "Create Game" button
     add(createGameBtn.image);
@@ -1220,7 +1169,7 @@ async function createGameButtonHit() {
 async function gamesButtonHit() {
     clearMenuCanvas();
     add(logo);
-
+     displayGamesPage(page);
     let loadingText = new Text("Loading games...", "30pt Arial");
     loadingText.setColor("#ffffff");
     loadingText.setPosition(getWidth() / 2, getHeight() / 2);
@@ -1357,12 +1306,6 @@ function displayGamesPage(page) {
     // add(background); // REMOVED BACKGROUND
     add(logo);
 
-    let title = new Text("Available Games", "40pt Arial");
-    title.setColor("#ffffff");
-    title.setPosition(getWidth() / 2, 100);
-    add(title);
-    currentMenuObjects.push(title);
-
     addBackButton(); // Always add back button
 
     const startIndex = page * GAMES_PER_PAGE;
@@ -1474,10 +1417,8 @@ function addBackButton() {
             currentPage = 0; // Reset page when going back to main menu
             menu(); // Go back to main menu
         },
-        "Back" // Text for clarity
     );
     // Adjust text position relative to its button for 'Back'
-    backButton.text.setPosition(backButton.image.x + backButton.image.getWidth() / 2, backButton.image.y + backButton.image.getHeight() / 2);
     backButton.image.setLayer(4); // Ensure back button is visible
     backButton.hitbox.setLayer(16);
     currentMenuObjects.push(backButton.image, backButton.text, backButton.hitbox);
@@ -1490,11 +1431,6 @@ function addBackButton() {
 function settingsButtonHit() {
     clearMenuCanvas();
     add(logo);
-    let title = new Text("Settings", "40pt Arial");
-    title.setColor("#ffffff");
-    title.setPosition(getWidth() / 2, 100);
-    add(title);
-    currentMenuObjects.push(title);
 
     // You can add your settings UI elements here
     let settingsText = new Text("Adjust your game settings here.", "30pt Arial");
@@ -1513,11 +1449,7 @@ function settingsButtonHit() {
 function careerButtonHit() {
     clearMenuCanvas();
     add(logo);
-    let title = new Text("Career Progression", "40pt Arial");
-    title.setColor("#ffffff");
-    title.setPosition(getWidth() / 2, 100);
-    add(title);
-    currentMenuObjects.push(title);
+
 
     // You can add your career UI elements here
     let careerText = new Text("View your stats and achievements.", "30pt Arial");
@@ -1536,11 +1468,7 @@ function careerButtonHit() {
 function loadoutButtonHit() {
     clearMenuCanvas();
     add(logo);
-    let title = new Text("Customize Loadout", "40pt Arial");
-    title.setColor("#ffffff");
-    title.setPosition(getWidth() / 2, 100);
-    add(title);
-    currentMenuObjects.push(title);
+
 
     // You can add your loadout UI elements here
     let loadoutText = new Text("Equip weapons and gear.", "30pt Arial");
