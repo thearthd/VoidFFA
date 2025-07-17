@@ -14,7 +14,7 @@ export const menuConfig = {
   measurementId:     "G-X9CKZX4C74"
 };
 
-// 2) Per‑slot game database configs
+// Per‑slot game DB configs
 export const gameDatabaseConfigs = {
   gameSlot1: {
     apiKey:            "AIzaSyDEULlbzl5Sylo-zGHvRIOrd6AOWp4GcxA",
@@ -36,15 +36,11 @@ export const gameDatabaseConfigs = {
     appId:              "1:1056288231871:web:d4b35d473de14dfb98910a",
     measurementId:     "G-76TZ6XF8WL"
   }
-  // Add more slots here if you expand
 };
 
-// Cache for each game slot’s Firebase app
-const gameApps = {};
-
-// 3) Initialize or re-use your named menuApp
 let menuApp = null;
 export let gamesRef = null;
+
 export function initializeMenuFirebase() {
   if (menuApp) return;
   try {
@@ -56,21 +52,19 @@ export function initializeMenuFirebase() {
 }
 initializeMenuFirebase();
 
-// 4) Slot‐scoped metadata in your menu DB
+// Metadata of slots in the lobby DB
 export const slotsRef = menuApp.database().ref("slots");
 
+const gameApps = {};
+
 /**
- * Claim the first free slot by scanning each slot’s own /game path.
- * A slot is “free” if its /game node has no children.
- * Returns { slotName, dbRefs } or null if none free.
+ * Claim the first free slot by inspecting its own /game node.
  */
 export async function claimGameSlot(username, map, ffaEnabled) {
   let chosenKey = null;
   let chosenApp = null;
 
-  // Scan in config order for a free slot
   for (let slotName in gameDatabaseConfigs) {
-    // Lazy‐init this slot’s Firebase app
     if (!gameApps[slotName]) {
       gameApps[slotName] = firebase.initializeApp(
         gameDatabaseConfigs[slotName],
@@ -78,8 +72,6 @@ export async function claimGameSlot(username, map, ffaEnabled) {
       );
     }
     const app = gameApps[slotName];
-
-    // Check its /game node
     const gameSnap = await app.database().ref("game").once("value");
     if (!gameSnap.exists() || Object.keys(gameSnap.val() || {}).length === 0) {
       chosenKey = slotName;
@@ -88,12 +80,9 @@ export async function claimGameSlot(username, map, ffaEnabled) {
     }
   }
 
-  if (!chosenKey) {
-    // all slots occupied
-    return null;
-  }
+  if (!chosenKey) return null;
 
-  // Mark claimed in your menu DB
+  // Mark claimed in lobby
   await slotsRef.child(chosenKey).set({
     status:     "claimed",
     host:       username,
@@ -102,33 +91,34 @@ export async function claimGameSlot(username, map, ffaEnabled) {
     claimedAt:  firebase.database.ServerValue.TIMESTAMP
   });
 
-  // Create a stub under the slot’s own /game to lock it
-  await chosenApp.database().ref("game").set({ createdAt: firebase.database.ServerValue.TIMESTAMP });
+  // **FIX**: use .ref() (no empty string) to get root of that slot’s DB
+  const rootRef = chosenApp.database().ref();
+  // Reserve /game to lock the slot
+  await rootRef.child("game").set({
+    createdAt: firebase.database.ServerValue.TIMESTAMP
+  });
 
-  // Build your per‑slot refs for game state in its own DB
-  const baseRef = chosenApp.database().ref("");
+  // Build your per‑slot refs
   const dbRefs = {
-    playersRef:    baseRef.child("players"),
-    chatRef:       baseRef.child("chat"),
-    killsRef:      baseRef.child("kills"),
-    mapStateRef:   baseRef.child("mapState"),
-    tracersRef:    baseRef.child("tracers"),
-    soundsRef:     baseRef.child("sounds"),
-    gameConfigRef: baseRef.child("gameConfig"),
+    playersRef:    rootRef.child("players"),
+    chatRef:       rootRef.child("chat"),
+    killsRef:      rootRef.child("kills"),
+    mapStateRef:   rootRef.child("mapState"),
+    tracersRef:    rootRef.child("tracers"),
+    soundsRef:     rootRef.child("sounds"),
+    gameConfigRef: rootRef.child("gameConfig"),
   };
 
   return { slotName: chosenKey, dbRefs };
 }
 
 /**
- * Release a slot: clear its stub in menu DB and its own /game node.
+ * Release the slot by clearing /game in its own DB and marking it free in lobby.
  */
 export async function releaseGameSlot(slotName) {
-  // Clear menu metadata
   await slotsRef.child(slotName).set({ status: "free" });
-
-  // Clear the slot’s own /game so it becomes free again
-  if (gameApps[slotName]) {
-    await gameApps[slotName].database().ref("game").remove();
+  const app = gameApps[slotName];
+  if (app) {
+    await app.database().ref("game").remove();
   }
 }
