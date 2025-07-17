@@ -1058,6 +1058,10 @@ async function initAndStartGame(username, mapName, gameId = null) {
     // If it failed (slot not found, claim failed, etc.), go back to menu
     console.warn("Network init failed—returning to menu.");
     menu();
+    document.getElementById("menu-overlay").style.display = "flex";
+    document.getElementById("game-container").style.display = "none";
+    document.getElementById("hud").style.display = "none";
+    document.getElementById("crosshair").style.display = "none";
      return;
   }
 
