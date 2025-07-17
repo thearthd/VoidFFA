@@ -434,14 +434,12 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     let gameEndTime = null;
     let gameInterval = null;
 
-    // Get reference to the timer element
     const gameTimerElement = document.getElementById("game-timer");
 
     if (ffaEnabled) {
         console.log("FFA mode is enabled. Game will last 10 minutes.");
         gameEndTime = Date.now() + (10 * 60 * 1000); // 10 minutes from now
 
-        // Show the timer element
         if (gameTimerElement) {
             gameTimerElement.style.display = "block";
         }
@@ -456,20 +454,18 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 }
                 determineWinnerAndEndGame();
             } else {
-                const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000)); // Ensure non-negative
+                const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000));
                 const minutes = Math.floor(totalSeconds / 60);
                 const seconds = totalSeconds % 60;
-                // Format seconds to always have two digits (e.g., 05 instead of 5)
                 const formattedSeconds = seconds < 10 ? `0${seconds}` : seconds;
                 const timerText = `Time: ${minutes}:${formattedSeconds}`;
-                console.log(timerText); // For console logging
+                console.log(timerText);
                 if (gameTimerElement) {
-                    gameTimerElement.textContent = timerText; // Update UI
+                    gameTimerElement.textContent = timerText;
                 }
             }
-        }, 1000); // Check every second
+        }, 1000);
     } else {
-        // Hide the timer if FFA is not enabled (useful if you toggle modes)
         if (gameTimerElement) {
             gameTimerElement.style.display = "none";
         }
@@ -509,10 +505,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     weaponController = new WeaponController(
         window.camera,
-        playersRef, // Pass playersRef for damage updates
-        mapStateRef.child("bullets"), // Pass the specific bullet holes reference
+        playersRef,
+        mapStateRef.child("bullets"),
         createTracer,
-        playerId, // Pass local player ID for weapon actions
+        playerId,
         physicsController
     );
     window.weaponController = weaponController;
@@ -658,6 +654,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     createLeaderboardOverlay();
     animate(); // Start the game loop
 
+    // The determineWinnerAndEndGame function, declared within startGame or at global scope
     async function determineWinnerAndEndGame() {
         console.log("Determining winner and ending game...");
         const snapshot = await playersRef.once("value");
@@ -672,9 +669,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
         console.log(`The winner is ${winner.username} with ${winner.kills} kills!`);
 
-        // Hide the timer when the game ends
         if (gameTimerElement) {
-            gameTimerElement.style.display = "none";
+            gameTimerElement.style.display = "none"; // Hide timer
         }
 
         // Disconnect all players
@@ -682,7 +678,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             disconnectPlayer(childSnap.key);
         });
     }
-    window.determineWinnerAndEndGame = determineWinnerAndEndGame;
+    window.determineWinnerAndEndGame = determineWinnerAndEndGame; // Make it globally accessible
+
 }
 
 
@@ -2295,132 +2292,155 @@ entry.group.userData.velocityY = 0;
 // Applies damage and flashes red, then reverts to originalColor
 // -------------------------------------------------------------
 function applyDamageToRemote(targetId, damage, killerInfo) {
-//console.log('[applyDamageToRemote] for', targetId, 'damage=', damage);
+    //console.log('[applyDamageToRemote] for', targetId, 'damage=', damage);
 
-if (targetId === window.localPlayer.id) {
-// ONLY store the killer's position if the local player is the target
-if (killerInfo && killerInfo.id) {
-const killerEntry = window.remotePlayers[killerInfo.id];
-if (killerEntry && killerEntry.position) {
-lastDamageSourcePosition = killerEntry.position;
-} else {
-console.warn('[applyDamageToRemote] Killer position not found for ID:', killerInfo.id);
-lastDamageSourcePosition = null; // Ensure it's cleared if info is incomplete
+    if (targetId === window.localPlayer.id) {
+        // ONLY store the killer's position if the local player is the target
+        if (killerInfo && killerInfo.id) {
+            const killerEntry = window.remotePlayers[killerInfo.id];
+            if (killerEntry && killerEntry.position) {
+                lastDamageSourcePosition = killerEntry.position;
+            } else {
+                console.warn('[applyDamageToRemote] Killer position not found for ID:', killerInfo.id);
+                lastDamageSourcePosition = null; // Ensure it's cleared if info is incomplete
+            }
+        } else {
+            lastDamageSourcePosition = null; // Clear if no killerInfo
+        }
+        // pulseScreenRed() is called here, but the arrow logic is now in checkForDamagePulse
+        // which will be triggered by the health/shield change.
+    }
+
+    const entry = window.remotePlayers[targetId];
+    if (!entry) {
+        console.warn('[applyDamageToRemote] unknown player:', targetId);
+        return;
+    }
+
+    playersRef.child(targetId).once('value')
+        .then(snap => {
+            const data = snap.val();
+            if (!data || data.isDead) return;
+
+            let newShield = data.shield;
+            let newHP = data.health;
+            let rem = damage;
+
+            if (newShield > 0) {
+                const sd = Math.min(newShield, rem);
+                newShield -= sd;
+                rem -= sd;
+            }
+            newHP -= rem;
+
+            const updateData = {
+                shield: newShield,
+                health: newHP,
+                isDead: newHP <= 0
+            };
+
+            if (newHP <= 0) {
+                // console.log('[applyDamageToRemote] →', targetId, 'died');
+                Object.assign(updateData, {
+                    deaths: (data.deaths || 0) + 1,
+                    ks: 0,
+                    health: 0,
+                    shield: 0
+                });
+
+                // Update victim
+                return playersRef.child(targetId)
+                    .update(updateData)
+                    .then(() => {
+                        // Update killer stats - this is where the local player's kills are updated
+                        return playersRef.child(window.localPlayer.id).once('value')
+                            .then(snap2 => {
+                                const kd = snap2.val() || {};
+                                const newKills = (kd.kills || 0) + 1;
+                                const newKS = (kd.ks || 0) + 1;
+
+                                window.localPlayer.kills = newKills;
+                                window.localPlayer.ks = newKS;
+
+                                return playersRef.child(window.localPlayer.id)
+                                    .update({
+                                        kills: newKills,
+                                        ks: newKS
+                                    })
+                                    .then(() => {
+                                        // --- NEW: Check for 40 Kills in FFA (Local Player's kill) ---
+                                        // Ensure this check only runs if FFA mode is actually enabled
+                                        // We need access to `ffaEnabled` from `startGame` or make it a global/window property.
+                                        // For now, assuming `ffaEnabled` is available or `window.ffaEnabled` if you set it globally.
+                                        // A more robust solution might pass it down or have a game state object.
+                                        // Assuming it's already set by startGame or can be derived.
+                                        // If `ffaEnabled` is a local var in startGame, you'll need to set a global flag, e.g., window.isFFAActive.
+                                        if (window.isFFAActive && newKills >= 40) {
+                                            console.log(`${window.localPlayer.username} reached 40 kills! Ending game.`);
+                                            if (window.determineWinnerAndEndGame) {
+                                                window.determineWinnerAndEndGame();
+                                            } else {
+                                                console.error("determineWinnerAndEndGame not accessible globally.");
+                                            }
+                                        }
+                                        // --- END NEW ---
+
+                                        // Play kill-streak sound for local player
+                                        if (killerInfo.id === window.localPlayer.id) {
+                                            const streak = newKS >= 10 ? 10 : newKS;
+                                            // Assuming KILLSTREAK_SOUNDS is defined elsewhere
+                                            const url = typeof KILLSTREAK_SOUNDS !== 'undefined' ? KILLSTREAK_SOUNDS[streak] : null;
+                                            if (url) {
+                                                const audio = new Audio(url);
+                                                audio.play();
+                                            }
+                                            pulseScreenWhite();
+                                        }
+                                    });
+                            });
+                    })
+                    .then(() => {
+                        // Handle UI after updates
+                        animateDeath(targetId);
+                        if (targetId === window.localPlayer.id) {
+                            handleLocalDeath();
+                        }
+                        // Record kill event
+                        // Assuming killsRef is defined elsewhere
+                        if (typeof killsRef !== 'undefined') {
+                            return killsRef.push({
+                                killer: window.localPlayer.username,
+                                victim: data.username,
+                                weapon: window.localPlayer.weapon,
+                                timestamp: Date.now()
+                            });
+                        }
+                        return Promise.resolve(); // Return a resolved promise if killsRef is not defined
+                    });
+            } else {
+                // Partial damage: just pulse hit
+                // Assuming pulsePlayerHit is defined elsewhere
+                if (typeof pulsePlayerHit !== 'undefined') {
+                    pulsePlayerHit(targetId);
+                }
+                return playersRef.child(targetId)
+                    .update(updateData);
+            }
+        })
+        .catch(err => console.error('[applyDamageToRemote]', err));
 }
-} else {
-lastDamageSourcePosition = null; // Clear if no killerInfo
-}
-// pulseScreenRed() is called here, but the arrow logic is now in checkForDamagePulse
-// which will be triggered by the health/shield change.
-}
-
-const entry = window.remotePlayers[targetId];
-if (!entry) {
-console.warn('[applyDamageToRemote] unknown player:', targetId);
-return;
-}
-
-playersRef.child(targetId).once('value')
-.then(snap => {
-const data = snap.val();
-if (!data || data.isDead) return;
-
-let newShield = data.shield;
-let newHP = data.health;
-let rem = damage;
-
-if (newShield > 0) {
-const sd = Math.min(newShield, rem);
-newShield -= sd;
-rem -= sd;
-}
-newHP -= rem;
-
-const updateData = {
-shield: newShield,
-health: newHP,
-isDead: newHP <= 0
-};
-
-if (newHP <= 0) {
-//  console.log('[applyDamageToRemote] →', targetId, 'died');
-Object.assign(updateData, {
-deaths: (data.deaths || 0) + 1,
-ks: 0,
-health: 0,
-shield: 0
-});
-
-// Update victim
-return playersRef.child(targetId)
-.update(updateData)
-.then(() => {
-// Update killer stats
-return playersRef.child(window.localPlayer.id).once('value')
-.then(snap2 => {
-const kd = snap2.val() || {};
-const newKills = (kd.kills || 0) + 1;
-const newKS = (kd.ks || 0) + 1;
-
-window.localPlayer.kills = newKills;
-window.localPlayer.ks = newKS;
-
-return playersRef.child(window.localPlayer.id)
-.update({
-kills: newKills,
-ks: newKS
-})
-.then(() => {
-// Play kill-streak sound for local player
-if (killerInfo.id === window.localPlayer.id) {
-const streak = newKS >= 10 ? 10 : newKS;
-// Assuming KILLSTREAK_SOUNDS is defined elsewhere
-const url = typeof KILLSTREAK_SOUNDS !== 'undefined' ? KILLSTREAK_SOUNDS[streak] : null;
-if (url) {
-const audio = new Audio(url);
-audio.play();
-}
-pulseScreenWhite();
-}
-});
-});
-})
-.then(() => {
-// Handle UI after updates
-animateDeath(targetId);
-if (targetId === window.localPlayer.id) {
-handleLocalDeath();
-}
-// Record kill event
-// Assuming killsRef is defined elsewhere
-if (typeof killsRef !== 'undefined') {
-return killsRef.push({
-killer: window.localPlayer.username,
-victim: data.username,
-weapon: window.localPlayer.weapon,
-timestamp: Date.now()
-});
-}
-return Promise.resolve(); // Return a resolved promise if killsRef is not defined
-});
-} else {
-// Partial damage: just pulse hit
-// Assuming pulsePlayerHit is defined elsewhere
-if (typeof pulsePlayerHit !== 'undefined') {
-pulsePlayerHit(targetId);
-}
-return playersRef.child(targetId)
-.update(updateData);
-}
-})
-.catch(err => console.error('[applyDamageToRemote]', err));
-}
-
-
-
-
 
 window.applyDamageToRemote = applyDamageToRemote; // Make globally accessible
+
+// --- NEW: Global FFA Active Flag ---
+// This flag allows applyDamageToRemote to know if FFA mode is active.
+// Set it inside startGame after the ffaEnabled check.
+// You might want to adjust its placement based on your overall game state management.
+// For example, if you have a dedicated game state object, store it there.
+// For now, placing it after startGame to indicate it's set by startGame.
+let isFFAActive = false;
+
+
 
 // — CLEANUP ON UNLOAD —
 // Ensure player data is removed from Firebase when the window is closed/reloaded
