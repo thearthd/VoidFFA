@@ -598,76 +598,91 @@ activeGameId = gameId;
 
 // --- Listener Setup Functions ---
 export async function fullCleanup(gameId) {
-  console.log("[fullCleanup] START, gameId =", gameId);
+    console.log("[fullCleanup] START, gameId =", gameId);
 
-  // ✅ Capture BEFORE cleanup wipes it
-  const slotName = activeGameSlotName;
-  const playerId = localPlayerId;
+    // ✅ Capture BEFORE cleanup processes which might wipe it
+    const initialSlotName = activeGameSlotName; // Capture it here
+    const initialLocalPlayerId = localPlayerId;
 
-  try {
-    // 1) Detach all listeners & remove local player
-    await endGameCleanup();
-    console.log("[fullCleanup] ✓ endGameCleanup complete");
+    try {
+        // 1) Detach all listeners & remove local player using the *current* state
+        // endGameCleanup will also set activeGameSlotName to null, but we've already captured it.
+        await endGameCleanup();
+        console.log("[fullCleanup] ✓ endGameCleanup complete");
 
-    // 2) Validate slotName BEFORE using it
-    if (!slotName) {
-      throw new Error("No active game slot. Cannot continue fullCleanup.");
+        // Use the captured initialSlotName for operations that require it
+        if (!initialSlotName) {
+            console.warn("[fullCleanup] No initial active game slot found during fullCleanup, skipping slot-specific database removal.");
+            // We can still proceed with other cleanup steps, just skip the slot-specific ones.
+            // DO NOT THROW AN ERROR HERE, as endGameCleanup already did its job.
+        } else {
+            const slotApp = firebase.app(initialSlotName + "App");
+            const rootRef = slotApp.database().ref();
+            console.log("[fullCleanup] ✓ slot rootRef acquired for", initialSlotName);
+
+            // 2) Delete game data from the specific slot's database
+            await rootRef.child("game").remove();
+            console.log("[fullCleanup] ✓ removed /game node");
+
+            await Promise.all([
+                rootRef.child("players").remove(),
+                rootRef.child("chat").remove(),
+                rootRef.child("kills").remove(),
+                rootRef.child("mapState").remove(),
+                rootRef.child("tracers").remove(),
+                rootRef.child("sounds").remove(),
+                rootRef.child("gameConfig").remove(),
+            ]);
+            console.log("[fullCleanup] ✓ cleared players, chat, kills, mapState, tracers, sounds, gameConfig from slot DB");
+
+            // 3) Free the slot in slotsRef (if endGameCleanup didn't already handle it, which it should have)
+            // This call is redundant if endGameCleanup correctly releases the slot.
+            // Consider if `releaseGameSlot` should ONLY be in `endGameCleanup`.
+            // If `releaseGameSlot` is robust and handles being called multiple times, it's fine.
+            // If not, you might remove this line here.
+            // For now, let's assume endGameCleanup already released it.
+            // await releaseGameSlot(initialSlotName);
+            // console.log(`[fullCleanup] ✓ releaseGameSlot(${initialSlotName}) complete (might be redundant)`);
+        }
+
+        // 4) Remove from lobby (this is on the *main* gamesRef, not slot-specific)
+        if (gameId) {
+            await gamesRef.child(gameId).remove();
+            console.log(`[fullCleanup] ✓ removed lobby entry gamesRef/${gameId}`);
+        } else {
+            console.warn("[fullCleanup] no gameId provided, skipping lobby removal from main gamesRef");
+        }
+
+        // 5) Dispose Three.js
+        if (window.scene) {
+            // Your disposeThreeScene function might need to be imported or globally accessible
+            if (typeof disposeThreeScene === 'function') {
+                disposeThreeScene(window.scene);
+            } else {
+                console.warn("[fullCleanup] disposeThreeScene function not found. Skipping scene disposal.");
+                // Manual basic cleanup if function isn't available
+                window.scene.clear();
+                window.scene = null;
+            }
+            console.log("[fullCleanup] ✓ Three.js scene disposed");
+        }
+        if (window.camera) {
+            window.camera = null;
+            console.log("[fullCleanup] ✓ camera reference cleared");
+        }
+
+        // 6) Clear pointers (already largely done by endGameCleanup, but good to be explicit for fullCleanup's scope)
+        activeGameSlotName = null;
+        localPlayerId = null;
+
+        console.log("[fullCleanup] END");
+        location.reload();
+        return true;
+
+    } catch (err) {
+        console.error("[fullCleanup] ERROR during cleanup:", err);
+        throw err; // Re-throw to propagate the error if necessary
     }
-
-    const slotApp = firebase.app(slotName + "App");
-    const rootRef = slotApp.database().ref();
-    console.log("[fullCleanup] ✓ slot rootRef acquired for", slotName);
-
-    // 3) Delete game data
-    await rootRef.child("game").remove();
-    console.log("[fullCleanup] ✓ removed /game node");
-
-    await Promise.all([
-      rootRef.child("players").remove(),
-      rootRef.child("chat").remove(),
-      rootRef.child("kills").remove(),
-      rootRef.child("mapState").remove(),
-      rootRef.child("tracers").remove(),
-      rootRef.child("sounds").remove(),
-      rootRef.child("gameConfig").remove(),
-    ]);
-    console.log("[fullCleanup] ✓ cleared players, chat, kills, mapState, tracers, sounds, gameConfig");
-
-    // 4) Remove from lobby
-    if (gameId) {
-      await gamesRef.child(gameId).remove();
-      console.log(`[fullCleanup] ✓ removed lobby entry gamesRef/${gameId}`);
-    } else {
-      console.warn("[fullCleanup] no gameId provided, skipping lobby removal");
-    }
-
-    // 5) Free the slot in slotsRef
-    await releaseGameSlot(slotName);
-    console.log(`[fullCleanup] ✓ releaseGameSlot(${slotName}) complete`);
-
-    // 6) Dispose Three.js
-    if (window.scene) {
-      disposeThreeScene(window.scene);
-      window.scene = null;
-      console.log("[fullCleanup] ✓ Three.js scene disposed");
-    }
-    if (window.camera) {
-      window.camera = null;
-      console.log("[fullCleanup] ✓ camera reference cleared");
-    }
-
-    // 7) Clear pointers
-    activeGameSlotName = null;
-    localPlayerId = null;
-
-    console.log("[fullCleanup] END");
-    location.reload();
-    return true;
-
-  } catch (err) {
-    console.error("[fullCleanup] ERROR during cleanup:", err);
-    throw err;
-  }
 }
 
 function setupPlayersListener(playersRef) {
