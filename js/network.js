@@ -6,7 +6,8 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/
 import {
     claimGameSlot,
     releaseGameSlot,
-    gamesRef
+    gamesRef,
+    gameDatabaseConfigs
 } from "./firebase-config.js";
 
 // Re-importing existing functions from game.js and ui.js
@@ -436,28 +437,48 @@ export async function endGameCleanup() {
  * @returns {Promise<boolean>} True if network initialization was successful, false otherwise.
  */
 export async function initNetwork(username, mapName, gameId) {
-    console.log("[network.js] initNetwork for", username, mapName, gameId);
-    await endGameCleanup();
+  console.log("[network.js] initNetwork for", username, mapName, gameId);
+  await endGameCleanup();
 
-    // 1) look up slotName from the game entry
-    const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
-    const slotName = slotSnap.val();
-    console.log("[network.js] fetched slotName for gameId", gameId, "→", slotName);
-    if (!slotName) {
-        Swal.fire('Error','No slot associated with that game ID.','error');
-        return false;
-    }
+  // 1) look up slotName from the game entry
+  const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
+  const slotName = slotSnap.val();
+  if (!slotName) {
+    Swal.fire('Error','No slot associated with that game ID.','error');
+    return false;
+  }
 
-    // 2) claim that same slot (idempotent)
-    const claimed = await claimGameSlot(username, mapName, window.isFFAActive);
-    if (!claimed || claimed.slotName !== slotName) {
-        Swal.fire('Error','Could not claim slot.','error');
-        return false;
-    }
+  // ─── MANUAL SLOT INITIALIZATION (instead of claimGameSlot) ───
+  activeGameSlotName = slotName;
 
-    activeGameSlotName = slotName;
-    dbRefs            = claimed.dbRefs;
-    setUIDbRefs(dbRefs);
+  // Pick the right config object from your firebase-config.js
+  const slotConfig = gameDatabaseConfigs[slotName];
+  if (!slotConfig) {
+    console.error(`No firebase config found for slot "${slotName}"`);
+    return false;
+  }
+
+  // Initialize—or re‑use if already initialized—the slot‑specific app
+  let slotApp;
+  try {
+    slotApp = firebase.app(slotName + 'App');
+  } catch (e) {
+    slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
+  }
+
+  // Build your DB refs exactly as claimGameSlot would have done
+  const rootRef = slotApp.database().ref();
+  dbRefs = {
+    playersRef:    rootRef.child('players'),
+    chatRef:       rootRef.child('chat'),
+    killsRef:      rootRef.child('kills'),
+    mapStateRef:   rootRef.child('mapState'),
+    tracersRef:    rootRef.child('tracers'),
+    soundsRef:     rootRef.child('sounds'),
+    gameConfigRef: rootRef.child('gameConfig'),
+  };
+  setUIDbRefs(dbRefs);
+  console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotConfig.databaseURL}`);
 
     // --- CONSOLE LOG ADDED HERE ---
     if (dbRefs.playersRef && dbRefs.playersRef.database && dbRefs.playersRef.database.app_ && dbRefs.playersRef.database.app_.options) {
