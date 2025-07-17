@@ -59,7 +59,7 @@ export let activeGameId = null;
 
 // inside initNetwork(), after you do:
 //   const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
-activeGameId = gameId;
+
 
 const gameApps = {};
 
