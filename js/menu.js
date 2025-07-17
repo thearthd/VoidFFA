@@ -1287,21 +1287,20 @@ function displayGamesPage(page) {
         currentMenuObjects.push(noGamesText);
     } else {
         for (let i = 0; i < gamesToDisplay.length; i++) {
-            const game = gamesToDisplay[i];
-            const displayY = yStart + i * gameEntryHeight;
-
-            // Game entry background (clickable)
-            let gameBg = createClickableRectangle(
-                getWidth() * 0.1,
-                displayY - 50, // Adjust Y to center it relative to the text
-                getWidth() * 0.8,
-                100, // Height of the clickable box
-                "rgba(50, 50, 50, 0.7)",
-                () => {
-                    console.log(`Attempting to join game: ${game.id} on map: ${game.map}`);
-                    initAndStartGame(username, game.map, game.id);
-                }
-            );
+          const game = gamesToDisplay[i];
+          const slotName = game.slot;  // ← your newly‑written slot
+          
+          let gameBg = createClickableRectangle(
+              getWidth()*0.1,
+              displayY-50,
+              getWidth()*0.8,
+              100,
+              "rgba(50,50,50,0.7)",
+              () => {
+                  console.log(`Joining slot ${slotName} for game ${game.id}`);
+                  initAndStartGame(username, game.map, game.id);
+              }
+          );
             add(gameBg);
             currentMenuObjects.push(gameBg);
 
