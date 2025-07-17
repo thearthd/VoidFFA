@@ -1245,7 +1245,7 @@ const activeSlots = Object.entries(gamesObj)
                 "rgba(50,50,50,0.7)",
                 () => {
                     console.log(`Joining slot ${slotInfo.slot} on map ${slotInfo.map}`);
-                    initAndStartGame(username, slotInfo.map, slotInfo.slot);
+                    initAndStartGame(username, mapName, gameId);
                 }
             );
             add(gameBg);
