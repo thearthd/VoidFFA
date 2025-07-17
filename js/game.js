@@ -211,7 +211,6 @@ bloomPass = null;
 async function determineWinnerAndEndGame() {
     console.log("Determining winner and ending game...");
 
-    // Check if playersRef is null before using it, although it should be set by now
     if (!playersRef) {
         console.error("determineWinnerAndEndGame: playersRef is NULL, cannot determine winner.");
         return;
@@ -231,7 +230,11 @@ async function determineWinnerAndEndGame() {
         }
     });
 
-    console.log(`The winner is ${winner.username} with ${winner.kills} kills!`);
+    // --- NEW: Store winner in localStorage before disconnection ---
+    console.log(`PRE-DISCONNECT: The winner is ${winner.username} with ${winner.kills} kills!`); // This log might still be lost, but good for attempt.
+    localStorage.setItem('gameWinner', JSON.stringify(winner)); // Store as JSON string
+    localStorage.setItem('gameEndedTimestamp', Date.now().toString()); // Optional: Store timestamp to know when it happened
+    // --- END NEW ---
 
     const gameTimerElement = document.getElementById("game-timer");
     if (gameTimerElement) {
@@ -245,11 +248,46 @@ async function determineWinnerAndEndGame() {
         console.log("Detached players kill listener.");
     }
 
+    // Crucially, this loop is what causes the local player to disconnect and reload
     playerIdsToDisconnect.forEach(id => {
         disconnectPlayer(id);
     });
+
+    // You might also consider a slight delay before calling disconnectPlayer(localPlayer.id)
+    // to allow other players to get the "game ended" message if you implement one,
+    // but for now, this ensures the localStorage save happens first.
 }
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const storedWinner = localStorage.getItem('gameWinner');
+    const storedTimestamp = localStorage.getItem('gameEndedTimestamp');
+
+    if (storedWinner) {
+        try {
+            const winner = JSON.parse(storedWinner);
+            console.log("GAME OVER! Winner found from previous session:");
+            console.log(`Username: ${winner.username}, Kills: ${winner.kills}`);
+
+            // You can also display this on your UI now, e.g.:
+            const gameOverMessageElement = document.getElementById('game-over-message'); // You'd need to create this element in your HTML
+            if (gameOverMessageElement) {
+                gameOverMessageElement.textContent = `Game Over! Winner: ${winner.username} with ${winner.kills} kills!`;
+                gameOverMessageElement.style.display = 'block'; // Make sure it's visible
+            }
+
+            // Clean up localStorage so the message doesn't reappear on subsequent normal loads
+            localStorage.removeItem('gameWinner');
+            localStorage.removeItem('gameEndedTimestamp');
+
+        } catch (e) {
+            console.error("Error parsing stored winner data from localStorage:", e);
+            localStorage.removeItem('gameWinner'); // Clear corrupted data
+            localStorage.removeItem('gameEndedTimestamp');
+        }
+    }
+});
+
 
 function createStars() {
 if (sceneNum !== 1) return; // Only create for CrocodilosConstruction
