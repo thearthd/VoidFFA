@@ -2422,7 +2422,7 @@ window.applyDamageToRemote = applyDamageToRemote;
 // For example, if you have a dedicated game state object, store it there.
 // For now, placing it after startGame to indicate it's set by startGame.
 let isFFAActive = false;
-
+window.isFFAActive = isFFAActive;
 
 
 // — CLEANUP ON UNLOAD —
