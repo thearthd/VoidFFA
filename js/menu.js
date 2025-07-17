@@ -1246,11 +1246,10 @@ function displaySlotsPage(slots) {
     name.setPosition(getWidth()*0.5, y);
     add(name);
 
-    let details = new Text(Map: ${slot.map}, "15pt Arial");
+    let details = new Text(`Map: ${slot.map}`, "15pt Arial");
     details.setColor("#999999");
     details.setPosition(getWidth()*0.5, y+30);
     add(details);
-     console.log("SLOTS PASSED TO DISPLAY:", slots);
   });
 }
 
@@ -1387,6 +1386,7 @@ async function gamesButtonHit() {
         currentMenuObjects.push(errorText);
         addBackButton();
     }
+     displaySlotsPage(slots);
 }
 
 /**
