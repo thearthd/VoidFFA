@@ -598,19 +598,23 @@ activeGameId = gameId;
 
 // --- Listener Setup Functions ---
 export async function fullCleanup(gameId) {
-  console.log("[fullCleanup] START (gameId:", gameId, ")");
+  console.log("[fullCleanup] START, gameId =", gameId);
 
   try {
+    // 1) Core cleanup: listeners, local player removal, etc.
     await endGameCleanup();
-    console.log("[fullCleanup] endGameCleanup() done");
+    console.log("[fullCleanup] ✓ endGameCleanup completed");
 
+    // 2) Get slot-specific root
     const slotApp = firebase.app(activeGameSlotName + "App");
     const rootRef = slotApp.database().ref();
-    console.log("[fullCleanup] got slot rootRef");
+    console.log("[fullCleanup] ✓ slot rootRef acquired");
 
+    // 3) Delete the slot’s own “game” metadata
     await rootRef.child("game").remove();
-    console.log("[fullCleanup] removed /game");
+    console.log("[fullCleanup] ✓ removed /game");
 
+    // 4) Clear every other per-slot branch
     await Promise.all([
       rootRef.child("players").remove(),
       rootRef.child("chat").remove(),
@@ -620,28 +624,46 @@ export async function fullCleanup(gameId) {
       rootRef.child("sounds").remove(),
       rootRef.child("gameConfig").remove(),
     ]);
-    console.log("[fullCleanup] cleared all per‑slot branches");
+    console.log("[fullCleanup] ✓ cleared all per-slot data branches");
 
-    if (gamesRef && gameId) {
+    // 5) Debug: list lobby keys before removal
+    const beforeSnap = await gamesRef.once("value");
+    console.log("[fullCleanup] Lobby keys BEFORE removal:", Object.keys(beforeSnap.val() || {}));
+
+    // 6) Remove the lobby entry while gameId is still valid
+    if (gameId) {
+      console.log(`[fullCleanup] removing gamesRef/${gameId}`);
       await gamesRef.child(gameId).remove();
-      console.log("[fullCleanup] removed lobby entry gamesRef/" + gameId);
+      console.log(`[fullCleanup] ✓ removed lobby entry gamesRef/${gameId}`);
+    } else {
+      console.warn("[fullCleanup] no gameId provided, skipping lobby removal");
     }
 
-    await releaseGameSlot(activeGameSlotName);
-    console.log("[fullCleanup] releaseGameSlot complete for", activeGameSlotName);
+    // 7) Debug: list lobby keys after removal
+    const afterSnap = await gamesRef.once("value");
+    console.log("[fullCleanup] Lobby keys AFTER removal:", Object.keys(afterSnap.val() || {}));
 
+    // 8) Free up the slot and clear its /game node (idempotent)
+    await releaseGameSlot(activeGameSlotName);
+    console.log(`[fullCleanup] ✓ releaseGameSlot(${activeGameSlotName}) complete`);
+
+    // 9) Dispose Three.js scene graph
     if (window.scene) {
       disposeThreeScene(window.scene);
       window.scene = null;
+      console.log("[fullCleanup] ✓ Three.js scene disposed");
     }
-    if (window.camera) window.camera = null;
-    console.log("[fullCleanup] Three.js disposed");
+    if (window.camera) {
+      window.camera = null;
+      console.log("[fullCleanup] ✓ camera reference cleared");
+    }
 
+    // 10) Clear the in-memory pointer
+    activeGameId = null;
     console.log("[fullCleanup] END");
     return true;
-  }
-  catch (err) {
-    console.error("[fullCleanup] ERROR:", err);
+  } catch (err) {
+    console.error("[fullCleanup] ERROR during cleanup:", err);
     throw err;
   }
 }
