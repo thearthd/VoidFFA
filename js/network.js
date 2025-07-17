@@ -85,67 +85,67 @@ export function setActiveGameId(id) {
 }
 
 export function startSoundListener() {
-    if (!dbRefs || !dbRefs.soundsRef) {
-        console.error("Cannot start sound listener: dbRefs or soundsRef not initialized.");
-        return;
-    }
+  if (!dbRefs || !dbRefs.soundsRef) {
+    console.error("Cannot start sound listener: dbRefs or soundsRef not initialized.");
+    return;
+  }
 
-    if (soundsListener) { // Detach existing listener if it exists
-        dbRefs.soundsRef.off("child_added", soundsListener);
-    }
+  dbRefs.soundsRef.off();
 
-    soundsListener = dbRefs.soundsRef.on("child_added", (snap) => {
-        const data = snap.val();
-        const soundRef = snap.ref;
+  dbRefs.soundsRef.on("child_added", (snap) => {
+    const data = snap.val();
+    const soundRef = snap.ref;
 
-        // Skip own sounds and remove them after a short delay to avoid cluttering DB
-        if (!data || data.shooter === localPlayerId) {
-            if (data.shooter === localPlayerId) {
-                setTimeout(() => {
-                    soundRef.remove().catch(err => console.error("Failed to remove own sound event from Firebase:", err));
-                }, 500);
-            }
-            return;
-        }
-
-        // For other players' sounds, remove after a short delay
+    if (!data || data.shooter === localPlayerId) {
+      if (data.shooter === localPlayerId) {
         setTimeout(() => {
-            soundRef.remove().catch(err => console.error("Failed to remove sound event from Firebase after 3s:", err));
-        }, 3000);
+          soundRef.remove().catch(err => console.error("Failed to remove own sound event from Firebase:", err));
+        }, 10000);
+      }
+      return;
+    }
 
-        const url = WeaponController.SOUNDS[data.soundKey]?.[data.soundType] ??
-            PHYSICS_SOUNDS[data.soundKey]?.[data.soundType];
+    setTimeout(() => {
+      soundRef.remove().catch(err => console.error("Failed to remove sound event from Firebase after 10s:", err));
+    }, 3000);
 
-        if (!url) {
-            console.warn(`No URL found for soundKey: ${data.soundKey}, soundType: ${data.soundType}`);
-            return;
-        }
+    const url = WeaponController.SOUNDS[data.soundKey]?.[data.soundType] ??
+      PHYSICS_SOUNDS[data.soundKey]?.[data.soundType];
 
-        const worldPos = new THREE.Vector3(data.x, data.y, data.z);
+    if (!url) {
+      console.warn(`No URL found for soundKey: ${data.soundKey}, soundType: ${data.soundType}`);
+      return;
+    }
 
-        if (audioManagerInstance) {
-            const soundProps = SOUND_CONFIG[data.soundKey]?.[data.soundType];
-            if (soundProps) {
-                audioManagerInstance.playSpatial(
-                    url,
-                    worldPos, {
-                        loop: soundProps.loop ?? false,
-                        volume: soundProps.volume,
-                        hearingRange: soundProps.hearingRange,
-                        rolloffFactor: soundProps.rolloffFactor,
-                        distanceModel: soundProps.distanceModel
-                    }
-                );
-            } else {
-                console.warn(`Sound properties not found for ${data.soundKey}:${data.soundType}. Playing with defaults.`);
-                audioManagerInstance.playSpatial(url, worldPos, { loop: false, volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' });
-            }
-        } else {
-            console.warn("AudioManager not initialized when trying to play spatial sound (after startSoundListener called).");
-        }
-    });
-    console.log("Firebase sound listener started.");
+    const worldPos = new THREE.Vector3(data.x, data.y, data.z);
+
+    if (audioManagerInstance) {
+      // Get sound properties from SOUND_CONFIG
+      const soundProps = SOUND_CONFIG[data.soundKey]?.[data.soundType];
+      if (soundProps) {
+        audioManagerInstance.playSpatial(
+          url,
+          worldPos,
+          {
+            loop: soundProps.loop ?? false, // Default to false if not specified
+            volume: soundProps.volume,
+            hearingRange: soundProps.hearingRange,
+            rolloffFactor: soundProps.rolloffFactor,
+            distanceModel: soundProps.distanceModel
+          }
+        );
+      } else {
+        // Fallback to default values if not found in SOUND_CONFIG
+        console.warn(`Sound properties not found for ${data.soundKey}:${data.soundType}. Playing with defaults.`);
+        audioManagerInstance.playSpatial(url, worldPos, { loop: false, volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' });
+      }
+    } else {
+      console.warn("AudioManager not initialized when trying to play spatial sound (after startSoundListener called).");
+    }
+  });
+  console.log("Firebase sound listener started.");
 }
+
 
 // --- Player Data Update Functions (from your original code) ---
 
@@ -844,7 +844,7 @@ function setupMapStateListener(mapStateRef) {
 function setupTracerListener(tracersRef) {
     if (tracersListener) tracersRef.off("child_added", tracersListener); // Detach previous
     tracersListener = tracersRef.on("child_added", (snap) => {
-        const { x, y, z, tx, ty, tz, shooter } = snap.val();
+        const { ox, oy, oz, tx, ty, tz, shooter } = snap.val();
         const tracerRef = snap.ref;
         // Remove from Firebase after a short delay (e.g., 1 second)
         setTimeout(() => tracerRef.remove().catch(err => console.error("Failed to remove tracer from Firebase:", err)), 1000);
