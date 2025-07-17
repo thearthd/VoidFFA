@@ -1,20 +1,11 @@
-// js/map.js (Keep as is from the last update)
+// js/map.js
 
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import {
-    computeBoundsTree,
-    disposeBoundsTree,
-    acceleratedRaycast,
-} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
-
-// ─── BVH Setup ────────────────────────────────────────────────────────────
-THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
-THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
-THREE.Mesh.prototype.raycast = acceleratedRaycast;
-
+import { OctreeV2 } from './OctreeV2.js'; // Import the new OctreeV2
+// LZString is loaded globally via a script tag in index.html, no import needed here.
 
 // ─── Helper: build sequential indices if none present ────────────────────────
 function generateSequentialIndices(vertexCount) {
@@ -80,16 +71,14 @@ export class Lantern {
 
 
 export async function createCrocodilosConstruction(scene, physicsController) {
-    // track loaded meshes and readiness
     window.envMeshes = [];
     window.mapReady = false;
 
-    // Initialize loader UI with two milestones: 70% for GLB, 30% for octree
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
-    loaderUI.show('Loading CrocodilosConstruction Map & Building Octree...', mapLoadPercentages);
+    // Adjust percentages: GLB load (e.g., 70%), Octree load/build (e.g., 30%)
+    const mapLoadPercentages = [0.7, 0.3];
+    loaderUI.show('Loading CrocodilosConstruction Map...', mapLoadPercentages);
 
-    // scaling and spawn points
     const SCALE = 5;
     const rawSpawnPoints = [
         new THREE.Vector3(-14, 7, -36), // 1
@@ -103,7 +92,6 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 5));
 
-
     // set up sunlight and shadows
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
     sunLight.position.set(50, 100, 50);
@@ -119,22 +107,23 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
-    // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb';
+    const OCTREE_MAP_URL = 'https://raw.githubusercontent.com/thearthd/VoidFFA/refs/heads/main/octreeMaps/crocodilosConstructionOctree.json';
 
-    // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null; // Declare gltfGroup here
+    let gltfGroup = null;
+    let allModelTriangles = []; // This will hold the flat array of triangles from the GLB
+
+    // 1) Load the GLB model first
     let onGLBProgress = () => {};
-    const mapLoadPromise = new Promise((resolve, reject) => {
+    const glbLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                gltfGroup = gltf.scene; // Assign to gltfGroup
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+                gltfGroup.updateMatrixWorld(true);
                 scene.add(gltfGroup);
 
-                // enable shadows and anisotropy on all meshes
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -143,49 +132,114 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                             child.material.map.anisotropy = 4;
                         }
                         window.envMeshes.push(child);
+                        // Ensure geometry has index for Octree processing
+                        if (!child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
                     }
                 });
 
-                console.log('✔️ GLB mesh loaded into scene.');
-                resolve(gltfGroup); // Resolve with the group so octree can use it
+                // Extract all triangles from the GLTF scene into a flat array
+                gltfGroup.traverse((obj) => {
+                    if (obj.isMesh === true) {
+                        let geometry;
+                        // Use the already non-indexed geometry if it was converted, or convert now
+                        if (obj.geometry.index !== null) {
+                            geometry = obj.geometry.toNonIndexed();
+                        } else {
+                            geometry = obj.geometry;
+                        }
+
+                        const positionAttribute = geometry.getAttribute('position');
+                        if (positionAttribute) {
+                            for (let i = 0; i < positionAttribute.count; i += 3) {
+                                const v1 = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
+                                const v2 = new THREE.Vector3().fromBufferAttribute(positionAttribute, i + 1);
+                                const v3 = new THREE.Vector3().fromBufferAttribute(positionAttribute, i + 2);
+
+                                v1.applyMatrix4(obj.matrixWorld);
+                                v2.applyMatrix4(obj.matrixWorld);
+                                v3.applyMatrix4(obj.matrixWorld);
+
+                                allModelTriangles.push(new THREE.Triangle(v1, v2, v3));
+                            }
+                        }
+                        // Dispose of temporary non-indexed geometry if created
+                        if (obj.geometry.index !== null) {
+                            geometry.dispose();
+                        }
+                    }
+                });
+
+                console.log('✔️ GLB mesh loaded and triangles extracted.');
+                resolve(gltfGroup);
             },
-            // progress callback
-            evt => {
-                if (evt.lengthComputable) onGLBProgress(evt);
-            },
-            err => {
-                console.error('❌ Error loading CrocodilosConstruction GLB:', err);
-                reject(err);
-            }
+            evt => { if (evt.lengthComputable) onGLBProgress(evt); },
+            err => { console.error('❌ Error loading CrocodilosConstruction GLB:', err); reject(err); }
         );
     });
 
-    // track GLB load at 70%, with live percent updates
-    loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
-        onGLBProgress = cb;
-    });
+    loaderUI.track(mapLoadPercentages[0], glbLoadPromise, cb => { onGLBProgress = cb; });
 
-    // 2) Once GLB is added, build the octree
+    // 2) Once GLB is loaded, attempt to load or build the Octree
     let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        // physicsController.buildOctree now returns a promise and takes the progress callback
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
-        });
+    const octreeLoadPromise = glbLoadPromise.then(async () => {
+        let loadedOctree = null;
+        let octreeBuildSuccess = false;
+
+        // Try to load pre-built Octree
+        try {
+            console.log(`Attempting to load Octree from: ${OCTREE_MAP_URL}`);
+            loaderUI.updateMessage('Loading Octree from file...');
+            
+            const response = await fetch(OCTREE_MAP_URL);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const compressedData = await response.text();
+
+            if (typeof LZString === 'undefined') {
+                throw new Error("LZString library not found. Cannot decompress Octree data.");
+            }
+            const decompressedString = LZString.decompressFromBase64(compressedData);
+            if (!decompressedString) {
+                throw new Error("Failed to decompress Octree data. File might be corrupted or not compressed with LZ-String.");
+            }
+            const serializedOctree = JSON.parse(decompressedString);
+            
+            loadedOctree = OctreeV2.deserialize(serializedOctree, allModelTriangles);
+            physicsController.setOctreeAndTriangles(loadedOctree, allModelTriangles);
+            console.log('✔️ Octree loaded from file successfully!');
+            octreeBuildSuccess = true;
+            onOctreeProgress({ loaded: 1, total: 1 }); // Mark 100% for this phase
+        } catch (error) {
+            console.warn(`❌ Failed to load Octree from file: ${error.message}. Building from scratch.`);
+            loaderUI.updateMessage('Building Octree from scratch...');
+            // Fallback to building from scratch
+            const tempOctree = new OctreeV2();
+            // Manually set total triangle count for progress tracking in buildOctree
+            tempOctree._totalTriangleCount = allModelTriangles.length;
+            await tempOctree.fromGraphNode(gltfGroup, (evt) => {
+                const overallProgress = evt.loaded; // fromGraphNode already handles its own internal progress
+                onOctreeProgress({ loaded: overallProgress, total: 1 });
+            });
+            physicsController.setOctreeAndTriangles(tempOctree, allModelTriangles);
+            octreeBuildSuccess = true;
+            console.log('✔️ Octree built from scratch successfully!');
+        }
+
+        if (!octreeBuildSuccess) {
+            throw new Error("Octree could not be loaded or built.");
+        }
     });
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
-    });
+    loaderUI.track(mapLoadPercentages[1], octreeLoadPromise, cb => { onOctreeProgress = cb; });
 
-    // wait for both loading steps
-    await Promise.all([mapLoadPromise, octreePromise]);
+    await Promise.all([glbLoadPromise, octreeLoadPromise]);
 
-    // when fully done
     loaderUI.onComplete(() => {
         window.mapReady = true;
-        console.log('🗺️ Map + Octree fully ready!');
+        console.log('🗺️ CrocodilosConstruction Map + Octree fully ready!');
     });
 
     return spawnPoints;
@@ -193,22 +247,19 @@ export async function createCrocodilosConstruction(scene, physicsController) {
 
 
 export async function createSigmaCity(scene, physicsController) {
-    // track loaded meshes and readiness
     window.envMeshes = [];
     window.mapReady = false;
 
-    // initialize loader UI with two milestones: 70% for GLB, 30% for octree
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
-    loaderUI.show('Loading SigmaCity Map & Building Octree...', mapLoadPercentages);
+    // Adjust percentages: GLB load (e.g., 70%), Octree load/build (e.g., 30%)
+    const mapLoadPercentages = [0.7, 0.3];
+    loaderUI.show('Loading SigmaCity Map...', mapLoadPercentages);
 
-    // scaling and spawn points
     const SCALE = 2;
     const rawSpawnPoints = [
         new THREE.Vector3(0, 15, 0), // 1
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 2));
-
 
     // set up sunlight and shadows
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -225,22 +276,23 @@ export async function createSigmaCity(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
-    // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb';
+    const OCTREE_MAP_URL = 'https://raw.githubusercontent.com/thearthd/VoidFFA/refs/heads/main/octreeMaps/sigmaCityOctree.json';
 
-    // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null; // Declare gltfGroup here
+    let gltfGroup = null;
+    let allModelTriangles = []; // This will hold the flat array of triangles from the GLB
+
+    // 1) Load the GLB model first
     let onGLBProgress = () => {};
-    const mapLoadPromise = new Promise((resolve, reject) => {
+    const glbLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                gltfGroup = gltf.scene; // Assign to gltfGroup
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+                gltfGroup.updateMatrixWorld(true);
                 scene.add(gltfGroup);
 
-                // enable shadows and anisotropy on all meshes
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -249,51 +301,114 @@ export async function createSigmaCity(scene, physicsController) {
                             child.material.map.anisotropy = 4;
                         }
                         window.envMeshes.push(child);
-                    }
-                    if (child.isMesh && child.geometry && !child.geometry.index) {
-                        child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        // Ensure geometry has index for Octree processing
+                        if (!child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
                     }
                 });
 
-                console.log('✔️ GLB mesh loaded into scene.');
-                resolve(gltfGroup); // Resolve with the group so octree can use it
+                // Extract all triangles from the GLTF scene into a flat array
+                gltfGroup.traverse((obj) => {
+                    if (obj.isMesh === true) {
+                        let geometry;
+                        // Use the already non-indexed geometry if it was converted, or convert now
+                        if (obj.geometry.index !== null) {
+                            geometry = obj.geometry.toNonIndexed();
+                        } else {
+                            geometry = obj.geometry;
+                        }
+
+                        const positionAttribute = geometry.getAttribute('position');
+                        if (positionAttribute) {
+                            for (let i = 0; i < positionAttribute.count; i += 3) {
+                                const v1 = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
+                                const v2 = new THREE.Vector3().fromBufferAttribute(positionAttribute, i + 1);
+                                const v3 = new THREE.Vector3().fromBufferAttribute(positionAttribute, i + 2);
+
+                                v1.applyMatrix4(obj.matrixWorld);
+                                v2.applyMatrix4(obj.matrixWorld);
+                                v3.applyMatrix4(obj.matrixWorld);
+
+                                allModelTriangles.push(new THREE.Triangle(v1, v2, v3));
+                            }
+                        }
+                        // Dispose of temporary non-indexed geometry if created
+                        if (obj.geometry.index !== null) {
+                            geometry.dispose();
+                        }
+                    }
+                });
+
+                console.log('✔️ GLB mesh loaded and triangles extracted.');
+                resolve(gltfGroup);
             },
-            // progress callback
-            evt => {
-                if (evt.lengthComputable) onGLBProgress(evt);
-            },
-            err => {
-                console.error('❌ Error loading SigmaCity GLB:', err);
-                reject(err);
-            }
+            evt => { if (evt.lengthComputable) onGLBProgress(evt); },
+            err => { console.error('❌ Error loading SigmaCity GLB:', err); reject(err); }
         );
     });
 
-    // track GLB load at 70%, with live percent updates
-    loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
-        onGLBProgress = cb;
-    });
+    loaderUI.track(mapLoadPercentages[0], glbLoadPromise, cb => { onGLBProgress = cb; });
 
-    // 2) Once GLB is added, build the octree
+    // 2) Once GLB is loaded, attempt to load or build the Octree
     let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
-        });
+    const octreeLoadPromise = glbLoadPromise.then(async () => {
+        let loadedOctree = null;
+        let octreeBuildSuccess = false;
+
+        // Try to load pre-built Octree
+        try {
+            console.log(`Attempting to load Octree from: ${OCTREE_MAP_URL}`);
+            loaderUI.updateMessage('Loading Octree from file...');
+            
+            const response = await fetch(OCTREE_MAP_URL);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const compressedData = await response.text();
+
+            if (typeof LZString === 'undefined') {
+                throw new Error("LZString library not found. Cannot decompress Octree data.");
+            }
+            const decompressedString = LZString.decompressFromBase64(compressedData);
+            if (!decompressedString) {
+                throw new Error("Failed to decompress Octree data. File might be corrupted or not compressed with LZ-String.");
+            }
+            const serializedOctree = JSON.parse(decompressedString);
+            
+            loadedOctree = OctreeV2.deserialize(serializedOctree, allModelTriangles);
+            physicsController.setOctreeAndTriangles(loadedOctree, allModelTriangles);
+            console.log('✔️ Octree loaded from file successfully!');
+            octreeBuildSuccess = true;
+            onOctreeProgress({ loaded: 1, total: 1 }); // Mark 100% for this phase
+        } catch (error) {
+            console.warn(`❌ Failed to load Octree from file: ${error.message}. Building from scratch.`);
+            loaderUI.updateMessage('Building Octree from scratch...');
+            // Fallback to building from scratch
+            const tempOctree = new OctreeV2();
+            // Manually set total triangle count for progress tracking in buildOctree
+            tempOctree._totalTriangleCount = allModelTriangles.length;
+            await tempOctree.fromGraphNode(gltfGroup, (evt) => {
+                const overallProgress = evt.loaded; // fromGraphNode already handles its own internal progress
+                onOctreeProgress({ loaded: overallProgress, total: 1 });
+            });
+            physicsController.setOctreeAndTriangles(tempOctree, allModelTriangles);
+            octreeBuildSuccess = true;
+            console.log('✔️ Octree built from scratch successfully!');
+        }
+
+        if (!octreeBuildSuccess) {
+            throw new Error("Octree could not be loaded or built.");
+        }
     });
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
-    });
+    loaderUI.track(mapLoadPercentages[1], octreeLoadPromise, cb => { onOctreeProgress = cb; });
 
-    // wait for both loading steps
-    await Promise.all([mapLoadPromise, octreePromise]);
+    await Promise.all([glbLoadPromise, octreeLoadPromise]);
 
-    // when fully done
     loaderUI.onComplete(() => {
         window.mapReady = true;
-        console.log('🗺️ Map + Octree fully ready!');
+        console.log('🗺️ SigmaCity Map + Octree fully ready!');
     });
 
     return spawnPoints;
