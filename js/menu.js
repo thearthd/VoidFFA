@@ -1163,9 +1163,9 @@ const gameData = {
         const newGameRef = gamesRef.push();
         await newGameRef.set(gameData);
         const gameId = newGameRef.key;
-
+          let ffaEnabled = true;
         // 2) try to claim a slot
-        const slotResult = await claimGameSlot(username, formValues.map, true);
+        const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
          await gamesRef.child(gameId).child('status').set("starting");
         if (!slotResult) {
             // 🔥 Dispose of the just-created game
