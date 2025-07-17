@@ -517,12 +517,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     // Grab the timer element
     const gameTimerElement = document.getElementById("game-timer");
 
-    // 1) Initialize network (which will lookup & claim the slot by gameId)
-    const networkOk = await initNetwork(username, mapName, ffaEnabled, gameId);
-    if (!networkOk) {
-        console.error("Failed to initialize network for game:", gameId);
-        return;
-    }
 
     // Ensure our per‑slot refs exist
     if (!dbRefs || !dbRefs.playersRef || !dbRefs.mapStateRef || !dbRefs.gameConfigRef) {
