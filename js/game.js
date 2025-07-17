@@ -436,6 +436,9 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     const gameTimerElement = document.getElementById("game-timer");
 
+    // Set the global FFA flag so applyDamageToRemote can access it
+    window.isFFAActive = ffaEnabled; 
+
     if (ffaEnabled) {
         console.log("FFA mode is enabled. Game will last 10 minutes.");
         gameEndTime = Date.now() + (10 * 60 * 1000); // 10 minutes from now
@@ -454,18 +457,19 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 }
                 determineWinnerAndEndGame();
             } else {
-                const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000));
+                const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000)); // Ensure non-negative
                 const minutes = Math.floor(totalSeconds / 60);
                 const seconds = totalSeconds % 60;
                 const formattedSeconds = seconds < 10 ? `0${seconds}` : seconds;
                 const timerText = `Time: ${minutes}:${formattedSeconds}`;
-                console.log(timerText);
+                console.log(timerText); // For console logging
                 if (gameTimerElement) {
-                    gameTimerElement.textContent = timerText;
+                    gameTimerElement.textContent = timerText; // Update UI
                 }
             }
-        }, 1000);
+        }, 1000); // Check every second
     } else {
+        // Hide the timer if FFA is not enabled (useful if you toggle modes)
         if (gameTimerElement) {
             gameTimerElement.style.display = "none";
         }
@@ -505,10 +509,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     weaponController = new WeaponController(
         window.camera,
-        playersRef,
-        mapStateRef.child("bullets"),
+        playersRef, // Pass playersRef for damage updates
+        mapStateRef.child("bullets"), // Pass the specific bullet holes reference
         createTracer,
-        playerId,
+        playerId, // Pass local player ID for weapon actions
         physicsController
     );
     window.weaponController = weaponController;
@@ -673,14 +677,15 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             gameTimerElement.style.display = "none"; // Hide timer
         }
 
-        // Disconnect all players
+        // --- MODIFIED: Disconnect all players by iterating over snapshot keys ---
         snapshot.forEach(childSnap => {
-            disconnectPlayer(childSnap.key);
+            disconnectPlayer(childSnap.key); // Call disconnectPlayer for each player ID
         });
+        // --- END MODIFIED ---
     }
     window.determineWinnerAndEndGame = determineWinnerAndEndGame; // Make it globally accessible
 
-}
+} // End of startGame function
 
 
 export function hideGameUI() {
@@ -2375,7 +2380,7 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                                         // A more robust solution might pass it down or have a game state object.
                                         // Assuming it's already set by startGame or can be derived.
                                         // If `ffaEnabled` is a local var in startGame, you'll need to set a global flag, e.g., window.isFFAActive.
-                                        if (window.isFFAActive && newKills >= 10) {
+                                        if (window.isFFAActive && newKills >= 2) {
                                             console.log(`${window.localPlayer.username} reached 40 kills! Ending game.`);
                                             if (window.determineWinnerAndEndGame) {
                                                 window.determineWinnerAndEndGame();
