@@ -1,7 +1,5 @@
 // firebase-config.js
 
-import firebase from 'firebase/app';
-import 'firebase/database';
 
 // Configuration for your Firebase projects
 // Make sure these match your actual Firebase project configurations
