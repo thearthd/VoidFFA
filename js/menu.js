@@ -923,7 +923,7 @@ menu();
  * Clears the current menu and displays the canvas-based map selection options.
  */
 function playButtonHit(){
-    removeAll(); // Remove all existing shapes from the canvas
+   // removeAll(); // Remove all existing shapes from the canvas
     add(logo); // Re-add logo
     add(crocoPlayButton.image); // Add new play options
     add(sigmaPlayButton.image);
