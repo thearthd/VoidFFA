@@ -929,9 +929,10 @@ function playButtonHit(){
     add(crocoPlayButton.image); // Add new play options
     add(sigmaPlayButton.image);
     add(createGameButton.image);
-    // Ensure their hitboxes are also added to the clickableShapes array for interaction
-    // (This is handled by createAnimatedButton, but explicitly adding them here
-    // for clarity if they were removed by removeAll)
+
+add(createGameButton.hitbox);
+
+     
     makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
     makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
 }
