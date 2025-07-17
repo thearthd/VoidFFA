@@ -437,7 +437,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     const gameTimerElement = document.getElementById("game-timer");
 
     // Set the global FFA flag so applyDamageToRemote can access it
-    window.isFFAActive = ffaEnabled; 
+    window.isFFAActive = ffaEnabled;
 
     if (ffaEnabled) {
         console.log("FFA mode is enabled. Game will last 10 minutes.");
@@ -455,21 +455,20 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 if (gameTimerElement) {
                     gameTimerElement.textContent = "TIME UP!";
                 }
-                determineWinnerAndEndGame();
+                determineWinnerAndEndGame(); // Call the game end function
             } else {
-                const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000)); // Ensure non-negative
+                const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000));
                 const minutes = Math.floor(totalSeconds / 60);
                 const seconds = totalSeconds % 60;
                 const formattedSeconds = seconds < 10 ? `0${seconds}` : seconds;
                 const timerText = `Time: ${minutes}:${formattedSeconds}`;
-                console.log(timerText); // For console logging
+                // console.log(timerText); // Keep this for debugging if needed, but UI is primary
                 if (gameTimerElement) {
                     gameTimerElement.textContent = timerText; // Update UI
                 }
             }
         }, 1000); // Check every second
     } else {
-        // Hide the timer if FFA is not enabled (useful if you toggle modes)
         if (gameTimerElement) {
             gameTimerElement.style.display = "none";
         }
@@ -509,10 +508,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     weaponController = new WeaponController(
         window.camera,
-        playersRef, // Pass playersRef for damage updates
-        mapStateRef.child("bullets"), // Pass the specific bullet holes reference
+        playersRef,
+        mapStateRef.child("bullets"),
         createTracer,
-        playerId, // Pass local player ID for weapon actions
+        playerId,
         physicsController
     );
     window.weaponController = weaponController;
@@ -661,27 +660,37 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     // The determineWinnerAndEndGame function, declared within startGame or at global scope
     async function determineWinnerAndEndGame() {
         console.log("Determining winner and ending game...");
-        const snapshot = await playersRef.once("value");
-        let winner = { username: "No one", kills: -1 };
 
-        snapshot.forEach(childSnap => {
+        // Fetch ALL players to determine the winner and then disconnect them
+        const playersSnapshot = await playersRef.once("value");
+        let winner = { username: "No one", kills: -1 };
+        let playerIdsToDisconnect = [];
+
+        playersSnapshot.forEach(childSnap => {
             const player = childSnap.val();
-            if (player.kills > winner.kills) {
-                winner = { username: player.username, kills: player.kills };
+            // Ensure player data is valid and has kills property
+            if (player && typeof player.kills === 'number') {
+                playerIdsToDisconnect.push(childSnap.key); // Collect all player IDs
+                if (player.kills > winner.kills) {
+                    winner = { username: player.username, kills: player.kills };
+                }
             }
         });
 
+        // This console.log should now always happen before disconnections
         console.log(`The winner is ${winner.username} with ${winner.kills} kills!`);
 
         if (gameTimerElement) {
             gameTimerElement.style.display = "none"; // Hide timer
         }
 
-        // --- MODIFIED: Disconnect all players by iterating over snapshot keys ---
-        snapshot.forEach(childSnap => {
-            disconnectPlayer(childSnap.key); // Call disconnectPlayer for each player ID
+        // Disconnect all players that were found in the snapshot
+        playerIdsToDisconnect.forEach(id => {
+            disconnectPlayer(id);
         });
-        // --- END MODIFIED ---
+
+        // You might want to display a game over screen here as well,
+        // or redirect after a short delay for local player.
     }
     window.determineWinnerAndEndGame = determineWinnerAndEndGame; // Make it globally accessible
 
