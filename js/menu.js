@@ -1138,47 +1138,119 @@ async function createGameButtonHit() {
     if (!username || !username.trim()) {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
-    const { value: formValues } = await Swal.fire({ /* … your existing SweetAlert code … */ });
-    if (!formValues) return menu();
 
-    const gameData = { /* … */ };
+    const { value: formValues } = await Swal.fire({
+        title: 'Create New Game',
+        html:
+            <input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game"> +
+            '<select id="swal-input2" class="swal2-select">' +
+            '<option value="">Select Map</option>' +
+            '<option value="SigmaCity">SigmaCity</option>' +
+            '<option value="CrocodilosConstruction">CrocodilosConstruction</option>' +
+            '</select>' +
+            '<select id="swal-input3" class="swal2-select">' +
+            '<option value="FFA">FFA</option>' +
+            '</select>',
+        focusConfirm: false,
+        preConfirm: () => {
+            const gameName = document.getElementById('swal-input1').value;
+            const map      = document.getElementById('swal-input2').value;
+            const mode     = document.getElementById('swal-input3').value;
+            if (!gameName || !map || !mode) {
+                Swal.showValidationMessage(Please fill all fields);
+                return false;
+            }
+            return { gameName, map, gamemode: mode };
+        }
+    });
+
+    if (!formValues) {
+        return menu();
+    }
+
+    const gameData = {
+        gameName:  formValues.gameName,
+        map:       formValues.map,
+        gamemode:  formValues.gamemode,
+        host:      username,
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        players:   { [username]: true }
+    };
+
     try {
+        // 1) push to games list
         const newGameRef = gamesRef.push();
         await newGameRef.set(gameData);
         const gameId = newGameRef.key;
 
-        // Claim slot in the slot’s DB
+        // 2) claim a slot immediately
         const slotResult = await claimGameSlot(username, formValues.map, true);
         if (!slotResult) {
             Swal.fire('Error','No free slots available.','error');
             return menu();
         }
-
-        // <-- WRITE to your lobby’s /slots so displaySlotsPage will pick it up -->
-        await slotsRef.child(slotResult.slotName).set({
-            status:     'claimed',
-            host:       username,
-            map:        formValues.map,
-            ffaEnabled: true,
-            claimedAt:  firebase.database.ServerValue.TIMESTAMP
-        });
-
-        // store slot name back in the games index (if needed)
+        // store slot name back in the game record
         await gamesRef.child(gameId).child('slot').set(slotResult.slotName);
 
-        // Notify user & join
-        Swal.fire({ /* … */ }).then(res => {
+        // 3) notify & join
+        Swal.fire({
+            title: 'Game Created!',
+            html: Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>,
+            icon: 'success',
+            confirmButtonText: 'Join Game'
+        }).then(res => {
             if (res.isConfirmed) {
-                initAndStartGame(username, formValues.map, slotResult.slotName);
+                initAndStartGame(username, formValues.map, gameId);
             } else {
                 menu();
             }
         });
+
     } catch (error) {
         console.error("Error creating game:", error);
         Swal.fire('Error','Could not create game: ' + error.message,'error');
         menu();
     }
+}
+
+
+function displaySlotsPage(slots) {
+  clearMenuCanvas();
+  add(logo);
+  let title = new Text("Active Games", "40pt Arial");
+  title.setColor("#ffffff");
+  title.setPosition(getWidth()/2, 100);
+  add(title);
+
+  if (slots.length === 0) {
+    let none = new Text("No active games. Create one!", "30pt Arial");
+    none.setColor("#ffffff");
+    none.setPosition(getWidth()/2, getHeight()/2);
+    add(none);
+    return;
+  }
+
+  // For each claimed slot, draw a box and let click → join that slot
+  slots.forEach((slot, i) => {
+    const y = 200 + i*150;
+    let bg = createClickableRectangle(
+      getWidth()*0.1, y-50,
+      getWidth()*0.8, 100,
+      "rgba(50,50,50,0.7)",
+      () => initAndStartGame(username, slot.map, slot.slot)
+    );
+    add(bg);
+
+    let name = new Text(slot.host + "'s Game", "25pt Arial");
+    name.setColor("#55eeff");
+    name.setPosition(getWidth()*0.5, y);
+    add(name);
+
+    let details = new Text(Map: ${slot.map}, "15pt Arial");
+    details.setColor("#999999");
+    details.setPosition(getWidth()*0.5, y+30);
+    add(details);
+  });
 }
 
 /**
