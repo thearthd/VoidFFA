@@ -1074,14 +1074,6 @@ async function initAndStartGame(username, mapName, gameId = null) {
   createGameUI(gameWrapper);
   initBulletHoles(gameWrapper);
 
-  // 1) Attempt to hook into Firebase slot (passing ffaEnabled)
-  const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
-  if (!networkOk) {
-    console.warn("Network init failed—returning to menu.");
-    showMenuOverlay();
-    return;
-  }
-
   // 2) Only once the network is live do we actually start the game loop
   startGame(username, mapName, detailsEnabled, ffaEnabled, gameId);
   console.log(
