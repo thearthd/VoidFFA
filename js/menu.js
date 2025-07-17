@@ -932,6 +932,7 @@ function playButtonHit(){
 
 add(createGameButton.hitbox);
 
+     makeButton(createGameButton.hitbox, createGameButton.hitbox.onClick);
      
     makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
     makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
