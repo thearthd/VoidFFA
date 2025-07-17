@@ -1183,16 +1183,19 @@ async function createGameButtonHit() {
         await newGameRef.set(gameData);
         const gameId = newGameRef.key;
 
-        // 2) claim a slot immediately
+        // 2) try to claim a slot
         const slotResult = await claimGameSlot(username, formValues.map, true);
         if (!slotResult) {
-            Swal.fire('Error','No free slots available.','error');
+            // 🔥 Dispose of the just-created game
+            await newGameRef.remove();
+            Swal.fire('Error', 'No free slots available. Game discarded.', 'error');
             return menu();
         }
-        // store slot name back in the game record
+
+        // 3) store claimed slot
         await gamesRef.child(gameId).child('slot').set(slotResult.slotName);
 
-        // 3) notify & join
+        // 4) notify & join
         Swal.fire({
             title: 'Game Created!',
             html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>`,
@@ -1211,182 +1214,6 @@ async function createGameButtonHit() {
         Swal.fire('Error','Could not create game: ' + error.message,'error');
         menu();
     }
-}
-
-
-function displaySlotsPage(slots) {
-  clearMenuCanvas();
-  add(logo);
-  let title = new Text("Active Games", "40pt Arial");
-  title.setColor("#ffffff");
-  title.setPosition(getWidth()/2, 100);
-  add(title);
-
-  if (slots.length === 0) {
-    let none = new Text("No active games. Create one!", "30pt Arial");
-    none.setColor("#ffffff");
-    none.setPosition(getWidth()/2, getHeight()/2);
-    add(none);
-    return;
-  }
-
-  // For each claimed slot, draw a box and let click → join that slot
-  slots.forEach((slot, i) => {
-    const y = 200 + i*150;
-    let bg = createClickableRectangle(
-      getWidth()*0.1, y-50,
-      getWidth()*0.8, 100,
-      "rgba(50,50,50,0.7)",
-      () => initAndStartGame(username, slot.map, slot.slot)
-    );
-    add(bg);
-
-    let name = new Text(slot.host + "'s Game", "25pt Arial");
-    name.setColor("#55eeff");
-    name.setPosition(getWidth()*0.5, y);
-    add(name);
-
-    let details = new Text(`Map: ${slot.map}`, "15pt Arial");
-    details.setColor("#999999");
-    details.setPosition(getWidth()*0.5, y+30);
-    add(details);
-  });
-}
-
-/**
- * Fetches games from Firebase and displays them.
- */
-async function gamesButtonHit() {
-    clearMenuCanvas();
-    add(logo);
-
-    let loadingText = new Text("Loading games...", "30pt Arial");
-    loadingText.setColor("#ffffff");
-    loadingText.setPosition(getWidth() / 2, getHeight() / 2);
-    add(loadingText);
-    currentMenuObjects.push(loadingText);
-
-    try {
-        // Fetch the slots index rather than gamesRef
-        const snapshot = await slotsRef.once('value');
-        const slotsObj = snapshot.val() || {};
-
-        // Build a list of all claimed slots
-        const activeSlots = Object.entries(slotsObj)
-            .filter(([slotName, info]) => info.status === "claimed")
-            .map(([slotName, info]) => ({
-                slot: slotName,
-                host: info.host,
-                map:  info.map,
-                claimedAt: info.claimedAt
-            }))
-            .sort((a, b) => b.claimedAt - a.claimedAt);
-
-        remove(loadingText);
-
-        if (activeSlots.length === 0) {
-            let none = new Text("No active games available. Create one!", "30pt Arial");
-            none.setColor("#ffffff");
-            none.setPosition(getWidth() / 2, getHeight() / 2);
-            add(none);
-            currentMenuObjects.push(none);
-            addBackButton();
-            return;
-        }
-
-        // Display each slot as a clickable entry
-        const GAMES_PER_PAGE = 4;
-        const startIndex = currentPage * GAMES_PER_PAGE;
-        const pageSlots = activeSlots.slice(startIndex, startIndex + GAMES_PER_PAGE);
-
-        let yStart = 200;
-        const entryHeight = 150;
-
-        for (let i = 0; i < pageSlots.length; i++) {
-            const slotInfo = pageSlots[i];
-            const y = yStart + i * entryHeight;
-
-            // Background hitbox
-            let gameBg = createClickableRectangle(
-                getWidth() * 0.1,
-                y - 50,
-                getWidth() * 0.8,
-                100,
-                "rgba(50,50,50,0.7)",
-                () => {
-                    console.log(`Joining slot ${slotInfo.slot} on map ${slotInfo.map}`);
-                    initAndStartGame(username, slotInfo.map, slotInfo.slot);
-                }
-            );
-            add(gameBg);
-            currentMenuObjects.push(gameBg);
-
-            // Host/Game name
-            let titleText = new Text(`${slotInfo.host}'s Game`, "25pt Arial");
-            titleText.setColor("#55eeff");
-            titleText.setPosition(getWidth() * 0.5, y);
-            add(titleText);
-            currentMenuObjects.push(titleText);
-
-            // Map details
-            let detailsText = new Text(`Map: ${slotInfo.map}`, "15pt Arial");
-            detailsText.setColor("#999999");
-            detailsText.setPosition(getWidth() * 0.5, y + 30);
-            add(detailsText);
-            currentMenuObjects.push(detailsText);
-        }
-
-        // Pagination
-        const maxPages = Math.ceil(activeSlots.length / GAMES_PER_PAGE);
-        const paginationY = getHeight() - 100;
-
-        if (currentPage > 0) {
-            let leftArrow = createAndAddButton(
-                "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d",
-                getWidth() / 2 - 150, paginationY,
-                70, 70,
-                () => { currentPage--; gamesButtonHit(); },
-                ""
-            );
-            leftArrow.image.setLayer(4);
-            leftArrow.hitbox.setLayer(16);
-            currentMenuObjects.push(leftArrow.image, leftArrow.hitbox);
-        }
-
-        if (currentPage < maxPages - 1) {
-            let rightArrow = createAndAddButton(
-                "https://codehs.com/uploads/1bb4c45ae81aae1da5cebb8bb0713748",
-                getWidth() / 2 + 80, paginationY,
-                70, 70,
-                () => { currentPage++; gamesButtonHit(); },
-                ""
-            );
-            rightArrow.image.setLayer(4);
-            rightArrow.hitbox.setLayer(16);
-            currentMenuObjects.push(rightArrow.image, rightArrow.hitbox);
-        }
-
-        if (maxPages > 0) {
-            let pageText = new Text(`Page ${currentPage + 1} of ${maxPages}`, "20pt Arial");
-            pageText.setColor("#ffffff");
-            pageText.setPosition(getWidth() / 2, paginationY + 15);
-            add(pageText);
-            currentMenuObjects.push(pageText);
-        }
-
-        addBackButton();
-
-    } catch (error) {
-        console.error("Error fetching slots:", error);
-        remove(loadingText);
-        let errorText = new Text("Error loading games: " + error.message, "20pt Arial");
-        errorText.setColor("#ff0000");
-        errorText.setPosition(getWidth() / 2, getHeight() / 2);
-        add(errorText);
-        currentMenuObjects.push(errorText);
-        addBackButton();
-    }
-     displaySlotsPage(slots);
 }
 
 /**
