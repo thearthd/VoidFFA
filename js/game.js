@@ -114,6 +114,13 @@ let killsRef = null;
 let mapStateRef = null;
 let gameConfigRef  = null;    // ← add this
 
+
+let gameEndTime   = null;   // will be fetched from gameConfigRef
+let gameInterval  = null;   // ID returned by setInterval()
+
+
+
+
 export function initGlobalFogAndShadowParams() {
 
   window.originalFogParams = {
@@ -510,89 +517,80 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-    console.log("starting game:", gameId);
-    detailsEnabled = initialDetailsEnabled;
-    window.isFFAActive = ffaEnabled;
-
-    // Grab the timer element
-    const gameTimerElement = document.getElementById("game-timer");
-
-  const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
-  if (!networkOk) {
-    console.warn("Network init failed.");
-    return;
-  }
-  playersRef    = dbRefs.playersRef;
-  chatRef       = dbRefs.chatRef;
-  killsRef      = dbRefs.killsRef;
-  mapStateRef   = dbRefs.mapStateRef;
-  gameConfigRef = dbRefs.gameConfigRef;
-    
-    // Ensure our per‑slot refs exist
-    if (!dbRefs || !dbRefs.playersRef || !dbRefs.mapStateRef || !dbRefs.gameConfigRef) {
-        console.error("Missing Firebase refs after initNetwork. Aborting startGame.");
+    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
+    if (!networkOk) {
+        console.warn("Network init failed.");
         return;
     }
 
-    // 2) FFA timer & kill‑threshold logic
-    if (ffaEnabled) {
-        console.log("FFA mode: syncing timer from Firebase");
+    playersRef    = dbRefs.playersRef;
+    gameConfigRef = dbRefs.gameConfigRef;
 
-        // Listen for (or set) gameEndTime in the per‑slot gameConfig node
-        gameConfigRef.child("gameEndTime").on("value", snap => {
-            const t = snap.val();
-            if (t) {
+    const gameTimerElement = document.getElementById("game-timer");
+    if (ffaEnabled) {
+        gameTimerElement.style.display = "block";
+
+        // 1) Listen for (or set) the end timestamp in Firebase
+        gameConfigRef.child("gameEndTime").on("value", snapshot => {
+            const t = snapshot.val();
+            if (typeof t === "number") {
                 gameEndTime = t;
-                console.log("Fetched gameEndTime:", new Date(t));
-            } else if (gameEndTime === null) {
-                gameEndTime = Date.now() + 10*60*1000; // 10m
+            } else {
+                gameEndTime = Date.now() + 10 * 60 * 1000;  // 10 minutes
                 gameConfigRef.child("gameEndTime").set(gameEndTime);
-                console.log("Set new gameEndTime:", new Date(gameEndTime));
             }
         });
 
-        gameTimerElement.style.display = "block";
+        // 2) Clear any existing interval before starting a new one
+        if (gameInterval) {
+            clearInterval(gameInterval);
+        }
 
-        if (gameInterval) clearInterval(gameInterval);
+        // 3) Start a per-second countdown based on the synced timestamp
         gameInterval = setInterval(() => {
             if (gameEndTime === null) {
                 gameTimerElement.textContent = "Time: Syncing…";
                 return;
             }
-            const left = gameEndTime - Date.now();
-            if (left <= 0) {
+            const timeLeftMs = gameEndTime - Date.now();
+            if (timeLeftMs <= 0) {
                 clearInterval(gameInterval);
                 gameTimerElement.textContent = "TIME UP!";
                 determineWinnerAndEndGame();
                 gameConfigRef.child("gameEndTime").remove();
-            } else {
-                const secs = Math.floor(left/1000);
-                const mins = Math.floor(secs/60);
-                const rem = secs%60;
-                gameTimerElement.textContent = `Time: ${mins}:${rem<10?"0":""}${rem}`;
+                return;
             }
+            const totalSecs = Math.floor(timeLeftMs / 1000);
+            const mins = Math.floor(totalSecs / 60);
+            const secs = totalSecs % 60;
+            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
         }, 1000);
 
-        // Kill‑threshold listener (e.g. first to 2 kills)
-        if (playersKillsListener) playersRef.off("value", playersKillsListener);
-        playersKillsListener = playersRef.on("value", snap => {
-            let ended = false;
-            snap.forEach(ch => {
-                const p = ch.val();
-                if (p.kills >= 2) ended = true;
+        // 4) Optional: first-to-X-kills listener
+        if (playersKillsListener) {
+            playersRef.off("value", playersKillsListener);
+        }
+        playersKillsListener = playersRef.on("value", snapshot => {
+            let reachedThreshold = false;
+            snapshot.forEach(childSnap => {
+                const player = childSnap.val();
+                if (player.kills >= 2) {
+                    reachedThreshold = true;
+                }
             });
-            if (ended) {
+            if (reachedThreshold) {
                 playersRef.off("value", playersKillsListener);
+                clearInterval(gameInterval);
                 determineWinnerAndEndGame();
                 gameConfigRef.child("gameEndTime").remove();
             }
         });
 
     } else {
-        // Non‑FFA cleanup
         gameTimerElement.style.display = "none";
-        if (gameInterval) clearInterval(gameInterval);
-        if (playersKillsListener) playersRef.off("value", playersKillsListener);
+        if (gameInterval) {
+            clearInterval(gameInterval);
+        }
         gameConfigRef.child("gameEndTime").remove();
     }
 
