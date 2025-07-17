@@ -598,18 +598,18 @@ activeGameId = gameId;
 
 // --- Listener Setup Functions ---
 export async function fullCleanup(gameId) {
-  // 1) your old cleanup
+  // 1) detach listeners, remove players, etc.
   await endGameCleanup();
-  // 2) release slot & lobby entry
-  if (activeGameSlotName) {
-    await releaseGameSlot(activeGameSlotName);
-  }
-  if (gamesRef && gameId) {
-    await gamesRef.child(gameId).remove();
-  }
-  // 3) wipe per‑slot branches
+
+  // 2) get your slot‑specific root
   const slotApp = firebase.app(activeGameSlotName + "App");
   const rootRef = slotApp.database().ref();
+
+  // 3) remove the slot’s own "game" metadata
+  await rootRef.child("game").remove();
+  console.log("[fullCleanup] Removed /game node in slot DB.");
+
+  // 4) clear every other branch
   await Promise.all([
     rootRef.child("players").remove(),
     rootRef.child("chat").remove(),
@@ -619,15 +619,30 @@ export async function fullCleanup(gameId) {
     rootRef.child("sounds").remove(),
     rootRef.child("gameConfig").remove(),
   ]);
-  // 4) dispose Three.js
+  console.log("[fullCleanup] Cleared players, chat, kills, mapState, tracers, sounds, gameConfig.");
+
+  // 5) free up the slot (updates slotsRef and also calls .remove() on /game again just in case)
+  await releaseGameSlot(activeGameSlotName);
+
+  // 6) delete the lobby entry under gamesRef/{gameId}
+  if (gamesRef && gameId) {
+    await gamesRef.child(gameId).remove();
+    activeGameId = null;
+    console.log(`[fullCleanup] Removed lobby entry gamesRef/${gameId}`);
+  }
+
+  // 7) dispose Three.js scene
   if (window.scene) {
     disposeThreeScene(window.scene);
     window.scene = null;
   }
-  if (window.camera) window.camera = null;
-  console.log("[network.js] Full cleanup done for game", gameId);
-}
+  if (window.camera) {
+    window.camera = null;
+  }
+  console.log("[fullCleanup] Fully cleaned up Three.js and Firebase slot");
 
+  return true;
+}
 
 function setupPlayersListener(playersRef) {
     // Detach previous listeners before attaching new ones
