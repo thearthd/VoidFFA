@@ -1168,7 +1168,6 @@ async function createGameButtonHit() {
 async function gamesButtonHit() {
     clearMenuCanvas();
     add(logo);
-     displayGamesPage(page);
     let loadingText = new Text("Loading games...", "30pt Arial");
     loadingText.setColor("#ffffff");
     loadingText.setPosition(getWidth() / 2, getHeight() / 2);
@@ -1296,114 +1295,6 @@ async function gamesButtonHit() {
         addBackButton();
     }
 }
-
-/**
- * Displays a specific page of games.
- */
-function displayGamesPage(page) {
-    clearMenuCanvas(); // Clear existing game elements and pagination buttons
-    // add(background); // REMOVED BACKGROUND
-    add(logo);
-
-    addBackButton(); // Always add back button
-
-    const startIndex = page * GAMES_PER_PAGE;
-    const endIndex = Math.min(startIndex + GAMES_PER_PAGE, allGames.length);
-    const gamesToDisplay = allGames.slice(startIndex, endIndex);
-
-    let yStart = 200; // Starting Y position for the first game entry
-    const gameEntryHeight = 150; // Height allocated for each game entry including spacing
-
-    if (gamesToDisplay.length === 0) {
-        let noGamesText = new Text("No active games available. Create one!", "30pt Arial");
-        noGamesText.setColor("#ffffff");
-        noGamesText.setPosition(getWidth() / 2, getHeight() / 2);
-        add(noGamesText);
-        currentMenuObjects.push(noGamesText);
-    } else {
-        for (let i = 0; i < gamesToDisplay.length; i++) {
-          const game = gamesToDisplay[i];
-          const slotName = game.slot;  // ← your newly‑written slot
-          
-          let gameBg = createClickableRectangle(
-              getWidth()*0.1,
-              displayY-50,
-              getWidth()*0.8,
-              100,
-              "rgba(50,50,50,0.7)",
-              () => {
-                  console.log(`Joining slot ${slotName} for game ${game.id}`);
-                  initAndStartGame(username, game.map, game.id);
-              }
-          );
-            add(gameBg);
-            currentMenuObjects.push(gameBg);
-
-            // Game Name
-            let gameNameText = new Text(game.gameName, "25pt Arial");
-            gameNameText.setColor("#55eeff");
-            gameNameText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 2, displayY); // Centered within the box
-            gameNameText.setLayer(4);
-            add(gameNameText);
-            currentMenuObjects.push(gameNameText);
-
-            // Map and Mode
-            let detailsText = new Text(`Map: ${game.map} | Mode: ${game.gamemode} | Host: ${game.host}`, "15pt Arial");
-            detailsText.setColor("#999999");
-            detailsText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 2, displayY + 30); // Centered within the box
-            detailsText.setLayer(4);
-            add(detailsText);
-            currentMenuObjects.push(detailsText);
-        }
-    }
-
-    // Pagination controls
-    let maxPages = Math.ceil(allGames.length / GAMES_PER_PAGE);
-    const paginationY = getHeight() - 100;
-
-    if (currentPage > 0) {
-        let leftArrow = createAndAddButton(
-            "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d",
-            getWidth() / 2 - 150, paginationY,
-            70, 70, // Size for arrow buttons
-            () => {
-                currentPage--;
-                displayGamesPage(currentPage);
-            },
-            "" // No text on arrow buttons
-        );
-        leftArrow.image.setLayer(4); // Ensure arrows are visible
-        leftArrow.hitbox.setLayer(16);
-        currentMenuObjects.push(leftArrow.image, leftArrow.hitbox);
-    }
-
-    // Conditional for right arrow (shows if more pages exist OR if there's exactly 1 game and GAMES_PER_PAGE is 1)
-    if (currentPage < maxPages - 1 || (allGames.length > 0 && GAMES_PER_PAGE === 1 && currentPage === 0 && allGames.length > 1)) {
-        let rightArrow = createAndAddButton(
-            "https://codehs.com/uploads/1bb4c45ae81aae1da5cebb8bb0713748", // Corrected link based on common CodeHS patterns
-            getWidth() / 2 + 80, paginationY,
-            70, 70, // Size for arrow buttons
-            () => {
-                currentPage++;
-                displayGamesPage(currentPage);
-            },
-            "" // No text on arrow buttons
-        );
-        rightArrow.image.setLayer(4); // Ensure arrows are visible
-        rightArrow.hitbox.setLayer(16);
-        currentMenuObjects.push(rightArrow.image, rightArrow.hitbox);
-    }
-
-    // Page number text
-    if (maxPages > 0) {
-        let pageText = new Text(`Page ${currentPage + 1} of ${maxPages}`, "20pt Arial");
-        pageText.setColor("#ffffff");
-        pageText.setPosition(getWidth() / 2, paginationY + 15);
-        add(pageText);
-        currentMenuObjects.push(pageText);
-    }
-}
-
 /**
  * Adds a "Back to Menu" button to the current screen.
  */
