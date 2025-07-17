@@ -434,30 +434,28 @@ export async function endGameCleanup() {
  * @param {boolean} ffaEnabled - True if FFA mode is enabled, false otherwise.
  * @returns {Promise<boolean>} True if network initialization was successful, false otherwise.
  */
-export async function initNetwork(username, mapName, ffaEnabled) {
-    console.log("[network.js] Initializing network for user:", username, "map:", mapName, "FFA:", ffaEnabled);
+export async function initNetwork(username, mapName, gameId) {
+    console.log("[network.js] initNetwork for", username, mapName, gameId);
+    await endGameCleanup();
 
-    // Call cleanup at the very beginning to ensure no old listeners or state linger
-    await endGameCleanup(); // Use await to ensure cleanup finishes before new init
-
-    // Claim a game slot, passing username and ffaEnabled
-    const claimedSlot = await claimGameSlot(username, mapName, ffaEnabled);
-
-    if (!claimedSlot) {
-        console.error("[network.js] Failed to claim a game slot. Cannot start game.");
-        Swal.fire({
-            icon: 'error',
-            title: 'Game Full!',
-            text: 'All game slots are currently occupied. Please try again later.'
-        }).then(() => {
-            window.location.reload(); // Simple reload to get back to menu
-        });
-        return false; // Indicate failure to start game
+    // 1) look up slotName from the game entry
+    const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
+    const slotName = slotSnap.val();
+    if (!slotName) {
+        Swal.fire('Error','No slot associated with that game ID.','error');
+        return false;
     }
 
-    activeGameSlotName = claimedSlot.slotName;
-    dbRefs = claimedSlot.dbRefs; // Set the global dbRefs for the *claimed* game slot
-    setUIDbRefs(dbRefs); // Pass the new dbRefs to UI module
+    // 2) claim that same slot (idempotent)
+    const claimed = await claimGameSlot(username, mapName, window.isFFAActive);
+    if (!claimed || claimed.slotName !== slotName) {
+        Swal.fire('Error','Could not claim slot.','error');
+        return false;
+    }
+
+    activeGameSlotName = slotName;
+    dbRefs            = claimed.dbRefs;
+    setUIDbRefs(dbRefs);
 
     // --- CONSOLE LOG ADDED HERE ---
     if (dbRefs.playersRef && dbRefs.playersRef.database && dbRefs.playersRef.database.app_ && dbRefs.playersRef.database.app_.options) {
