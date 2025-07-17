@@ -19,6 +19,7 @@ horse power
 // If not, you may need to explicitly define it here using `firebase.app("menuApp").database().ref("games")`
 // provided `firebase` SDK is loaded.
 // f
+// f
 // If `gamesRef` is not automatically global, uncomment and use this (requires Firebase SDK loaded):
 // const gamesRef = firebase.app("menuApp").database().ref("games");
 
