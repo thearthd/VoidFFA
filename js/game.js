@@ -535,7 +535,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             let gameEndedByKillThreshold = false;
             snapshot.forEach(childSnap => {
                 const player = childSnap.val();
-                if (player && typeof player.kills === 'number' && player.kills >= 40) {
+                if (player && typeof player.kills === 'number' && player.kills >= 2) {
                     console.log(`Firebase: Player ${player.username} reached 40 kills! Triggering game end.`);
                     gameEndedByKillThreshold = true;
                 }
