@@ -598,18 +598,18 @@ activeGameId = gameId;
 
 // --- Listener Setup Functions ---
 export async function fullCleanup(gameId) {
-  // 1) detach listeners, remove players, etc.
+  // 1) detach listeners & local‑player cleanup
   await endGameCleanup();
 
-  // 2) get your slot‑specific root
+  // 2) slot‑DB root
   const slotApp = firebase.app(activeGameSlotName + "App");
   const rootRef = slotApp.database().ref();
 
-  // 3) remove the slot’s own "game" metadata
+  // 3) delete the slot’s own “game” metadata
   await rootRef.child("game").remove();
-  console.log("[fullCleanup] Removed /game node in slot DB.");
+  console.log("[fullCleanup] /game node removed in slot DB.");
 
-  // 4) clear every other branch
+  // 4) delete every other per‑slot branch
   await Promise.all([
     rootRef.child("players").remove(),
     rootRef.child("chat").remove(),
@@ -619,19 +619,20 @@ export async function fullCleanup(gameId) {
     rootRef.child("sounds").remove(),
     rootRef.child("gameConfig").remove(),
   ]);
-  console.log("[fullCleanup] Cleared players, chat, kills, mapState, tracers, sounds, gameConfig.");
+  console.log("[fullCleanup] Cleared all per‑slot data branches.");
 
-  // 5) free up the slot (updates slotsRef and also calls .remove() on /game again just in case)
-  await releaseGameSlot(activeGameSlotName);
-
-  // 6) delete the lobby entry under gamesRef/{gameId}
+  // 5) **remove the lobby entry while activeGameId is still set**
   if (gamesRef && gameId) {
     await gamesRef.child(gameId).remove();
-    activeGameId = null;
     console.log(`[fullCleanup] Removed lobby entry gamesRef/${gameId}`);
+    // don’t null out activeGameId just yet in case releaseGameSlot needs it
   }
 
-  // 7) dispose Three.js scene
+  // 6) mark slot free and clear slot DB (this will also remove /game again, but that's OK)
+  await releaseGameSlot(activeGameSlotName);
+  console.log(`[fullCleanup] releaseGameSlot(${activeGameSlotName}) complete.`);
+
+  // 7) finally, tear down Three.js
   if (window.scene) {
     disposeThreeScene(window.scene);
     window.scene = null;
@@ -639,7 +640,10 @@ export async function fullCleanup(gameId) {
   if (window.camera) {
     window.camera = null;
   }
-  console.log("[fullCleanup] Fully cleaned up Three.js and Firebase slot");
+  console.log("[fullCleanup] Three.js scene disposed.");
+
+  // 8) now safe to clear our in‑memory pointer
+  activeGameId = null;
 
   return true;
 }
