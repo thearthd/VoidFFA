@@ -928,12 +928,12 @@ function playButtonHit(){
     add(logo); // Re-add logo
     add(crocoPlayButton.image); // Add new play options
     add(sigmaPlayButton.image);
-    add(createGameButton.image);
+  //  add(createGameButton.image);
 
      
     makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
     makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
-    makeButton(createGameButton.hitbox, createGameButton.hitbox.onClick); // Assuming createGameButton exists
+   // makeButton(createGameButton.hitbox, createGameButton.hitbox.onClick); // Assuming createGameButton exists
     makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
 }
 
