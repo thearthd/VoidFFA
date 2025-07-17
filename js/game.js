@@ -15,7 +15,7 @@ import { createSigmaCity } from "./map.js";
 import { createCrocodilosConstruction } from "./map.js";
 
 import { initNetwork, sendPlayerUpdate, localPlayerId, remotePlayers, updateHealth, updateShield, initializeAudioManager, startSoundListener, disconnectPlayer } from "./network.js";
-import { getDbRefs } from "./firebase-config.js";
+import { dbRefs } from './firebase-config.js';
 import { initMenuUI } from "./menu.js";
 import {
 initChatUI,
