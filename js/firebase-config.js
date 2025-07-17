@@ -1,11 +1,5 @@
 // firebase-config.js
 
-// Ensure Firebase is loaded before this script, e.g., via <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-// and <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-// and SweetAlert2: <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-import firebase from "firebase/app"; // Ensure you're importing firebase
-import "firebase/database"; // Ensure you're importing database module
 
 const gameDatabaseConfigs = {
     gameSlot1: { // Use generic names for slots
