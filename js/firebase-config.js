@@ -46,17 +46,20 @@ let menuApp = null;
 let gamesRef = null; // Reference to the games node in the menu database
 
 try {
-    menuApp = firebase.initializeApp(menuConfig, "menuApp");
+    // Attempt to get an already initialized app instance named "menuApp"
+    menuApp = firebase.app("menuApp");
     gamesRef = menuApp.database().ref("games");
+    console.log("Menu Firebase app 'menuApp' already initialized.");
 } catch (e) {
-    console.warn("Menu Firebase app already initialized or error:", e);
-    // If the app is already initialized, get it
-    if (!menuApp) {
-        menuApp = firebase.app("menuApp");
+    // If "menuApp" is not found, initialize it
+    if (e.code === 'app/no-app') {
+        console.log("Menu Firebase app 'menuApp' not found, initializing...");
+        menuApp = firebase.initializeApp(menuConfig, "menuApp");
         gamesRef = menuApp.database().ref("games");
+    } else {
+        console.error("Error with menu Firebase app:", e);
     }
 }
-
 
 /**
  * Initialize (or return) a compat App + Database for the given mapName.
@@ -67,17 +70,35 @@ export function getDbRefs(mapName) {
         throw new Error(`Unknown mapName: ${mapName}`);
     }
     if (!apps[mapName]) {
-        // initializeApp returns firebase.app.App
-        const app = firebase.initializeApp(configs[mapName], mapName);
-        const database = app.database();
-        apps[mapName] = {
-            playersRef: database.ref("players/"),
-            chatRef: database.ref("chat/"),
-            mapStateRef: database.ref("mapState/"),
-            killsRef: database.ref("kills/"),
-            tracersRef: database.ref("tracers/"),
-            soundsRef: database.ref("sounds/")
-        };
+        try {
+            const app = firebase.app(mapName); // Try to get existing app
+            const database = app.database();
+            apps[mapName] = {
+                playersRef: database.ref("players/"),
+                chatRef:    database.ref("chat/"),
+                mapStateRef:database.ref("mapState/"),
+                killsRef:   database.ref("kills/"),
+                tracersRef: database.ref("tracers/"),
+                soundsRef:  database.ref("sounds/")
+            };
+            console.log(`Map Firebase app '${mapName}' already initialized.`);
+        } catch (e) {
+            if (e.code === 'app/no-app') {
+                console.log(`Map Firebase app '${mapName}' not found, initializing...`);
+                const app = firebase.initializeApp(configs[mapName], mapName);
+                const database = app.database();
+                apps[mapName] = {
+                    playersRef: database.ref("players/"),
+                    chatRef:    database.ref("chat/"),
+                    mapStateRef:database.ref("mapState/"),
+                    killsRef:   database.ref("kills/"),
+                    tracersRef: database.ref("tracers/"),
+                    soundsRef:  database.ref("sounds/")
+                };
+            } else {
+                console.error(`Error with map Firebase app '${mapName}':`, e);
+            }
+        }
     }
     return apps[mapName];
 }
