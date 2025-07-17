@@ -517,7 +517,11 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     // Grab the timer element
     const gameTimerElement = document.getElementById("game-timer");
 
-
+  const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
+  if (!networkOk) {
+    console.warn("Network init failed.");
+    return;
+  }
     // Ensure our per‑slot refs exist
     if (!dbRefs || !dbRefs.playersRef || !dbRefs.mapStateRef || !dbRefs.gameConfigRef) {
         console.error("Missing Firebase refs after initNetwork. Aborting startGame.");
