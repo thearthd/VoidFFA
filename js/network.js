@@ -703,16 +703,31 @@ function setupPlayersListener(playersRef) {
     playersRef.on("child_added", (snap) => {
         const data = snap.val();
         const id = data.id;
-        console.log("child_added fired for:", id);
-        if (id === localPlayerId) return;
+        console.log(`[playersRef:child_added] Event for player ID: ${id}`);
+
+        if (id === localPlayerId) {
+            console.log(`[playersRef:child_added] Skipping local player ${id}.`);
+            return;
+        }
 
         if (permanentlyRemoved.has(id)) {
             permanentlyRemoved.delete(id); // Player re-joined
-            console.log(`[permanentlyRemoved] Clearing permanent removal for ${id} — they rejoined`);
+            console.log(`[permanentlyRemoved] Player ${id} re-joined, clearing from permanent removal list.`);
         }
 
-        if (remotePlayers[id] || !data.username) return; // Already exists or incomplete data
+        // Explicit check to prevent adding a player model if it's already in our local cache
+        if (remotePlayers[id]) {
+            console.warn(`[playersRef:child_added] Player ${id} already exists in remotePlayers. Skipping model creation.`);
+            return;
+        }
 
+        // Check for essential data before adding the player model
+        if (!data.username) {
+            console.warn(`[playersRef:child_added] Player ${id} has incomplete data (missing username). Skipping model creation.`);
+            return;
+        }
+
+        // If all checks pass, add the remote player model
         addRemotePlayer(data);
     });
 
@@ -757,7 +772,7 @@ function setupPlayersListener(playersRef) {
             console.warn("Local player removed from Firebase. Handling disconnection.");
             localStorage.removeItem(`playerId-${activeGameSlotName}`); // Clear slot-specific ID
             localPlayerId = null; // Ensure game loop knows to stop
-           // location.reload(); // Simple reload for now to go back to initial state
+            // location.reload(); // Simple reload for now to go back to initial state
             return;
         }
         permanentlyRemoved.add(id);
