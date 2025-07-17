@@ -2375,7 +2375,7 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                                         // A more robust solution might pass it down or have a game state object.
                                         // Assuming it's already set by startGame or can be derived.
                                         // If `ffaEnabled` is a local var in startGame, you'll need to set a global flag, e.g., window.isFFAActive.
-                                        if (window.isFFAActive && newKills >= 40) {
+                                        if (window.isFFAActive && newKills >= 10) {
                                             console.log(`${window.localPlayer.username} reached 40 kills! Ending game.`);
                                             if (window.determineWinnerAndEndGame) {
                                                 window.determineWinnerAndEndGame();
