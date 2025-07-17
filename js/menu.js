@@ -1116,14 +1116,15 @@ async function createGameButtonHit() {
         return menu();
     }
 
-    const gameData = {
-        gameName:  formValues.gameName,
-        map:       formValues.map,
-        gamemode:  formValues.gamemode,
-        host:      username,
-        createdAt: firebase.database.ServerValue.TIMESTAMP,
-        players:   { [username]: true }
-    };
+const gameData = {
+  gameName:  formValues.gameName,
+  map:       formValues.map,
+  gamemode:  formValues.gamemode,
+  host:      username,
+  createdAt: firebase.database.ServerValue.TIMESTAMP,
+  status:    "waiting",          // ← add this
+  players:   { [username]: true }
+};
 
     try {
         // 1) push to games list
