@@ -55,6 +55,8 @@ let localPlayer = null;
 let physicsController;
 let weaponController;
 let spawnPoints = [];
+let skyMesh, starField;
+let 
 
 const KILLSTREAK_SOUNDS = {
 1:  'https://codehs.com/uploads/5626b4ea9d389c0936a1971b1f3a6beb',
