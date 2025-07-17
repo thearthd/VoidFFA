@@ -1058,6 +1058,7 @@ async function initAndStartGame(username, mapName, gameId = null) {
     // If it failed (slot not found, claim failed, etc.), go back to menu
     console.warn("Network init failed—returning to menu.");
     menu();
+     return;
   }
 
   // 2) Only once the network is live do we actually start the game loop
