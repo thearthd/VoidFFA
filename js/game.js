@@ -211,7 +211,12 @@ bloomPass = null;
 async function determineWinnerAndEndGame() {
     console.log("Determining winner and ending game...");
 
-    // Fetch ALL players to determine the winner and then disconnect them
+    // Check if playersRef is null before using it, although it should be set by now
+    if (!playersRef) {
+        console.error("determineWinnerAndEndGame: playersRef is NULL, cannot determine winner.");
+        return;
+    }
+
     const playersSnapshot = await playersRef.once("value");
     let winner = { username: "No one", kills: -1 };
     let playerIdsToDisconnect = [];
@@ -230,25 +235,19 @@ async function determineWinnerAndEndGame() {
 
     const gameTimerElement = document.getElementById("game-timer");
     if (gameTimerElement) {
-        gameTimerElement.textContent = `WINNER: ${winner.username}`; // Show winner
-        gameTimerElement.style.display = "block"; // Ensure it's visible
-        // Optionally, hide after a delay or in a separate game over screen
+        gameTimerElement.textContent = `WINNER: ${winner.username}`;
+        gameTimerElement.style.display = "block";
     }
 
-    // Immediately stop listening for kill updates when game ends
     if (playersKillsListener) {
         playersRef.off("value", playersKillsListener);
         playersKillsListener = null;
         console.log("Detached players kill listener.");
     }
 
-    // Disconnect all players that were found in the snapshot
     playerIdsToDisconnect.forEach(id => {
         disconnectPlayer(id);
     });
-
-    // You might want to display a game over screen here as well,
-    // or redirect after a short delay for local player.
 }
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 
@@ -481,22 +480,22 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     window.isFFAActive = ffaEnabled;
 
-    // --- IMPORTANT CHANGE HERE ---
-    // Ensure playersRef is initialized BEFORE you try to use it.
-    // The initGameNetwork function should either:
-    // 1. Return the initialized 'playersRef'
-    // 2. Set the global 'playersRef' variable *before* this point.
-    // I'm assuming 'initGameNetwork' is where your Firebase setup happens.
-    // If it's a separate file, make sure to import 'playersRef' from it.
+    // --- CRITICAL FIX: Ensure Firebase references are initialized before use ---
+    // This assumes initGameNetwork populates the global playersRef and mapStateRef variables.
+    // If it returns them, you'd assign them here:
+    // const { initializedPlayersRef, initializedMapStateRef } = await initGameNetwork(...);
+    // playersRef = initializedPlayersRef;
+    // mapStateRef = initializedMapStateRef;
     await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
 
-    // Now, AFTER initGameNetwork has completed (and thus playersRef should be set),
-    // we can proceed to use playersRef.
-    // Add a check to be safe:
     if (!playersRef) {
-        console.error("Critical Error: playersRef is not initialized after initGameNetwork.");
-        return; // Cannot proceed without Firebase reference
+        console.error("CRITICAL ERROR: playersRef is still null after initGameNetwork! Cannot proceed.");
+        return;
+    } else {
+        console.log("playersRef is successfully initialized:", playersRef.toString());
     }
+    // --- END CRITICAL FIX ---
+
 
     if (ffaEnabled) {
         console.log("FFA mode is enabled. Game will last 10 minutes.");
@@ -527,16 +526,16 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             }
         }, 1000);
 
-        // This is the line that was causing the error at 515:43
-        // It should now be safe because playersRef is guaranteed to be initialized.
+        // This is the Firebase listener that checks for kill threshold
         playersKillsListener = playersRef.on("value", (snapshot) => {
             if (!window.isFFAActive) return;
 
             let gameEndedByKillThreshold = false;
             snapshot.forEach(childSnap => {
                 const player = childSnap.val();
+                // Kill threshold set to >= 2 for testing
                 if (player && typeof player.kills === 'number' && player.kills >= 2) {
-                    console.log(`Firebase: Player ${player.username} reached 40 kills! Triggering game end.`);
+                    console.log(`Firebase Listener: Player ${player.username} reached ${player.kills} kills (threshold: 2)! Triggering game end.`);
                     gameEndedByKillThreshold = true;
                 }
             });
@@ -568,8 +567,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     console.log("starting3");
     console.log(username, mapName, initialDetailsEnabled);
-    await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
-    console.log("starting31");
 
     let playerId = localStorage.getItem("playerId");
     console.log("starting32");
@@ -579,7 +576,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         localStorage.setItem("playerId", playerId);
         console.log("starting34");
     } else if (!playerId && !playersRef) {
-        console.error("Critical Error: playersRef is null after initGameNetwork. Cannot generate playerId.");
+        console.error("Critical Error: playersRef is null (after presumed init). Cannot generate playerId.");
         return;
     }
 
@@ -590,8 +587,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     weaponController = new WeaponController(
         window.camera,
-        playersRef,
-        mapStateRef.child("bullets"),
+        playersRef, // Ensure playersRef is passed here if needed, or globally accessible
+        mapStateRef.child("bullets"), // Ensure mapStateRef is also initialized
         createTracer,
         playerId,
         physicsController
@@ -664,8 +661,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             lastUpdate: Date.now()
         }).then(() => {
             console.log("Local player initial state set in Firebase.");
+            // This onDisconnect will also use the now-initialized playersRef
             playersRef.child(playerId).onDisconnect().remove();
-
             updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
         }).catch(error => {
             console.error("[startGame] Error setting local player data:", error);
@@ -739,8 +736,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     createLeaderboardOverlay();
     animate(); // Start the game loop
 
-} // End of startGame function
-
+}
 export function hideGameUI() {
   document.getElementById("menu-overlay").style.display = "flex";
   document.body.classList.remove("game-active");
