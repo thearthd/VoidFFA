@@ -509,171 +509,91 @@ delete pendingRestore[victimId];
 
 
 // Game Start
-export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled) {
-    console.log("starting");
+export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
+    console.log("starting game:", gameId);
     detailsEnabled = initialDetailsEnabled;
-
-    const gameTimerElement = document.getElementById("game-timer");
     window.isFFAActive = ffaEnabled;
 
-    // --- CRITICAL FIX: Claim a game slot and get dbRefs from firebase-config.js ---
-    const gameSlotResult = await claimGameSlot(mapName);
+    // Grab the timer element
+    const gameTimerElement = document.getElementById("game-timer");
 
-    if (!gameSlotResult) {
-        console.error("Failed to claim a game slot. Cannot start game.");
-        // Potentially show a message to the user that no slots are available
+    // 1) Initialize network (which will lookup & claim the slot by gameId)
+    const networkOk = await initNetwork(username, mapName, ffaEnabled, gameId);
+    if (!networkOk) {
+        console.error("Failed to initialize network for game:", gameId);
         return;
     }
 
-    // Assign the game-specific dbRefs to the global dbRefs variable
-    dbRefs = gameSlotResult.dbRefs;
-    // Also assign individual refs for convenience and compatibility with existing code
-    playersRef = dbRefs.playersRef;
-    chatRef = dbRefs.chatRef;
-    killsRef = dbRefs.killsRef;
-    mapStateRef = dbRefs.mapStateRef;
-    gameConfigRef = dbRefs.gameConfigRef; // Ensure gameConfigRef is assigned here
-
-    // --- Now, initialize Network with the obtained dbRefs ---
-    // network.js will use these references to set up its listeners.
-    // We pass localPlayerId as null initially, network.js will assign it.
-    await initNetwork(username, mapName, dbRefs); // Pass the dbRefs object
-
-    if (!playersRef || !mapStateRef || !gameConfigRef) {
-        console.error("CRITICAL ERROR: Firebase references are null after claimGameSlot or initNetwork! Cannot proceed.");
+    // Ensure our per‑slot refs exist
+    if (!dbRefs || !dbRefs.playersRef || !dbRefs.mapStateRef || !dbRefs.gameConfigRef) {
+        console.error("Missing Firebase refs after initNetwork. Aborting startGame.");
         return;
-    } else {
-        console.log("Firebase references successfully initialized: playersRef, mapStateRef, gameConfigRef etc.");
     }
-    // --- END CRITICAL FIX ---
 
-
+    // 2) FFA timer & kill‑threshold logic
     if (ffaEnabled) {
-        console.log("FFA mode is enabled. Checking game timer in database.");
+        console.log("FFA mode: syncing timer from Firebase");
 
-        // Listener for the game timer in the database
-        gameConfigRef.child("gameEndTime").on("value", (snapshot) => { // Use gameConfigRef
-            const firebaseGameEndTime = snapshot.val();
-            if (firebaseGameEndTime) {
-                // If a game end time exists in Firebase, use it
-                gameEndTime = firebaseGameEndTime;
-                console.log("Game end time fetched from Firebase:", new Date(gameEndTime));
-            } else {
-                // If no game end time exists, this is the first player or map reset.
-                // Set a new game end time and push it to Firebase.
-                // Only the first client to detect this will set it, other clients will then pick it up.
-                if (gameEndTime === null) { // Only set if not already set locally
-                    gameEndTime = Date.now() + (10 * 60 * 1000); // 10 minutes from now
-                    gameConfigRef.child("gameEndTime").set(gameEndTime) // Use gameConfigRef
-                        .then(() => console.log("New game end time set in Firebase:", new Date(gameEndTime)))
-                        .catch(err => console.error("Failed to set gameEndTime in Firebase:", err));
-                }
+        // Listen for (or set) gameEndTime in the per‑slot gameConfig node
+        gameConfigRef.child("gameEndTime").on("value", snap => {
+            const t = snap.val();
+            if (t) {
+                gameEndTime = t;
+                console.log("Fetched gameEndTime:", new Date(t));
+            } else if (gameEndTime === null) {
+                gameEndTime = Date.now() + 10*60*1000; // 10m
+                gameConfigRef.child("gameEndTime").set(gameEndTime);
+                console.log("Set new gameEndTime:", new Date(gameEndTime));
             }
         });
 
+        gameTimerElement.style.display = "block";
 
-        if (gameTimerElement) {
-            gameTimerElement.style.display = "block";
-        }
-
-        // Clear any existing interval to prevent duplicates on re-startGame calls
-        if (gameInterval) {
-            clearInterval(gameInterval);
-        }
-
+        if (gameInterval) clearInterval(gameInterval);
         gameInterval = setInterval(() => {
             if (gameEndTime === null) {
-                // Wait for gameEndTime to be loaded from Firebase
-                if (gameTimerElement) {
-                    gameTimerElement.textContent = "Time: Syncing...";
-                }
+                gameTimerElement.textContent = "Time: Syncing…";
                 return;
             }
-
-            const timeLeft = gameEndTime - Date.now();
-            if (timeLeft <= 0) {
-                console.log("Game time ended by timer!");
+            const left = gameEndTime - Date.now();
+            if (left <= 0) {
                 clearInterval(gameInterval);
-                gameInterval = null; // Clear interval reference
-                if (gameTimerElement) {
-                    gameTimerElement.textContent = "TIME UP!";
-                }
+                gameTimerElement.textContent = "TIME UP!";
                 determineWinnerAndEndGame();
-                // Optionally, clear gameEndTime from database after game ends
-                if (dbRefs && dbRefs.gameConfigRef) { // Use dbRefs.gameConfigRef
-                    dbRefs.gameConfigRef.child("gameEndTime").remove()
-                        .then(() => console.log("gameEndTime removed from Firebase."))
-                        .catch(err => console.error("Failed to remove gameEndTime from Firebase:", err));
-                }
+                gameConfigRef.child("gameEndTime").remove();
             } else {
-                const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000));
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = totalSeconds % 60;
-                const formattedSeconds = seconds < 10 ? `0${seconds}` : seconds;
-                const timerText = `Time: ${minutes}:${formattedSeconds}`;
-                if (gameTimerElement) {
-                    gameTimerElement.textContent = timerText;
-                }
+                const secs = Math.floor(left/1000);
+                const mins = Math.floor(secs/60);
+                const rem = secs%60;
+                gameTimerElement.textContent = `Time: ${mins}:${rem<10?"0":""}${rem}`;
             }
         }, 1000);
 
-        // This is the Firebase listener that checks for kill threshold
-        // Clear any existing listener to prevent duplicates
-        if (playersKillsListener) {
-            playersRef.off("value", playersKillsListener);
-        }
-        playersKillsListener = playersRef.on("value", (snapshot) => {
-            if (!window.isFFAActive) return;
-
-            let gameEndedByKillThreshold = false;
-            snapshot.forEach(childSnap => {
-                const player = childSnap.val();
-                // Kill threshold set to >= 2 for testing
-                if (player && typeof player.kills === 'number' && player.kills >= 2) {
-                    console.log(`Firebase Listener: Player ${player.username} reached ${player.kills} kills (threshold: 2)! Triggering game end.`);
-                    gameEndedByKillThreshold = true;
-                }
+        // Kill‑threshold listener (e.g. first to 2 kills)
+        if (playersKillsListener) playersRef.off("value", playersKillsListener);
+        playersKillsListener = playersRef.on("value", snap => {
+            let ended = false;
+            snap.forEach(ch => {
+                const p = ch.val();
+                if (p.kills >= 2) ended = true;
             });
-
-            if (gameEndedByKillThreshold) {
-                if (playersKillsListener) {
-                    playersRef.off("value", playersKillsListener); // Detach this listener
-                    playersKillsListener = null; // Clear the reference
-                }
+            if (ended) {
+                playersRef.off("value", playersKillsListener);
                 determineWinnerAndEndGame();
-                // Optionally, clear gameEndTime from database after game ends
-                if (dbRefs && dbRefs.gameConfigRef) { // Use dbRefs.gameConfigRef
-                    dbRefs.gameConfigRef.child("gameEndTime").remove()
-                        .then(() => console.log("gameEndTime removed from Firebase due to kill threshold."))
-                        .catch(err => console.error("Failed to remove gameEndTime from Firebase:", err));
-                }
+                gameConfigRef.child("gameEndTime").remove();
             }
         });
 
     } else {
-        if (gameTimerElement) {
-            gameTimerElement.style.display = "none";
-        }
-        // If FFA is not enabled, ensure game timer interval and listeners are cleared
-        if (gameInterval) {
-            clearInterval(gameInterval);
-            gameInterval = null;
-        }
-        if (playersKillsListener) {
-            playersRef.off("value", playersKillsListener);
-            playersKillsListener = null;
-        }
-        // Clear gameEndTime from database if FFA is disabled
-        if (dbRefs && dbRefs.gameConfigRef) { // Use dbRefs.gameConfigRef
-            dbRefs.gameConfigRef.child("gameEndTime").remove()
-                .then(() => console.log("gameEndTime removed from Firebase (FFA disabled)."))
-                .catch(err => console.error("Failed to remove gameEndTime from Firebase:", err));
-        }
+        // Non‑FFA cleanup
+        gameTimerElement.style.display = "none";
+        if (gameInterval) clearInterval(gameInterval);
+        if (playersKillsListener) playersRef.off("value", playersKillsListener);
+        gameConfigRef.child("gameEndTime").remove();
     }
 
+    // 3) Common game start UI setup
     initGlobalFogAndShadowParams();
-
-    console.log("starting2");
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
     document.body.classList.add("game-active");
@@ -681,183 +601,76 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
 
-    console.log("starting3");
-    console.log(username, mapName, initialDetailsEnabled);
-
-    // localPlayerId is now imported from network.js
-    // Ensure localPlayerId is available from network.js after initNetwork
-    // The actual localPlayerId is set within initNetwork. We must ensure it's
-    // available here. A simple `await initNetwork` usually means it should be.
+    // 4) Ensure we have a valid localPlayerId
     if (!localPlayerId) {
-        console.error("Critical Error: localPlayerId is null after network initialization. Cannot proceed.");
+        console.error("No localPlayerId after initNetwork—cannot proceed.");
         return;
     }
-    console.log("starting32 - localPlayerId:", localPlayerId);
 
-
-    console.log("starting4");
-
+    // 5) Three.js, physics, weapons, scene setup…
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
 
     weaponController = new WeaponController(
         window.camera,
-        dbRefs.playersRef, // Use dbRefs.playersRef directly
-        dbRefs.mapStateRef.child("bullets"), // Use dbRefs.mapStateRef directly
+        dbRefs.playersRef,
+        dbRefs.mapStateRef.child("bullets"),
         createTracer,
-        localPlayerId, // Use the imported localPlayerId
+        localPlayerId,
         physicsController
     );
     window.weaponController = weaponController;
 
-    console.log("starting5");
     if (mapName === "CrocodilosConstruction") {
         await initSceneCrocodilosConstruction();
     } else if (mapName === "SigmaCity") {
         await initSceneSigmaCity();
-    } else {
-        console.warn(`Unknown mapName: ${mapName}. Skipping specific scene initialization.`);
     }
 
-    console.log("starting6");
     initInput();
     initChatUI();
     initBulletHoles();
-    // Assuming initializeAudioManager and startSoundListener are in network.js or a separate audio.js
-    // They are correctly called after camera/scene is set up.
-    // If they were originally in network.js, ensure they are also exported/imported.
-    // Based on your network.js, they *are* in network.js and should be called after initNetwork
-    // initializeAudioManager(window.camera, scene); // This is called from `network.js` now.
-    // startSoundListener(); // This is called from `network.js` now.
 
-    console.log("starting7");
+    // 6) Spawn local player
     const spawn = findFurthestSpawn();
-
-    // Ensure window.localPlayer is initialized
     window.localPlayer = {
-        id: localPlayerId,
+        id:      localPlayerId,
         username,
-        x: spawn.x,
-        y: spawn.y,
-        z: spawn.z,
-        rotY: 0,
-        health: initialPlayerHealth,
-        shield: initialPlayerShield,
-        weapon: initialPlayerWeapon,
-        kills: 0,
-        deaths: 0,
-        ks: 0,
-        bodyColor: Math.floor(Math.random() * 0xffffff),
-        velocity: 0,
-        isCrouched: false,
-        isAirborne: false,
-        isDead: false
+        x:       spawn.x,
+        y:       spawn.y,
+        z:       spawn.z,
+        rotY:    0,
+        health:  initialPlayerHealth,
+        shield:  initialPlayerShield,
+        weapon:  initialPlayerWeapon,
+        kills:   0,
+        deaths:  0,
+        ks:      0,
+        bodyColor: Math.floor(Math.random()*0xffffff),
+        isDead:  false
     };
-    console.log("window.localPlayer before animate():", window.localPlayer);
-    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-    window.camera.lookAt(
-        new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z)
-        .add(new THREE.Vector3(0, 0, -1))
-    );
+    window.camera.position.copy(spawn).add(new THREE.Vector3(0,1.6,0));
 
-    // Update local player data in Firebase
-    if (dbRefs && dbRefs.playersRef && window.localPlayer && localPlayerId) { // Added localPlayerId check
-        window.localPlayer.trueColor = window.localPlayer.bodyColor;
-        await dbRefs.playersRef.child(localPlayerId).set({ // Use dbRefs.playersRef and localPlayerId
-            id: window.localPlayer.id,
-            username: window.localPlayer.username,
-            x: window.localPlayer.x,
-            y: window.localPlayer.y,
-            z: window.localPlayer.z,
-            rotY: window.localPlayer.rotY,
-            health: window.localPlayer.health,
-            shield: window.localPlayer.shield,
-            weapon: window.localPlayer.weapon,
-            kills: window.localPlayer.kills,
-            deaths: window.localPlayer.deaths,
-            ks: window.localPlayer.ks,
-            bodyColor: window.localPlayer.bodyColor,
-            isDead: window.localPlayer.isDead,
-            trueColor: window.localPlayer.trueColor,
-            lastUpdate: Date.now()
-        }).then(() => {
-            console.log("Local player initial state set in Firebase.");
-            // onDisconnect is already set in network.js's initNetwork, so no need to repeat.
-            updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
-        }).catch(error => {
-            console.error("[startGame] Error setting local player data:", error);
-            updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
-        });
-    } else {
-        console.error("Cannot set initial player data: dbRefs, dbRefs.playersRef, localPlayer, or localPlayerId is null.");
-        return;
-    }
+    // 7) Write initial state
+    await dbRefs.playersRef.child(localPlayerId).set({
+        ...window.localPlayer,
+        lastUpdate: Date.now()
+    });
+    updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
-    weaponAmmo = {};
-    for (const key in WeaponController.WEAPONS) {
-        weaponAmmo[key] = WeaponController.WEAPONS[key].magazineSize;
-    }
-
+    // 8) Ammo, inventory, UI overlays…
     weaponController.equipWeapon(window.localPlayer.weapon);
-
     initInventory(window.localPlayer.weapon);
     initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
     updateInventory(window.localPlayer.weapon);
     updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
 
-    window.addEventListener("applyRecoilEvent", e => {
-        if (window.localPlayer.weapon !== "knife") {
-            const now = performance.now() / 1000;
-            activeRecoils.push({
-                angle: e.detail,
-                start: now,
-                duration: weaponController.stats.recoilDuration
-            });
-        }
-    });
-
-    window.addEventListener("buyWeapon", async e => {
-        const choice = e.detail;
-        weaponAmmo[window.localPlayer.weapon] = weaponController.getCurrentAmmo();
-        window.localPlayer.weapon = choice;
-
-        if (dbRefs && dbRefs.playersRef && localPlayerId) { // Use dbRefs and localPlayerId
-            try {
-                await dbRefs.playersRef.child(localPlayerId).update({ // Use dbRefs.playersRef
-                    weapon: choice
-                });
-            } catch (error) {
-                console.error("Failed to update weapon in Firebase:", error);
-            }
-        }
-
-        weaponController.equipWeapon(choice);
-
-        const restoreAmmo = weaponAmmo[choice];
-        weaponController.ammoInMagazine =
-            restoreAmmo !== undefined ?
-            restoreAmmo :
-            weaponController.stats.magazineSize;
-
-        updateInventory(window.localPlayer.weapon);
-        updateAmmoDisplay(
-            weaponController.ammoInMagazine,
-            weaponController.stats.magazineSize
-        );
-
-        if (choice === "knife") activeRecoils = [];
-    });
-
     createRespawnOverlay();
     createFadeOverlay();
-
-    if (window.localPlayer?.isDead) {
-        showRespawn();
-    }
-
     createLeaderboardOverlay();
-    animate(); // Start the game loop
 
+    // 9) Start game loop
+    animate();
 }
 
 
