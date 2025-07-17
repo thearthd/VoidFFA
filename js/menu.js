@@ -1154,8 +1154,7 @@ const gameData = {
   gamemode:  formValues.gamemode,
   host:      username,
   createdAt: firebase.database.ServerValue.TIMESTAMP,
-  status:    "waiting",          // ← add this
-  players:   { [username]: true }
+  status:    "waiting"          // ← add this
 };
 
     try {
