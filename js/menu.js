@@ -8,8 +8,6 @@
 
 horse power
 */
-// f
-// f
 
 // --- All imports moved to the top ---
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
@@ -47,7 +45,7 @@ menuSong.play();
 function setCanvasDimensions() {
     canvas.width = 1920;
     canvas.height = 1080;
-    
+
     canvasWidth = canvas.width;
     canvasHeight = canvas.height;
 }
@@ -95,10 +93,11 @@ export function remove(shape) {
 
 /**
  * Removes all shapes from the drawing list.
+ * This now also clears all clickable shapes/hitboxes.
  */
 export function removeAll() {
-    shapes.length = 0;
-     clickableShapes.length = 0;
+    shapes.length = 0; // Clears shapes for drawing
+    clickableShapes.length = 0; // Clears hitboxes for interaction
 }
 
 /**
@@ -431,7 +430,7 @@ export class ImageShape extends Shape {
         this.anchorX = 0;    // Default: top-left (0 for horizontal)
         this.anchorY = 0;
     }
-    
+
     /**
      * Sets the anchor point for positioning (not fully implemented for image drawing).
      * @param {object} anchor - An object with horizontal and vertical properties.
@@ -444,7 +443,7 @@ export class ImageShape extends Shape {
     /**
      * Sets the width and height of the image.
      * @param {number} width - The new width.
-     * @param {number} height - The new height.
+     * @param {number} number} height - The new height.
      */
     setSize(width, height) {
         this.width = width;
@@ -479,7 +478,7 @@ export class ImageShape extends Shape {
         if (!this.loaded) return; // Skip drawing until image is loaded
         ctx.save();
         ctx.globalAlpha = this.opacity;
-        ctx.drawImage(this.image, this.x, this.y, this.width, this.height);        
+        ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
         ctx.restore();
     }
 }
@@ -503,10 +502,14 @@ requestAnimationFrame(gameLoop);
 
 /**
  * Makes a shape clickable by associating it with an onClick callback.
- * @param {Shape} shape - The shape to make clickable.
+ * Stores the shape and its click handler in the clickableShapes array.
+ * @param {Shape} shape - The shape to make clickable (its hitbox).
  * @param {Function} onClick - The function to call when the shape is clicked.
  */
 export function makeButton(shape, onClick) {
+    // This is the core change: we store the onClick handler directly within
+    // the entry object that goes into clickableShapes.
+    // The shape itself will also have onHover/onUnhover set by createAnimatedButton.
     clickableShapes.push({ shape, onClick });
 }
 
@@ -523,39 +526,35 @@ canvas.addEventListener("click", function(event) {
 
     // Check if the click occurred within any clickable shape
     for (const entry of clickableShapes) {
-        const s = entry.shape;
+        const s = entry.shape; // s is the hitbox object
+        let isHit = false;
 
         if (s instanceof Rectangle) {
             const inX = x >= s.getX() && x <= s.getX() + s.getWidth();
             const inY = y >= s.getY() && y <= s.getY() + s.getHeight();
-            if (inX && inY) {
-                if (typeof entry.onClick === 'function') { // <-- Add this check for robustness
-                    entry.onClick(); // Trigger the click callback
-                    break;
-                } else {
-                    console.error("Found clickable entry without a function for onClick:", entry);
-                }
-            }
+            isHit = inX && inY;
         }
-        if (s instanceof Circle) {
+        else if (s instanceof Circle) {
             const dx = x - s.getX();
             const dy = y - s.getY();
-            // Check if click is within the circle's radius
-            if (Math.sqrt(dx * dx + dy * dy) <= s.getRadius()) {
-                entry.onClick();
-                break;
-            }
+            isHit = Math.sqrt(dx * dx + dy * dy) <= s.getRadius();
         }
-        if (s instanceof ImageShape) {
+        else if (s instanceof ImageShape) { // Assuming ImageShape can also be a hitbox
             const inX = x >= s.x && x <= s.x + s.width;
             const inY = y >= s.y && y <= s.y + s.height;
-            if (inX && inY) {
-                if (typeof entry.onClick === 'function') { // <-- Add this check for robustness
-                    entry.onClick(); // Trigger the click callback
-                    break;
-                } else {
-                    console.error("Found clickable entry without a function for onClick:", entry);
-                }
+            isHit = inX && inY;
+        }
+
+        if (isHit) {
+            // Ensure entry.onClick is actually a function before calling it
+            if (typeof entry.onClick === 'function') {
+                entry.onClick(); // Trigger the click callback stored in the entry
+                break; // Stop after the first hit
+            } else {
+                console.error("Found clickable entry without a valid onClick function:", entry);
+                // Optionally remove the problematic entry if it's truly corrupted
+                // const index = clickableShapes.indexOf(entry);
+                // if (index > -1) clickableShapes.splice(index, 1);
             }
         }
     }
@@ -586,7 +585,7 @@ canvas.addEventListener("mousemove", function(event) {
             const dy = y - s.getY();
             isHovering = dx*dx + dy*dy <= s.getRadius()*s.getRadius();
         }
-        else if (s instanceof ImageShape) {
+        else if (s instanceof ImageShape) { // Assuming ImageShape can also be a hitbox
             const inX = x >= s.x && x <= s.x + s.width;
             const inY = y >= s.y && y <= s.y + s.height;
             isHovering = inX && inY;
@@ -595,12 +594,13 @@ canvas.addEventListener("mousemove", function(event) {
         if (isHovering) hoveringAny = true;
 
         // Handle hover state callbacks
+        // These callbacks (onHover, onUnhover) are still stored directly on the Shape object itself (s)
         if (isHovering && !s.hovered) {
             s.hovered = true;
             if (s.onHover) s.onHover();
         } else if (!isHovering && s.hovered) {
             s.hovered = false;
-            if (s.onUnhover) s.onUnhover(); 
+            if (s.onUnhover) s.onUnhover();
         }
     }
 
@@ -690,7 +690,9 @@ function easeOutQuint(t) {
 }
 
 /**
- * Creates and sets up an image button with hover animations and click detection.
+ * Creates and sets up an image button with hover animations.
+ * It now *does not* automatically make the hitbox clickable.
+ * You must call makeButton() separately.
  * @param {string} imageUrl - The URL of the image for the button.
  * @param {number} originalWidth - The original width of the image.
  * @param {number} originalHeight - The original height of the image.
@@ -718,80 +720,82 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     buttonHitbox.setColor("rgba(255, 0, 0, 0.0)"); // Transparent hitbox (can be made visible for debugging)
     buttonHitbox.setLayer(15); // Layer for the hitbox (should be on top to capture events)
 
-    if (inMenu) { // Only make buttons interactive if we are in the menu state
-        makeButton(buttonHitbox, onClickCallback); // Register the hitbox as a clickable button
+    // Store the onClickCallback directly on the hitbox for later use with makeButton
+    buttonHitbox.onClick = onClickCallback; // <--- Store onClick on the hitbox
 
-        let animationInterval = null; // Variable to hold the interval ID for animation
+    // --- Hover animations are still handled here, setting callbacks on the hitbox ---
+    let animationInterval = null; // Variable to hold the interval ID for animation
 
-        // Callback for when the mouse hovers over the button's hitbox
-        buttonHitbox.onHover = () => {
-            if (animationInterval) {
-                clearInterval(animationInterval); // Clear any existing animation
+    // Callback for when the mouse hovers over the button's hitbox
+    buttonHitbox.onHover = () => {
+        if (animationInterval) {
+            clearInterval(animationInterval); // Clear any existing animation
+        }
+        buttonImage.currentAnimationStep = 0; // Reset animation step
+
+        animationInterval = setInterval(() => {
+            buttonImage.currentAnimationStep++;
+            let t = buttonImage.currentAnimationStep / NUM_ANIMATION_STEPS;
+            if (t > 1) t = 1; // Clamp t to 1
+
+            let easedT = easeOutQuint(t); // Apply easing function
+            let currentScale = 1.0 + (TARGET_SCALE_FACTOR - 1.0) * easedT; // Calculate current scale
+
+            const newWidth = buttonImage.originalWidth * currentScale;
+            const newHeight = buttonImage.originalHeight * currentScale;
+
+            // Adjust position to keep the image centered during scaling
+            const newX = buttonImage.originalX;
+            const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
+
+            buttonImage.setSize(newWidth, newHeight);
+            buttonImage.setPosition(newX, newY);
+
+            if (t === 1) {
+                clearInterval(animationInterval); // Stop animation when complete
             }
-            buttonImage.currentAnimationStep = 0; // Reset animation step
+        }, FRAME_RATE);
+    };
 
-            animationInterval = setInterval(() => {
-                buttonImage.currentAnimationStep++;
-                let t = buttonImage.currentAnimationStep / NUM_ANIMATION_STEPS;
-                if (t > 1) t = 1; // Clamp t to 1
+    // Callback for when the mouse leaves the button's hitbox
+    buttonHitbox.onUnhover = () => {
+        if (animationInterval) {
+            clearInterval(animationInterval); // Clear any existing animation
+        }
+        buttonImage.currentAnimationStep = 0; // Reset animation step
+        const initialScaleForUnhover = buttonImage.width / buttonImage.originalWidth;
+        const scaleDifference = initialScaleForUnhover - 1.0;
 
-                let easedT = easeOutQuint(t); // Apply easing function
-                let currentScale = 1.0 + (TARGET_SCALE_FACTOR - 1.0) * easedT; // Calculate current scale
+        animationInterval = setInterval(() => {
+            buttonImage.currentAnimationStep++;
+            let t = buttonImage.currentAnimationStep / NUM_ANIMATION_STEPS;
+            if (t > 1) t = 1; // Clamp t to 1
 
-                const newWidth = buttonImage.originalWidth * currentScale;
-                const newHeight = buttonImage.originalHeight * currentScale;
+            let easedT = easeOutQuint(t); // Apply easing function
+            let currentScale = initialScaleForUnhover - (scaleDifference * easedT);
 
-                // Adjust position to keep the image centered during scaling
-                const newX = buttonImage.originalX;
-                const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
-                
-                buttonImage.setSize(newWidth, newHeight);
-                buttonImage.setPosition(newX, newY);
+            if (currentScale < 1.0) currentScale = 1.0; // Ensure scale doesn't go below original
 
-                if (t === 1) {
-                    clearInterval(animationInterval); // Stop animation when complete
-                }
-            }, FRAME_RATE);
-        };
+            const newWidth = buttonImage.originalWidth * currentScale;
+            const newHeight = buttonImage.originalHeight * currentScale;
 
-        // Callback for when the mouse leaves the button's hitbox
-        buttonHitbox.onUnhover = () => {
-            if (animationInterval) {
-                clearInterval(animationInterval); // Clear any existing animation
+            // Adjust position to keep the image centered during scaling
+            const newX = buttonImage.originalX;
+            const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
+
+            buttonImage.setSize(newWidth, newHeight);
+            buttonImage.setPosition(newX, newY);
+
+            if (t === 1) {
+                clearInterval(animationInterval); // Stop animation when complete
+                // Reset to original size and position precisely
+                buttonImage.setSize(buttonImage.originalWidth, buttonImage.originalHeight);
+                buttonImage.setPosition(buttonImage.originalX, buttonImage.originalY);
             }
-            buttonImage.currentAnimationStep = 0; // Reset animation step
-            const initialScaleForUnhover = buttonImage.width / buttonImage.originalWidth;
-            const scaleDifference = initialScaleForUnhover - 1.0;
+        }, FRAME_RATE);
+    };
+    // --- End of hover animations ---
 
-            animationInterval = setInterval(() => {
-                buttonImage.currentAnimationStep++;
-                let t = buttonImage.currentAnimationStep / NUM_ANIMATION_STEPS;
-                if (t > 1) t = 1; // Clamp t to 1
-
-                let easedT = easeOutQuint(t); // Apply easing function
-                let currentScale = initialScaleForUnhover - (scaleDifference * easedT);
-
-                if (currentScale < 1.0) currentScale = 1.0; // Ensure scale doesn't go below original
-
-                const newWidth = buttonImage.originalWidth * currentScale;
-                const newHeight = buttonImage.originalHeight * currentScale;
-
-                // Adjust position to keep the image centered during scaling
-                const newX = buttonImage.originalX;
-                const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
-                
-                buttonImage.setSize(newWidth, newHeight);
-                buttonImage.setPosition(newX, newY);
-
-                if (t === 1) {
-                    clearInterval(animationInterval); // Stop animation when complete
-                    // Reset to original size and position precisely
-                    buttonImage.setSize(buttonImage.originalWidth, buttonImage.originalHeight);
-                    buttonImage.setPosition(buttonImage.originalX, buttonImage.originalY);
-                }
-            }, FRAME_RATE);
-        };
-    }
     return { image: buttonImage, hitbox: buttonHitbox };
 }
 
@@ -801,9 +805,8 @@ let playButton = createAnimatedButton(
     1920/6, 1080/6, // Original width and height
     0, getHeight()/4, // Position
     1920/6 - 25, 1080/8, // Hitbox dimensions (slightly smaller than image)
-    () => { 
-        console.log("Play button hit"); 
-         removeAll();
+    () => {
+        console.log("Play button hit");
         playButtonHit(); // Call function to change menu state
     }
 );
@@ -838,7 +841,7 @@ let crocoPlayButton = createAnimatedButton(
     1920/6, 1080/6, // Original width and height
     getWidth()/1.5, getHeight()-200, // Position towards the right bottom
     1920/6 - 25, 1080/8, // Hitbox dimensions
-    () => { 
+    () => {
         console.log("crocoPlayButton clicked, starting CrocodilosConstruction map.");
         const username = localStorage.getItem("username") || "Guest";
         const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
@@ -871,10 +874,10 @@ let sigmaPlayButton = createAnimatedButton(
     1920/6, 1080/6, // Original width and height
     getWidth()/3, getHeight()-200, // Position towards the left bottom
     1920/6 - 25, 1080/8, // Hitbox dimensions
-    () => { 
+    () => {
         console.log("sigmaPlayButton clicked, starting SigmaCity map.");
         const username = localStorage.getItem("username") || "Guest";
-        const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
+        const detailsEnabled = localStorage.getItem("details.Enabled") === "true";
         const menuOverlay = document.getElementById("menu-overlay");
         const gameWrapper = document.getElementById('game-container');
 
@@ -899,8 +902,22 @@ let sigmaPlayButton = createAnimatedButton(
     }
 );
 
+// Assuming createGameButton is also defined here or globally
+let createGameButton = createAnimatedButton(
+    "https://codehs.com/uploads/31eb8424a7b74d1266c4e1e210845583",
+    1920/6, 1080/6, // Original width and height
+    getWidth()/2 - (1920/6)/2, getHeight()/2 - (1080/6)/2, // Example position (center of screen)
+    1920/6 - 25, 1080/8, // Hitbox dimensions
+    () => {
+        console.log("createGameButton hit");
+        createGameButtonHit(); // Make sure createGameButtonHit() is defined!
+    }
+);
+
+
 /**
  * Initializes the main menu by adding all primary menu elements to the canvas.
+ * Now explicitly calls makeButton for initial clickable elements.
  */
 function menu(){
     add(logo);
@@ -908,12 +925,12 @@ function menu(){
     add(settingsButton.image);
     add(careerButton.image);
     add(loadoutButton.image);
-    
-    // Add hitboxes for click detection
-    add(playButton.hitbox);
-    add(settingsButton.hitbox);
-    add(careerButton.hitbox);
-    add(loadoutButton.hitbox);
+
+    // Explicitly make initial buttons clickable
+    makeButton(playButton.hitbox, playButton.hitbox.onClick);
+    makeButton(settingsButton.hitbox, settingsButton.hitbox.onClick);
+    makeButton(careerButton.hitbox, careerButton.hitbox.onClick);
+    makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
 }
 
 // Call the menu function to set up the initial menu display
@@ -922,17 +939,52 @@ menu();
 /**
  * Function called when the "Play" button (canvas-drawn) is clicked.
  * Clears the current menu and displays the canvas-based map selection options.
+ * Now explicitly calls makeButton for the new submenu buttons.
  */
 function playButtonHit(){
-     // Remove all existing shapes from the canvas
-    add(logo); // Re-add logo
-    add(crocoPlayButton.image); // Add new play options
+    // Remove all existing shapes and hitboxes from the canvas
+    removeAll();
+
+    // Re-add logo (if it should remain visible)
+    add(logo);
+
+    // Add new play options images
+    add(crocoPlayButton.image);
     add(sigmaPlayButton.image);
-    // Ensure their hitboxes are also added to the clickableShapes array for interaction
-    // (This is handled by createAnimatedButton, but explicitly adding them here
-    // for clarity if they were removed by removeAll)
+    add(createGameButton.image); // Assuming you want this one here too
+
+    // IMPORTANT: Explicitly make their hitboxes clickable again
     makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
     makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
+    makeButton(createGameButton.hitbox, createGameButton.hitbox.onClick); // Make createGameButton clickable
+}
+
+// Placeholder for createGameButtonHit - define this function somewhere!
+function createGameButtonHit() {
+    console.log("Create Game button was hit! Implement its functionality.");
+    // Example: Show a modal for game creation, or transition to a game creation screen.
+    Swal.fire({
+        title: 'Create New Game',
+        html: '<input id="swal-input1" class="swal2-input" placeholder="Game Name">' +
+              '<input id="swal-input2" class="swal2-input" placeholder="Password (optional)" type="password">',
+        focusConfirm: false,
+        preConfirm: () => {
+            const gameName = Swal.getPopup().querySelector('#swal-input1').value;
+            const password = Swal.getPopup().querySelector('#swal-input2').value;
+            if (!gameName) {
+                Swal.showValidationMessage('Please enter a game name');
+                return false;
+            }
+            // Here you would typically send these details to your server to create a game
+            console.log("Creating game:", { gameName, password });
+            // For now, let's just go back to the menu or a placeholder
+            // You might want to remove all and show a loading screen, or join the created game.
+            // For demonstration, let's just go back to the main menu.
+            removeAll(); // Clear current submenu
+            menu(); // Show main menu again
+            return { gameName, password };
+        }
+    });
 }
 
 
@@ -945,12 +997,10 @@ export function initMenuUI() {
     const menuOverlay = document.getElementById("menu-overlay");
     const usernamePrompt = document.getElementById("username-prompt");
     const mapSelect = document.getElementById("map-menu");
-    const controlsMenu = document.getElementById("controls-menu");
+    const controlsMenu = document.getElementById("menu-controls-menu"); // Corrected ID
 
     // These elements are assumed to be part of the HTML structure,
     // distinct from the canvas-drawn buttons.
-    // NOTE: If you're going fully canvas-driven for main menu, these HTML buttons
-    // should ideally be removed or hidden permanently.
     const htmlPlayButton = document.getElementById("play-button");
     const htmlSettingsButton = document.getElementById("settings-button");
     const htmlCareerButton = document.getElementById("career-button");
@@ -991,11 +1041,10 @@ export function initMenuUI() {
             showPanel(null); // Hide all HTML panels
             menu(); // Show canvas-drawn main menu
             document.getElementById("game-logo").classList.add("hidden"); // Hide the HTML game logo
-            // Do not hide the canvas-drawn logo here, it's part of the `menu()` function
-            // to be drawn. The `logo.setOpacity(0)` or `remove(logo)` will be used later.
-                const gameLoogo = document.getElementById('menu-overlay');
-                // Remove the canvas-drawn logo immediately after username is saved
-                gameLoogo.style.display = 'none';
+            const menuOverlayElement = document.getElementById('menu-overlay');
+            if (menuOverlayElement) { // Hide the entire HTML overlay if canvas menu is active
+                 menuOverlayElement.style.display = 'none';
+            }
         } else {
             // If no username, show the prompt
             showPanel(usernamePrompt);
@@ -1038,22 +1087,21 @@ export function initMenuUI() {
             if (val.length > 0) {
                 localStorage.setItem("username", val);
                 username = val;
-                
+
                 // Hide the HTML username prompt
-                showPanel(null); 
-                
+                showPanel(null);
+
                 // Show the canvas and draw the main menu
                 canvas.style.display = 'block';
-                menu(); 
-                
+                menu();
+
                 // Hide the HTML game logo
                 document.getElementById("game-logo").classList.add("hidden");
-                const gameLoogo = document.getElementById('game-logo');
-                // Remove the canvas-drawn logo immediately after username is saved
-                gameLoogo.style.display = 'none';
-                
-                // Potentially show a different HTML panel if desired, e.g., the main HTML menu
-                // For now, it just transitions to the canvas menu.
+                const menuOverlayElement = document.getElementById('menu-overlay');
+                if (menuOverlayElement) {
+                     menuOverlayElement.style.display = 'none';
+                }
+
             } else {
                 console.warn("Username cannot be empty!");
             }
@@ -1129,7 +1177,7 @@ export function initMenuUI() {
                 createGameUI(gameWrapper); // Create game UI elements
                 initNetwork(username, mapName); // Initialize network for multiplayer
                 startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true", ffaEnabled); // Start the game
-                
+
                 console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
             } else {
                 console.error("game-container element not found in index.html! Make sure your game elements are present.");
@@ -1157,13 +1205,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 allowEscapeKey: false // Prevent closing by pressing Escape
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Optional: If you want to reset the game or go back to menu here,
-                    // you can add logic. For now, it will just close the alert
-                    // and show the menu as per the normal flow.
                     console.log("SweetAlert: User confirmed, proceeding to menu.");
-                    // You might want to explicitly show your menu here if it's not
-                    // automatically shown by initMenuUI:
-                    // document.getElementById("menu-overlay").style.display = "flex";
                 }
             });
 
@@ -1182,19 +1224,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
         console.log("Attempting to initialize Menu UI on index.html...");
         initMenuUI(); // Initialize the HTML-based menu
-        menu(); // Initialize the canvas-based menu
+        // menu(); // Calling menu() here twice if initMenuUI also calls it can be redundant
         console.log("Menu UI initialization process started.");
     } else {
-        // This block handles cases where the page might be game.html or similar,
-        // though the current setup aims for a single-page application.
         const gameWrapper = document.getElementById('game-container');
         if (gameWrapper) {
             createGameUI(gameWrapper);
-
             const username = localStorage.getItem("username") || "Guest";
             const urlParams = new URLSearchParams(window.location.search);
             const mapName = urlParams.get('map');
-            // Potentially call startGame here if game.html is directly loaded with parameters
         } else {
             console.error("game-container element not found!");
         }
