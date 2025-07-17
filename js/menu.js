@@ -732,7 +732,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     buttonImage.currentAnimationStep = 0; // Tracks the current step in the animation
 
     let buttonText = new Text("", "20pt Arial"); // Text overlay for the button
-    buttonText.setColor(Color.WHITE);
+    buttonText.setColor("#ffffff");
     buttonText.setLayer(4); // Layer above the image
     buttonText.setPosition(xPos + originalWidth / 2, yPos + originalHeight / 2); // Center text on button
 
@@ -993,7 +993,7 @@ function menu() {
     makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
 
     let title = new Text("VOID FFA", "60pt Arial");
-    title.setColor(Color.WHITE);
+    title.setColor("#ffffff");
     title.setPosition(getWidth() / 2, 100);
     add(title);
     currentMenuObjects.push(title);
@@ -1036,7 +1036,7 @@ function playButtonHit() {
 
     add(logo);
     let title = new Text("Select Map or Create Game", "40pt Arial");
-    title.setColor(Color.WHITE);
+    title.setColor("#ffffff");
     title.setPosition(getWidth() / 2, 100);
     add(title);
     currentMenuObjects.push(title);
@@ -1149,7 +1149,7 @@ async function gamesButtonHit() {
     add(logo);
 
     let loadingText = new Text("Loading games...", "30pt Arial");
-    loadingText.setColor(Color.WHITE);
+    loadingText.setColor("#ffffff");
     loadingText.setPosition(getWidth() / 2, getHeight() / 2);
     add(loadingText);
     currentMenuObjects.push(loadingText);
@@ -1175,7 +1175,7 @@ async function gamesButtonHit() {
         console.error("Error fetching games:", error);
         remove(loadingText);
         let errorText = new Text("Error loading games: " + error.message, "20pt Arial");
-        errorText.setColor(Color.RED);
+        errorText.setColor("ff0000");
         errorText.setPosition(getWidth() / 2, getHeight() / 2);
         add(errorText);
         currentMenuObjects.push(errorText);
@@ -1192,7 +1192,7 @@ function displayGamesPage(page) {
     add(logo);
 
     let title = new Text("Available Games", "40pt Arial");
-    title.setColor(Color.WHITE);
+    title.setColor("#ffffff");
     title.setPosition(getWidth() / 2, 100);
     add(title);
     currentMenuObjects.push(title);
@@ -1208,7 +1208,7 @@ function displayGamesPage(page) {
 
     if (gamesToDisplay.length === 0) {
         let noGamesText = new Text("No active games available. Create one!", "30pt Arial");
-        noGamesText.setColor(Color.WHITE);
+        noGamesText.setColor("#ffffff");
         noGamesText.setPosition(getWidth() / 2, getHeight() / 2);
         add(noGamesText);
         currentMenuObjects.push(noGamesText);
@@ -1226,7 +1226,7 @@ function displayGamesPage(page) {
 
             // Game Name
             let gameNameText = new Text(game.gameName, "25pt Arial");
-            gameNameText.setColor(Color.CYAN);
+            gameNameText.setColor("#55eeff");
             gameNameText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 4, displayY);
             gameNameText.setLayer(4);
             add(gameNameText);
@@ -1234,7 +1234,7 @@ function displayGamesPage(page) {
 
             // Map and Mode
             let detailsText = new Text(`Map: ${game.map} | Mode: ${game.gamemode} | Host: ${game.host}`, "15pt Arial");
-            detailsText.setColor(Color.LIGHT_GRAY);
+            detailsText.setColor("#999999");
             detailsText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 4, displayY + 30);
             detailsText.setLayer(4);
             add(detailsText);
@@ -1298,7 +1298,7 @@ function displayGamesPage(page) {
     // Page number text
     if (maxPages > 0) {
         let pageText = new Text(`Page ${currentPage + 1} of ${maxPages}`, "20pt Arial");
-        pageText.setColor(Color.WHITE);
+        pageText.setColor("#ffffff");
         pageText.setPosition(getWidth() / 2, paginationY + 15);
         add(pageText);
         currentMenuObjects.push(pageText);
