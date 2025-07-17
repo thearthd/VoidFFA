@@ -1,6 +1,6 @@
 // js/map.js
 
-import { Loader } from './Loader.js';
+import { Loader } from './Loader.js'; // Keep this import
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -74,10 +74,10 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     window.envMeshes = [];
     window.mapReady = false;
 
-    const loaderUI = new Loader();
-    // Adjust percentages: GLB load (e.g., 70%), Octree load/build (e.g., 30%)
-    const mapLoadPercentages = [0.7, 0.3];
-    loaderUI.show('Loading CrocodilosConstruction Map...', mapLoadPercentages);
+    // Initialize loader UI with two milestones: 70% for GLB, 30% for octree
+    const loaderUI = new Loader(); // Re-added
+    const mapLoadPercentages = [0.7, 0.3]; // Adjusted percentages for GLB and Octree
+    loaderUI.show('Loading CrocodilosConstruction Map & Building Octree...', mapLoadPercentages); // Re-added
 
     const SCALE = 5;
     const rawSpawnPoints = [
@@ -114,7 +114,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     let allModelTriangles = []; // This will hold the flat array of triangles from the GLB
 
     // 1) Load the GLB model first
-    let onGLBProgress = () => {};
+    let onGLBProgress = () => {}; // Will be set by loaderUI.track
     const glbLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
@@ -174,15 +174,21 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                 console.log('✔️ GLB mesh loaded and triangles extracted.');
                 resolve(gltfGroup);
             },
-            evt => { if (evt.lengthComputable) onGLBProgress(evt); },
+            // progress callback for GLTFLoader, now hooked up to onGLBProgress
+            evt => {
+                if (evt.lengthComputable) onGLBProgress(evt);
+            },
             err => { console.error('❌ Error loading CrocodilosConstruction GLB:', err); reject(err); }
         );
     });
 
-    loaderUI.track(mapLoadPercentages[0], glbLoadPromise, cb => { onGLBProgress = cb; });
+    // track GLB load at 70%, with live percent updates
+    loaderUI.track(mapLoadPercentages[0], glbLoadPromise, cb => { // Re-added
+        onGLBProgress = cb;
+    });
 
     // 2) Once GLB is loaded, attempt to load or build the Octree
-    let onOctreeProgress = () => {};
+    let onOctreeProgress = () => {}; // Will be set by loaderUI.track
     const octreeLoadPromise = glbLoadPromise.then(async () => {
         let loadedOctree = null;
         let octreeBuildSuccess = false;
@@ -190,7 +196,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         // Try to load pre-built Octree
         try {
             console.log(`Attempting to load Octree from: ${OCTREE_MAP_URL}`);
-            loaderUI.updateMessage('Loading Octree from file...');
+            loaderUI.updateMessage('Loading Octree from file...'); // Re-added
             
             const response = await fetch(OCTREE_MAP_URL);
             if (!response.ok) {
@@ -214,14 +220,14 @@ export async function createCrocodilosConstruction(scene, physicsController) {
             onOctreeProgress({ loaded: 1, total: 1 }); // Mark 100% for this phase
         } catch (error) {
             console.warn(`❌ Failed to load Octree from file: ${error.message}. Building from scratch.`);
-            loaderUI.updateMessage('Building Octree from scratch...');
+            loaderUI.updateMessage('Building Octree from scratch...'); // Re-added
             // Fallback to building from scratch
             const tempOctree = new OctreeV2();
             // Manually set total triangle count for progress tracking in buildOctree
             tempOctree._totalTriangleCount = allModelTriangles.length;
             await tempOctree.fromGraphNode(gltfGroup, (evt) => {
                 const overallProgress = evt.loaded; // fromGraphNode already handles its own internal progress
-                onOctreeProgress({ loaded: overallProgress, total: 1 });
+                onOctreeProgress({ loaded: overallProgress, total: 1 }); // Pass progress to loaderUI
             });
             physicsController.setOctreeAndTriangles(tempOctree, allModelTriangles);
             octreeBuildSuccess = true;
@@ -233,11 +239,15 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         }
     });
 
-    loaderUI.track(mapLoadPercentages[1], octreeLoadPromise, cb => { onOctreeProgress = cb; });
+    // track octree build at 30%, with live percent updates
+    loaderUI.track(mapLoadPercentages[1], octreeLoadPromise, cb => { // Re-added
+        onOctreeProgress = cb;
+    });
 
     await Promise.all([glbLoadPromise, octreeLoadPromise]);
 
-    loaderUI.onComplete(() => {
+    // when fully done
+    loaderUI.onComplete(() => { // Re-added
         window.mapReady = true;
         console.log('🗺️ CrocodilosConstruction Map + Octree fully ready!');
     });
@@ -250,10 +260,10 @@ export async function createSigmaCity(scene, physicsController) {
     window.envMeshes = [];
     window.mapReady = false;
 
-    const loaderUI = new Loader();
-    // Adjust percentages: GLB load (e.g., 70%), Octree load/build (e.g., 30%)
-    const mapLoadPercentages = [0.7, 0.3];
-    loaderUI.show('Loading SigmaCity Map...', mapLoadPercentages);
+    // Initialize loader UI with two milestones: 70% for GLB, 30% for octree
+    const loaderUI = new Loader(); // Re-added
+    const mapLoadPercentages = [0.7, 0.3]; // Adjusted percentages for GLB and Octree
+    loaderUI.show('Loading SigmaCity Map & Building Octree...', mapLoadPercentages); // Re-added
 
     const SCALE = 2;
     const rawSpawnPoints = [
@@ -283,7 +293,7 @@ export async function createSigmaCity(scene, physicsController) {
     let allModelTriangles = []; // This will hold the flat array of triangles from the GLB
 
     // 1) Load the GLB model first
-    let onGLBProgress = () => {};
+    let onGLBProgress = () => {}; // Will be set by loaderUI.track
     const glbLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
@@ -343,15 +353,21 @@ export async function createSigmaCity(scene, physicsController) {
                 console.log('✔️ GLB mesh loaded and triangles extracted.');
                 resolve(gltfGroup);
             },
-            evt => { if (evt.lengthComputable) onGLBProgress(evt); },
+            // progress callback for GLTFLoader, now hooked up to onGLBProgress
+            evt => {
+                if (evt.lengthComputable) onGLBProgress(evt);
+            },
             err => { console.error('❌ Error loading SigmaCity GLB:', err); reject(err); }
         );
     });
 
-    loaderUI.track(mapLoadPercentages[0], glbLoadPromise, cb => { onGLBProgress = cb; });
+    // track GLB load at 70%, with live percent updates
+    loaderUI.track(mapLoadPercentages[0], glbLoadPromise, cb => { // Re-added
+        onGLBProgress = cb;
+    });
 
     // 2) Once GLB is loaded, attempt to load or build the Octree
-    let onOctreeProgress = () => {};
+    let onOctreeProgress = () => {}; // Will be set by loaderUI.track
     const octreeLoadPromise = glbLoadPromise.then(async () => {
         let loadedOctree = null;
         let octreeBuildSuccess = false;
@@ -359,7 +375,7 @@ export async function createSigmaCity(scene, physicsController) {
         // Try to load pre-built Octree
         try {
             console.log(`Attempting to load Octree from: ${OCTREE_MAP_URL}`);
-            loaderUI.updateMessage('Loading Octree from file...');
+            loaderUI.updateMessage('Loading Octree from file...'); // Re-added
             
             const response = await fetch(OCTREE_MAP_URL);
             if (!response.ok) {
@@ -383,14 +399,14 @@ export async function createSigmaCity(scene, physicsController) {
             onOctreeProgress({ loaded: 1, total: 1 }); // Mark 100% for this phase
         } catch (error) {
             console.warn(`❌ Failed to load Octree from file: ${error.message}. Building from scratch.`);
-            loaderUI.updateMessage('Building Octree from scratch...');
+            loaderUI.updateMessage('Building Octree from scratch...'); // Re-added
             // Fallback to building from scratch
             const tempOctree = new OctreeV2();
             // Manually set total triangle count for progress tracking in buildOctree
             tempOctree._totalTriangleCount = allModelTriangles.length;
             await tempOctree.fromGraphNode(gltfGroup, (evt) => {
                 const overallProgress = evt.loaded; // fromGraphNode already handles its own internal progress
-                onOctreeProgress({ loaded: overallProgress, total: 1 });
+                onOctreeProgress({ loaded: overallProgress, total: 1 }); // Pass progress to loaderUI
             });
             physicsController.setOctreeAndTriangles(tempOctree, allModelTriangles);
             octreeBuildSuccess = true;
@@ -402,11 +418,15 @@ export async function createSigmaCity(scene, physicsController) {
         }
     });
 
-    loaderUI.track(mapLoadPercentages[1], octreeLoadPromise, cb => { onOctreeProgress = cb; });
+    // track octree build at 30%, with live percent updates
+    loaderUI.track(mapLoadPercentages[1], octreeLoadPromise, cb => { // Re-added
+        onOctreeProgress = cb;
+    });
 
     await Promise.all([glbLoadPromise, octreeLoadPromise]);
 
-    loaderUI.onComplete(() => {
+    // when fully done
+    loaderUI.onComplete(() => { // Re-added
         window.mapReady = true;
         console.log('🗺️ SigmaCity Map + Octree fully ready!');
     });
