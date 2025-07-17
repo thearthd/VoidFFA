@@ -1250,6 +1250,7 @@ function displaySlotsPage(slots) {
     details.setColor("#999999");
     details.setPosition(getWidth()*0.5, y+30);
     add(details);
+     console.log("SLOTS PASSED TO DISPLAY:", slots);
   });
 }
 
