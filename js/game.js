@@ -9,7 +9,7 @@ import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/exam
 import { ShaderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/ShaderPass.js";
 import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/shaders/CopyShader.js";
 import Stats from 'stats.js';
-import { dbRefs, disposeGame } from "./network.js";
+import { dbRefs, disposeGame, fullCleanup, activeGameId } from "./network.js";
 
 import { createSigmaCity } from "./map.js";
 import { createCrocodilosConstruction } from "./map.js";
@@ -226,7 +226,7 @@ async function determineWinnerAndEndGame() {
 
     const playersSnapshot = await playersRef.once("value");
     let winner = { username: "No one", kills: -1 };
-    let playerIdsToDisconnect = [];
+    const playerIdsToDisconnect = [];
 
     playersSnapshot.forEach(childSnap => {
         const player = childSnap.val();
@@ -238,32 +238,33 @@ async function determineWinnerAndEndGame() {
         }
     });
 
-    // --- NEW: Store winner in localStorage before disconnection ---
-    console.log(`PRE-DISCONNECT: The winner is ${winner.username} with ${winner.kills} kills!`); // This log might still be lost, but good for attempt.
-    localStorage.setItem('gameWinner', JSON.stringify(winner)); // Store as JSON string
-    localStorage.setItem('gameEndedTimestamp', Date.now().toString()); // Optional: Store timestamp to know when it happened
-    // --- END NEW ---
+    // Store winner in localStorage
+    console.log(`PRE-DISCONNECT: The winner is ${winner.username} with ${winner.kills} kills!`);
+    localStorage.setItem('gameWinner', JSON.stringify(winner));
+    localStorage.setItem('gameEndedTimestamp', Date.now().toString());
 
+    // Show the banner
     const gameTimerElement = document.getElementById("game-timer");
     if (gameTimerElement) {
         gameTimerElement.textContent = `WINNER: ${winner.username}`;
         gameTimerElement.style.display = "block";
     }
 
+    // Detach the kills listener if it’s still on
     if (playersKillsListener) {
         playersRef.off("value", playersKillsListener);
         playersKillsListener = null;
         console.log("Detached players kill listener.");
     }
+
+    // 1) Dispose game internals (loops, audio, etc.)
     await disposeGame();
-    // Crucially, this loop is what causes the local player to disconnect and reload
-    playerIdsToDisconnect.forEach(id => {
-        disconnectPlayer(id);
-    });
-    
-    // You might also consider a slight delay before calling disconnectPlayer(localPlayer.id)
-    // to allow other players to get the "game ended" message if you implement one,
-    // but for now, this ensures the localStorage save happens first.
+
+    // 2) Full cleanup of Firebase data & Three.js scene
+    await fullCleanup(activeGameId);
+
+    // 3) Finally, disconnect everyone (this triggers their reload)
+    playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
 }
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 
