@@ -5,7 +5,8 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/
 // New imports for game slot management
 import {
     claimGameSlot,
-    releaseGameSlot
+    releaseGameSlot,
+    gamesRef
 } from "./firebase-config.js";
 
 // Re-importing existing functions from game.js and ui.js
