@@ -449,11 +449,11 @@ export async function initNetwork(username, mapName, gameId) {
     }
 
     // 2) claim that same slot (idempotent)
-    const claimed = await claimGameSlot(username, mapName, window.isFFAActive);
-    if (!claimed || claimed.slotName !== slotName) {
-        Swal.fire('Error','Could not claim slot.','error');
-        return false;
-    }
+  //  const claimed = await claimGameSlot(username, mapName, window.isFFAActive);
+ //   if (!claimed || claimed.slotName !== slotName) {
+ //       Swal.fire('Error','Could not claim slot.','error');
+ //       return false;
+ //   }
 
     activeGameSlotName = slotName;
     dbRefs            = claimed.dbRefs;
