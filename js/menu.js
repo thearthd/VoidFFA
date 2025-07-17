@@ -95,9 +95,10 @@ export function remove(shape) {
  * Removes all shapes from the drawing list.
  */
 export function removeAll() {
-    shapes.length = 0; // Clears shapes for drawing
-    clickableShapes.length = 0; // Clears hitboxes for interaction
+    shapes.length = 0;
+     clickableShapes.length = 0;
 }
+
 /**
  * Base class for all drawable shapes.
  */
@@ -796,18 +797,6 @@ let playButton = createAnimatedButton(
     }
 );
 
-
-let createGameButton = createAnimatedButton(
-    "https://codehs.com/uploads/31eb8424a7b74d1266c4e1e210845583",
-    1920/6, 1080/6, // Original width and height
-    0, getHeight()/4, // Position
-    1920/6 - 25, 1080/8, // Hitbox dimensions (slightly smaller than image)
-    () => { 
-        console.log("createGameButton hit"); 
-        createGameButtonHit(); // Call function to change menu state
-    }
-);
-
 let settingsButton = createAnimatedButton(
     "https://codehs.com/uploads/b3e2a8dfe6107e2af96ce74f9799b0f8",
     1920/8, 1080/8,
@@ -928,23 +917,13 @@ function playButtonHit(){
     add(logo); // Re-add logo
     add(crocoPlayButton.image); // Add new play options
     add(sigmaPlayButton.image);
-  //  add(createGameButton.image);
-
-     
-    makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
-    makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
-   // makeButton(createGameButton.hitbox, createGameButton.hitbox.onClick); // Assuming createGameButton exists
-    makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
-}
-
-function createGameButtonHit(){
-    removeAll(); // Remove all existing shapes from the canvas
-    add(logo); // Re-add logo
     // Ensure their hitboxes are also added to the clickableShapes array for interaction
     // (This is handled by createAnimatedButton, but explicitly adding them here
     // for clarity if they were removed by removeAll)
-
+    makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
+    makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
 }
+
 
 /**
  * Initializes the main menu UI, handling username entry, map selection,
