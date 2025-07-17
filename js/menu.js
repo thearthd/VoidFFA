@@ -1059,6 +1059,7 @@ async function initAndStartGame(username, mapName, gameId = null) {
     console.warn("Network init failed—returning to menu.");
     menu();
     document.getElementById("menu-overlay").style.display = "flex";
+       canvas.style.display = 'flex';
     document.getElementById("game-container").style.display = "none";
     document.getElementById("hud").style.display = "none";
     document.getElementById("crosshair").style.display = "none";
