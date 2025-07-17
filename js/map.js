@@ -196,7 +196,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         // Try to load pre-built Octree
         try {
             console.log(`Attempting to load Octree from: ${OCTREE_MAP_URL}`);
-            loaderUI.updateMessage('Loading Octree from file...'); // Re-added
+            // Removed: loaderUI.updateMessage('Loading Octree from file...');
             
             const response = await fetch(OCTREE_MAP_URL);
             if (!response.ok) {
@@ -220,7 +220,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
             onOctreeProgress({ loaded: 1, total: 1 }); // Mark 100% for this phase
         } catch (error) {
             console.warn(`❌ Failed to load Octree from file: ${error.message}. Building from scratch.`);
-            loaderUI.updateMessage('Building Octree from scratch...'); // Re-added
+            // Removed: loaderUI.updateMessage('Building Octree from scratch...');
             // Fallback to building from scratch
             const tempOctree = new OctreeV2();
             // Manually set total triangle count for progress tracking in buildOctree
@@ -375,7 +375,7 @@ export async function createSigmaCity(scene, physicsController) {
         // Try to load pre-built Octree
         try {
             console.log(`Attempting to load Octree from: ${OCTREE_MAP_URL}`);
-            loaderUI.updateMessage('Loading Octree from file...'); // Re-added
+            // Removed: loaderUI.updateMessage('Loading Octree from file...');
             
             const response = await fetch(OCTREE_MAP_URL);
             if (!response.ok) {
@@ -399,7 +399,7 @@ export async function createSigmaCity(scene, physicsController) {
             onOctreeProgress({ loaded: 1, total: 1 }); // Mark 100% for this phase
         } catch (error) {
             console.warn(`❌ Failed to load Octree from file: ${error.message}. Building from scratch.`);
-            loaderUI.updateMessage('Building Octree from scratch...'); // Re-added
+            // Removed: loaderUI.updateMessage('Building Octree from scratch...');
             // Fallback to building from scratch
             const tempOctree = new OctreeV2();
             // Manually set total triangle count for progress tracking in buildOctree
