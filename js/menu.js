@@ -1255,7 +1255,7 @@ function displayGamesPage(page) {
                 "Join"
             );
             // Re-adjust joinBtn text position if needed
-            joinBtn.text.setPosition(joinBtn.image.getX() + joinBtn.image.getWidth() / 2, joinBtn.image.getY() + joinBtn.image.getHeight() / 2);
+            joinBtn.text.setPosition(joinBtn.image.x + joinBtn.image.getWidth() / 2, joinBtn.image.y + joinBtn.image.getHeight() / 2);
             currentMenuObjects.push(joinBtn.image, joinBtn.text, joinBtn.hitbox);
         }
     }
