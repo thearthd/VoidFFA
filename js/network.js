@@ -1,7 +1,6 @@
 // network.js
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import firebase from 'firebase/app'; // Import firebase for ServerValue.TIMESTAMP
-import 'firebase/database'; // Import database module
+
 
 // New imports for game slot management
 import {
