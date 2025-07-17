@@ -470,7 +470,7 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     Swal.fire('Error','No slot associated with that game ID.','error');
     return false;
   }
-
+activeGameId = gameId;
   // ─── MANUAL SLOT INITIALIZATION (instead of claimGameSlot) ───
   activeGameSlotName = slotName;
 
