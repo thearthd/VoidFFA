@@ -1257,10 +1257,11 @@ const activeSlots = Object.entries(gamesObj)
                 getWidth() * 0.8,
                 100,
                 "rgba(50,50,50,0.7)",
-                () => {
-                    console.log(`Joining slot ${slotInfo.slot} on map ${slotInfo.map}`);
-                    initAndStartGame(username, mapName, gameId);
-                }
+               () => {
+                 console.log(`Joining slot ${slotInfo.slot} on map ${slotInfo.map}`);
+                 setActiveGameId(gameId);            // ← stash it
+                 initAndStartGame(username, mapName, gameId);
+               }
             );
             add(gameBg);
             currentMenuObjects.push(gameBg);
