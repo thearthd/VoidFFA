@@ -299,6 +299,38 @@ export function sendSoundEvent(soundKey, soundType, position) {
     }
 }
 
+export async function disposeGame() {
+  console.log("[network.js] Disposing game…");
+
+  // 1) Run your existing cleanup of Firebase + slot
+  await endGameCleanup();
+
+  // 2) Clear any game‑side intervals and listeners
+  if (window.gameInterval) {
+    clearInterval(window.gameInterval);
+    window.gameInterval = null;
+  }
+  if (window.playersKillsListener && window.dbRefs?.playersRef) {
+    window.dbRefs.playersRef.off("value", window.playersKillsListener);
+    window.playersKillsListener = null;
+  }
+
+  // 3) Cancel the animation loop
+  if (window._animationId != null) {
+    cancelAnimationFrame(window._animationId);
+    window._animationId = null;
+  }
+
+  // 4) Stop all audio
+  if (window.audioManager) {
+    window.audioManager.stopAll();
+  }
+  [ window.deathTheme, window.windSound, window.forestNoise ]
+    .forEach(sound => { if (sound && sound.pause) sound.pause(); });
+
+  console.log("[network.js] Game disposed.");
+}
+
 // --- Player Purging and Disconnection ---
 
 export function purgeNamelessPlayers(validIds = []) {
