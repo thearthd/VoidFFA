@@ -849,7 +849,7 @@ function setupTracerListener(tracersRef) {
         // Remove from Firebase after a short delay (e.g., 1 second)
         setTimeout(() => tracerRef.remove().catch(err => console.error("Failed to remove tracer from Firebase:", err)), 1000);
         // Always create tracer locally for all players, regardless of who shot it
-        createTracer(new THREE.Vector3(x, y, z), new THREE.Vector3(tx, ty, tz), snap.key);
+        createTracer(new THREE.Vector3(ox, oy, oz), new THREE.Vector3(tx, ty, tz), snap.key);
     });
 
     tracersRef.off("child_removed"); // Detach previous
