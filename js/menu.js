@@ -1031,47 +1031,62 @@ function menu() {
 }
 
 // Helper to start game after menu hides
+function showMenuOverlay() {
+  const menuOverlay = document.getElementById("menu-overlay");
+  if (menuOverlay) {
+    menuOverlay.style.display = "flex";
+    menuOverlay.classList.remove("hidden");
+  }
+  if (canvas) {
+    canvas.style.display = "block";
+  }
+  const gameWrapper = document.getElementById("game-container");
+  if (gameWrapper) {
+    gameWrapper.style.display = "none";
+  }
+  const hud = document.getElementById("hud");
+  if (hud) hud.style.display = "none";
+  const crosshair = document.getElementById("crosshair");
+  if (crosshair) crosshair.style.display = "none";
+}
+
 async function initAndStartGame(username, mapName, gameId = null) {
+  // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
-  const menuOverlay   = document.getElementById("menu-overlay");
-  const gameWrapper   = document.getElementById("game-container");
+  const ffaEnabled     = true; // ← or read from your HTML toggle if you have one
 
-  // Hide the menu
+  // Hide the canvas‑menu overlay
+  const menuOverlay = document.getElementById("menu-overlay");
   if (menuOverlay) menuOverlay.classList.add("hidden");
-  if (canvas)      canvas.style.display = 'none';
+  if (canvas)      canvas.style.display = "none";
 
+  // Ensure game container exists
+  const gameWrapper = document.getElementById("game-container");
   if (!gameWrapper) {
     console.error("game-container element not found! Cannot start game.");
     Swal.fire('Error', 'Game container not found, cannot start game.', 'error');
     return menu();
   }
 
-  // Bring up the game UI
+  // Bring up the in‑game UI
   menuSong.pause();
-  gameWrapper.style.display = 'block';
+  gameWrapper.style.display = "block";
   createGameUI(gameWrapper);
   initBulletHoles(gameWrapper);
 
-  // 1) Attempt to hook into Firebase slot
-  const networkOk = await initNetwork(username, mapName, gameId);
+  // 1) Attempt to hook into Firebase slot (passing ffaEnabled)
+  const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
   if (!networkOk) {
-    // If it failed (slot not found, claim failed, etc.), go back to menu
     console.warn("Network init failed—returning to menu.");
-    menu();
-    document.getElementById("menu-overlay").style.display = "flex";
-       canvas.style.display = 'flex';
-    document.getElementById("game-container").style.display = "none";
-    document.getElementById("hud").style.display = "none";
-    document.getElementById("crosshair").style.display = "none";
-     return;
+    showMenuOverlay();
+    return;
   }
 
   // 2) Only once the network is live do we actually start the game loop
-  const ffaEnabled = true;  // or however you decide
   startGame(username, mapName, detailsEnabled, ffaEnabled, gameId);
   console.log(
     `Game started for map: ${mapName}, Username: ${username}, ` +
-    `Details: ${detailsEnabled}, Game ID: ${gameId}`
+    `Details: ${detailsEnabled}, FFA: ${ffaEnabled}, Game ID: ${gameId}`
   );
 }
 
