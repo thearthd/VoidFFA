@@ -95,9 +95,9 @@ export function remove(shape) {
  * Removes all shapes from the drawing list.
  */
 export function removeAll() {
-    shapes.length = 0;
+    shapes.length = 0; // Clears shapes for drawing
+    clickableShapes.length = 0; // Clears hitboxes for interaction
 }
-
 /**
  * Base class for all drawable shapes.
  */
