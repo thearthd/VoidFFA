@@ -660,6 +660,7 @@ export async function fullCleanup(gameId) {
     activeGameSlotName = null;
     localPlayerId = null;
     console.log("[fullCleanup] END");
+      location.reload();
     return true;
 
   } catch (err) {
