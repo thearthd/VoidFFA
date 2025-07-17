@@ -28,90 +28,53 @@ const configs = {
 };
 
 const menuConfig = {
-    apiKey: "AIzaSyBmLJjnsXye8oBBpbtTZu0W9-cmEl8QM8s",
-    authDomain: "voidffa-menu.firebaseapp.com",
-    databaseURL: "https://voidffa-menu-default-rtdb.firebaseio.com",
-    projectId: "voidffa-menu",
-    storageBucket: "voidffa-menu.firebasestorage.app",
-    messagingSenderId: "775839090279",
-    appId: "1:775839090279:web:1dfa69158b5e2b0ce436c2",
-    measurementId: "G-X9CKZX4C74"
-}
+  apiKey: "AIzaSyBmLJnsXye8oBBpbtTZu0W9-cmEl8QM8s",
+  authDomain: "voidffa-menu.firebaseapp.com",
+  databaseURL: "https://voidffa-menu-default-rtdb.firebaseio.com",
+  projectId: "voidffa-menu",
+  storageBucket: "voidffa-menu.firebasestorage.app",
+  messagingSenderId: "775839090279",
+  appId: "1:775839090279:web:1dfa69158b5e2b0ce436c2",
+  measurementId: "G-X9CKZX4C74"
+};
 
-// Keep track of initialized apps
 const apps = {};
 
 // Initialize (or return) the Firebase app for the menu
-let menuApp = null;
-export let gamesRef = null; // Declare and export gamesRef here
-
+let menuApp;
+let gamesRef;
 try {
-    // Attempt to get an already initialized app instance named "menuApp"
-    menuApp = firebase.app("menuApp");
-    // Assign gamesRef immediately if app already exists
-    gamesRef = menuApp.database().ref("games");
-    console.log("Menu Firebase app 'menuApp' already initialized and gamesRef set.");
-} catch (e) {
-    // If "menuApp" is not found, initialize it
-    if (e.code === 'app/no-app' || e.code === 'app/no-app-found') {
-        console.log("Menu Firebase app 'menuApp' not found, initializing...");
-        menuApp = firebase.initializeApp(menuConfig, "menuApp");
-        // Assign gamesRef immediately after new initialization
-        gamesRef = menuApp.database().ref("games");
-        console.log("Menu Firebase app 'menuApp' initialized and gamesRef set.");
-    } else {
-        console.error("Error with menu Firebase app:", e);
-    }
+  menuApp = firebase.app("menuApp");
+  console.log("Re‑using existing menuApp");
+} catch (err) {
+  console.log("menuApp not found — initializing new Firebase app");
+  menuApp = firebase.initializeApp(menuConfig, "menuApp");
 }
+gamesRef = menuApp.database().ref("games");
 
-// This additional check is mostly for logging/debugging now, as gamesRef should
-// be set in the try/catch blocks.
-if (!gamesRef && menuApp) {
-    console.warn("gamesRef was not set within try/catch, attempting fallback assignment.");
-    gamesRef = menuApp.database().ref("games");
-} else if (!menuApp) {
-    console.error("Firebase menuApp could not be initialized, gamesRef will not be available.");
-}
-
-
-/**
- * Initialize (or return) a compat App + Database for the given mapName.
- * @param {"CrocodilosConstruction"|"SigmaCity"} mapName
- */
+// Exported function to initialize or return map‐specific apps
 export function getDbRefs(mapName) {
-    if (!configs[mapName]) {
-        throw new Error(`Unknown mapName: ${mapName}`);
+  if (!configs[mapName]) throw new Error(`Unknown mapName: ${mapName}`);
+  if (!apps[mapName]) {
+    let app;
+    try {
+      app = firebase.app(mapName);
+      console.log(`Re‑using existing Firebase app for ${mapName}`);
+    } catch {
+      console.log(`No existing app for ${mapName} — initializing`);
+      app = firebase.initializeApp(configs[mapName], mapName);
     }
-    if (!apps[mapName]) {
-        try {
-            const app = firebase.app(mapName); // Try to get existing app
-            const database = app.database();
-            apps[mapName] = {
-                playersRef: database.ref("players/"),
-                chatRef:    database.ref("chat/"),
-                mapStateRef:database.ref("mapState/"),
-                killsRef:   database.ref("kills/"),
-                tracersRef: database.ref("tracers/"),
-                soundsRef:  database.ref("sounds/")
-            };
-            console.log(`Map Firebase app '${mapName}' already initialized.`);
-        } catch (e) {
-            if (e.code === 'app/no-app' || e.code === 'app/no-app-found') {
-                console.log(`Map Firebase app '${mapName}' not found, initializing...`);
-                const app = firebase.initializeApp(configs[mapName], mapName);
-                const database = app.database();
-                apps[mapName] = {
-                    playersRef: database.ref("players/"),
-                    chatRef:    database.ref("chat/"),
-                    mapStateRef:database.ref("mapState/"),
-                    killsRef:   database.ref("kills/"),
-                    tracersRef: database.ref("tracers/"),
-                    soundsRef:  database.ref("sounds/")
-                };
-            } else {
-                console.error(`Error with map Firebase app '${mapName}':`, e);
-            }
-        }
-    }
-    return apps[mapName];
+    const db = app.database();
+    apps[mapName] = {
+      playersRef:  db.ref("players/"),
+      chatRef:     db.ref("chat/"),
+      mapStateRef: db.ref("mapState/"),
+      killsRef:    db.ref("kills/"),
+      tracersRef:  db.ref("tracers/"),
+      soundsRef:   db.ref("sounds/")
+    };
+  }
+  return apps[mapName];
 }
+
+export { gamesRef };
