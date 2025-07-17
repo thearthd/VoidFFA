@@ -519,6 +519,7 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
+
     const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
     if (!networkOk) {
         console.warn("Network init failed.");
@@ -634,7 +635,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     initInput();
     initChatUI();
     initBulletHoles();
-
+    initializeAudioManager(window.camera, scene);
+    startSoundListener();
     // 6) Spawn local player
     const spawn = findFurthestSpawn();
     window.localPlayer = {
