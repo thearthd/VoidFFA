@@ -931,10 +931,10 @@ function playButtonHit(){
     add(createGameButton.image);
 
      
-    add(createGameButton.hitbox);
-    add(crocoPlayButton.hitbox);
-    add(sigmaPlayButton.hitbox);
-    add(loadoutButton.hitbox);
+    makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
+    makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
+    makeButton(createGameButton.hitbox, createGameButton.hitbox.onClick); // Assuming createGameButton exists
+    makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
 }
 
 function createGameButtonHit(){
