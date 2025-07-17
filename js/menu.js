@@ -803,6 +803,7 @@ let playButton = createAnimatedButton(
     1920/6 - 25, 1080/8, // Hitbox dimensions (slightly smaller than image)
     () => { 
         console.log("Play button hit"); 
+         removeAll();
         playButtonHit(); // Call function to change menu state
     }
 );
@@ -923,7 +924,7 @@ menu();
  * Clears the current menu and displays the canvas-based map selection options.
  */
 function playButtonHit(){
-    removeAll(); // Remove all existing shapes from the canvas
+     // Remove all existing shapes from the canvas
     add(logo); // Re-add logo
     add(crocoPlayButton.image); // Add new play options
     add(sigmaPlayButton.image);
