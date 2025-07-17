@@ -427,213 +427,263 @@ delete pendingRestore[victimId];
 }
 
 // Game Start
-export async function startGame(username, mapName, initialDetailsEnabled) {
-console.log("starting");
-detailsEnabled = initialDetailsEnabled;
+export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled) {
+    console.log("starting");
+    detailsEnabled = initialDetailsEnabled;
 
-initGlobalFogAndShadowParams();
+    let gameEndTime = null;
+    let gameInterval = null;
+
+    // Get reference to the timer element
+    const gameTimerElement = document.getElementById("game-timer");
+
+    if (ffaEnabled) {
+        console.log("FFA mode is enabled. Game will last 10 minutes.");
+        gameEndTime = Date.now() + (10 * 60 * 1000); // 10 minutes from now
+
+        // Show the timer element
+        if (gameTimerElement) {
+            gameTimerElement.style.display = "block";
+        }
+
+        gameInterval = setInterval(() => {
+            const timeLeft = gameEndTime - Date.now();
+            if (timeLeft <= 0) {
+                console.log("Game time ended!");
+                clearInterval(gameInterval);
+                if (gameTimerElement) {
+                    gameTimerElement.textContent = "TIME UP!";
+                }
+                determineWinnerAndEndGame();
+            } else {
+                const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000)); // Ensure non-negative
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+                // Format seconds to always have two digits (e.g., 05 instead of 5)
+                const formattedSeconds = seconds < 10 ? `0${seconds}` : seconds;
+                const timerText = `Time: ${minutes}:${formattedSeconds}`;
+                console.log(timerText); // For console logging
+                if (gameTimerElement) {
+                    gameTimerElement.textContent = timerText; // Update UI
+                }
+            }
+        }, 1000); // Check every second
+    } else {
+        // Hide the timer if FFA is not enabled (useful if you toggle modes)
+        if (gameTimerElement) {
+            gameTimerElement.style.display = "none";
+        }
+    }
+
+    initGlobalFogAndShadowParams();
 
     console.log("starting2");
-window.isGamePaused = false;
-document.getElementById("menu-overlay").style.display = "none";
-document.body.classList.add("game-active");
-document.getElementById("game-container").style.display = "block";
-document.getElementById("hud").style.display = "block";
-document.getElementById("crosshair").style.display = "block";
+    window.isGamePaused = false;
+    document.getElementById("menu-overlay").style.display = "none";
+    document.body.classList.add("game-active");
+    document.getElementById("game-container").style.display = "block";
+    document.getElementById("hud").style.display = "block";
+    document.getElementById("crosshair").style.display = "block";
 
-console.log("starting3");
-       console.log(username, mapName, initialDetailsEnabled);
-// Call initGameNetwork which now only calls network.initNetwork
-await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
-console.log("starting31");
-// After initGameNetwork (and thus network.initNetwork) completes,
-// localPlayerId should be set in network.js and available via import if needed.
-// Also, playersRef should be available as it's set above in initGameNetwork now.
-let playerId = localStorage.getItem("playerId"); // Re-read, or get from network.js directly
-console.log("starting32");
-if (!playerId && playersRef) { // playersRef should be set now
-playerId = playersRef.push().key; // Only generate if not already in localStorage
-       console.log("starting33");
-localStorage.setItem("playerId", playerId);
-       console.log("starting34");
-} else if (!playerId && !playersRef) {
-console.error("Critical Error: playersRef is null after initGameNetwork. Cannot generate playerId.");
-return;
-}
+    console.log("starting3");
+    console.log(username, mapName, initialDetailsEnabled);
+    await initGameNetwork(username, localStorage.getItem("playerId"), mapName);
+    console.log("starting31");
 
-    
+    let playerId = localStorage.getItem("playerId");
+    console.log("starting32");
+    if (!playerId && playersRef) {
+        playerId = playersRef.push().key;
+        console.log("starting33");
+        localStorage.setItem("playerId", playerId);
+        console.log("starting34");
+    } else if (!playerId && !playersRef) {
+        console.error("Critical Error: playersRef is null after initGameNetwork. Cannot generate playerId.");
+        return;
+    }
+
     console.log("starting4");
 
+    window.physicsController = new PhysicsController(window.camera, scene);
+    physicsController = window.physicsController;
 
-window.physicsController = new PhysicsController(window.camera, scene);
-physicsController = window.physicsController;
+    weaponController = new WeaponController(
+        window.camera,
+        playersRef, // Pass playersRef for damage updates
+        mapStateRef.child("bullets"), // Pass the specific bullet holes reference
+        createTracer,
+        playerId, // Pass local player ID for weapon actions
+        physicsController
+    );
+    window.weaponController = weaponController;
 
-weaponController = new WeaponController(
-window.camera,
-playersRef, // Pass playersRef for damage updates
-mapStateRef.child("bullets"), // Pass the specific bullet holes reference
-createTracer,
-playerId, // Pass local player ID for weapon actions
-physicsController
-);
-window.weaponController = weaponController; // Expose globally if needed
-    
-        console.log("starting5");
-// --- CONDITIONAL SCENE INITIALIZATION BASED ON MAPNAME ---
-if (mapName === "CrocodilosConstruction") {
-await initSceneCrocodilosConstruction();
-} else if (mapName === "SigmaCity") {
-await initSceneSigmaCity();
-} else {
-console.warn(`Unknown mapName: ${mapName}. Skipping specific scene initialization.`);
+    console.log("starting5");
+    if (mapName === "CrocodilosConstruction") {
+        await initSceneCrocodilosConstruction();
+    } else if (mapName === "SigmaCity") {
+        await initSceneSigmaCity();
+    } else {
+        console.warn(`Unknown mapName: ${mapName}. Skipping specific scene initialization.`);
+    }
+
+    console.log("starting6");
+    initInput();
+    initChatUI();
+    initBulletHoles();
+    initializeAudioManager(window.camera, scene);
+    startSoundListener();
+
+    console.log("starting7");
+    const spawn = findFurthestSpawn();
+
+    window.localPlayer = {
+        id: playerId,
+        username,
+        x: spawn.x,
+        y: spawn.y,
+        z: spawn.z,
+        rotY: 0,
+        health: initialPlayerHealth,
+        shield: initialPlayerShield,
+        weapon: initialPlayerWeapon,
+        kills: 0,
+        deaths: 0,
+        ks: 0,
+        bodyColor: Math.floor(Math.random() * 0xffffff),
+        velocity: 0,
+        isCrouched: false,
+        isAirborne: false,
+        isDead: false
+    };
+    console.log("window.localPlayer before animate():", window.localPlayer);
+    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
+    window.camera.lookAt(
+        new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z)
+        .add(new THREE.Vector3(0, 0, -1))
+    );
+
+    if (playersRef && window.localPlayer) {
+        window.localPlayer.trueColor = window.localPlayer.bodyColor;
+        await playersRef.child(playerId).set({
+            id: window.localPlayer.id,
+            username: window.localPlayer.username,
+            x: window.localPlayer.x,
+            y: window.localPlayer.y,
+            z: window.localPlayer.z,
+            rotY: window.localPlayer.rotY,
+            health: window.localPlayer.health,
+            shield: window.localPlayer.shield,
+            weapon: window.localPlayer.weapon,
+            kills: window.localPlayer.kills,
+            deaths: window.localPlayer.deaths,
+            ks: window.localPlayer.ks,
+            bodyColor: window.localPlayer.bodyColor,
+            isDead: window.localPlayer.isDead,
+            trueColor: window.localPlayer.trueColor,
+            lastUpdate: Date.now()
+        }).then(() => {
+            console.log("Local player initial state set in Firebase.");
+            playersRef.child(playerId).onDisconnect().remove();
+
+            updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+        }).catch(error => {
+            console.error("[startGame] Error setting local player data:", error);
+            updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+        });
+    } else {
+        console.error("Cannot set initial player data: playersRef or localPlayer is null.");
+        return;
+    }
+
+    weaponAmmo = {};
+    for (const key in WeaponController.WEAPONS) {
+        weaponAmmo[key] = WeaponController.WEAPONS[key].magazineSize;
+    }
+
+    weaponController.equipWeapon(window.localPlayer.weapon);
+
+    initInventory(window.localPlayer.weapon);
+    initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
+    updateInventory(window.localPlayer.weapon);
+    updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
+
+    window.addEventListener("applyRecoilEvent", e => {
+        if (window.localPlayer.weapon !== "knife") {
+            const now = performance.now() / 1000;
+            activeRecoils.push({
+                angle: e.detail,
+                start: now,
+                duration: weaponController.stats.recoilDuration
+            });
+        }
+    });
+
+    window.addEventListener("buyWeapon", async e => {
+        const choice = e.detail;
+        weaponAmmo[window.localPlayer.weapon] = weaponController.getCurrentAmmo();
+        window.localPlayer.weapon = choice;
+
+        if (playersRef && localPlayerId) {
+            try {
+                await playersRef.child(localPlayerId).update({ weapon: choice });
+            } catch (error) {
+                console.error("Failed to update weapon in Firebase:", error);
+            }
+        }
+
+        weaponController.equipWeapon(choice);
+
+        const restoreAmmo = weaponAmmo[choice];
+        weaponController.ammoInMagazine =
+            restoreAmmo !== undefined ?
+            restoreAmmo :
+            weaponController.stats.magazineSize;
+
+        updateInventory(window.localPlayer.weapon);
+        updateAmmoDisplay(
+            weaponController.ammoInMagazine,
+            weaponController.stats.magazineSize
+        );
+
+        if (choice === "knife") activeRecoils = [];
+    });
+
+    createRespawnOverlay();
+    createFadeOverlay();
+
+    if (window.localPlayer?.isDead) {
+        showRespawn();
+    }
+
+    createLeaderboardOverlay();
+    animate(); // Start the game loop
+
+    async function determineWinnerAndEndGame() {
+        console.log("Determining winner and ending game...");
+        const snapshot = await playersRef.once("value");
+        let winner = { username: "No one", kills: -1 };
+
+        snapshot.forEach(childSnap => {
+            const player = childSnap.val();
+            if (player.kills > winner.kills) {
+                winner = { username: player.username, kills: player.kills };
+            }
+        });
+
+        console.log(`The winner is ${winner.username} with ${winner.kills} kills!`);
+
+        // Hide the timer when the game ends
+        if (gameTimerElement) {
+            gameTimerElement.style.display = "none";
+        }
+
+        // Disconnect all players
+        snapshot.forEach(childSnap => {
+            disconnectPlayer(childSnap.key);
+        });
+    }
+    window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 }
-    
-        console.log("starting6");
-initInput();
-initChatUI();
-initBulletHoles(); // Now correctly initialized and listening via network.js/ui.js events
-initializeAudioManager(window.camera, scene);
-startSoundListener();
-    
-            console.log("starting7");
-// Get a spawn point
-const spawn = findFurthestSpawn();
-
-// Initialize localPlayer object
-// DO NOT include initialPlayerHealth, initialPlayerShield, initialPlayerWeapon directly
-// in this object, as you only need 'health', 'shield', 'weapon'.
-window.localPlayer = {
-id: playerId,
-username,
-x: spawn.x,
-y: spawn.y,
-z: spawn.z,
-rotY: 0, // This will be updated by input
-health: initialPlayerHealth, // Use the defined constant here for *current* health
-shield: initialPlayerShield, // Use the defined constant here for *current* shield
-weapon: initialPlayerWeapon, // Use the defined constant here for *current* weapon
-kills: 0,
-deaths: 0,
-ks: 0,
-bodyColor: Math.floor(Math.random() * 0xffffff),
-velocity: 0,
-isCrouched: false,
-isAirborne: false,
-isDead: false
-};
-console.log("window.localPlayer before animate():", window.localPlayer);
-// Set initial camera position based on local player's spawn
-window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-window.camera.lookAt(
-new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z)
-.add(new THREE.Vector3(0, 0, -1))
-);
-
-// Initial Firebase setup for local player
-if (playersRef && window.localPlayer) {
-window.localPlayer.trueColor = window.localPlayer.bodyColor;
-// Send a clean object to Firebase, without the "initialPlayer..." constants
-await playersRef.child(playerId).set({
-id: window.localPlayer.id,
-username: window.localPlayer.username,
-x: window.localPlayer.x,
-y: window.localPlayer.y,
-z: window.localPlayer.z,
-rotY: window.localPlayer.rotY,
-health: window.localPlayer.health,
-shield: window.localPlayer.shield,
-weapon: window.localPlayer.weapon,
-kills: window.localPlayer.kills,
-deaths: window.localPlayer.deaths,
-ks: window.localPlayer.ks,
-bodyColor: window.localPlayer.bodyColor,
-isDead: window.localPlayer.isDead,
-trueColor: window.localPlayer.trueColor, // Keep if you use this explicitly in Firebase
-lastUpdate: Date.now() // Add a timestamp for pruning inactive players
-}).then(() => {
-console.log("Local player initial state set in Firebase.");
-playersRef.child(playerId).onDisconnect().remove(); // Keep this!
-
-updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // Initial UI update
-}).catch(error => {
-console.error("[startGame] Error setting local player data:", error);
-updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // Fallback UI update
-});
-} else {
-console.error("Cannot set initial player data: playersRef or localPlayer is null.");
-return;
-}
-
-
-
-
-// Initialize weapon ammo for all weapons
-weaponAmmo = {};
-for (const key in WeaponController.WEAPONS) {
-weaponAmmo[key] = WeaponController.WEAPONS[key].magazineSize;
-}
-
-weaponController.equipWeapon(window.localPlayer.weapon); // Equip the initial weapon
-
-initInventory(window.localPlayer.weapon); // Pass current weapon for initial selection
-initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
-updateInventory(window.localPlayer.weapon); // Select the initial weapon in UI
-updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
-
-window.addEventListener("applyRecoilEvent", e => {
-if (window.localPlayer.weapon !== "knife") {
-const now = performance.now() / 1000;
-activeRecoils.push({
-angle: e.detail,
-start: now,
-duration: weaponController.stats.recoilDuration
-});
-}
-});
-
-window.addEventListener("buyWeapon", async e => {
-const choice = e.detail;
-weaponAmmo[window.localPlayer.weapon] = weaponController.getCurrentAmmo();
-window.localPlayer.weapon = choice;
-
-// Update Firebase: crucial to reflect weapon change for other players
-if (playersRef && localPlayerId) {
-try {
-await playersRef.child(localPlayerId).update({ weapon: choice });
-} catch (error) {
-console.error("Failed to update weapon in Firebase:", error);
-}
-}
-
-weaponController.equipWeapon(choice);
-
-const restoreAmmo = weaponAmmo[choice];
-weaponController.ammoInMagazine =
-restoreAmmo !== undefined
-? restoreAmmo
-: weaponController.stats.magazineSize;
-
-updateInventory(window.localPlayer.weapon); // Only pass current weapon key
-updateAmmoDisplay(
-weaponController.ammoInMagazine,
-weaponController.stats.magazineSize
-);
-
-if (choice === "knife") activeRecoils = [];
-});
-
-createRespawnOverlay();
-createFadeOverlay();
-
-// Initial check for death state before starting animate loop (important for fresh game start)
-if (window.localPlayer?.isDead) {
-showRespawn();
-}
-
-createLeaderboardOverlay();
-animate(); // Start the game loop
-}
-
 
 
 export function hideGameUI() {
