@@ -442,7 +442,7 @@ export async function initNetwork(username, mapName, gameId) {
     // 1) look up slotName from the game entry
     const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
     const slotName = slotSnap.val();
-    console.log(slotName);
+    console.log("[network.js] fetched slotName for gameId", gameId, "→", slotName);
     if (!slotName) {
         Swal.fire('Error','No slot associated with that game ID.','error');
         return false;
