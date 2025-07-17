@@ -72,7 +72,7 @@ let chatInput;
 let respawnOverlay = null;
 let respawnButton  = null;
 let fadeOverlay    = null;
-
+let playersKillsListener = null;
 let sceneNum = 0;
 
 let deathTheme = new Audio("https://codehs.com/uploads/720078943b931e7eb258b01fb10f1fba");
@@ -208,6 +208,49 @@ bloomPass = null;
 }
 }
 
+async function determineWinnerAndEndGame() {
+    console.log("Determining winner and ending game...");
+
+    // Fetch ALL players to determine the winner and then disconnect them
+    const playersSnapshot = await playersRef.once("value");
+    let winner = { username: "No one", kills: -1 };
+    let playerIdsToDisconnect = [];
+
+    playersSnapshot.forEach(childSnap => {
+        const player = childSnap.val();
+        if (player && typeof player.kills === 'number') {
+            playerIdsToDisconnect.push(childSnap.key);
+            if (player.kills > winner.kills) {
+                winner = { username: player.username, kills: player.kills };
+            }
+        }
+    });
+
+    console.log(`The winner is ${winner.username} with ${winner.kills} kills!`);
+
+    const gameTimerElement = document.getElementById("game-timer");
+    if (gameTimerElement) {
+        gameTimerElement.textContent = `WINNER: ${winner.username}`; // Show winner
+        gameTimerElement.style.display = "block"; // Ensure it's visible
+        // Optionally, hide after a delay or in a separate game over screen
+    }
+
+    // Immediately stop listening for kill updates when game ends
+    if (playersKillsListener) {
+        playersRef.off("value", playersKillsListener);
+        playersKillsListener = null;
+        console.log("Detached players kill listener.");
+    }
+
+    // Disconnect all players that were found in the snapshot
+    playerIdsToDisconnect.forEach(id => {
+        disconnectPlayer(id);
+    });
+
+    // You might want to display a game over screen here as well,
+    // or redirect after a short delay for local player.
+}
+window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 
 function createStars() {
 if (sceneNum !== 1) return; // Only create for CrocodilosConstruction
@@ -436,12 +479,11 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     const gameTimerElement = document.getElementById("game-timer");
 
-    // Set the global FFA flag so applyDamageToRemote can access it
     window.isFFAActive = ffaEnabled;
 
     if (ffaEnabled) {
         console.log("FFA mode is enabled. Game will last 10 minutes.");
-        gameEndTime = Date.now() + (10 * 60 * 1000); // 10 minutes from now
+        gameEndTime = Date.now() + (10 * 60 * 1000);
 
         if (gameTimerElement) {
             gameTimerElement.style.display = "block";
@@ -450,24 +492,52 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         gameInterval = setInterval(() => {
             const timeLeft = gameEndTime - Date.now();
             if (timeLeft <= 0) {
-                console.log("Game time ended!");
+                console.log("Game time ended by timer!");
                 clearInterval(gameInterval);
                 if (gameTimerElement) {
                     gameTimerElement.textContent = "TIME UP!";
                 }
-                determineWinnerAndEndGame(); // Call the game end function
+                determineWinnerAndEndGame();
             } else {
                 const totalSeconds = Math.max(0, Math.floor(timeLeft / 1000));
                 const minutes = Math.floor(totalSeconds / 60);
                 const seconds = totalSeconds % 60;
                 const formattedSeconds = seconds < 10 ? `0${seconds}` : seconds;
                 const timerText = `Time: ${minutes}:${formattedSeconds}`;
-                // console.log(timerText); // Keep this for debugging if needed, but UI is primary
                 if (gameTimerElement) {
-                    gameTimerElement.textContent = timerText; // Update UI
+                    gameTimerElement.textContent = timerText;
                 }
             }
-        }, 1000); // Check every second
+        }, 1000);
+
+        // --- NEW: Firebase Listener for Kill Threshold ---
+        // This listener will check for any player reaching 40 kills
+        playersKillsListener = playersRef.on("value", (snapshot) => {
+            if (!window.isFFAActive) return; // Only run this check if FFA is enabled
+
+            let gameEndedByKillThreshold = false;
+            snapshot.forEach(childSnap => {
+                const player = childSnap.val();
+                if (player && typeof player.kills === 'number' && player.kills >= 40) {
+                    console.log(`Firebase: Player ${player.username} reached 40 kills! Triggering game end.`);
+                    gameEndedByKillThreshold = true;
+                    // Important: Break out of forEach if a winner is found to prevent
+                    // determineWinnerAndEndGame from being called multiple times.
+                    // This is not a true 'break' but a flag.
+                }
+            });
+
+            if (gameEndedByKillThreshold) {
+                // Detach listener immediately to prevent re-triggering
+                if (playersKillsListener) {
+                    playersRef.off("value", playersKillsListener);
+                    playersKillsListener = null;
+                }
+                determineWinnerAndEndGame();
+            }
+        });
+        // --- END NEW ---
+
     } else {
         if (gameTimerElement) {
             gameTimerElement.style.display = "none";
@@ -657,45 +727,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     createLeaderboardOverlay();
     animate(); // Start the game loop
 
-    // The determineWinnerAndEndGame function, declared within startGame or at global scope
-    async function determineWinnerAndEndGame() {
-        console.log("Determining winner and ending game...");
-
-        // Fetch ALL players to determine the winner and then disconnect them
-        const playersSnapshot = await playersRef.once("value");
-        let winner = { username: "No one", kills: -1 };
-        let playerIdsToDisconnect = [];
-
-        playersSnapshot.forEach(childSnap => {
-            const player = childSnap.val();
-            // Ensure player data is valid and has kills property
-            if (player && typeof player.kills === 'number') {
-                playerIdsToDisconnect.push(childSnap.key); // Collect all player IDs
-                if (player.kills > winner.kills) {
-                    winner = { username: player.username, kills: player.kills };
-                }
-            }
-        });
-
-        // This console.log should now always happen before disconnections
-        console.log(`The winner is ${winner.username} with ${winner.kills} kills!`);
-
-        if (gameTimerElement) {
-            gameTimerElement.style.display = "none"; // Hide timer
-        }
-
-        // Disconnect all players that were found in the snapshot
-        playerIdsToDisconnect.forEach(id => {
-            disconnectPlayer(id);
-        });
-
-        // You might want to display a game over screen here as well,
-        // or redirect after a short delay for local player.
-    }
-    window.determineWinnerAndEndGame = determineWinnerAndEndGame; // Make it globally accessible
-
 } // End of startGame function
-
 
 export function hideGameUI() {
   document.getElementById("menu-overlay").style.display = "flex";
@@ -1923,74 +1955,41 @@ let hiddenInterval = null;
 let rafId = null;
 
 export function animate(timestamp) {
-    // If localPlayerId is null, it means the local player has disconnected, so stop the animation loop.
     if (localPlayerId === null) {
         console.log("Local player disconnected. Stopping animation loop.");
-
         window.isGamePaused = true;
         document.getElementById("menu-overlay").style.display = "flex";
         document.getElementById("game-container").style.display = "none";
         document.getElementById("hud").style.display = "none";
         document.getElementById("crosshair").style.display = "none";
-
-        return; // This prevents requestAnimationFrame from being called again.
+        return;
     }
 
-    // Schedule the next frame immediately
     requestAnimationFrame(animate);
 
-    // Throttle to 60fps: bail out if we're too early
-    const FRAME_INTERVAL = 1000 / 60; // ≈16.67ms
+    const FRAME_INTERVAL = 1000 / 60;
     if (!animate.lastTime) {
-        // first frame
         animate.lastTime = timestamp;
     }
     const deltaMs = timestamp - animate.lastTime;
     if (deltaMs < FRAME_INTERVAL) {
         return;
     }
-    // carry over any "extra" time to keep smoother timing
     animate.lastTime = timestamp - (deltaMs % FRAME_INTERVAL);
-
-    // Convert to seconds for your logic
     const delta = deltaMs / 1000;
 
-    // ——— Your existing logic starts here ———
-    if (!physicsController || !weaponController) {
-        console.warn("Skipping animate(): controllers not yet initialized");
-        return;
-    }
-    if (!window.mapReady) {
-        return;
-    }
-    if (!window.localPlayer) {
-        console.warn("Skipping animate(): window.localPlayer is not initialized.");
+    if (!physicsController || !weaponController || !window.mapReady || !window.localPlayer) {
+        // Consolidated warning and cleanup for early exits
+        if (!window.localPlayer) console.warn("Skipping animate(): window.localPlayer is not initialized.");
         postFrameCleanup();
         return;
     }
 
-    // --- NEW: Game End Condition Checks in Animate Loop ---
-    // Only perform these checks if FFA mode is active
-    if (window.isFFAActive) {
-        // Check local player's kills for win condition
-        if (window.localPlayer.kills >= 40) {
-            console.log(`Animate: Local player ${window.localPlayer.username} detected 40 kills! Triggering game end.`);
-            // This is crucial: call the single, comprehensive game ending function
-            if (window.determineWinnerAndEndGame) {
-                window.determineWinnerAndEndGame();
-            } else {
-                console.error("Animate: determineWinnerAndEndGame not accessible globally.");
-            }
-            return; // Stop further animation updates for this frame, as game is ending
-        }
-        // The timer hitting 0 is handled by the setInterval in startGame,
-        // which also calls determineWinnerAndEndGame directly.
-        // No need for redundant time check here.
-    }
-    // --- END NEW ---
+    // --- REMOVED: No more kill check in animate ---
+    // The authoritative kill check is now handled by the Firebase 'value' listener
+    // in startGame, which calls determineWinnerAndEndGame.
 
     try {
-        // Death screen logic
         if (window.localPlayer.isDead) {
             const cross = document.getElementById("crosshair");
             if (cross) cross.style.display = "none";
@@ -2012,13 +2011,11 @@ export function animate(timestamp) {
             return;
         }
 
-        // Normal game update
         checkForDamagePulse();
         if (weaponController.stats.speedModifier != null) {
             physicsController.setSpeedModifier(weaponController.stats.speedModifier);
         }
 
-        // Remote players falling
         const GRAVITY = 9.8;
         Object.values(window.remotePlayers).forEach(rp => {
             const g = rp.group;
@@ -2033,7 +2030,6 @@ export function animate(timestamp) {
             }
         });
 
-        // Sky and fog rotation
         if (skyMesh && starField) {
             skyMesh.rotation.x += 0.0001;
             starField.rotation.x += 0.00008;
@@ -2045,10 +2041,8 @@ export function animate(timestamp) {
             window.worldFog.position.z += Math.cos(nowMs * 0.0001) * delta * 2;
         }
 
-        // Physics & input update
         const physState = physicsController.update(delta, inputState, window.collidables);
 
-        // Weapon update
         weaponController.update(
             inputState, delta, {
                 velocity: physState.velocity,
@@ -2059,19 +2053,15 @@ export function animate(timestamp) {
             }
         );
 
-
         for (let i = activeTracers.length - 1; i >= 0; i--) {
             const tracer = activeTracers[i];
-            tracer.update(delta); // Pass the calculated delta (in seconds)
-
+            tracer.update(delta);
             if (tracer.remove) {
                 tracer.dispose();
                 activeTracers.splice(i, 1);
             }
         }
 
-
-        // Network sync
         sendPlayerUpdate({
             x: physState.x,
             y: physState.y,
@@ -2084,13 +2074,11 @@ export function animate(timestamp) {
         window.localPlayer.knifeSwing = false;
         window.localPlayer.knifeHeavy = false;
 
-        // Remote avatars update
         for (const id in window.remotePlayers) {
             const rp = window.remotePlayers[id];
             if (rp.data) updateRemotePlayer(rp.data);
         }
 
-        // Weapon switching
         if (inputState.weaponSwitch) {
             const oldW = window.localPlayer.weapon;
             weaponAmmo[oldW] = weaponController.getCurrentAmmo();
@@ -2109,14 +2097,12 @@ export function animate(timestamp) {
             if (newW === "knife") activeRecoils.length = 0;
         }
 
-        // Mouse look + recoil
         const baseSens = parseFloat(localStorage.getItem("sensitivity") || "5.00");
         const aimMul = inputState.aim ? (window.localPlayer.weapon === "marshal" ? 0.15 : 0.5) : 1;
         const finalSens = baseSens * aimMul;
         window.camera.rotation.y -= inputState.mouseDX * finalSens * 0.002;
         let newPitch = window.camera.rotation.x - inputState.mouseDY * finalSens * 0.002;
         window.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, newPitch));
-        // Recoil processing
         {
             const now = performance.now() / 1000;
             let totalOffset = 0;
@@ -2132,7 +2118,6 @@ export function animate(timestamp) {
             window.camera.rotation.x += totalOffset;
         }
 
-        // Rebuild collidables
         if (window.mapReady) {
             window.collidables = [...window.envMeshes];
             for (const otherId in window.remotePlayers) {
@@ -2148,7 +2133,6 @@ export function animate(timestamp) {
             }
         }
 
-        // Render
         composer.render();
 
     } catch (err) {
@@ -2325,23 +2309,18 @@ entry.group.userData.velocityY = 0;
 // Applies damage and flashes red, then reverts to originalColor
 // -------------------------------------------------------------
 function applyDamageToRemote(targetId, damage, killerInfo) {
-    //console.log('[applyDamageToRemote] for', targetId, 'damage=', damage);
-
     if (targetId === window.localPlayer.id) {
-        // ONLY store the killer's position if the local player is the target
         if (killerInfo && killerInfo.id) {
             const killerEntry = window.remotePlayers[killerInfo.id];
             if (killerEntry && killerEntry.position) {
                 lastDamageSourcePosition = killerEntry.position;
             } else {
                 console.warn('[applyDamageToRemote] Killer position not found for ID:', killerInfo.id);
-                lastDamageSourcePosition = null; // Ensure it's cleared if info is incomplete
+                lastDamageSourcePosition = null;
             }
         } else {
-            lastDamageSourcePosition = null; // Clear if no killerInfo
+            lastDamageSourcePosition = null;
         }
-        // pulseScreenRed() is called here, but the arrow logic is now in checkForDamagePulse
-        // which will be triggered by the health/shield change.
     }
 
     const entry = window.remotePlayers[targetId];
@@ -2373,7 +2352,6 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
             };
 
             if (newHP <= 0) {
-                // console.log('[applyDamageToRemote] →', targetId, 'died');
                 Object.assign(updateData, {
                     deaths: (data.deaths || 0) + 1,
                     ks: 0,
@@ -2381,19 +2359,17 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                     shield: 0
                 });
 
-                // Update victim
                 return playersRef.child(targetId)
                     .update(updateData)
                     .then(() => {
-                        // Update killer stats - this is where the local player's kills are updated
                         return playersRef.child(window.localPlayer.id).once('value')
                             .then(snap2 => {
                                 const kd = snap2.val() || {};
                                 const newKills = (kd.kills || 0) + 1;
                                 const newKS = (kd.ks || 0) + 1;
 
-                                window.localPlayer.kills = newKills;
-                                window.localPlayer.ks = newKS;
+                                window.localPlayer.kills = newKills; // Update local cache
+                                window.localPlayer.ks = newKS;       // Update local cache
 
                                 return playersRef.child(window.localPlayer.id)
                                     .update({
@@ -2401,27 +2377,13 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                                         ks: newKS
                                     })
                                     .then(() => {
-                                        // --- NEW: Check for 40 Kills in FFA (Local Player's kill) ---
-                                        // Ensure this check only runs if FFA mode is actually enabled
-                                        // We need access to `ffaEnabled` from `startGame` or make it a global/window property.
-                                        // For now, assuming `ffaEnabled` is available or `window.ffaEnabled` if you set it globally.
-                                        // A more robust solution might pass it down or have a game state object.
-                                        // Assuming it's already set by startGame or can be derived.
-                                        // If `ffaEnabled` is a local var in startGame, you'll need to set a global flag, e.g., window.isFFAActive.
-                                        if (window.isFFAActive && newKills >= 2) {
-                                            console.log(`${window.localPlayer.username} reached 40 kills! Ending game.`);
-                                            if (window.determineWinnerAndEndGame) {
-                                                window.determineWinnerAndEndGame();
-                                            } else {
-                                                console.error("determineWinnerAndEndGame not accessible globally.");
-                                            }
-                                        }
-                                        // --- END NEW ---
+                                        // **REMOVED: The check for 40 kills here.**
+                                        // This check is now handled by the playersKillsListener.
+                                        // This function's primary job is to apply damage and update stats.
 
                                         // Play kill-streak sound for local player
                                         if (killerInfo.id === window.localPlayer.id) {
                                             const streak = newKS >= 10 ? 10 : newKS;
-                                            // Assuming KILLSTREAK_SOUNDS is defined elsewhere
                                             const url = typeof KILLSTREAK_SOUNDS !== 'undefined' ? KILLSTREAK_SOUNDS[streak] : null;
                                             if (url) {
                                                 const audio = new Audio(url);
@@ -2433,13 +2395,10 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                             });
                     })
                     .then(() => {
-                        // Handle UI after updates
                         animateDeath(targetId);
                         if (targetId === window.localPlayer.id) {
                             handleLocalDeath();
                         }
-                        // Record kill event
-                        // Assuming killsRef is defined elsewhere
                         if (typeof killsRef !== 'undefined') {
                             return killsRef.push({
                                 killer: window.localPlayer.username,
@@ -2448,11 +2407,9 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                                 timestamp: Date.now()
                             });
                         }
-                        return Promise.resolve(); // Return a resolved promise if killsRef is not defined
+                        return Promise.resolve();
                     });
             } else {
-                // Partial damage: just pulse hit
-                // Assuming pulsePlayerHit is defined elsewhere
                 if (typeof pulsePlayerHit !== 'undefined') {
                     pulsePlayerHit(targetId);
                 }
@@ -2463,7 +2420,7 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
         .catch(err => console.error('[applyDamageToRemote]', err));
 }
 
-window.applyDamageToRemote = applyDamageToRemote; // Make globally accessible
+window.applyDamageToRemote = applyDamageToRemote;
 
 // --- NEW: Global FFA Active Flag ---
 // This flag allows applyDamageToRemote to know if FFA mode is active.
