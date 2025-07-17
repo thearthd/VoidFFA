@@ -1320,7 +1320,7 @@ function addBackButton() {
         "Back" // Text for clarity
     );
     // Adjust text position relative to its button for 'Back'
-    backButton.text.setPosition(backButton.image.getX() + backButton.image.getWidth() / 2, backButton.image.getY() + backButton.image.getHeight() / 2);
+    backButton.text.setPosition(backButton.image.x + backButton.image.getWidth() / 2, backButton.image.y + backButton.image.getHeight() / 2);
     backButton.image.setLayer(4); // Ensure back button is visible
     backButton.hitbox.setLayer(16);
     currentMenuObjects.push(backButton.image, backButton.text, backButton.hitbox);
