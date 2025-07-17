@@ -77,6 +77,13 @@ export function initializeAudioManager(camera, scene) {
     console.log("AudioManager successfully initialized with camera:", camera.uuid, "at initial position:", camera.position.toArray());
 }
 
+export let activeGameId = null;
+
+// add this:
+export function setActiveGameId(id) {
+  activeGameId = id;
+}
+
 export function startSoundListener() {
     if (!dbRefs || !dbRefs.soundsRef) {
         console.error("Cannot start sound listener: dbRefs or soundsRef not initialized.");
