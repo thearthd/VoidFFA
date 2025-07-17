@@ -393,7 +393,7 @@ export async function endGameCleanup() {
         console.log("Kills listener detached.");
     }
     if (mapStateListener && dbRefs.mapStateRef) {
-        dbRefs.mapStateRef.child("bullets").off("child_added", mapStateListener); // Specific child listener
+        dbRefs.mapStateRef.child("bullets").off("child_added", mapStateListener);
         mapStateListener = null;
         console.log("MapState/bullets listener detached.");
     }
@@ -408,48 +408,39 @@ export async function endGameCleanup() {
         console.log("Sounds listener detached.");
     }
     if (gameConfigListener && dbRefs.gameConfigRef) {
-        dbRefs.gameConfigRef.off("value", gameConfigListener); // Detach game config listeners
+        dbRefs.gameConfigRef.off("value", gameConfigListener);
         gameConfigListener = null;
         console.log("GameConfig listener detached.");
     }
 
-    // Stop AudioManager sounds
     if (audioManagerInstance) {
         audioManagerInstance.stopAll();
-        // audioManagerInstance = null; // Optionally dispose if not reused
     }
 
-    // Remove local player's data from Firebase (explicitly, in case onDisconnect hasn't fired yet)
     if (dbRefs.playersRef && localPlayerId) {
         try {
             await dbRefs.playersRef.child(localPlayerId).remove();
             console.log(`Local player '${localPlayerId}' explicitly removed from Firebase.`);
-            // Also cancel onDisconnect for this player if it was still active
             dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel();
         } catch (error) {
             console.error(`Error removing local player '${localPlayerId}' from Firebase during cleanup:`, error);
         }
     }
 
-    // Release the game slot in the menu database
+    // Release the game slot and remove the lobby entry
     if (activeGameSlotName) {
         await releaseGameSlot(activeGameSlotName);
-        console.log(`Game slot '${activeGameSlotName}' released.`);
-        // Clear local storage for this slot
+        console.log(`Game slot '${activeGameSlotName}' released AND lobby entry removed.`);
         localStorage.removeItem(`playerId-${activeGameSlotName}`);
         activeGameSlotName = null;
     }
 
-    localPlayerId = null; // Mark local player as no longer active
+    localPlayerId = null;
 
-    // Clear global dbRefs and remote players array
     dbRefs = {};
     for (const id in remotePlayers) {
-        removeRemotePlayerModel(id); // Remove Three.js models
+        removeRemotePlayerModel(id);
     }
-    // Assuming remotePlayers is a global object for now, if it's not and managed internally,
-    // you might need a dedicated function like `clearRemotePlayers()` in game.js if it owns the object.
-    // For this context, it's exported and can be cleared directly.
     for (const key in remotePlayers) {
         delete remotePlayers[key];
     }
