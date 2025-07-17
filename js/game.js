@@ -1034,10 +1034,6 @@ function setupDetailToggle() {
 }
 
 
-// Scene Initialization
-
-let skyMesh, starField;
-
 export async function initSceneCrocodilosConstruction() { // Make initSceneCrocodilosConstruction async
 sceneNum = 1;
 console.log("Initializing CrocodilosConstruction scene...");
