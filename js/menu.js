@@ -1598,8 +1598,8 @@ export function initMenuUI() {
                 menuSong.pause();
                 gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
                 createGameUI(gameWrapper); // Create game UI elements
-                initNetwork(username, mapName); // Initialize network for multiplayer
-                startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true", ffaEnabled); // Start the game
+               // initNetwork(username, mapName); // Initialize network for multiplayer
+              //  startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true", ffaEnabled); // Start the game
 
                 console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
             } else {
