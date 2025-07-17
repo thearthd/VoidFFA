@@ -436,8 +436,8 @@ export async function endGameCleanup() {
  * @param {boolean} ffaEnabled - True if FFA mode is enabled, false otherwise.
  * @returns {Promise<boolean>} True if network initialization was successful, false otherwise.
  */
-export async function initNetwork(username, mapName, gameId) {
-  console.log("[network.js] initNetwork for", username, mapName, gameId);
+export async function initNetwork(username, mapName, gameId, ffaEnabled) {
+  console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
   await endGameCleanup();
 
   // 1) look up slotName from the game entry
