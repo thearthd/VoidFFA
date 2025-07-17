@@ -8,20 +8,25 @@ import {
 	Plane,
 	Sphere,
 	Triangle,
-	Vector3
+	Vector3,
+    Color, // Added Color for generateVisualization
+    Object3D // Added Object3D for generateVisualization (Group is a subclass)
 } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 
- import { Capsule } from 'three/examples/jsm/math/Capsule.js'; 
+import { Capsule } from 'three/examples/jsm/math/Capsule.js';
+import { Box3Helper } from 'three/examples/jsm/helpers/Box3Helper.js'; // Added Box3Helper for visualization
 
-const _v1 = new THREE.Vector3();
-const _v2 = new THREE.Vector3();
-const _point1 = new THREE.Vector3();
-const _point2 = new THREE.Vector3();
-const _plane = new THREE.Plane();
-const _line1 = new THREE.Line3();
-const _line2 = new THREE.Line3();
-const _sphere = new THREE.Sphere();
-const _capsule = new THREE.Capsule(); // Corrected import for Capsule
+
+const _v1 = new Vector3();
+const _v2 = new Vector3();
+const _point1 = new Vector3();
+const _point2 = new Vector3();
+const _plane = new Plane();
+const _line1 = new Line3();
+const _line2 = new Line3();
+const _sphere = new Sphere();
+const _capsule = new Capsule(); // Corrected import for Capsule
+
 
 // Missing lineToLineClosestPoints from the original three.js example.
 // Re-adding it as it's used by triangleCapsuleIntersect.
@@ -95,6 +100,9 @@ export class OctreeV2 {
         this._totalTrianglesAdded = 0;
         this._totalTriangleCount = 0;
         this._onProgressCallback = null;
+        this._addPhaseWeight = 0.5;
+        this._buildPhaseWeight = 0.5;
+
         this._splitQueue = [];
         this._cellsProcessedForSplit = 0;
         this._totalCellsToSplitEstimate = 0;
@@ -102,7 +110,7 @@ export class OctreeV2 {
 
     addTriangle( triangle, originalIndex ) {
 
-        if ( ! this.bounds ) this.bounds = new THREE.Box3();
+        if ( ! this.bounds ) this.bounds = new Box3(); // Use Box3 directly
 
         this.bounds.min.x = Math.min( this.bounds.min.x, triangle.a.x, triangle.b.x, triangle.c.x );
         this.bounds.min.y = Math.min( this.bounds.min.y, triangle.a.y, triangle.b.y, triangle.c.y );
@@ -121,7 +129,7 @@ export class OctreeV2 {
     calcBox() {
 
         if (this.triangleIndices.length === 0) {
-            this.box = new THREE.Box3();
+            this.box = new Box3(); // Use Box3 directly
             return this;
         }
 
@@ -164,7 +172,7 @@ export class OctreeV2 {
                     for ( let x = 0; x < 2; x ++ ) {
                         for ( let y = 0; y < 2; y ++ ) {
                             for ( let z = 0; z < 2; z ++ ) {
-                                const box = new THREE.Box3();
+                                const box = new Box3(); // Use Box3 directly
                                 const v = _v1.set( x, y, z );
                                 box.min.copy( octree.box.min ).add( v.multiply( halfsize ) );
                                 box.max.copy( box.min ).add( halfsize );
@@ -222,7 +230,7 @@ export class OctreeV2 {
     /**
      * Builds the Octree.
      *
-     * @param {Array<THREE.Triangle>} allTriangles - A flat array of all triangles from the model.
+     * @param {Array<Triangle>} allTriangles - A flat array of all triangles from the model.
      * @param {function({loaded: number, total: number}):void} [onProgress] - Callback for progress updates (0-1).
      * @return {Promise<Octree>} A promise that resolves to this Octree when building is complete.
      */
@@ -476,7 +484,7 @@ export class OctreeV2 {
 
         if ( hit ) {
 
-            const collisionVector = _capsule.getCenter( new THREE.Vector3() ).sub( capsule.getCenter( _v1 ) );
+            const collisionVector = _capsule.getCenter( new Vector3() ).sub( capsule.getCenter( _v1 ) ); // Use Vector3 directly
             const depth = collisionVector.length();
 
             return { normal: collisionVector.normalize(), depth: depth };
@@ -527,7 +535,7 @@ export class OctreeV2 {
      *
      * @param {Object3D} group - The scene graph node.
      * @param {function({loaded: number, total: number}):void} [onProgress] - Callback for progress updates (0-1).
-     * @return {Promise<Array<THREE.Triangle>>} A promise that resolves to the flat array of all triangles.
+     * @return {Promise<Array<Triangle>>} A promise that resolves to the flat array of all triangles.
      */
     fromGraphNode( group, onProgress = () => {} ) {
 
@@ -553,15 +561,15 @@ export class OctreeV2 {
                 if (positionAttribute) {
                     totalMeshTriangles += positionAttribute.count / 3;
                     for ( let i = 0; i < positionAttribute.count; i += 3 ) {
-                        const v1 = new THREE.Vector3().fromBufferAttribute( positionAttribute, i );
-                        const v2 = new THREE.Vector3().fromBufferAttribute( positionAttribute, i + 1 );
-                        const v3 = new THREE.Vector3().fromBufferAttribute( positionAttribute, i + 2 );
+                        const v1 = new Vector3().fromBufferAttribute( positionAttribute, i ); // Use Vector3 directly
+                        const v2 = new Vector3().fromBufferAttribute( positionAttribute, i + 1 ); // Use Vector3 directly
+                        const v3 = new Vector3().fromBufferAttribute( positionAttribute, i + 2 ); // Use Vector3 directly
 
                         v1.applyMatrix4( obj.matrixWorld );
                         v2.applyMatrix4( obj.matrixWorld );
                         v3.applyMatrix4( obj.matrixWorld );
 
-                        allTriangles.push(new THREE.Triangle( v1, v2, v3 ));
+                        allTriangles.push(new Triangle( v1, v2, v3 )); // Use Triangle directly
                     }
                 }
 
@@ -632,18 +640,18 @@ export class OctreeV2 {
 
     /**
      * Generates a THREE.Group containing THREE.Box3Helper for each octree node.
-     * @param {THREE.Color} [color=0x00ff00] - Color of the bounding boxes.
+     * @param {Color} [color=0x00ff00] - Color of the bounding boxes.
      * @param {number} [maxDepth=-1] - Maximum depth to visualize. -1 for all depths.
      * @param {number} [currentDepth=0] - Current recursion depth (internal use).
-     * @returns {THREE.Group} A group containing the octree visualization.
+     * @returns {Object3D} A group containing the octree visualization.
      */
     generateVisualization( color = 0x00ff00, maxDepth = -1, currentDepth = 0 ) {
-        const group = new THREE.Group();
+        const group = new Object3D(); // Use Object3D (Group is a subclass)
 
         const traverseAndAddBoxes = (node, depth) => {
             if (maxDepth === -1 || depth <= maxDepth) {
                 if (node.box) {
-                    const helper = new THREE.Box3Helper(node.box, new THREE.Color(color));
+                    const helper = new Box3Helper(node.box, new Color(color)); // Use Box3Helper and Color directly
                     group.add(helper);
                 }
             }
@@ -685,15 +693,15 @@ export class OctreeV2 {
      * Deserializes a plain JavaScript object into an OctreeV2 instance.
      * Requires the original flat array of THREE.Triangle objects.
      * @param {Object} serializedData - The serialized octree data.
-     * @param {Array<THREE.Triangle>} allTriangles - The flat array of all triangles from the model.
+     * @param {Array<Triangle>} allTriangles - The flat array of all triangles from the model.
      * @returns {OctreeV2} A new OctreeV2 instance.
      */
     static deserialize(serializedData, allTriangles) {
         const deserializeNode = (data) => {
             const octree = new OctreeV2(
-                new THREE.Box3(
-                    new THREE.Vector3(data.box.min[0], data.box.min[1], data.box.min[2]),
-                    new THREE.Vector3(data.box.max[0], data.box.max[1], data.box.max[2])
+                new Box3( // Use Box3 directly
+                    new Vector3(data.box.min[0], data.box.min[1], data.box.min[2]), // Use Vector3 directly
+                    new Vector3(data.box.max[0], data.box.max[1], data.box.max[2]) // Use Vector3 directly
                 )
             );
             octree.triangleIndices = data.triangleIndices;
