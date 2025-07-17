@@ -529,8 +529,12 @@ canvas.addEventListener("click", function(event) {
             const inX = x >= s.getX() && x <= s.getX() + s.getWidth();
             const inY = y >= s.getY() && y <= s.getY() + s.getHeight();
             if (inX && inY) {
-                entry.onClick(); // Trigger the click callback
-                break; // Stop after the first hit
+                if (typeof entry.onClick === 'function') { // <-- Add this check for robustness
+                    entry.onClick(); // Trigger the click callback
+                    break;
+                } else {
+                    console.error("Found clickable entry without a function for onClick:", entry);
+                }
             }
         }
         if (s instanceof Circle) {
@@ -546,8 +550,12 @@ canvas.addEventListener("click", function(event) {
             const inX = x >= s.x && x <= s.x + s.width;
             const inY = y >= s.y && y <= s.y + s.height;
             if (inX && inY) {
-                entry.onClick();
-                break;
+                if (typeof entry.onClick === 'function') { // <-- Add this check for robustness
+                    entry.onClick(); // Trigger the click callback
+                    break;
+                } else {
+                    console.error("Found clickable entry without a function for onClick:", entry);
+                }
             }
         }
     }
