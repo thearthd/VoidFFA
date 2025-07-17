@@ -1,5 +1,8 @@
 // firebase-config.js
 
+import firebase from 'firebase/app';
+import 'firebase/database';
+
 // Configuration for your Firebase projects
 // Make sure these match your actual Firebase project configurations
 export const menuConfig = {
@@ -119,9 +122,13 @@ export async function claimGameSlot(username, mapName, ffaEnabled) {
                 if (claimed) {
                     let gameApp = null;
                     try {
+                        // --- DEBUGGER 1 ---
+                        debugger; // Execution will pause here if a slot was successfully claimed in menu DB
                         // Check if the game-specific Firebase app already exists to avoid re-initializing
                         gameApp = firebase.apps.find(app => app.name === slotName);
                         if (!gameApp) {
+                            // --- DEBUGGER 2 ---
+                            debugger; // Execution will pause here if a NEW game app is about to be initialized
                             gameApp = firebase.initializeApp(gameDatabaseConfigs[slotName], slotName);
                             console.log(`Initialized new Firebase app for game slot '${slotName}'.`);
                         } else {
@@ -153,6 +160,8 @@ export async function claimGameSlot(username, mapName, ffaEnabled) {
                             dbRefs: dbRefs
                         };
                     } catch (appError) {
+                        // --- DEBUGGER 3 ---
+                        debugger; // Execution will pause here if an error occurs during game app initialization
                         console.error(`Error initializing Firebase app for game slot '${slotName}':`, appError);
                         // If game app initialization fails, attempt to release the slot in the menu DB
                         await slotRef.update({ status: "ended" })
