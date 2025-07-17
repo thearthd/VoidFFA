@@ -465,6 +465,7 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
 
   // 1) look up slotName from the game entry
   const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
+    activeGameId = gameId;
   const slotName = slotSnap.val();
   if (!slotName) {
     Swal.fire('Error','No slot associated with that game ID.','error');
