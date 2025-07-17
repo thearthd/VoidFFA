@@ -1,24 +1,37 @@
 // menu.js
 
 /*
-     _____,,;;;`;         ;';;;,,_____
-,~(  )  , )~~\ |         |/~( ,  (  )~;
-' / / --`--,             .--'-- \ \ `
-  /  \    | '           ` |    /  \
+      _____,,;;;`;        ;';;;,,_____
+,~(  )  , )~~\ |        |/~( ,  (  )~;
+' / / --`--,          .--'-- \ \ `
+  /  \    | '          ` |    /  \
 
 horse power
 */
 
 // --- All imports moved to the top ---
+// IMPORTANT: Ensure firebase-config.js is loaded BEFORE this script in your HTML
+// or that `gamesRef` is otherwise globally accessible.
+// For CodeHS, if files are concatenated, the order in the project matters.
+// import { gamesRef } from "./firebase-config.js"; // This line is for modular JS.
+// In a typical CodeHS setup, you might rely on global variables or ensure firebase-config runs first.
+// Assuming `gamesRef` is made globally available by firebase-config.js for simplicity in CodeHS.
+// If not, you may need to explicitly define it here using `firebase.app("menuApp").database().ref("games")`
+// provided `firebase` SDK is loaded.
+
+// If `gamesRef` is not automatically global, uncomment and use this (requires Firebase SDK loaded):
+// const gamesRef = firebase.app("menuApp").database().ref("games");
+
+// Placeholder for external imports, adjust paths as needed
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import { createGameUI, initBulletHoles } from "./ui.js"; // Placeholder, actual ui.js content needed for full functionality
-import { startGame, toggleSceneDetails } from "./game.js"; // Placeholder, actual game.js content needed for full functionality
-import { initNetwork } from "./network.js"; // Placeholder, actual network.js content needed for full functionality
+import { createGameUI, initBulletHoles } from "./ui.js";
+import { startGame, toggleSceneDetails } from "./game.js";
+import { initNetwork } from "./network.js";
 
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
 // <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-// --- Start of engine.js content ---
+// --- Start of engine.js content (included here as per your provided code) ---
 
 // Export utility functions and classes
 export const preload = src => {
@@ -59,7 +72,7 @@ const clickableShapes = []; // Array to store shapes that respond to clicks
  * Returns the current width of the canvas.
  * @returns {number} The canvas width.
  */
-export function getWidth()  { return canvasWidth; }
+export function getWidth() { return canvasWidth; }
 
 /**
  * Returns the current height of the canvas.
@@ -443,7 +456,7 @@ export class ImageShape extends Shape {
     /**
      * Sets the width and height of the image.
      * @param {number} width - The new width.
-     * @param {number} number} height - The new height.
+     * @param {number} height - The new height.
      */
     setSize(width, height) {
         this.width = width;
@@ -470,6 +483,11 @@ export class ImageShape extends Shape {
         this.y = y;
     }
 
+    /** @returns {number} The width of the image. */
+    getWidth() { return this.width; }
+    /** @returns {number} The height of the image. */
+    getHeight() { return this.height; }
+
     /**
      * Draws the image on the canvas context.
      * @param {CanvasRenderingContext2D} ctx - The canvas rendering context.
@@ -492,7 +510,9 @@ function gameLoop() {
     // Sort and draw shapes by layer to ensure correct rendering order
     shapes.sort((a, b) => (a.layer || 0) - (b.layer || 0));
     for (let shape of shapes) {
-        shape.draw(ctx);
+        if (shape.draw) { // Ensure the shape has a draw method
+            shape.draw(ctx);
+        }
     }
     requestAnimationFrame(gameLoop);
 }
@@ -514,15 +534,15 @@ export function makeButton(shape, onClick) {
 }
 
 // Event listener for mouse clicks on the canvas
-canvas.addEventListener("click", function(event) {
+canvas.addEventListener("click", function (event) {
     const rect = canvas.getBoundingClientRect();
     // Calculate scaling factors to convert CSS pixels to canvas pixels
-    const scaleX = canvas.width  / rect.width;
+    const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
     // Get click coordinates in canvas pixels
     const x = (event.clientX - rect.left) * scaleX;
-    const y = (event.clientY - rect.top ) * scaleY;
+    const y = (event.clientY - rect.top) * scaleY;
 
     // Check if the click occurred within any clickable shape
     for (const entry of clickableShapes) {
@@ -552,22 +572,19 @@ canvas.addEventListener("click", function(event) {
                 break; // Stop after the first hit
             } else {
                 console.error("Found clickable entry without a valid onClick function:", entry);
-                // Optionally remove the problematic entry if it's truly corrupted
-                // const index = clickableShapes.indexOf(entry);
-                // if (index > -1) clickableShapes.splice(index, 1);
             }
         }
     }
 });
 
-canvas.addEventListener("mousemove", function(event) {
+canvas.addEventListener("mousemove", function (event) {
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width  / rect.width;
+    const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
     // Convert from CSS pixels into canvas pixels
     const x = (event.clientX - rect.left) * scaleX;
-    const y = (event.clientY - rect.top ) * scaleY;
+    const y = (event.clientY - rect.top) * scaleY;
 
     let hoveringAny = false; // Flag to track if mouse is hovering over any clickable shape
 
@@ -583,7 +600,7 @@ canvas.addEventListener("mousemove", function(event) {
         else if (s instanceof Circle) {
             const dx = x - s.getX();
             const dy = y - s.getY();
-            isHovering = dx*dx + dy*dy <= s.getRadius()*s.getRadius();
+            isHovering = dx * dx + dy * dy <= s.getRadius() * s.getRadius();
         }
         else if (s instanceof ImageShape) { // Assuming ImageShape can also be a hitbox
             const inX = x >= s.x && x <= s.x + s.width;
@@ -644,7 +661,7 @@ export function removeGifBG() {
 window.scene = new THREE.Scene();
 window.renderer = {
     shadowMap: { enabled: true },
-    setClearColor: () => {} // Placeholder function
+    setClearColor: () => { } // Placeholder function
 };
 window.dirLight = null;
 window.originalFogParams = {
@@ -665,8 +682,8 @@ let leftbuttonSpacing = 150; // Spacing for menu buttons
 
 // Main logo image for the menu
 let logo = new ImageShape("https://codehs.com/uploads/8b490deb914374d0ca27f9ab21fac591");
-logo.setSize(100, 100);
-logo.setPosition(getWidth() / 2, getHeight()/32);
+logo.setSize(300, 150); // Adjusted size for better visibility
+logo.setPosition(getWidth() / 2 - logo.getWidth() / 2, getHeight() / 32);
 logo.setLayer(10); // Ensure logo is drawn on top
 
 // Background rectangle for the menu
@@ -714,6 +731,11 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     buttonImage.originalY = yPos;
     buttonImage.currentAnimationStep = 0; // Tracks the current step in the animation
 
+    let buttonText = new Text("", "20pt Arial"); // Text overlay for the button
+    buttonText.setColor(Color.WHITE);
+    buttonText.setLayer(4); // Layer above the image
+    buttonText.setPosition(xPos + originalWidth / 2, yPos + originalHeight / 2); // Center text on button
+
     let buttonHitbox = new Rectangle(hitboxWidth, hitboxHeight);
     // Position the hitbox relative to the button's actual position, centering vertically
     buttonHitbox.setPosition(xPos, yPos + (originalHeight - hitboxHeight) / 2);
@@ -750,6 +772,9 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
 
             buttonImage.setSize(newWidth, newHeight);
             buttonImage.setPosition(newX, newY);
+            // Update text position to stay centered
+            buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
+
 
             if (t === 1) {
                 clearInterval(animationInterval); // Stop animation when complete
@@ -785,206 +810,520 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
 
             buttonImage.setSize(newWidth, newHeight);
             buttonImage.setPosition(newX, newY);
+            // Update text position to stay centered
+            buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
 
             if (t === 1) {
                 clearInterval(animationInterval); // Stop animation when complete
                 // Reset to original size and position precisely
                 buttonImage.setSize(buttonImage.originalWidth, buttonImage.originalHeight);
                 buttonImage.setPosition(buttonImage.originalX, buttonImage.originalY);
+                buttonText.setPosition(buttonImage.originalX + buttonImage.originalWidth / 2, buttonImage.originalY + buttonImage.originalHeight / 2);
             }
         }, FRAME_RATE);
     };
     // --- End of hover animations ---
 
-    return { image: buttonImage, hitbox: buttonHitbox };
+    // Add a setText method to the returned object for convenience
+    const buttonObject = { image: buttonImage, hitbox: buttonHitbox, text: buttonText };
+    buttonObject.setText = function (newText) {
+        this.text.setText(newText);
+    };
+    return buttonObject;
 }
+
+// Global array to store fetched games
+let allGames = [];
+let currentPage = 0;
+const GAMES_PER_PAGE = 4; // Display 4 games per page
+
+// Buttons array to keep track of current buttons for removal
+let currentMenuObjects = [];
+
+/**
+ * Helper function to create an animated button and add its components to the canvas.
+ */
+function createAndAddButton(imagePath, x, y, width, height, onClick, text = "") {
+    let buttonObj = createAnimatedButton(imagePath, width, height, x, y, width, height, onClick);
+    add(buttonObj.image);
+    add(buttonObj.text);
+    makeButton(buttonObj.hitbox, buttonObj.hitbox.onClick); // Use hitbox's stored onClick
+    buttonObj.setText(text);
+    currentMenuObjects.push(buttonObj.image, buttonObj.hitbox, buttonObj.text);
+    return buttonObj;
+}
+
+/**
+ * Clears all current objects from the canvas.
+ */
+function clearMenuCanvas() {
+    for (let obj of currentMenuObjects) {
+        remove(obj);
+    }
+    currentMenuObjects = [];
+}
+
+// Player username
+let username = localStorage.getItem("username") || "Player" + Math.floor(Math.random() * 1000); // Default if not set
 
 // Button Definitions using the reusable createAnimatedButton function
 let playButton = createAnimatedButton(
     "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
-    1920/6, 1080/6, // Original width and height
-    0, getHeight()/4, // Position
-    1920/6 - 25, 1080/8, // Hitbox dimensions (slightly smaller than image)
+    1920 / 6, 1080 / 6, // Original width and height
+    getWidth() / 2 - (1920 / 6) / 2, getHeight() / 2 - leftbuttonSpacing * 1.5, // Adjusted position
+    1920 / 6 - 25, 1080 / 8, // Hitbox dimensions (slightly smaller than image)
     () => {
         console.log("Play button hit");
         playButtonHit(); // Call function to change menu state
     }
 );
+playButton.setText("Play");
+
+let gamesButton = createAnimatedButton(
+    "https://codehs.com/uploads/2fe6d45e0875e166cfe5f0e5343fc3b5", // Provided games button image
+    1920 / 6, 1080 / 6,
+    getWidth() / 2 - (1920 / 6) / 2, getHeight() / 2 - leftbuttonSpacing / 2, // Position below Play
+    1920 / 6 - 25, 1080 / 8,
+    () => {
+        console.log("Games button hit");
+        gamesButtonHit();
+    }
+);
+gamesButton.setText("Games");
 
 let settingsButton = createAnimatedButton(
     "https://codehs.com/uploads/b3e2a8dfe6107e2af96ce74f9799b0f8",
-    1920/8, 1080/8,
-    0 + 15, getHeight()/4 + leftbuttonSpacing + playButton.image.y/8,
-    1920/8, 1080/10,
+    1920 / 8, 1080 / 8,
+    getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 + leftbuttonSpacing * 0.5, // Position below Games
+    1920 / 8, 1080 / 10,
     () => { console.log("Settings button hit"); }
 );
+settingsButton.setText("Settings");
 
 let careerButton = createAnimatedButton(
     "https://codehs.com/uploads/afd818ac19ff0bbd919c766a1625071e",
-    1920/8, 1080/8,
-    0 + 15, getHeight()/4 + leftbuttonSpacing*2 + playButton.image.y/8,
-    1920/8, 1080/10,
+    1920 / 8, 1080 / 8,
+    getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 + leftbuttonSpacing * 1.5, // Position below Settings
+    1920 / 8, 1080 / 10,
     () => { console.log("Career button hit"); }
 );
+careerButton.setText("Career");
 
 let loadoutButton = createAnimatedButton(
     "https://codehs.com/uploads/765a0c87dc6d5d571ff25f139003227f",
-    1920/8, 1080/8,
-    0 + 15, getHeight()/4 + leftbuttonSpacing*3 + playButton.image.y/8,
-    1920/8, 1080/10,
+    1920 / 8, 1080 / 8,
+    getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 + leftbuttonSpacing * 2.5, // Position below Career
+    1920 / 8, 1080 / 10,
     () => { console.log("Loadout button hit"); }
 );
+loadoutButton.setText("Loadout");
 
-// These two buttons are for a sub-menu after "Play" is hit
+// These two buttons are for a sub-menu after "Play" is hit (Direct Join options)
 let crocoPlayButton = createAnimatedButton(
-    "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
-    1920/6, 1080/6, // Original width and height
-    getWidth()/1.5, getHeight()-200, // Position towards the right bottom
-    1920/6 - 25, 1080/8, // Hitbox dimensions
+    "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a", // Re-using play button image
+    1920 / 6, 1080 / 6, // Original width and height
+    getWidth() / 2 + 100, getHeight() / 2 - 50, // Position towards the right
+    1920 / 6 - 25, 1080 / 8, // Hitbox dimensions
     () => {
         console.log("crocoPlayButton clicked, starting CrocodilosConstruction map.");
-        const username = localStorage.getItem("username") || "Guest";
-        const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
-        const menuOverlay = document.getElementById("menu-overlay");
-        const gameWrapper = document.getElementById('game-container');
-
-        if (menuOverlay) {
-            menuOverlay.classList.add("hidden");
-        }
-        // Hide the canvas itself if it's the main menu display
-        if (canvas) {
-            canvas.style.display = 'none';
-        }
-        if (gameWrapper) {
-            let ffaEnabled = true;
-            menuSong.pause();
-            gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
-            createGameUI(gameWrapper);
-            initNetwork(username, "CrocodilosConstruction");
-            startGame(username, "CrocodilosConstruction", detailsEnabled, ffaEnabled);
-            console.log(`Game started for map: CrocodilosConstruction, Username: ${username}, Details Enabled: ${detailsEnabled}.`);
-        } else {
-            console.error("game-container element not found! Cannot start game.");
-        }
+        const mapName = "CrocodilosConstruction";
+        // Directly start game logic here (for quick play, not for created games)
+        initAndStartGame(username, mapName);
     }
 );
+crocoPlayButton.setText("Crocodilos");
+
 
 let sigmaPlayButton = createAnimatedButton(
-    "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
-    1920/6, 1080/6, // Original width and height
-    getWidth()/3, getHeight()-200, // Position towards the left bottom
-    1920/6 - 25, 1080/8, // Hitbox dimensions
+    "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a", // Re-using play button image
+    1920 / 6, 1080 / 6, // Original width and height
+    getWidth() / 2 - 1920 / 6 - 100, getHeight() / 2 - 50, // Position towards the left
+    1920 / 6 - 25, 1080 / 8, // Hitbox dimensions
     () => {
         console.log("sigmaPlayButton clicked, starting SigmaCity map.");
-        const username = localStorage.getItem("username") || "Guest";
-        const detailsEnabled = localStorage.getItem("details.Enabled") === "true";
-        const menuOverlay = document.getElementById("menu-overlay");
-        const gameWrapper = document.getElementById('game-container');
-
-        if (menuOverlay) {
-            menuOverlay.classList.add("hidden");
-        }
-        // Hide the canvas itself if it's the main menu display
-        if (canvas) {
-            canvas.style.display = 'none';
-        }
-        if (gameWrapper) {
-            let ffaEnabled = true;
-            menuSong.pause();
-            gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
-            createGameUI(gameWrapper);
-            initNetwork(username, "SigmaCity");
-            startGame(username, "SigmaCity", detailsEnabled, ffaEnabled);
-            console.log(`Game started for map: SigmaCity, Username: ${username}, Details Enabled: ${detailsEnabled}.`);
-        } else {
-            console.error("game-container element not found! Cannot start game.");
-        }
+        const mapName = "SigmaCity";
+        // Directly start game logic here (for quick play, not for created games)
+        initAndStartGame(username, mapName);
     }
 );
+sigmaPlayButton.setText("SigmaCity");
 
-// Assuming createGameButton is also defined here or globally
-let createGameButton = createAnimatedButton(
-    "https://codehs.com/uploads/31eb8424a7b74d1266c4e1e210845583",
-    1920/6, 1080/6, // Original width and height
-    getWidth()/2 - (1920/6)/2, getHeight()/2 - (1080/6)/2, // Example position (center of screen)
-    1920/6 - 25, 1080/8, // Hitbox dimensions
+// Main Create Game Button (will be on the map selection screen)
+let createGameBtn = createAnimatedButton(
+    "https://codehs.com/uploads/31eb8424a7b74d1266c4e1e210845583", // Example image
+    1920 / 6, 1080 / 6, // Original width and height
+    getWidth() / 2 - (1920 / 6) / 2, getHeight() - 250, // Position it below map options
+    1920 / 6 - 25, 1080 / 8, // Hitbox dimensions
     () => {
-        console.log("createGameButton hit");
-        createGameButtonHit(); // Make sure createGameButtonHit() is defined!
+        console.log("createGameBtn hit");
+        createGameButtonHit();
     }
 );
+createGameBtn.setText("Create Game");
 
 
 /**
  * Initializes the main menu by adding all primary menu elements to the canvas.
  * Now explicitly calls makeButton for initial clickable elements.
  */
-function menu(){
+function menu() {
+    clearMenuCanvas(); // Clear anything previously on canvas
+    add(background);
     add(logo);
-    add(playButton.image);
-    add(settingsButton.image);
-    add(careerButton.image);
-    add(loadoutButton.image);
 
-    // Explicitly make initial buttons clickable
+    // Add main menu buttons
+    add(playButton.image);
+    add(playButton.text);
     makeButton(playButton.hitbox, playButton.hitbox.onClick);
+
+    add(gamesButton.image);
+    add(gamesButton.text);
+    makeButton(gamesButton.hitbox, gamesButton.hitbox.onClick);
+
+    add(settingsButton.image);
+    add(settingsButton.text);
     makeButton(settingsButton.hitbox, settingsButton.hitbox.onClick);
+
+    add(careerButton.image);
+    add(careerButton.text);
     makeButton(careerButton.hitbox, careerButton.hitbox.onClick);
+
+    add(loadoutButton.image);
+    add(loadoutButton.text);
     makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
+
+    let title = new Text("VOID FFA", "60pt Arial");
+    title.setColor(Color.WHITE);
+    title.setPosition(getWidth() / 2, 100);
+    add(title);
+    currentMenuObjects.push(title);
 }
 
-// Call the menu function to set up the initial menu display
-menu();
+// Helper to start game after menu hides
+function initAndStartGame(username, mapName, gameId = null) {
+    const detailsEnabled = localStorage.getItem("detailsEnabled") === "true";
+    const menuOverlay = document.getElementById("menu-overlay");
+    const gameWrapper = document.getElementById('game-container');
+
+    if (menuOverlay) {
+        menuOverlay.classList.add("hidden");
+    }
+    if (canvas) {
+        canvas.style.display = 'none'; // Hide the canvas
+    }
+    if (gameWrapper) {
+        let ffaEnabled = true; // Assuming FFA is always true for this context
+        menuSong.pause();
+        gameWrapper.style.display = 'block'; // Make game container visible
+        createGameUI(gameWrapper);
+        initBulletHoles(gameWrapper); // Ensure bullet holes are initialized too if part of UI
+        initNetwork(username, mapName, gameId); // Pass gameId for joining
+        startGame(username, mapName, detailsEnabled, ffaEnabled, gameId);
+        console.log(`Game started for map: ${mapName}, Username: ${username}, Details Enabled: ${detailsEnabled}, Game ID: ${gameId}.`);
+    } else {
+        console.error("game-container element not found! Cannot start game.");
+        Swal.fire('Error', 'Game container not found, cannot start game.', 'error');
+        menu(); // Go back to menu if error
+    }
+}
 
 /**
  * Function called when the "Play" button (canvas-drawn) is clicked.
  * Clears the current menu and displays the canvas-based map selection options.
- * Now explicitly calls makeButton for the new submenu buttons.
  */
-function playButtonHit(){
-    // Remove all existing shapes and hitboxes from the canvas
-    removeAll();
+function playButtonHit() {
+    clearMenuCanvas(); // Clear all current canvas objects
 
-    // Re-add logo (if it should remain visible)
     add(logo);
+    let title = new Text("Select Map or Create Game", "40pt Arial");
+    title.setColor(Color.WHITE);
+    title.setPosition(getWidth() / 2, 100);
+    add(title);
+    currentMenuObjects.push(title);
 
-    // Add new play options images
+    // Add direct map play buttons
     add(crocoPlayButton.image);
-    add(sigmaPlayButton.image);
-    add(createGameButton.image); // Assuming you want this one here too
-
-    // IMPORTANT: Explicitly make their hitboxes clickable again
+    add(crocoPlayButton.text);
     makeButton(crocoPlayButton.hitbox, crocoPlayButton.hitbox.onClick);
+    currentMenuObjects.push(crocoPlayButton.image, crocoPlayButton.text, crocoPlayButton.hitbox);
+
+    add(sigmaPlayButton.image);
+    add(sigmaPlayButton.text);
     makeButton(sigmaPlayButton.hitbox, sigmaPlayButton.hitbox.onClick);
-    makeButton(createGameButton.hitbox, createGameButton.hitbox.onClick); // Make createGameButton clickable
+    currentMenuObjects.push(sigmaPlayButton.image, sigmaPlayButton.text, sigmaPlayButton.hitbox);
+
+    // Add the "Create Game" button
+    add(createGameBtn.image);
+    add(createGameBtn.text);
+    makeButton(createGameBtn.hitbox, createGameBtn.hitbox.onClick);
+    currentMenuObjects.push(createGameBtn.image, createGameBtn.text, createGameBtn.hitbox);
+
+    addBackButton(); // Add back button to this screen
 }
 
-// Placeholder for createGameButtonHit - define this function somewhere!
-function createGameButtonHit() {
-    console.log("Create Game button was hit! Implement its functionality.");
-    // Example: Show a modal for game creation, or transition to a game creation screen.
-    Swal.fire({
+/**
+ * Handles the "Create Game" button click.
+ * Uses SweetAlert2 for input and pushes game data to Firebase.
+ */
+async function createGameButtonHit() {
+    // Ensure username is available
+    username = localStorage.getItem("username");
+    if (!username || username.trim() === "") {
+        Swal.fire('Error', 'Please set your username first in settings or by logging in.', 'error');
+        return;
+    }
+
+    const { value: formValues } = await Swal.fire({
         title: 'Create New Game',
-        html: '<input id="swal-input1" class="swal2-input" placeholder="Game Name">' +
-              '<input id="swal-input2" class="swal2-input" placeholder="Password (optional)" type="password">',
+        html:
+            `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
+            '<select id="swal-input2" class="swal2-select">' +
+            '<option value="">Select Map</option>' +
+            '<option value="SigmaCity">SigmaCity</option>' +
+            '<option value="CrocodilosConstruction">CrocodilosConstruction</option>' +
+            '</select>' +
+            '<select id="swal-input3" class="swal2-select">' +
+            '<option value="FFA">FFA</option>' + // Only FFA for now
+            '</select>',
         focusConfirm: false,
         preConfirm: () => {
-            const gameName = Swal.getPopup().querySelector('#swal-input1').value;
-            const password = Swal.getPopup().querySelector('#swal-input2').value;
-            if (!gameName) {
-                Swal.showValidationMessage('Please enter a game name');
+            const gameName = document.getElementById('swal-input1').value;
+            const map = document.getElementById('swal-input2').value;
+            const gamemode = document.getElementById('swal-input3').value;
+
+            if (!gameName || !map || !gamemode) {
+                Swal.showValidationMessage(`Please fill all fields`);
                 return false;
             }
-            // Here you would typically send these details to your server to create a game
-            console.log("Creating game:", { gameName, password });
-            // For now, let's just go back to the menu or a placeholder
-            // You might want to remove all and show a loading screen, or join the created game.
-            // For demonstration, let's just go back to the main menu.
-            removeAll(); // Clear current submenu
-            menu(); // Show main menu again
-            return { gameName, password };
+            return { gameName: gameName, map: map, gamemode: gamemode };
         }
     });
+
+    if (formValues) {
+        const gameData = {
+            gameName: formValues.gameName,
+            map: formValues.map,
+            gamemode: formValues.gamemode,
+            host: username,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            status: "waiting", // Initial status
+            players: {
+                [username]: true // Host is the first player
+            }
+        };
+
+        try {
+            const newGameRef = gamesRef.push(); // Using the globally available gamesRef from firebase-config.js
+            await newGameRef.set(gameData);
+            const gameId = newGameRef.key;
+
+            Swal.fire({
+                title: 'Game Created!',
+                html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>Mode: <b>${formValues.gamemode}</b><br>Game ID: <b>${gameId}</b>`,
+                icon: 'success',
+                confirmButtonText: 'Join Game'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    initAndStartGame(username, formValues.map, gameId); // Join the newly created game
+                } else {
+                    menu(); // Go back to main menu if not joining
+                }
+            });
+
+        } catch (error) {
+            console.error("Error creating game:", error);
+            Swal.fire('Error', 'Could not create game: ' + error.message, 'error');
+            menu(); // Go back to main menu on error
+        }
+    } else {
+        menu(); // Go back to main menu if SweetAlert is dismissed
+    }
+}
+
+/**
+ * Fetches games from Firebase and displays them.
+ */
+async function gamesButtonHit() {
+    clearMenuCanvas();
+    add(background); // Re-add background
+    add(logo);
+
+    let loadingText = new Text("Loading games...", "30pt Arial");
+    loadingText.setColor(Color.WHITE);
+    loadingText.setPosition(getWidth() / 2, getHeight() / 2);
+    add(loadingText);
+    currentMenuObjects.push(loadingText);
+
+    try {
+        const snapshot = await gamesRef.once('value'); // Using the globally available gamesRef
+        const gamesObject = snapshot.val();
+        allGames = [];
+        if (gamesObject) {
+            for (let gameId in gamesObject) {
+                // Only show games not in progress or completed, and with players still
+                if (gamesObject[gameId].status === "waiting") { // You might want to refine this
+                    allGames.push({ id: gameId, ...gamesObject[gameId] });
+                }
+            }
+            allGames.sort((a, b) => b.createdAt - a.createdAt); // Sort by newest first
+        }
+
+        remove(loadingText); // Remove loading text
+        displayGamesPage(currentPage);
+
+    } catch (error) {
+        console.error("Error fetching games:", error);
+        remove(loadingText);
+        let errorText = new Text("Error loading games: " + error.message, "20pt Arial");
+        errorText.setColor(Color.RED);
+        errorText.setPosition(getWidth() / 2, getHeight() / 2);
+        add(errorText);
+        currentMenuObjects.push(errorText);
+        addBackButton(); // Allow going back on error
+    }
+}
+
+/**
+ * Displays a specific page of games.
+ */
+function displayGamesPage(page) {
+    clearMenuCanvas(); // Clear existing game elements and pagination buttons
+    add(background);
+    add(logo);
+
+    let title = new Text("Available Games", "40pt Arial");
+    title.setColor(Color.WHITE);
+    title.setPosition(getWidth() / 2, 100);
+    add(title);
+    currentMenuObjects.push(title);
+
+    addBackButton(); // Always add back button
+
+    const startIndex = page * GAMES_PER_PAGE;
+    const endIndex = Math.min(startIndex + GAMES_PER_PAGE, allGames.length);
+    const gamesToDisplay = allGames.slice(startIndex, endIndex);
+
+    let yStart = 200; // Starting Y position for the first game entry
+    const gameEntryHeight = 150; // Height allocated for each game entry including spacing
+
+    if (gamesToDisplay.length === 0) {
+        let noGamesText = new Text("No active games available. Create one!", "30pt Arial");
+        noGamesText.setColor(Color.WHITE);
+        noGamesText.setPosition(getWidth() / 2, getHeight() / 2);
+        add(noGamesText);
+        currentMenuObjects.push(noGamesText);
+    } else {
+        for (let i = 0; i < gamesToDisplay.length; i++) {
+            const game = gamesToDisplay[i];
+            const displayY = yStart + i * gameEntryHeight;
+
+            // Game entry background (optional, but good for visual separation)
+            let gameBg = new Rectangle(getWidth() * 0.8, 100);
+            gameBg.setColor("rgba(50, 50, 50, 0.7)");
+            gameBg.setPosition(getWidth() * 0.1, displayY - gameBg.getHeight() / 2 + 30);
+            add(gameBg);
+            currentMenuObjects.push(gameBg);
+
+            // Game Name
+            let gameNameText = new Text(game.gameName, "25pt Arial");
+            gameNameText.setColor(Color.CYAN);
+            gameNameText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 4, displayY);
+            gameNameText.setLayer(4);
+            add(gameNameText);
+            currentMenuObjects.push(gameNameText);
+
+            // Map and Mode
+            let detailsText = new Text(`Map: ${game.map} | Mode: ${game.gamemode} | Host: ${game.host}`, "15pt Arial");
+            detailsText.setColor(Color.LIGHT_GRAY);
+            detailsText.setPosition(getWidth() * 0.1 + gameBg.getWidth() / 4, displayY + 30);
+            detailsText.setLayer(4);
+            add(detailsText);
+            currentMenuObjects.push(detailsText);
+
+            // Join Button
+            let joinBtn = createAndAddButton(
+                "https://codehs.com/uploads/2fe6d45e0875e166cfe5f0e5343fc3b5", // Re-using games button image
+                100, 50, // Small size for join button
+                getWidth() * 0.9 - 110, displayY, // Position to the right within the entry
+                100, 50, // Hitbox size
+                () => {
+                    console.log(`Attempting to join game: ${game.id} on map: ${game.map}`);
+                    initAndStartGame(username, game.map, game.id);
+                },
+                "Join"
+            );
+            // Re-adjust joinBtn text position if needed
+            joinBtn.text.setPosition(joinBtn.image.getX() + joinBtn.image.getWidth() / 2, joinBtn.image.getY() + joinBtn.image.getHeight() / 2);
+            currentMenuObjects.push(joinBtn.image, joinBtn.text, joinBtn.hitbox);
+        }
+    }
+
+    // Pagination controls
+    let maxPages = Math.ceil(allGames.length / GAMES_PER_PAGE);
+    const paginationY = getHeight() - 100;
+
+    if (currentPage > 0) {
+        let leftArrow = createAndAddButton(
+            "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d",
+            getWidth() / 2 - 150, paginationY,
+            70, 70, // Size for arrow buttons
+            () => {
+                currentPage--;
+                displayGamesPage(currentPage);
+            },
+            "" // No text on arrow buttons
+        );
+        leftArrow.image.setLayer(4); // Ensure arrows are visible
+        leftArrow.hitbox.setLayer(16);
+        currentMenuObjects.push(leftArrow.image, leftArrow.hitbox);
+    }
+
+    // Conditional for right arrow (shows if more pages exist OR if there's exactly 1 game and GAMES_PER_PAGE is 1)
+    if (currentPage < maxPages - 1 || (allGames.length > 0 && GAMES_PER_PAGE === 1 && currentPage === 0 && allGames.length > 1)) {
+        let rightArrow = createAndAddButton(
+            "https://codehs.com/uploads/1bb4c45ae81aae1da5cebb8bb0713748", // Corrected link based on common CodeHS patterns
+            getWidth() / 2 + 80, paginationY,
+            70, 70, // Size for arrow buttons
+            () => {
+                currentPage++;
+                displayGamesPage(currentPage);
+            },
+            "" // No text on arrow buttons
+        );
+        rightArrow.image.setLayer(4); // Ensure arrows are visible
+        rightArrow.hitbox.setLayer(16);
+        currentMenuObjects.push(rightArrow.image, rightArrow.hitbox);
+    }
+
+    // Page number text
+    if (maxPages > 0) {
+        let pageText = new Text(`Page ${currentPage + 1} of ${maxPages}`, "20pt Arial");
+        pageText.setColor(Color.WHITE);
+        pageText.setPosition(getWidth() / 2, paginationY + 15);
+        add(pageText);
+        currentMenuObjects.push(pageText);
+    }
+}
+
+/**
+ * Adds a "Back to Menu" button to the current screen.
+ */
+function addBackButton() {
+    let backButton = createAndAddButton(
+        "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d", // Left arrow image
+        50, 50, // Top-left corner
+        70, 70, // Size for back button
+        () => {
+            currentPage = 0; // Reset page when going back to main menu
+            menu(); // Go back to main menu
+        },
+        "Back" // Text for clarity
+    );
+    // Adjust text position relative to its button for 'Back'
+    backButton.text.setPosition(backButton.image.getX() + backButton.image.getWidth() / 2, backButton.image.getY() + backButton.image.getHeight() / 2);
+    backButton.image.setLayer(4); // Ensure back button is visible
+    backButton.hitbox.setLayer(16);
+    currentMenuObjects.push(backButton.image, backButton.text, backButton.hitbox);
 }
 
 
@@ -1014,7 +1353,7 @@ export function initMenuUI() {
 
     const mapButtons = document.querySelectorAll(".map-btn"); // HTML map selection buttons
 
-    let username = localStorage.getItem("username");
+    username = localStorage.getItem("username") || ""; // Ensure username is updated for HTML side
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
 
     /**
@@ -1043,8 +1382,9 @@ export function initMenuUI() {
             document.getElementById("game-logo").classList.add("hidden"); // Hide the HTML game logo
             const menuOverlayElement = document.getElementById('menu-overlay');
             if (menuOverlayElement) { // Hide the entire HTML overlay if canvas menu is active
-                 menuOverlayElement.style.display = 'none';
+                menuOverlayElement.style.display = 'none';
             }
+            canvas.style.display = 'block'; // Ensure canvas is visible
         } else {
             // If no username, show the prompt
             showPanel(usernamePrompt);
@@ -1099,11 +1439,12 @@ export function initMenuUI() {
                 document.getElementById("game-logo").classList.add("hidden");
                 const menuOverlayElement = document.getElementById('menu-overlay');
                 if (menuOverlayElement) {
-                     menuOverlayElement.style.display = 'none';
+                    menuOverlayElement.style.display = 'none';
                 }
 
             } else {
                 console.warn("Username cannot be empty!");
+                Swal.fire('Warning', 'Username cannot be empty!', 'warning');
             }
         });
     }
@@ -1151,6 +1492,7 @@ export function initMenuUI() {
             username = localStorage.getItem("username");
             if (!username) {
                 showPanel(usernamePrompt); // Prompt for username if not set
+                Swal.fire('Warning', 'Please enter your username before starting a game!', 'warning');
                 return;
             }
 
@@ -1230,11 +1572,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const gameWrapper = document.getElementById('game-container');
         if (gameWrapper) {
             createGameUI(gameWrapper);
+            // This part of the else block for starting game on other paths
+            // usually means joining an existing game via URL params
             const username = localStorage.getItem("username") || "Guest";
             const urlParams = new URLSearchParams(window.location.search);
             const mapName = urlParams.get('map');
+            const gameId = urlParams.get('gameId'); // Get gameId from URL
+            if (mapName && gameId) {
+                console.log(`Auto-joining game from URL: Map=${mapName}, GameID=${gameId}`);
+                initAndStartGame(username, mapName, gameId);
+            } else if (mapName) {
+                console.log(`Auto-starting game from URL (no gameId): Map=${mapName}`);
+                initAndStartGame(username, mapName);
+            } else {
+                console.warn("No map or game ID found in URL parameters, cannot auto-start game.");
+                // If on a non-root path but no game info, fallback to menu
+                menu();
+            }
         } else {
             console.error("game-container element not found!");
+            menu(); // Fallback to menu if no game container
         }
     }
 });
