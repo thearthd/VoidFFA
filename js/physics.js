@@ -340,102 +340,106 @@ updatePlayer(deltaTime) {
     }
 
     // Main game loop update function
-    update(deltaTime, input) {
-        deltaTime = Math.min(0.05, deltaTime);
-        this.prevOnGround = this.onGround;
+update(deltaTime, input) {
+    deltaTime = Math.min(0.05, deltaTime)
+    this.prevGround = this.isGrounded
 
-        // Footstep audio logic
-        const speedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-        if (speedXZ > FOOT_DISABLED_THRESHOLD && this.onGround && !input.slow && !input.crouch) {
-            const interval = this.baseFootInterval / speedXZ;
-            this.footAcc += deltaTime;
-            if (this.footAcc >= interval) {
-                this.footAcc -= interval;
-                const audio = this.footAudios[this.footIndex];
-                audio.currentTime = 0;
-                audio.play().catch(() => {});
-                sendSoundEvent("footstep", "run", this._pos());
-                this.footIndex = 1 - this.footIndex;
-            }
-        } else if (this.onGround && speedXZ <= FOOT_DISABLED_THRESHOLD) {
-            this.footAcc = 0;
+    const speedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z)
+    if (speedXZ > FOOT_DISABLED_THRESHOLD && this.isGrounded && !input.slow && !input.crouch) {
+        const interval = this.baseFootInterval / speedXZ
+        this.footAcc += deltaTime
+        if (this.footAcc >= interval) {
+            this.footAcc -= interval
+            const audio = this.footAudios[this.footIndex]
+            audio.currentTime = 0
+            audio.play().catch(() => {})
+            sendSoundEvent("footstep", "run", this._pos())
+            this.footIndex = 1 - this.footIndex
         }
-
-        this.controls(deltaTime, input);
-
-        const physicsSteps = 5;
-        for (let i = 0; i < physicsSteps; i++) {
-            this.updatePlayer(deltaTime / physicsSteps);
-        }
-
-        // Landing audio logic
-        if (!this.prevOnGround && this.onGround) {
-            const fellFar = this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1;
-            if (fellFar) {
-                this.landAudio.currentTime = 0;
-                this.landAudio.play().catch(() => {});
-                sendSoundEvent("landingThud", "land", this._pos());
-            }
-            this.fallStartY = null;
-            if (this.fallStartTimer) {
-                clearTimeout(this.fallStartTimer);
-                this.fallStartTimer = null;
-            }
-        } else if (!this.onGround && this.fallStartY === null && this.playerVelocity.y < 0) {
-            if (!this.fallStartTimer) {
-                this.fallStartTimer = setTimeout(() => {
-                    this.fallStartY = this.camera.position.y;
-                    this.fallStartTimer = null;
-                }, this.fallDelay);
-            }
-        } else if (this.onGround && this.fallStartY !== null) {
-             this.fallStartY = null;
-             if (this.fallStartTimer) {
-                 clearTimeout(this.fallStartTimer);
-                 this.fallStartTimer = null;
-             }
-        }
-
-        // Update camera position to follow the player collider
-        if (!this.playerCollider || !this.playerCollider.start) {
-            console.error("ERROR: playerCollider or its start point is undefined before camera position update!");
-            return {
-                x: 0, y: 0, z: 0, rotY: 0, onGround: false, velocity: new THREE.Vector3(), velocityY: 0
-            };
-        }
-        this.camera.position.x = this.playerCollider.start.x;
-        this.camera.position.z = this.playerCollider.start.z;
-        this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9;
-
-        // Update player model (if present)
-        if (this.playerModel) {
-            if (this.onGround) {
-                const forward = _vector1;
-                this.camera.getWorldDirection(forward);
-                forward.y = 0; forward.normalize();
-                const right = _vector2.crossVectors(forward, this.groundNormal).normalize();
-                const finalFwd = _vector3.crossVectors(this.groundNormal, right).normalize();
-                const mat = new THREE.Matrix4().makeBasis(right, this.groundNormal, finalFwd);
-                const targetQ = new THREE.Quaternion().setFromRotationMatrix(mat);
-                this.playerModel.quaternion.slerp(targetQ, 0.15);
-            } else {
-                const upQ = new THREE.Quaternion().setFromUnitVectors(this.playerModel.up, new THREE.Vector3(0, 1, 0));
-                this.playerModel.quaternion.slerp(upQ, 0.05);
-            }
-            this.playerModel.position.copy(this.playerCollider.start);
-            this.playerModel.position.y -= COLLIDER_RADIUS;
-        }
-
-        return {
-            x: this.camera.position.x,
-            y: this.camera.position.y,
-            z: this.camera.position.z,
-            rotY: this.camera.rotation.y,
-            onGround: this.onGround,
-            velocity: this.playerVelocity.clone(),
-            velocityY: this.playerVelocity.y
-        };
+    } else if (this.isGrounded && speedXZ <= FOOT_DISABLED_THRESHOLD) {
+        this.footAcc = 0
     }
+
+    this.controls(deltaTime, input)
+
+    const physicsSteps = 5
+    for (let i = 0; i < physicsSteps; i++) {
+        this.updatePlayer(deltaTime / physicsSteps)
+    }
+
+    const rayOrigin = new THREE.Vector3(
+        this.playerCollider.start.x,
+        this.playerCollider.start.y + SKIN,
+        this.playerCollider.start.z
+    )
+    const raycaster = new THREE.Raycaster(
+        rayOrigin,
+        new THREE.Vector3(0, -1, 0),
+        0,
+        SKIN * 3
+    )
+    const hit = raycaster.intersectObjects(this.bvhMeshes, true)
+    if (hit.length > 0) this.isGrounded = true
+
+    if (!this.prevGround && this.isGrounded) {
+        const fellFar = this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1
+        if (fellFar) {
+            this.landAudio.currentTime = 0
+            this.landAudio.play().catch(() => {})
+            sendSoundEvent("landingThud", "land", this._pos())
+        }
+        this.fallStartY = null
+        if (this.fallStartTimer) {
+            clearTimeout(this.fallStartTimer)
+            this.fallStartTimer = null
+        }
+    } else if (!this.isGrounded && this.fallStartY === null && this.playerVelocity.y < 0) {
+        if (!this.fallStartTimer) {
+            this.fallStartTimer = setTimeout(() => {
+                this.fallStartY = this.camera.position.y
+                this.fallStartTimer = null
+            }, this.fallDelay)
+        }
+    } else if (this.isGrounded && this.fallStartY !== null) {
+        this.fallStartY = null
+        if (this.fallStartTimer) {
+            clearTimeout(this.fallStartTimer)
+            this.fallStartTimer = null
+        }
+    }
+
+    this.camera.position.x = this.playerCollider.start.x
+    this.camera.position.z = this.playerCollider.start.z
+    this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9
+
+    if (this.playerModel) {
+        if (this.isGrounded) {
+            const forward = _vector1
+            this.camera.getWorldDirection(forward)
+            forward.y = 0; forward.normalize()
+            const right = _vector2.crossVectors(forward, this.groundNormal).normalize()
+            const finalFwd = _vector3.crossVectors(this.groundNormal, right).normalize()
+            const mat = new THREE.Matrix4().makeBasis(right, this.groundNormal, finalFwd)
+            const targetQ = new THREE.Quaternion().setFromRotationMatrix(mat)
+            this.playerModel.quaternion.slerp(targetQ, 0.15)
+        } else {
+            const upQ = new THREE.Quaternion().setFromUnitVectors(this.playerModel.up, new THREE.Vector3(0, 1, 0))
+            this.playerModel.quaternion.slerp(upQ, 0.05)
+        }
+        this.playerModel.position.copy(this.playerCollider.start)
+        this.playerModel.position.y -= COLLIDER_RADIUS
+    }
+
+    return {
+        x: this.camera.position.x,
+        y: this.camera.position.y,
+        z: this.camera.position.z,
+        rotY: this.camera.rotation.y,
+        isGrounded: this.isGrounded,
+        velocity: this.playerVelocity.clone(),
+        velocityY: this.playerVelocity.y
+    }
+}
 
     _pos() {
         const p = this.camera.position;
