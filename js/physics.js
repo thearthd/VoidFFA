@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js";
 import { MeshBVH, acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm";
 import { Capsule } from "three/examples/jsm/math/Capsule.js";
-import { sendSoundEvent } from "./network.js"; // Make sure this path is correct
+import { sendSoundEvent } from "./network.js";
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -24,8 +24,10 @@ const SKIN = 0.005;
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
 const _vector3 = new THREE.Vector3();
-const _tmpBox = new THREE.Box3();
+const _tmpBox = new THREE.Box3(); // This _tmpBox represents the player's collision volume in World Space
 const _tmpMat = new THREE.Matrix4();
+const _tmpInverseMat = new THREE.Matrix4(); // New temporary matrix for inverse
+const _tmpLocalBox = new THREE.Box3(); // New temporary box for local BVH node bounds in World Space
 const _tempSegment = new THREE.Line3();
 const _upVector = new THREE.Vector3(0, 1, 0);
 
@@ -57,7 +59,7 @@ export class PhysicsController {
         this.jumpPressed = false;
         this.crouchPressed = false;
         this.slowPressed = false;
-        this.isAim = false; // This needs to be set externally based on game state (e.g., aiming a weapon)
+        this.isAim = false;
 
         const container = document.getElementById('container') || document.body;
         container.addEventListener('mousedown', () => {
@@ -80,7 +82,7 @@ export class PhysicsController {
         this.fallStartTimer = null;
         this.prevGround = false;
         this.jumpTriggered = false;
-        this.speedModifier = 1; // Default to normal speed, can be changed by external sprint logic etc.
+        this.speedModifier = 1;
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
         this.fallDelay = 300;
@@ -95,7 +97,7 @@ export class PhysicsController {
         this.speedModifier = value;
     }
 
-    setIsAim(value) { // Added setter for isAim
+    setIsAim(value) {
         this.isAim = value;
     }
 
@@ -186,6 +188,7 @@ export class PhysicsController {
         currentCapsule.end.add(deltaPosition);
 
         // Prepare bounding box for broad-phase check (this is critical!)
+        // This _tmpBox represents the player's collision volume in World Space
         _tmpBox.makeEmpty();
         _tmpBox.expandByPoint(currentCapsule.start);
         _tmpBox.expandByPoint(currentCapsule.end);
@@ -198,26 +201,26 @@ export class PhysicsController {
 
         // Iterate through all BVH-enabled meshes for collisions
         for (const mesh of this.bvhMeshes) {
+            // Get the inverse world matrix for this mesh once per mesh
+            _tmpInverseMat.copy(mesh.matrixWorld).invert();
+
             // Transform the *current* capsule segment into the mesh's local space for shapecast
-            _tmpMat.copy(mesh.matrixWorld).invert();
-            _vector1.copy(currentCapsule.start).applyMatrix4(_tmpMat);
-            _vector2.copy(currentCapsule.end).applyMatrix4(_tmpMat);
+            _vector1.copy(currentCapsule.start).applyMatrix4(_tmpInverseMat);
+            _vector2.copy(currentCapsule.end).applyMatrix4(_tmpInverseMat);
 
             // Create a temporary local segment for the shapecast
             _tempSegment.set(_vector1, _vector2);
 
             mesh.geometry.boundsTree.shapecast({
+                // --- CRITICAL CHANGE FOR PERFORMANCE AND CORRECTNESS ---
                 intersectsBounds: box => {
-                    // Temporarily transform _tmpBox to the current mesh's local space for the check
-                    // We need a fresh matrix for this, don't modify _tmpMat directly if it's used elsewhere for the same mesh
-                    const tempInverseMeshMatrix = _tmpMat.clone(); // Use a clone for temporary modification
-                    tempInverseMeshMatrix.copy(mesh.matrixWorld).invert();
-                    _tmpBox.applyMatrix4(tempInverseMeshMatrix); // Transform _tmpBox to local mesh space for this specific check
-                    const intersects = box.intersectsBox(_tmpBox);
-                    // Transform _tmpBox back to its original world space for the next iteration
-                    _tmpBox.applyMatrix4(mesh.matrixWorld); // Apply the original matrixWorld to revert
-                    return intersects;
+                    // Transform the BVH node's local bounding box to world space
+                    _tmpLocalBox.copy(box).applyMatrix4(mesh.matrixWorld);
+                    // Then check if this world-space box intersects the player's world-space collision box
+                    return _tmpLocalBox.intersectsBox(_tmpBox);
                 },
+                // --- END CRITICAL CHANGE ---
+
                 intersectsTriangle: tri => {
                     const triPoint = _vector1;
                     const capsulePoint = _vector2;
@@ -245,7 +248,7 @@ export class PhysicsController {
 
         if (collisionDetected) {
             // Transform the bestCollisionNormal back into world space
-            bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
+            bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld); // Assuming first mesh's matrixWorld is representative
 
             if (collisionDepth > SKIN) {
                 const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(collisionDepth - SKIN);
@@ -307,14 +310,14 @@ export class PhysicsController {
         // isAim should be set by your game logic, for example, when right-mouse button is down.
 
         // Speed modifier calculation
-        let currentSpeedModifier = this.speedModifier; // Start with the base modifier (e.g., sprint speed)
+        let currentSpeedModifier = this.speedModifier;
 
         if (this.crouchPressed) {
-            currentSpeedModifier *= 0.3; // Apply crouch penalty
+            currentSpeedModifier *= 0.3;
         } else if (this.slowPressed) {
-            currentSpeedModifier *= 0.5; // Apply slow penalty
+            currentSpeedModifier *= 0.5;
         } else if (this.isAim) {
-            currentSpeedModifier *= 0.65; // Apply aim penalty
+            currentSpeedModifier *= 0.65;
         }
 
         const accel = this.playerOnFloor ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
