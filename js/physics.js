@@ -1,5 +1,15 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import {
+    computeBoundsTree,
+    disposeBoundsTree,
+    acceleratedRaycast,
+} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
+
+// ─── BVH Setup ────────────────────────────────────────────────────────────
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
 import { MeshBVH, MeshBVHHelper } from 'three-mesh-bvh';
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import { sendSoundEvent } from "./network.js";
@@ -112,7 +122,7 @@ export class PhysicsController {
                 geometries.push(geom);
             }
         });
-        const merged = BufferGeometryUtils.mergeBufferGeometries(geometries, false);
+        const merged = mergeGeometries(geometries, false);
         merged.boundsTree = new MeshBVH(merged);
         this.collisionMesh = new THREE.Mesh(merged, new THREE.MeshBasicMaterial());
         // this.scene.add(new MeshBVHHelper(this.collisionMesh, 10));
