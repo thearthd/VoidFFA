@@ -19,7 +19,7 @@ const FOOT_DISABLED_THRESHOLD = 0.2;
 const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
-
+const SKIN = 0.005;
 // Collision Buffer: A tiny value to ensure clearance after pushing out of penetration.
 // This should be as small as possible to prevent "popping" above the surface.
 const COLLISION_BUFFER = 0.000001; // Extremely small, effectively 0 but provides numerical stability.
