@@ -135,44 +135,56 @@ export class PhysicsController {
      * Test capsule against all BVH meshes and return the deepest hit
      * as { normal: Vector3, depth: Number } or null.
      */
-playerCollisions() {
-    let result = null;
+    playerCollisions() {
+        let result = null;
 
-    for (const mesh of this.bvhMeshes) {
-        const inverse = mesh.matrixWorld.clone().invert();
-        const localStart = this.playerCollider.start.clone().applyMatrix4(inverse);
-        const localEnd   = this.playerCollider.end.clone().applyMatrix4(inverse);
-        const localCapsule = new Capsule(localStart, localEnd, this.playerCollider.radius);
+        for (const mesh of this.bvhMeshes) {
+            const inverse = mesh.matrixWorld.clone().invert();
 
-        let hit = { normal: new THREE.Vector3(), depth: 0 };
+            // Transform capsule into mesh-local space
+            const localStart = this.playerCollider.start.clone().applyMatrix4(inverse);
+            const localEnd   = this.playerCollider.end.clone().applyMatrix4(inverse);
+            const localCapsule = new Capsule(localStart, localEnd, this.playerCollider.radius);
 
-        mesh.geometry.boundsTree.shapecast({
-            // Use AABB-vs-capsule bounding-box as a cheap cull
-            intersectsBounds: box => {
-                const capsuleBBox = new THREE.Box3()
-                    .setFromPoints([localCapsule.start, localCapsule.end])
-                    .expandByScalar(localCapsule.radius);
-                return box.intersectsBox(capsuleBBox);
-            },
-            intersectsTriangle: tri => {
-                const depth = localCapsule.getPenetrationDepth(tri, _vector2);
-                if (depth > hit.depth) {
-                    hit.depth = depth;
-                    _vector2.normalize();
-                    hit.normal.copy(_vector2)
-                              .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
-                              .normalize();
+            // Precompute AABB around capsule for fast culling
+            const capsuleBBox = new THREE.Box3()
+                .setFromPoints([localCapsule.start, localCapsule.end])
+                .expandByScalar(localCapsule.radius);
+
+            mesh.geometry.boundsTree.shapecast({
+                // AABB vs triangle-bounds test
+                intersectsBounds: bounds => bounds.intersectsBox(capsuleBBox),
+
+                // Exact capsule-vs-triangle penetration
+                intersectsTriangle: tri => {
+                    // 1) Closest point on triangle to capsule start
+                    const triPoint = tri.closestPointToPoint(localCapsule.start, _vector1);
+                    // 2) Closest point on capsule segment to that triangle point
+                    const segPoint = localCapsule.closestPointToPoint(triPoint, _vector2);
+                    // 3) Check distance vs radius
+                    const distSq = triPoint.distanceToSquared(segPoint);
+                    const rSq = localCapsule.radius * localCapsule.radius;
+                    if (distSq < rSq) {
+                        // penetration depth
+                        const depth = localCapsule.radius - Math.sqrt(distSq);
+                        // local-space normal
+                        const localNormal = segPoint.clone().sub(triPoint).normalize();
+                        // world-space normal
+                        const worldNormal = localNormal.clone()
+                            .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
+                            .normalize();
+                        // record deepest hit
+                        if (!result || depth > result.depth) {
+                            result = { normal: worldNormal, depth };
+                        }
+                    }
                 }
-            }
-        });
-
-        if (hit.depth > 0 && (!result || hit.depth > result.depth)) {
-            result = hit;
+            });
         }
-    }
 
+        // Reset collision flags
         this.playerOnFloor = false;
-        this.isGrounded  = false;
+        this.isGrounded = false;
         this.groundNormal.set(0, 1, 0);
 
         if (result && result.depth > 0) {
@@ -183,7 +195,9 @@ playerCollisions() {
 
             const SKIN = 0.02;
             if (depth > SKIN) {
-                this.playerCollider.translate(_vector1.copy(normal).multiplyScalar(depth - SKIN));
+                this.playerCollider.translate(
+                    _vector1.copy(normal).multiplyScalar(depth - SKIN)
+                );
             }
             if (this.playerVelocity.dot(normal) < 0) {
                 _vector2.copy(this.playerVelocity).projectOnPlane(normal);
