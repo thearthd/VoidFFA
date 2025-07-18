@@ -35,8 +35,6 @@ const _tmpInverseMat = new THREE.Matrix4(); // Temporary matrix for inverse oper
 const _tmpLocalBox = new THREE.Box3(); // Temporary box for local BVH node bounds in World Space (transformed to world)
 const _tempSegment = new THREE.Line3(); // Temporary line for capsule segment in mesh local space
 const _upVector = new THREE.Vector3(0, 1, 0); // Global up direction
-const _tempCapsule = new Capsule(); // For the sticky ground check
-const _testBox = new THREE.Box3(); // For the sticky ground check's broad-phase
 
 export class PhysicsController {
     constructor(camera, scene, playerModel = null) {
@@ -189,8 +187,14 @@ export class PhysicsController {
 
         // --- Start of Core Physics Logic with BVH ---
 
-        // 1. Apply Gravity: Always apply gravity.
-        this.playerVelocity.y += deltaTime * -GRAVITY;
+        // 1. Apply Gravity:
+        // Apply full gravity only if the player is not currently grounded.
+        // If grounded, apply a small "glue" velocity to keep them attached to the surface.
+        if (!this.isGrounded) {
+            this.playerVelocity.y += deltaTime * -GRAVITY;
+        } else {
+            this.playerVelocity.y = -0.01; // Tiny downward nudge to ensure contact
+        }
 
         // 2. Predict next position based on current velocity (in a temporary capsule)
         const currentCapsule = this.playerCollider.clone(); // Clone to prevent modifying actual collider until resolved
@@ -207,15 +211,15 @@ export class PhysicsController {
         _tmpBox.max.addScalar(COLLIDER_RADIUS);
 
         // 4. Reset collision state for the current frame/physics step
-        this.playerOnFloor = false; // Internal flag
-        this.isGrounded = false;    // Assume not grounded initially
-        this.groundNormal.set(0, 1, 0); // Default ground normal
+        this.playerOnFloor = false; // Internal flag, can be kept for clarity or eventually removed
+        this.isGrounded = false;    // Crucial: Assume not grounded at start of step
+        this.groundNormal.set(0, 1, 0); // Reset ground normal
 
         let bestCollisionNormal = new THREE.Vector3(); // Stores the normal of the deepest collision
         let collisionDepth = 0;                       // Stores the depth of the deepest penetration
         let collisionDetected = false;                // Flag for any collision
 
-        // 5. Iterate through BVH-enabled meshes and perform shapecast (main collision pass)
+        // 5. Iterate through BVH-enabled meshes and perform shapecast (collision detection)
         for (const mesh of this.bvhMeshes) {
             // Get the inverse world matrix for this specific mesh once per mesh
             _tmpInverseMat.copy(mesh.matrixWorld).invert();
@@ -255,9 +259,10 @@ export class PhysicsController {
             });
         }
 
-        // 6. Collision Resolution (from main collision pass)
+        // 6. Collision Resolution (if any collisions were detected)
         if (collisionDetected) {
             // Transform the bestCollisionNormal back into world space
+            // Assuming all bvhMeshes share the same matrixWorld for a unified terrain or taking the first one's for orientation.
             if (this.bvhMeshes.length > 0) {
                 bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
             }
@@ -265,7 +270,7 @@ export class PhysicsController {
             // Apply displacement to move player out of penetration
             if (collisionDepth > 0) {
                  // Calculate the exact amount to push the player out.
-                 // We want to be SKIN units away from the surface.
+                 // We want to be `SKIN` units away from the surface.
                  const displacementAmount = collisionDepth - SKIN;
                  if (displacementAmount > 0) { // Only apply if we are penetrating more than our SKIN buffer
                      const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(displacementAmount);
@@ -274,11 +279,21 @@ export class PhysicsController {
                  }
             }
 
-            // Determine grounded state from this direct collision
+            // 7. Determine Grounded State and Adjust Velocity
+            // If the collision normal points mostly upwards (dot product with _upVector > 0.75), we consider it ground.
             if (bestCollisionNormal.dot(_upVector) > 0.75) {
                 this.playerOnFloor = true; // Set internal flag
                 this.isGrounded = true;   // Set primary grounded flag
                 this.groundNormal.copy(bestCollisionNormal); // Store ground normal
+
+                // Crucial for stability: If grounded and player has any upward velocity, kill it.
+                // This prevents "bouncing" or flickering between airborne/grounded.
+                if (this.playerVelocity.y > 0) {
+                    this.playerVelocity.y = 0;
+                }
+                // Project horizontal velocity onto the ground plane to allow sliding
+                this.playerVelocity.projectOnPlane(this.groundNormal);
+
             } else {
                 // If it's a wall or ceiling collision, adjust velocity to stop movement into the obstacle.
                 const dot = this.playerVelocity.dot(bestCollisionNormal);
@@ -287,75 +302,8 @@ export class PhysicsController {
                 }
             }
         }
-
-        // Robust Grounding Check (to prevent flickering, especially during crouch)
-        // If the player was grounded in the previous frame, but no ground collision was detected in this frame's main pass,
-        // perform a small downward check to see if they are still very close to the ground.
-        if (this.prevGround && !this.isGrounded) {
-            _tempCapsule.copy(this.playerCollider);
-            _tempCapsule.start.y -= 0.05; // Small downward shift to check slightly below
-            _tempCapsule.end.y -= 0.05;
-
-            _testBox.makeEmpty();
-            _testBox.expandByPoint(_tempCapsule.start);
-            _testBox.expandByPoint(_tempCapsule.end);
-            _testBox.min.addScalar(-COLLIDER_RADIUS);
-            _testBox.max.addScalar(COLLIDER_RADIUS);
-
-            let foundGroundNear = false;
-            let tempGroundNormal = new THREE.Vector3(); // Capture normal from sticky check
-            for (const mesh of this.bvhMeshes) {
-                _tmpInverseMat.copy(mesh.matrixWorld).invert();
-                _vector1.copy(_tempCapsule.start).applyMatrix4(_tmpInverseMat);
-                _vector2.copy(_tempCapsule.end).applyMatrix4(_tmpInverseMat);
-                _tempSegment.set(_vector1, _vector2);
-
-                mesh.geometry.boundsTree.shapecast({
-                    intersectsBounds: box => {
-                        _tmpLocalBox.copy(box).applyMatrix4(mesh.matrixWorld);
-                        return _tmpLocalBox.intersectsBox(_testBox);
-                    },
-                    intersectsTriangle: tri => {
-                        const triPoint = _vector1;
-                        const capsulePoint = _vector2;
-                        const distance = tri.closestPointToSegment(_tempSegment, triPoint, capsulePoint);
-
-                        if (distance < COLLIDER_RADIUS) {
-                            const currentNormal = capsulePoint.sub(triPoint).normalize();
-                            // Only consider it ground if the normal is pointing significantly upwards
-                            if (currentNormal.dot(_upVector) > 0.75) {
-                                foundGroundNear = true;
-                                tempGroundNormal.copy(currentNormal);
-                                tempGroundNormal.transformDirection(mesh.matrixWorld); // Transform to world space
-                                return true; // Stop searching for this mesh
-                            }
-                        }
-                    }
-                });
-                if (foundGroundNear) break; // Stop searching all meshes
-            }
-
-            if (foundGroundNear) {
-                this.isGrounded = true;
-                this.groundNormal.copy(tempGroundNormal); // Use the normal from the sticky check
-            }
-        }
-
-        // Final velocity adjustments if grounded
-        if (this.isGrounded) {
-            // If player is grounded, ensure vertical velocity is not positive (e.g., after jump landing)
-            if (this.playerVelocity.y > 0) {
-                this.playerVelocity.y = 0;
-            }
-            // Apply a small downward "glue" force if vertical velocity is very close to zero
-            // This prevents floating due to tiny gaps or precision issues.
-            if (Math.abs(this.playerVelocity.y) < 0.01) {
-                this.playerVelocity.y = -0.01;
-            }
-            // Project horizontal velocity onto the ground plane.
-            // This is crucial for movement on slopes and to prevent sliding off.
-            this.playerVelocity.projectOnPlane(this.groundNormal);
-        }
+        // If no collision detected, `isGrounded` remains false from the reset at the top,
+        // correctly indicating the player is airborne.
 
         // 8. Out of Bounds Teleport (after all physics steps are done)
         if (this.playerCollider.end.y < -25) {
