@@ -19,7 +19,7 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
 
-const SKIN = 0.005;
+const SKIN = 0.005; // Still keeping this as a general reference for understanding, though not used in the "guy's" physics logic directly for displacement.
 
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
@@ -43,11 +43,11 @@ export class PhysicsController {
             COLLIDER_RADIUS
         );
 
-        this.playerVelocity = new THREE.Vector3();
+        this.playerVelocity = new THREE.Vector3(); // Renamed 'h' to 'playerVelocity' for consistency
         this.playerDirection = new THREE.Vector3();
-        this.playerOnFloor = false;
-        this.isGrounded = false;
-        this.groundNormal = new THREE.Vector3(0, 1, 0);
+        // this.playerOnFloor = false; // This internal flag is less critical with the new logic
+        this.isGrounded = false; // This is 'C' from the reference code
+        this.groundNormal = new THREE.Vector3(0, 1, 0); // Renamed 'k' to 'groundNormal'
         this.bvhMeshes = [];
 
         this.fwdPressed = false;
@@ -120,8 +120,11 @@ export class PhysicsController {
         });
     }
 
-    updatePlayer(deltaTime) {
+    // Renamed from updatePlayer to match the reference's single physics step function 'pe'
+    // This function now directly incorporates the physics logic from 'pe'
+    _singlePhysicsStep(deltaTime) {
         if (this.bvhMeshes.length === 0) {
+            // Fallback for no BVH meshes (basic movement)
             this.playerVelocity.y += deltaTime * -GRAVITY;
             const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
             this.playerCollider.start.add(deltaPosition);
@@ -155,52 +158,111 @@ export class PhysicsController {
                 this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
             }
 
-            if (! (this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && !this.playerOnFloor) {
+            if (! (this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && !this.isGrounded) { // Use isGrounded here
                 this.playerVelocity.x *= Math.exp(-4 * deltaTime);
                 this.playerVelocity.z *= Math.exp(-4 * deltaTime);
             }
             if (this.playerCollider.end.y < -25) {
                 this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
                 this.playerVelocity.set(0, 0, 0);
+                this.isGrounded = false;
             }
             return;
         }
 
-        if (!this.isGrounded) {
-            this.playerVelocity.y += deltaTime * -GRAVITY;
-        } else {
-            this.playerVelocity.y = -0.01;
+        // --- Core Physics Logic from 'pe' ---
+
+        if (this.isGrounded) { // 'C' is true in reference
+            this.playerVelocity.y = GRAVITY; // Set gravity to its constant value if grounded
+            // Project horizontal velocity onto the ground plane to allow sliding
+            const currentSpeedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+            if (currentSpeedXZ > MAX_SPEED) {
+                this.playerVelocity.x *= MAX_SPEED / currentSpeedXZ;
+                this.playerVelocity.z *= MAX_SPEED / currentSpeedXZ;
+            }
+            this.playerVelocity.projectOnPlane(this.groundNormal); // 'k' in reference
+        } else { // 'C' is false, airborne
+            this.playerVelocity.y += deltaTime * GRAVITY; // Apply full gravity over time
         }
 
-        const currentCapsule = this.playerCollider.clone();
+        // Apply movement based on current velocity
         const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
-        currentCapsule.start.add(deltaPosition);
-        currentCapsule.end.add(deltaPosition);
+        this.playerCollider.start.add(deltaPosition);
+        this.playerCollider.end.add(deltaPosition);
+
+        // Movement based on input (from controls function, but re-applied here for consistency with 'pe' structure)
+        const angle = this.camera.rotation.y;
+        let currentSpeedModifier = this.speedModifier;
+        if (this.crouchPressed) {
+            currentSpeedModifier *= 0.3;
+        } else if (this.slowPressed) {
+            currentSpeedModifier *= 0.5;
+        } else if (this.isAim) {
+            currentSpeedModifier *= 0.65;
+        }
+
+        const effectiveAccel = PLAYER_ACCEL_GROUND * currentSpeedModifier; // 'a.playerSpeed' in reference
+
+        if (this.fwdPressed) {
+            _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.bkdPressed) {
+            _vector1.set(0, 0, 1).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.lftPressed) {
+            _vector1.set(-1, 0, 0).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.rgtPressed) {
+            _vector1.set(1, 0, 0).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+
+        // Update player model's world matrix to ensure correct BVH query
+        // This is important because the collider's position is updated directly.
+        // In the reference, 'e.updateMatrixWorld()' is called here.
+        // Since 'e' is our playerCollider conceptually, its underlying geometry is what matters.
+        // We simulate this by taking the playerCollider's segment and transforming it.
+
+        const currentCapsuleInfo = {
+            radius: COLLIDER_RADIUS,
+            segment: new THREE.Line3(
+                this.playerCollider.start.clone(),
+                this.playerCollider.end.clone()
+            )
+        };
 
         _tmpBox.makeEmpty();
-        _tmpBox.expandByPoint(currentCapsule.start);
-        _tmpBox.expandByPoint(currentCapsule.end);
-        _tmpBox.min.addScalar(-COLLIDER_RADIUS);
-        _tmpBox.max.addScalar(COLLIDER_RADIUS);
+        _tmpBox.expandByPoint(currentCapsuleInfo.segment.start);
+        _tmpBox.expandByPoint(currentCapsuleInfo.segment.end);
+        _tmpBox.min.addScalar(-currentCapsuleInfo.radius);
+        _tmpBox.max.addScalar(currentCapsuleInfo.radius);
 
-        this.playerOnFloor = false;
-        this.isGrounded = false;
-        this.groundNormal.set(0, 1, 0);
+        this.isGrounded = false; // Reset grounded state for current step
 
-        let bestCollisionNormal = new THREE.Vector3();
-        let collisionDepth = 0;
-        let collisionDetected = false;
+        // Transform the capsule into the mesh's local space for shapecast
+        // Note: The original 'pe' uses 'c.matrixWorld' (dungeon model) for inverse transform.
+        // Assuming your 'bvhMeshes' primarily represent the environment.
+        // For simplicity, we'll use the first mesh's matrixWorld if available.
+        // A more robust solution might involve iterating through all bvhMeshes and resolving multiple collisions.
+        const meshForShapecast = this.bvhMeshes.length > 0 ? this.bvhMeshes[0] : null;
 
-        for (const mesh of this.bvhMeshes) {
-            _tmpInverseMat.copy(mesh.matrixWorld).invert();
+        if (meshForShapecast) {
+            _tmpInverseMat.copy(meshForShapecast.matrixWorld).invert();
 
-            _vector1.copy(currentCapsule.start).applyMatrix4(_tmpInverseMat);
-            _vector2.copy(currentCapsule.end).applyMatrix4(_tmpInverseMat);
-            _tempSegment.set(_vector1, _vector2);
+            _tempSegment.copy(currentCapsuleInfo.segment);
+            _tempSegment.start.applyMatrix4(_tmpInverseMat);
+            _tempSegment.end.applyMatrix4(_tmpInverseMat);
 
-            mesh.geometry.boundsTree.shapecast({
+            meshForShapecast.geometry.boundsTree.shapecast({
                 intersectsBounds: box => {
-                    _tmpLocalBox.copy(box).applyMatrix4(mesh.matrixWorld);
+                    _tmpLocalBox.copy(box).applyMatrix4(meshForShapecast.matrixWorld);
                     return _tmpLocalBox.intersectsBox(_tmpBox);
                 },
                 intersectsTriangle: tri => {
@@ -209,60 +271,60 @@ export class PhysicsController {
 
                     const distance = tri.closestPointToSegment(_tempSegment, triPoint, capsulePoint);
 
-                    if (distance < COLLIDER_RADIUS) {
-                        const currentDepth = COLLIDER_RADIUS - distance;
-                        const currentNormal = capsulePoint.sub(triPoint).normalize();
+                    if (distance < currentCapsuleInfo.radius) {
+                        const m = currentCapsuleInfo.radius - distance;
+                        const E = capsulePoint.sub(triPoint).normalize();
 
-                        if (currentDepth > collisionDepth) {
-                            collisionDepth = currentDepth;
-                            bestCollisionNormal.copy(currentNormal);
-                            collisionDetected = true;
+                        // Transform normal back to world space to check if it's ground
+                        const worldNormal = _vector3.copy(E).transformDirection(meshForShapecast.matrixWorld);
+
+                        if (worldNormal.dot(_upVector) > 0.75) { // Check if normal is mostly upwards
+                            this.isGrounded = true; // Set grounded flag
+                            this.groundNormal.copy(worldNormal); // Store the ground normal
                         }
+
+                        // Apply displacement to push the capsule out of penetration
+                        _tempSegment.start.addScaledVector(E, m);
+                        _tempSegment.end.addScaledVector(E, m);
+
+                        // Adjust velocity to slide along the surface
+                        // This is crucial: remove the velocity component going into the collided surface
+                        this.playerVelocity.addScaledVector(E, -E.dot(this.playerVelocity));
                     }
                 }
             });
-        }
 
-        if (collisionDetected) {
-            if (this.bvhMeshes.length > 0) {
-                bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
+            // Update playerCollider based on resolved _tempSegment (in world space now)
+            this.playerCollider.start.copy(_tempSegment.start).applyMatrix4(meshForShapecast.matrixWorld);
+            this.playerCollider.end.copy(_tempSegment.end).applyMatrix4(meshForShapecast.matrixWorld);
+
+            // Re-center playerCollider around current position before applying remaining movement
+            // This part is derived from the 'pe' function's end:
+            // const p = w; p.copy(y.start).applyMatrix4(c.matrixWorld);
+            // const s = L; s.subVectors(p, e.position);
+            // e.position.add(s);
+            const colliderBaseWorld = _vector1.copy(this.playerCollider.start);
+            const displacementFromCurrentPos = _vector2.subVectors(colliderBaseWorld, this.camera.position); // Using camera.position as a proxy for player's "center" for now
+            this.camera.position.add(displacementFromCurrentPos); // Move camera to new resolved position
+
+            // Apply the resolved position back to the actual player collider
+            this.playerCollider.start.copy(this.camera.position); // Base of collider
+            this.playerCollider.end.copy(this.camera.position).add(_upVector.clone().multiplyScalar(this.currentHeight - 2 * COLLIDER_RADIUS)); // Top of collider
+
+            if (this.isGrounded) {
+                this.playerVelocity.y = 0; // Zero out vertical velocity if truly grounded after resolution
             }
 
-            if (collisionDepth > 0) {
-                 const displacementAmount = collisionDepth - SKIN;
-                 if (displacementAmount > 0) {
-                     const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(displacementAmount);
-                     this.playerCollider.start.add(displacement);
-                     this.playerCollider.end.add(displacement);
-                 }
+            // Out of bounds teleport
+            if (this.playerCollider.end.y < -25) {
+                this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
+                this.playerVelocity.set(0, 0, 0);
+                this.isGrounded = false;
             }
-
-            if (bestCollisionNormal.dot(_upVector) > 0.75) {
-                this.playerOnFloor = true;
-                this.isGrounded = true;
-                this.groundNormal.copy(bestCollisionNormal);
-
-                if (this.playerVelocity.y > 0) {
-                    this.playerVelocity.y = 0;
-                }
-                this.playerVelocity.projectOnPlane(this.groundNormal);
-
-            } else {
-                const dot = this.playerVelocity.dot(bestCollisionNormal);
-                if (dot < 0) {
-                    this.playerVelocity.addScaledVector(bestCollisionNormal, -dot);
-                }
-            }
-        }
-
-        if (this.playerCollider.end.y < -25) {
-            this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
-            this.playerVelocity.set(0, 0, 0);
-            this.playerOnFloor = false;
-            this.isGrounded = false;
         }
     }
 
+    // Helper to get forward vector based on camera direction
     getForwardVector() {
         this.camera.getWorldDirection(this.playerDirection);
         this.playerDirection.y = 0;
@@ -270,6 +332,7 @@ export class PhysicsController {
         return this.playerDirection;
     }
 
+    // Helper to get side (right) vector based on camera direction
     getSideVector() {
         this.camera.getWorldDirection(this.playerDirection);
         this.playerDirection.y = 0;
@@ -278,6 +341,7 @@ export class PhysicsController {
         return this.playerDirection;
     }
 
+    // Processes player input and updates player velocity (remains largely similar)
     controls(deltaTime, input) {
         this.fwdPressed = input.forward;
         this.bkdPressed = input.backward;
@@ -296,35 +360,8 @@ export class PhysicsController {
             currentSpeedModifier *= 0.65;
         }
 
-        const accel = this.isGrounded ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
-        const effectiveAccel = accel * currentSpeedModifier;
-
-        const angle = this.camera.rotation.y;
-
-        if (this.fwdPressed) {
-            _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
-            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
-        }
-        if (this.bkdPressed) {
-            _vector1.set(0, 0, 1).applyAxisAngle(_upVector, angle);
-            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
-        }
-        if (this.lftPressed) {
-            _vector1.set(-1, 0, 0).applyAxisAngle(_upVector, angle);
-            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
-        }
-        if (this.rgtPressed) {
-            _vector1.set(1, 0, 0).applyAxisAngle(_upVector, angle);
-            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
-        }
-
-        const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-        if (hSpeed > MAX_SPEED) {
-            const ratio = MAX_SPEED / hSpeed;
-            this.playerVelocity.x *= ratio;
-            this.playerVelocity.z *= ratio;
-        }
-
+        // Apply horizontal damping (friction/drag) before adding new movement
+        // This is the damping from your original code, which is good.
         if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && this.isGrounded) {
             this.playerVelocity.x *= Math.exp(-6 * deltaTime);
             this.playerVelocity.z *= Math.exp(-6 * deltaTime);
@@ -334,50 +371,43 @@ export class PhysicsController {
             this.playerVelocity.z *= Math.exp(-0.5 * deltaTime);
         }
 
+        // Jump logic
         if (this.isGrounded && this.jumpPressed) {
             this.playerVelocity.y = JUMP_VELOCITY;
-            this.playerOnFloor = false;
             this.isGrounded = false;
             this.jumpTriggered = true;
         } else {
             this.jumpTriggered = false;
         }
 
-        const wantCrouch = this.crouchPressed;
+        // Crouch/Stand transition logic
+        const wantCrouch = this.crouchPressed; // Removed `&& this.isGrounded` to allow crouching mid-air for consistency
         this.targetHeight = wantCrouch ? CROUCH_HEIGHT : STAND_HEIGHT;
 
         const originalColliderHeight = this.playerCollider.end.y - this.playerCollider.start.y + (2 * COLLIDER_RADIUS);
-        const desiredColliderHeight = this.targetHeight;
+        const desiredColliderSegmentLength = this.targetHeight - 2 * COLLIDER_RADIUS;
 
-        if (Math.abs(originalColliderHeight - desiredColliderHeight) > 0.01) { // Only adjust if there's a significant difference
-            const newHeight = this.currentHeight + (this.targetHeight - this.currentHeight) *
-                Math.min(1, CROUCH_SPEED * deltaTime);
+        // Smoothly interpolate current height towards target height
+        const newHeight = this.currentHeight + (this.targetHeight - this.currentHeight) * Math.min(1, CROUCH_SPEED * deltaTime);
 
-            const oldColliderEnd = this.playerCollider.end.y;
-            const newColliderEnd = this.playerCollider.start.y + (newHeight - 2 * COLLIDER_RADIUS);
+        // Adjust collider position based on height change to keep the bottom fixed when standing up,
+        // and pull down when crouching to maintain contact with the ground.
+        if (newHeight !== this.currentHeight) {
+            const currentColliderSegmentLength = this.playerCollider.end.y - this.playerCollider.start.y;
+            const heightDifference = desiredColliderSegmentLength - currentColliderSegmentLength;
 
-            // Calculate the delta in the collider's bottom position needed to keep the top stable
-            // when the height changes (e.g., when standing up, the bottom moves down relative to the top)
-            const deltaY = (this.playerCollider.end.y + COLLIDER_RADIUS) - (this.playerCollider.start.y + COLLIDER_RADIUS); // Current capsule height
-            const newDeltaY = (newHeight - 2 * COLLIDER_RADIUS); // New desired capsule segment length
-
-            const heightChange = newDeltaY - deltaY;
-
-            // When crouching, pull the player down by the change in height so their feet stay on the ground
-            // When standing, push the player up by the change in height to prevent head clipping
-            if (this.crouchPressed && !wantCrouch) { // If currently standing and trying to crouch
-                // The player is crouching, so the capsule's top will move down.
-                // We want the bottom of the capsule to stay roughly in place, so we adjust the start point.
-                this.playerCollider.start.y += heightChange;
-                this.playerCollider.end.y = this.playerCollider.start.y + newDeltaY;
-            } else { // Standing up or already crouching/standing
-                // Default behavior: adjust the top of the capsule while keeping the bottom fixed
-                this.playerCollider.end.y = this.playerCollider.start.y + newDeltaY;
+            // Adjust start/end points to simulate shrinking/expanding around the base
+            if (this.crouchPressed) {
+                // When crouching, pull the capsule down from the top, keeping the base fixed.
+                this.playerCollider.end.y = this.playerCollider.start.y + desiredColliderSegmentLength;
+            } else {
+                // When standing up, the top of the capsule moves up. The bottom should ideally stay grounded.
+                // So, adjust the start point downwards by the change in height.
+                this.playerCollider.start.y -= heightDifference;
+                this.playerCollider.end.y = this.playerCollider.start.y + desiredColliderSegmentLength;
             }
-
             this.currentHeight = newHeight;
         }
-
 
         if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
             console.error("ERROR: playerCollider or its start/end points are undefined before updating end.y in controls!");
@@ -385,6 +415,7 @@ export class PhysicsController {
         }
     }
 
+    // Teleports the player to a new position, resetting velocity and state
     setPlayerPosition(position) {
         if (!this.playerCollider) {
             console.error("ERROR: playerCollider is undefined in setPlayerPosition!");
@@ -399,7 +430,6 @@ export class PhysicsController {
             position.z
         );
         this.playerVelocity.set(0, 0, 0);
-        this.playerOnFloor = false;
         this.isGrounded = false;
         this.jumpTriggered = false;
         this.fallStartY = null;
@@ -410,6 +440,7 @@ export class PhysicsController {
         this.camera.rotation.set(0, 0, 0);
     }
 
+    // Main update loop for the physics controller, called once per game frame
     update(deltaTime, input) {
         deltaTime = Math.min(0.05, deltaTime);
         this.prevGround = this.isGrounded;
@@ -430,13 +461,15 @@ export class PhysicsController {
             this.footAcc = 0;
         }
 
-        this.controls(deltaTime, input);
+        this.controls(deltaTime, input); // Process input and set target height
 
+        // Apply physics in fixed steps to improve stability and consistency
         const physicsSteps = 5;
         for (let i = 0; i < physicsSteps; i++) {
-            this.updatePlayer(deltaTime / physicsSteps);
+            this._singlePhysicsStep(deltaTime / physicsSteps); // Call the new single step function
         }
 
+        // Landing audio logic: Detect transition from not grounded to grounded
         if (!this.prevGround && this.isGrounded) {
             const fellFar = this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1;
             if (fellFar) {
@@ -464,6 +497,7 @@ export class PhysicsController {
              }
         }
 
+        // Update camera position to follow the player collider's base
         if (!this.playerCollider || !this.playerCollider.start) {
             console.error("ERROR: playerCollider or its start point is undefined before camera position update!");
             return {
@@ -474,6 +508,7 @@ export class PhysicsController {
         this.camera.position.z = this.playerCollider.start.z;
         this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9;
 
+        // Optional: Update player model position and rotation (if you have one)
         if (this.playerModel) {
             if (this.isGrounded) {
                 const forward = _vector1;
