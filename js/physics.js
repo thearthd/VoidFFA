@@ -207,15 +207,15 @@ export class PhysicsController {
         _tmpBox.max.addScalar(COLLIDER_RADIUS);
 
         // 4. Reset collision state for the current frame/physics step
-        this.playerOnFloor = false; // Internal flag, can be kept for clarity or eventually removed
-        this.isGrounded = false;    // Crucial: Assume not grounded at start of step
-        this.groundNormal.set(0, 1, 0); // Reset ground normal
+        this.playerOnFloor = false; // Internal flag
+        this.isGrounded = false;    // Assume not grounded initially
+        this.groundNormal.set(0, 1, 0); // Default ground normal
 
         let bestCollisionNormal = new THREE.Vector3(); // Stores the normal of the deepest collision
         let collisionDepth = 0;                       // Stores the depth of the deepest penetration
         let collisionDetected = false;                // Flag for any collision
 
-        // 5. Iterate through BVH-enabled meshes and perform shapecast (collision detection)
+        // 5. Iterate through BVH-enabled meshes and perform shapecast (main collision pass)
         for (const mesh of this.bvhMeshes) {
             // Get the inverse world matrix for this specific mesh once per mesh
             _tmpInverseMat.copy(mesh.matrixWorld).invert();
@@ -255,7 +255,7 @@ export class PhysicsController {
             });
         }
 
-        // 6. Collision Resolution (if any collisions were detected)
+        // 6. Collision Resolution (from main collision pass)
         if (collisionDetected) {
             // Transform the bestCollisionNormal back into world space
             if (this.bvhMeshes.length > 0) {
@@ -274,20 +274,11 @@ export class PhysicsController {
                  }
             }
 
-            // 7. Determine Grounded State and Adjust Velocity
-            // If the collision normal points mostly upwards (dot product with _upVector > 0.75), we consider it ground.
+            // Determine grounded state from this direct collision
             if (bestCollisionNormal.dot(_upVector) > 0.75) {
                 this.playerOnFloor = true; // Set internal flag
                 this.isGrounded = true;   // Set primary grounded flag
                 this.groundNormal.copy(bestCollisionNormal); // Store ground normal
-
-                // Crucial for stability: If grounded and player has any upward velocity, kill it.
-                // This prevents "bouncing" or flickering between airborne/grounded.
-                if (this.playerVelocity.y > 0) {
-                    this.playerVelocity.y = 0;
-                }
-                // Project horizontal velocity onto the ground plane to allow sliding
-                this.playerVelocity.projectOnPlane(this.groundNormal);
             } else {
                 // If it's a wall or ceiling collision, adjust velocity to stop movement into the obstacle.
                 const dot = this.playerVelocity.dot(bestCollisionNormal);
@@ -297,7 +288,7 @@ export class PhysicsController {
             }
         }
 
-        // NEW: Robust Grounding Check (to prevent flickering, especially during crouch)
+        // Robust Grounding Check (to prevent flickering, especially during crouch)
         // If the player was grounded in the previous frame, but no ground collision was detected in this frame's main pass,
         // perform a small downward check to see if they are still very close to the ground.
         if (this.prevGround && !this.isGrounded) {
@@ -312,6 +303,7 @@ export class PhysicsController {
             _testBox.max.addScalar(COLLIDER_RADIUS);
 
             let foundGroundNear = false;
+            let tempGroundNormal = new THREE.Vector3(); // Capture normal from sticky check
             for (const mesh of this.bvhMeshes) {
                 _tmpInverseMat.copy(mesh.matrixWorld).invert();
                 _vector1.copy(_tempCapsule.start).applyMatrix4(_tmpInverseMat);
@@ -333,6 +325,8 @@ export class PhysicsController {
                             // Only consider it ground if the normal is pointing significantly upwards
                             if (currentNormal.dot(_upVector) > 0.75) {
                                 foundGroundNear = true;
+                                tempGroundNormal.copy(currentNormal);
+                                tempGroundNormal.transformDirection(mesh.matrixWorld); // Transform to world space
                                 return true; // Stop searching for this mesh
                             }
                         }
@@ -343,12 +337,24 @@ export class PhysicsController {
 
             if (foundGroundNear) {
                 this.isGrounded = true;
+                this.groundNormal.copy(tempGroundNormal); // Use the normal from the sticky check
             }
         }
 
-        // NEW: Apply glue force only if player is determined to be grounded (either by main collision or sticky check)
+        // Final velocity adjustments if grounded
         if (this.isGrounded) {
-            this.playerVelocity.y = -0.01;
+            // If player is grounded, ensure vertical velocity is not positive (e.g., after jump landing)
+            if (this.playerVelocity.y > 0) {
+                this.playerVelocity.y = 0;
+            }
+            // Apply a small downward "glue" force if vertical velocity is very close to zero
+            // This prevents floating due to tiny gaps or precision issues.
+            if (Math.abs(this.playerVelocity.y) < 0.01) {
+                this.playerVelocity.y = -0.01;
+            }
+            // Project horizontal velocity onto the ground plane.
+            // This is crucial for movement on slopes and to prevent sliding off.
+            this.playerVelocity.projectOnPlane(this.groundNormal);
         }
 
         // 8. Out of Bounds Teleport (after all physics steps are done)
