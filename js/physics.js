@@ -135,35 +135,41 @@ export class PhysicsController {
      * Test capsule against all BVH meshes and return the deepest hit
      * as { normal: Vector3, depth: Number } or null.
      */
-    playerCollisions() {
-        let result = null;
+playerCollisions() {
+    let result = null;
 
-        for (const mesh of this.bvhMeshes) {
-            const inverse = mesh.matrixWorld.clone().invert();
-            const localStart = this.playerCollider.start.clone().applyMatrix4(inverse);
-            const localEnd   = this.playerCollider.end.clone().applyMatrix4(inverse);
-            const localCapsule = new Capsule(localStart, localEnd, this.playerCollider.radius);
+    for (const mesh of this.bvhMeshes) {
+        const inverse = mesh.matrixWorld.clone().invert();
+        const localStart = this.playerCollider.start.clone().applyMatrix4(inverse);
+        const localEnd   = this.playerCollider.end.clone().applyMatrix4(inverse);
+        const localCapsule = new Capsule(localStart, localEnd, this.playerCollider.radius);
 
-            let hit = { normal: new THREE.Vector3(), depth: 0 };
+        let hit = { normal: new THREE.Vector3(), depth: 0 };
 
-            mesh.geometry.boundsTree.shapecast({
-                intersectsBounds: box => box.intersectsCapsule(localCapsule),
-                intersectsTriangle: tri => {
-                    const depth = localCapsule.getPenetrationDepth(tri, _vector2);
-                    if (depth > hit.depth) {
-                        hit.depth = depth;
-                        _vector2.normalize();
-                        hit.normal.copy(_vector2)
-                                  .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
-                                  .normalize();
-                    }
+        mesh.geometry.boundsTree.shapecast({
+            // Use AABB-vs-capsule bounding-box as a cheap cull
+            intersectsBounds: box => {
+                const capsuleBBox = new THREE.Box3()
+                    .setFromPoints([localCapsule.start, localCapsule.end])
+                    .expandByScalar(localCapsule.radius);
+                return box.intersectsBox(capsuleBBox);
+            },
+            intersectsTriangle: tri => {
+                const depth = localCapsule.getPenetrationDepth(tri, _vector2);
+                if (depth > hit.depth) {
+                    hit.depth = depth;
+                    _vector2.normalize();
+                    hit.normal.copy(_vector2)
+                              .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
+                              .normalize();
                 }
-            });
-
-            if (hit.depth > 0 && (!result || hit.depth > result.depth)) {
-                result = hit;
             }
+        });
+
+        if (hit.depth > 0 && (!result || hit.depth > result.depth)) {
+            result = hit;
         }
+    }
 
         this.playerOnFloor = false;
         this.isGrounded  = false;
