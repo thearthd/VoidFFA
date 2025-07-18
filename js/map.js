@@ -1,4 +1,4 @@
-// js/map.js (Keep as is from the last update)
+// js/map.js (updated to use meshbvh)
 
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
@@ -78,37 +78,32 @@ export class Lantern {
     }
 }
 
-
 export async function createCrocodilosConstruction(scene, physicsController) {
-    // track loaded meshes and readiness
     window.envMeshes = [];
     window.mapReady = false;
 
-    // Initialize loader UI with two milestones: 70% for GLB, 30% for octree
+    // now building BVH instead of octree
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
-    loaderUI.show('Loading CrocodilosConstruction Map & Building Octree...', mapLoadPercentages);
+    const mapLoadPercentages = [0.9, 0.1]; // GLB is 90%, BVH is 10%
+    loaderUI.show('Loading CrocodilosConstruction Map & Building BVH...', mapLoadPercentages);
 
-    // scaling and spawn points
     const SCALE = 5;
     const rawSpawnPoints = [
-        new THREE.Vector3(-14, 7, -36), // 1
-        new THREE.Vector3(-2, 2, 37), // 2
-        new THREE.Vector3(0, 2, 0), // 3
-        new THREE.Vector3(2, 7, 34), // 4
-        new THREE.Vector3(-5, 2, -38), // 5
-        new THREE.Vector3(-18, 2, 12), // 6
-        new THREE.Vector3(11, 2, 23), // 7
-        new THREE.Vector3(-7, 7, -1), // 8
+        new THREE.Vector3(-14, 7, -36),
+        new THREE.Vector3(-2, 2, 37),
+        new THREE.Vector3(0, 2, 0),
+        new THREE.Vector3(2, 7, 34),
+        new THREE.Vector3(-5, 2, -38),
+        new THREE.Vector3(-18, 2, 12),
+        new THREE.Vector3(11, 2, 23),
+        new THREE.Vector3(-7, 7, -1),
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 5));
 
-
-    // set up sunlight and shadows
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
     sunLight.position.set(50, 100, 50);
     sunLight.target.position.set(0, 0, 0);
-    sunLight.castShadow = true;
+    sunLight.castShadow = sunLight.target.castShadow = true;
     sunLight.shadow.mapSize.set(2048, 2048);
     const d = 100;
     sunLight.shadow.camera.left = -d;
@@ -119,26 +114,26 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
-    // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb';
 
-    // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null; // Declare gltfGroup here
+    let gltfGroup = null;
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                gltfGroup = gltf.scene; // Assign to gltfGroup
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+                gltfGroup.updateMatrixWorld(true);
                 scene.add(gltfGroup);
 
-                // enable shadows and anisotropy on all meshes
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
+                        // ensure indexed geometry for BVH
+                        if (!child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
+                        child.castShadow = child.receiveShadow = true;
                         if (child.material.map) {
                             child.material.map.anisotropy = 4;
                         }
@@ -147,9 +142,8 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                 });
 
                 console.log('✔️ GLB mesh loaded into scene.');
-                resolve(gltfGroup); // Resolve with the group so octree can use it
+                resolve(gltfGroup);
             },
-            // progress callback
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
@@ -160,32 +154,20 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         );
     });
 
-    // track GLB load at 70%, with live percent updates
-    loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
-        onGLBProgress = cb;
+    loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => onGLBProgress = cb);
+
+    let onBVHProgress = () => {};
+    const bvhPromise = mapLoadPromise.then(group => {
+        return physicsController.buildBVH(group, evt => onBVHProgress(evt));
     });
 
-    // 2) Once GLB is added, build the octree
-    let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        // physicsController.buildOctree now returns a promise and takes the progress callback
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
-        });
-    });
+    loaderUI.track(mapLoadPercentages[1], bvhPromise, cb => onBVHProgress = cb);
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
-    });
+    await Promise.all([mapLoadPromise, bvhPromise]);
 
-    // wait for both loading steps
-    await Promise.all([mapLoadPromise, octreePromise]);
-
-    // when fully done
     loaderUI.onComplete(() => {
         window.mapReady = true;
-        console.log('🗺️ Map + Octree fully ready!');
+        console.log('🗺️ Map & BVH fully ready!');
     });
 
     return spawnPoints;
@@ -193,28 +175,21 @@ export async function createCrocodilosConstruction(scene, physicsController) {
 
 
 export async function createSigmaCity(scene, physicsController) {
-    // track loaded meshes and readiness
     window.envMeshes = [];
     window.mapReady = false;
 
-    // initialize loader UI with two milestones: 70% for GLB, 30% for octree
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
-    loaderUI.show('Loading SigmaCity Map & Building Octree...', mapLoadPercentages);
+    const mapLoadPercentages = [0.9, 0.1];
+    loaderUI.show('Loading SigmaCity Map & Building BVH...', mapLoadPercentages);
 
-    // scaling and spawn points
     const SCALE = 2;
-    const rawSpawnPoints = [
-        new THREE.Vector3(0, 15, 0), // 1
-    ];
+    const rawSpawnPoints = [ new THREE.Vector3(0, 15, 0) ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 2));
 
-
-    // set up sunlight and shadows
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
     sunLight.position.set(50, 100, 50);
     sunLight.target.position.set(0, 0, 0);
-    sunLight.castShadow = true;
+    sunLight.castShadow = sunLight.target.castShadow = true;
     sunLight.shadow.mapSize.set(2048, 2048);
     const d = 100;
     sunLight.shadow.camera.left = -d;
@@ -225,40 +200,35 @@ export async function createSigmaCity(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
-    // URL of the GLB model
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb';
 
-    // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null; // Declare gltfGroup here
+    let gltfGroup = null;
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                gltfGroup = gltf.scene; // Assign to gltfGroup
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+                gltfGroup.updateMatrixWorld(true);
                 scene.add(gltfGroup);
 
-                // enable shadows and anisotropy on all meshes
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
+                        if (!child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
+                        child.castShadow = child.receiveShadow = true;
                         if (child.material.map) {
                             child.material.map.anisotropy = 4;
                         }
                         window.envMeshes.push(child);
                     }
-                    if (child.isMesh && child.geometry && !child.geometry.index) {
-                        child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
-                    }
                 });
 
                 console.log('✔️ GLB mesh loaded into scene.');
-                resolve(gltfGroup); // Resolve with the group so octree can use it
+                resolve(gltfGroup);
             },
-            // progress callback
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
@@ -269,31 +239,20 @@ export async function createSigmaCity(scene, physicsController) {
         );
     });
 
-    // track GLB load at 70%, with live percent updates
-    loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
-        onGLBProgress = cb;
+    loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => onGLBProgress = cb);
+
+    let onBVHProgress = () => {};
+    const bvhPromise = mapLoadPromise.then(group => {
+        return physicsController.buildBVH(group, evt => onBVHProgress(evt));
     });
 
-    // 2) Once GLB is added, build the octree
-    let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
-        });
-    });
+    loaderUI.track(mapLoadPercentages[1], bvhPromise, cb => onBVHProgress = cb);
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
-    });
+    await Promise.all([mapLoadPromise, bvhPromise]);
 
-    // wait for both loading steps
-    await Promise.all([mapLoadPromise, octreePromise]);
-
-    // when fully done
     loaderUI.onComplete(() => {
         window.mapReady = true;
-        console.log('🗺️ Map + Octree fully ready!');
+        console.log('🗺️ Map & BVH fully ready!');
     });
 
     return spawnPoints;
