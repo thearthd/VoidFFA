@@ -135,57 +135,49 @@ export class PhysicsController {
      * Test capsule against all BVH meshes and return the deepest hit
      * as { normal: Vector3, depth: Number } or null.
      */
-    pplayerCollisions() {
-    let result = null;
+    playerCollisions() {
+        let result = null;
 
-    for (const mesh of this.bvhMeshes) {
-        // compute inverse world matrix
-        const inverse = mesh.matrixWorld.clone().invert();
+        for (const mesh of this.bvhMeshes) {
+            const inverse = mesh.matrixWorld.clone().invert();
+            const localStart = this.playerCollider.start.clone().applyMatrix4(inverse);
+            const localEnd   = this.playerCollider.end.clone().applyMatrix4(inverse);
+            const localCapsule = new Capsule(localStart, localEnd, this.playerCollider.radius);
 
-        // transform capsule endpoints into local space
-        const localStart = this.playerCollider.start.clone().applyMatrix4(inverse);
-        const localEnd   = this.playerCollider.end.clone().applyMatrix4(inverse);
-        const localCapsule = new Capsule(localStart, localEnd, this.playerCollider.radius);
+            let hit = { normal: new THREE.Vector3(), depth: 0 };
 
-        let hit = { normal: new THREE.Vector3(), depth: 0 };
-
-        mesh.geometry.boundsTree.shapecast({
-            intersectsBounds: box => box.intersectsCapsule(localCapsule),
-            intersectsTriangle: tri => {
-                const depth = localCapsule.getPenetrationDepth(tri, _vector2);
-                if (depth > hit.depth) {
-                    hit.depth = depth;
-                    _vector2.normalize();
-                    hit.normal.copy(_vector2)
-                              .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
-                              .normalize();
+            mesh.geometry.boundsTree.shapecast({
+                intersectsBounds: box => box.intersectsCapsule(localCapsule),
+                intersectsTriangle: tri => {
+                    const depth = localCapsule.getPenetrationDepth(tri, _vector2);
+                    if (depth > hit.depth) {
+                        hit.depth = depth;
+                        _vector2.normalize();
+                        hit.normal.copy(_vector2)
+                                  .applyMatrix3(new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld))
+                                  .normalize();
+                    }
                 }
+            });
+
+            if (hit.depth > 0 && (!result || hit.depth > result.depth)) {
+                result = hit;
             }
-        });
-
-        if (hit.depth > 0 && (!result || hit.depth > result.depth)) {
-            result = hit;
         }
-    }
 
-        // reset ground flags
         this.playerOnFloor = false;
-        this.isGrounded = false;
+        this.isGrounded  = false;
         this.groundNormal.set(0, 1, 0);
 
         if (result && result.depth > 0) {
-            const normal = result.normal;
-            const depth = result.depth;
-
+            const { normal, depth } = result;
             this.playerOnFloor = normal.y > 0.5;
             this.isGrounded = this.playerOnFloor;
             if (this.playerOnFloor) this.groundNormal.copy(normal);
 
             const SKIN = 0.02;
             if (depth > SKIN) {
-                this.playerCollider.translate(
-                    _vector1.copy(normal).multiplyScalar(depth - SKIN)
-                );
+                this.playerCollider.translate(_vector1.copy(normal).multiplyScalar(depth - SKIN));
             }
             if (this.playerVelocity.dot(normal) < 0) {
                 _vector2.copy(this.playerVelocity).projectOnPlane(normal);
