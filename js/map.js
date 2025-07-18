@@ -7,6 +7,43 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OctreeV2 } from './OctreeV2.js'; // Import the new OctreeV2
 // LZString is loaded globally via a script tag in index.html, no import needed here.
 
+// --- Dynamic LZString Loading ---
+let LZString;
+if (typeof window !== 'undefined' && typeof window.LZString !== 'undefined') {
+    LZString = window.LZString;
+    console.log("✔️ LZString found globally.");
+} else {
+    // Dynamically load LZString if not already available
+    console.warn("LZString not found globally. Attempting to dynamically load LZString from CDN.");
+    try {
+        // This creates a promise that resolves when the script is loaded and LZString is available
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js'; // Common CDN for LZString
+            script.onload = () => {
+                if (typeof window.LZString !== 'undefined') {
+                    LZString = window.LZString;
+                    resolve();
+                } else {
+                    reject(new Error('LZString script loaded but LZString global not found.'));
+                }
+            };
+            script.onerror = (e) => {
+                console.error("Error loading LZString script:", e);
+                reject(new Error('Failed to load LZString script from CDN.'));
+            };
+            document.head.appendChild(script);
+        });
+        console.log("✔️ LZString dynamically loaded.");
+    } catch (e) {
+        console.error("❌ Failed to dynamically load LZString:", e.message);
+        // If dynamic load fails, LZString will remain undefined, and subsequent code will throw an error.
+        // The original error "LZString library not found" will still occur if this dynamic load fails.
+    }
+}
+// --- End Dynamic LZString Loading ---
+
+
 // ─── Helper: build sequential indices if none present ────────────────────────
 function generateSequentialIndices(vertexCount) {
     const idx = [];
@@ -203,9 +240,11 @@ export async function createCrocodilosConstruction(scene, physicsController) {
             }
             const compressedData = await response.text();
 
+            // Check if LZString is available before using it
             if (typeof LZString === 'undefined') {
                 throw new Error("LZString library not found. Cannot decompress Octree data.");
             }
+
             const decompressedString = LZString.decompressFromBase64(compressedData);
             if (!decompressedString) {
                 throw new Error("Failed to decompress Octree data. File might be corrupted or not compressed with LZ-String.");
@@ -406,9 +445,11 @@ export async function createSigmaCity(scene, physicsController) {
             }
             const compressedData = await response.text();
 
+            // Check if LZString is available before using it
             if (typeof LZString === 'undefined') {
                 throw new Error("LZString library not found. Cannot decompress Octree data.");
             }
+
             const decompressedString = LZString.decompressFromBase64(compressedData);
             if (!decompressedString) {
                 throw new Error("Failed to decompress Octree data. File might be corrupted or not compressed with LZ-String.");
