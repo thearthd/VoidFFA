@@ -1,12 +1,15 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js";
+// Import BVH components directly from three-mesh-bvh
 import { MeshBVH, acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm";
 import { Capsule } from "three/examples/jsm/math/Capsule.js";
-import { sendSoundEvent } from "./network.js";
+import { sendSoundEvent } from "./network.js"; // Your existing network import
 
+// Ensure Three.js prototypes are patched for BVH
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+// Your existing physics constants
 const PLAYER_MASS = 70;
 const STAND_HEIGHT = 2.2;
 const CROUCH_HEIGHT = 1.0;
@@ -19,13 +22,23 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
 
-// Re-using your temporary vectors, ensuring they are always Vector3 instances.
-const _vector1 = new THREE.Vector3(); // Used for triPoint in the new logic
-const _vector2 = new THREE.Vector3(); // Used for capsulePoint in the new logic
-const _vector3 = new THREE.Vector3(); // Used for general calculations (e.g., playerVelocity projection, normal scaling)
-const _tmpBox = new THREE.Box3();
-const _plane = new THREE.Plane();
-const _tempSegment = new THREE.Line3(); // New temporary Line3 as in the example
+// Your existing temporary vectors. Map to the example's obfuscated temps:
+// w in example -> _vector1 (for triPoint/tempVector)
+// L in example -> _vector2 (for capsulePoint/tempVector2)
+// M in example -> _tmpBox
+// A in example -> _tmpMat (collider.matrixWorld.invert())
+// y in example -> _tempSegment (the player's capsule segment)
+const _vector1 = new THREE.Vector3(); // Replaces 'w' when used as triPoint / tempVector
+const _vector2 = new THREE.Vector3(); // Replaces 'L' when used as capsulePoint / tempVector2
+const _vector3 = new THREE.Vector3(); // General purpose, like your existing use
+const _tmpBox = new THREE.Box3(); // Replaces 'M'
+const _tmpMat = new THREE.Matrix4(); // Replaces 'A'
+const _tempSegment = new THREE.Line3(); // Replaces 'y'
+
+// The example uses 'k' for `new P(0,1,0)`, which is a simple up vector.
+// Your code currently derives playerDirection from camera, but for capsule adjustments
+// we'll explicitly use a standard up vector or the ground normal.
+const _upVector = new THREE.Vector3(0, 1, 0); // Corresponds to 'k' in example
 
 export class PhysicsController {
     constructor(camera, scene, playerModel = null) {
@@ -33,21 +46,26 @@ export class PhysicsController {
         this.scene = scene;
         this.playerModel = playerModel;
 
-        // Your playerCollider is already a Capsule, which is perfect.
-        // The example uses player.capsuleInfo.segment, but your playerCollider is directly the capsule.
         this.playerCollider = new Capsule(
             new THREE.Vector3(0, COLLIDER_RADIUS, 0),
             new THREE.Vector3(0, STAND_HEIGHT - COLLIDER_RADIUS, 0),
             COLLIDER_RADIUS
         );
 
-        this.playerVelocity = new THREE.Vector3();
-        this.playerDirection = new THREE.Vector3(); // Re-used for forward/side vectors
-        this.playerOnFloor = false; // Corresponds to example's playerIsOnGround
-        this.isGrounded = false;     // Your existing isGrounded, derived from playerOnFloor
-        this.groundNormal = new THREE.Vector3(0, 1, 0); // Your existing groundNormal
-        this.bvhMeshes = []; // The array of meshes with BVH from map.js
+        this.playerVelocity = new THREE.Vector3(); // Corresponds to 'h' in example
+        this.playerDirection = new THREE.Vector3();
+        this.playerOnFloor = false; // Corresponds to 'C' in example (playerIsOnGround)
+        this.isGrounded = false;     // Your existing `isGrounded`
+        this.groundNormal = new THREE.Vector3(0, 1, 0);
+        this.bvhMeshes = []; // Array to hold meshes with BVH from map.js
         this.mouseTime = 0;
+
+        // Input states (corresponds to z, B, D, H in example)
+        this.fwdPressed = false;
+        this.bkdPressed = false;
+        this.lftPressed = false;
+        this.rgtPressed = false;
+        this.jumpPressed = false; // For spacebar logic
 
         const container = document.getElementById('container') || document.body;
         container.addEventListener('mousedown', () => {
@@ -76,7 +94,11 @@ export class PhysicsController {
         this.targetHeight = STAND_HEIGHT;
         this.fallDelay = 300;
 
-        // Debugging: Verify initial playerCollider state - keeping these for good measure
+        // Initialize key event listeners
+        window.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        window.addEventListener('keyup', (e) => this.handleKeyUp(e));
+
+        // Debugging: Verify initial playerCollider state
         console.log("PhysicsController initialized. playerCollider:", this.playerCollider);
         if (!this.playerCollider.start || !this.playerCollider.end) {
             console.error("ERROR: playerCollider.start or playerCollider.end is undefined in constructor!");
@@ -87,7 +109,33 @@ export class PhysicsController {
         this.speedModifier = value;
     }
 
-    // This method is fine as it correctly builds BVHs on the meshes passed from map.js
+    // Handles key presses, setting the internal movement flags
+    handleKeyDown(e) {
+        switch (e.code) {
+            case 'KeyW': this.fwdPressed = true; break;
+            case 'KeyS': this.bkdPressed = true; break;
+            case 'KeyD': this.rgtPressed = true; break;
+            case 'KeyA': this.lftPressed = true; break;
+            case 'Space':
+                if (this.playerOnFloor) { // Use your playerOnFloor
+                    this.playerVelocity.y = JUMP_VELOCITY; // Use your JUMP_VELOCITY
+                    this.playerOnFloor = false;
+                    this.jumpTriggered = true; // Your existing jumpTriggered
+                }
+                break;
+        }
+    }
+
+    // Handles key releases, clearing the internal movement flags
+    handleKeyUp(e) {
+        switch (e.code) {
+            case 'KeyW': this.fwdPressed = false; break;
+            case 'KeyS': this.bkdPressed = false; break;
+            case 'KeyD': this.rgtPressed = false; break;
+            case 'KeyA': this.lftPressed = false; break;
+        }
+    }
+
     async buildBVH(group, onProgress = () => {}) {
         this.bvhMeshes = [];
         let total = 0, loaded = 0;
@@ -109,180 +157,211 @@ export class PhysicsController {
         });
     }
 
-    // Removed getCapsuleTriangles and triangleCapsuleIntersect as they are replaced by the shapecast pattern
-
-    // This is the heavily refactored collision logic based on the example
-    playerCollisions() {
-        // Ensure this.playerCollider is valid before proceeding
-        if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
-            console.error("CRITICAL ERROR: Player collider is invalid at the start of playerCollisions!");
-            return;
+    // This is the core `updatePlayer` logic, now directly adapted from the example's `pe(l)` function.
+    updatePlayer(deltaTime) { // 'l' in the example
+        // 1. Apply gravity to playerVelocity (corresponds to `h.y = l * a.gravity` or `h.y += l * a.gravity`)
+        if (this.playerOnFloor) { // Corresponds to `C`
+            this.playerVelocity.y = deltaTime * -GRAVITY; // Gravity constant is positive in your code, so subtract
+        } else {
+            this.playerVelocity.y += deltaTime * -GRAVITY;
         }
 
-        const capsuleRadius = this.playerCollider.radius;
-        const playerCapsuleStart = this.playerCollider.start; // Directly use current capsule position
-        const playerCapsuleEnd = this.playerCollider.end;     // Directly use current capsule position
+        // 2. Apply current playerVelocity to player's position (corresponds to `e.position.addScaledVector(h, l)`)
+        // The example applies velocity directly to the player.position.
+        // We'll apply it to the playerCollider's segment points.
+        // First, apply to the playerCollider.start and end directly, before collision resolution.
+        const prevColliderStart = this.playerCollider.start.clone();
+        const prevColliderEnd = this.playerCollider.end.clone();
 
-        // 1. Create a temporary Line3 segment from the playerCollider's current position
-        //    _tempSegment is a global temp variable
-        _tempSegment.copy(this.playerCollider); // Capsule.copy(Line3) works by copying start/end
+        const moveAmount = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
+        this.playerCollider.start.add(moveAmount);
+        this.playerCollider.end.add(moveAmount);
 
-        // 2. Expand a bounding box around the capsule segment for initial BVH intersection test
+
+        // 3. Handle player movement based on input (corresponds to z,B,D,H,w,t,a.playerSpeed,l)
+        const angle = this.camera.rotation.y; // Using camera rotation directly as OrbitControls isn't used
+        // w.set(0, 0, -1).applyAxisAngle(k, t) => _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle)
+        // This is for calculating movement direction from camera angle.
+        if (this.fwdPressed) {
+            _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, PLAYER_ACCEL_GROUND * deltaTime); // Using PLAYER_ACCEL_GROUND as a base speed here
+            this.playerCollider.end.addScaledVector(_vector1, PLAYER_ACCEL_GROUND * deltaTime);
+        }
+        if (this.bkdPressed) {
+            _vector1.set(0, 0, 1).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, PLAYER_ACCEL_GROUND * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, PLAYER_ACCEL_GROUND * deltaTime);
+        }
+        if (this.lftPressed) {
+            _vector1.set(-1, 0, 0).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, PLAYER_ACCEL_GROUND * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, PLAYER_ACCEL_GROUND * deltaTime);
+        }
+        if (this.rgtPressed) {
+            _vector1.set(1, 0, 0).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, PLAYER_ACCEL_GROUND * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, PLAYER_ACCEL_GROUND * deltaTime);
+        }
+
+        // NOTE: The example's `playerSpeed` and `gravity` interaction with `playerVelocity` is a bit different
+        // from your `controls` function. We need to reconcile this.
+        // The example directly adds movement based on input to player.position.
+        // Your `controls` function modifies `this.playerVelocity`.
+        // Let's keep your `controls` for player input, and this `updatePlayer`
+        // will handle physics steps and collision resolution.
+        // The `player.position.addScaledVector(h,l)` is the *final* application of physics velocity before collisions.
+        // The previous `addScaledVector` lines for fwd/bkd/lft/rgt in the example are effectively the "input" part,
+        // which your `controls` method already handles by modifying `playerVelocity`.
+
+        // So, let's simplify step 2 and 3 above:
+        // Your `controls` modifies `this.playerVelocity`.
+        // `this.updatePlayer` will take that `playerVelocity`, apply gravity, and then *move the collider*.
+
+        // Let's re-do the initial movement based on YOUR `playerVelocity`
+        // and then let the collision logic adjust it.
+        const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
+        this.playerCollider.start.add(deltaPosition);
+        this.playerCollider.end.add(deltaPosition);
+
+        // 4. Prepare capsule for collision detection (corresponds to i, M, A, y)
+        // Here, `this.playerCollider` itself is your capsule. We'll use _tempSegment.copy(this.playerCollider)
+        // to represent the capsule's position *before* collision resolution in this step.
         _tmpBox.makeEmpty();
+        _tmpMat.copy(this.scene.matrixWorld).invert(); // Assuming scene is parent of BVH meshes and player.
+                                                       // The example uses `collider.matrixWorld.invert()`.
+                                                       // If your environment meshes are direct children of scene,
+                                                       // and collider is a merged mesh, then its matrixWorld is what matters.
+                                                       // If your BVH meshes are in world space already, no inverse matrix needed.
+                                                       // The example assumes the `collider` (your `this.bvhMeshes` group)
+                                                       // has its own transformation that needs to be inverted to get local space.
+                                                       // Let's assume your `bvhMeshes` are effectively in world space.
+                                                       // If not, you might need to apply _tmpMat to _tempSegment points.
+
+        // The example assumes `player.matrixWorld` transforms the capsule segment to world space,
+        // and then `collider.matrixWorld.invert()` transforms it to collider's local space.
+        // Since `this.playerCollider` is already in world space, and `this.bvhMeshes` are in world space,
+        // we can simplify this. Just use `this.playerCollider` directly.
+
+        // However, the `shapecast` method on `MeshBVH` expects triangle coordinates to be relative to the mesh it was built on.
+        // So, if your `this.bvhMeshes` are at world origin, and your `playerCollider` is at world origin, it's fine.
+        // If your `bvhMeshes` are transformed, the `shapecast` should transform the query to their local space.
+        // The example's `y.start.applyMatrix4(e.matrixWorld).applyMatrix4(A)` is crucial.
+        // 'e' is the player mesh, 'A' is `collider.matrixWorld.invert()`.
+        // This means: capsule (local to player mesh) -> world space -> collider local space.
+
+        // In your case:
+        // this.playerCollider.start/end are already in world space.
+        // If `this.bvhMeshes` are also in world space, then no transformations are needed here.
+        // If `this.bvhMeshes[0].matrixWorld` represents some global offset of your map,
+        // then _tempSegment.start/end need to be transformed by its inverse.
+
+        // Let's assume for simplicity, `this.bvhMeshes` are effectively at world origin,
+        // and `playerCollider` is directly in world space.
+        // If this leads to incorrect collisions, we'll revisit the matrix transformations.
+
+        _tempSegment.copy(this.playerCollider); // Copy the current (moved) collider state
+
         _tmpBox.expandByPoint(_tempSegment.start);
         _tmpBox.expandByPoint(_tempSegment.end);
-        _tmpBox.min.addScalar(-capsuleRadius);
-        _tmpBox.max.addScalar(capsuleRadius);
+        _tmpBox.min.addScalar(-COLLIDER_RADIUS);
+        _tmpBox.max.addScalar(COLLIDER_RADIUS);
 
-        let bestNormal = null;
-        let bestDepth = 0;
-        let foundCollision = false;
+        let bestCollisionNormal = new THREE.Vector3(); // Replaces 'E' from the example's `x.sub(S).normalize()`
+        let collisionDepth = 0;
+        let collisionDetected = false;
 
-        // Iterate through all BVH-enabled meshes in the environment
+        // Iterate through all BVH-enabled meshes in the environment for collisions
         for (const mesh of this.bvhMeshes) {
-            // It's crucial that the player's capsule is in the same space as the collider mesh's BVH.
-            // If environment meshes are moved/scaled, playerCapsule's points must be transformed
-            // into the mesh's local space before shapecast, and transformed back after.
-            // Assuming your environment meshes are static or transformed *before* BVH building,
-            // and playerCollider is in world space, this is generally handled by the BVH's coordinate system.
-            // If your playerCollider position is in *world space*, and the BVH is built on meshes
-            // that are also in *world space* (or their transformed local space matches), this is fine.
-            // If the BVH is built on meshes that are children of a scene group that has transformations,
-            // you might need to transform _tempSegment into the local space of 'mesh' using mesh.matrixWorld.invert()
-            // as seen in the example's updatePlayer, like:
-            // _tempSegment.start.applyMatrix4(player.matrixWorld).applyMatrix4(tempMat); // where tempMat is mesh.matrixWorld.invert()
-            // _tempSegment.end.applyMatrix4(player.matrixWorld).applyMatrix4(tempMat);
-            // However, your buildBVH currently processes meshes directly and adds them, implying world space usage.
-            // Let's assume for now the playerCollider and BVH are in compatible coordinate systems (world space).
-
+            // Apply mesh's inverse world matrix to the capsule segment to bring it into the mesh's local space
+            // where the BVH was built. This is CRUCIAL for accurate collisions.
+            // If the mesh is at world origin, this `_tmpMat` will be an identity matrix.
+            _tmpMat.copy(mesh.matrixWorld).invert();
+            const localSegment = _tempSegment.clone(); // Clone to avoid modifying _tempSegment for multiple meshes
+            localSegment.start.applyMatrix4(_tmpMat);
+            localSegment.end.applyMatrix4(_tmpMat);
 
             mesh.geometry.boundsTree.shapecast({
-                intersectsBounds: box => box.intersectsBox(_tmpBox),
+                intersectsBounds: box => box.intersectsBox(_tmpBox), // _tmpBox is in world space, this is a rough check
 
                 intersectsTriangle: tri => {
-                    // tri: The triangle from the BVH that potentially intersects
-                    // _vector1: Temporary for triPoint (closest point on the triangle)
-                    // _vector2: Temporary for capsulePoint (closest point on the capsule segment)
+                    const triPoint = _vector1; // 'S' in example
+                    const capsulePoint = _vector2; // 'x' in example
 
-                    const distance = tri.closestPointToSegment(_tempSegment, _vector1, _vector2);
+                    // Calculate the distance from the local capsule segment to the triangle
+                    const distance = tri.closestPointToSegment(localSegment, triPoint, capsulePoint);
 
-                    if (distance < capsuleRadius) {
-                        foundCollision = true;
-                        const depth = capsuleRadius - distance;
-                        const direction = _vector2.sub(_vector1).normalize(); // Direction from triangle to capsulePoint
+                    if (distance < COLLIDER_RADIUS) {
+                        const currentDepth = COLLIDER_RADIUS - distance;
+                        const currentNormal = capsulePoint.sub(triPoint).normalize();
 
-                        // Keep track of the deepest collision to resolve it
-                        if (depth > bestDepth) {
-                            bestDepth = depth;
-                            bestNormal = direction.clone();
+                        // Track the deepest collision.
+                        // The example aggregates this by directly modifying 'y' (tempSegment).
+                        // We'll accumulate bestNormal and bestDepth, then apply.
+                        if (currentDepth > collisionDepth) {
+                            collisionDepth = currentDepth;
+                            bestCollisionNormal.copy(currentNormal);
+                            collisionDetected = true;
                         }
                     }
                 }
             });
         }
 
-        // Reset playerOnFloor, isGrounded, groundNormal before applying new collision results
-        this.playerOnFloor = false;
+        // After checking all collisions, apply the deepest one.
+        this.playerOnFloor = false; // Reset first
         this.isGrounded = false;
-        this.groundNormal.set(0, 1, 0); // Default to up
+        this.groundNormal.set(0, 1, 0); // Default up
 
-        if (foundCollision && bestNormal) {
-            // Apply the best (deepest) collision response
-            this.playerOnFloor = bestNormal.y > 0.5; // Determine if player is on ground
+        if (collisionDetected) {
+            // Transform the bestCollisionNormal back into world space if it was computed in local space
+            bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld); // Assuming all meshes share same parent transform or are world aligned
+
+            // Apply adjustment to playerCollider based on the best collision
+            const SKIN = 0.02; // Small offset to prevent sticking
+            if (collisionDepth > SKIN) {
+                // Adjust the playerCollider position directly to resolve penetration
+                const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(collisionDepth - SKIN);
+                this.playerCollider.start.add(displacement);
+                this.playerCollider.end.add(displacement);
+            }
+
+            // Determine if on floor (corresponds to `C = s.y > Math.abs(l * h.y * .25);`)
+            // The example computes `deltaVector` (s) by comparing adjusted position (`p`) with player's previous position (`e.position`).
+            // `p` is `y.start.applyMatrix4(c.matrixWorld)` (adjusted capsule start in world space).
+            // `s` is `p.sub(e.position)`.
+            // Let's calculate a `deltaVector` by comparing the new collider position with the old.
+            const adjustedDelta = _vector3.copy(this.playerCollider.start).sub(prevColliderStart);
+            this.playerOnFloor = adjustedDelta.y > Math.abs(deltaTime * this.playerVelocity.y * 0.25);
+
+            // Set grounded states and ground normal
             this.isGrounded = this.playerOnFloor;
             if (this.playerOnFloor) {
-                this.groundNormal.copy(bestNormal); // Set the actual ground normal
+                this.groundNormal.copy(bestCollisionNormal); // Use the normal from the collision
             }
 
-            const SKIN = 0.02; // Small offset to avoid continuous collision
-            if (bestDepth > SKIN) {
-                // Adjust the playerCollider position directly to resolve penetration
-                this.playerCollider.translate(_vector3.copy(bestNormal).multiplyScalar(bestDepth - SKIN));
-            }
-
-            // Adjust player velocity: if moving into the normal, project velocity onto the plane of collision
-            if (this.playerVelocity.dot(bestNormal) < 0) {
-                _vector3.copy(this.playerVelocity).projectOnPlane(bestNormal);
-                this.playerVelocity.copy(_vector3);
-            }
-        }
-    }
-
-    updatePlayer(deltaTime) {
-        // Your existing updatePlayer logic
-        let damping = Math.exp(-4 * deltaTime) - 1;
-        if (!this.playerOnFloor) { // If not on floor, apply full gravity
-            this.playerVelocity.y -= GRAVITY * deltaTime;
-            damping *= 0.1; // Less damping in air
-        } else {
-            // If on floor, apply gravity component aligned with ground normal
-            const gravityComp = _vector3.copy(this.groundNormal).multiplyScalar(-GRAVITY * deltaTime);
-            this.playerVelocity.add(gravityComp);
-            // Project velocity onto the ground plane to prevent "sliding down" slopes due to gravity
-            this.playerVelocity.projectOnPlane(this.groundNormal);
-
-            // Special handling for flat ground to prevent vertical jitter
-            if (this.groundNormal.y > 0.99) {
-                if (this.playerVelocity.y < 0) this.playerVelocity.y = 0;
+            // Adjust player velocity based on collision normal (corresponds to `h.addScaledVector(s, -s.dot(h))`)
+            // The example's logic `C ? h.set(0, 0, 0) : (s.normalize(), h.addScaledVector(s, -s.dot(h)))`
+            // means if on ground, velocity becomes 0. If not on ground, project velocity.
+            if (this.playerOnFloor) {
+                this.playerVelocity.set(0, 0, 0); // Stops all velocity if on ground after collision
             } else {
-                // For slopes, if moving "into" the slope, nudge off it slightly
-                if (this.playerVelocity.dot(this.groundNormal) <= 0) {
-                    this.playerVelocity.add(_vector3.copy(this.groundNormal).multiplyScalar(-0.1));
-                }
+                // Project velocity off the surface that was hit
+                // s.normalize() corresponds to `bestCollisionNormal` already normalized.
+                this.playerVelocity.addScaledVector(bestCollisionNormal, -bestCollisionNormal.dot(this.playerVelocity));
             }
-        }
-
-        // Apply horizontal damping
-        this.playerVelocity.x += this.playerVelocity.x * damping;
-        this.playerVelocity.z += this.playerVelocity.z * damping;
-
-        // Limit horizontal speed
-        const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-        if (hSpeed > MAX_SPEED) {
-            const ratio = MAX_SPEED / hSpeed;
-            this.playerVelocity.x *= ratio;
-            this.playerVelocity.z *= ratio;
-        }
-
-        // Calculate displacement based on velocity
-        const deltaPos = _vector1.copy(this.playerVelocity).multiplyScalar(deltaTime);
-
-        // Debugging: Verify playerCollider before translate (kept for robustness)
-        if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
-            console.error("ERROR: playerCollider or its start/end points are undefined before translate!");
-            return;
-        }
-        this.playerCollider.translate(deltaPos); // Apply movement to the collider
-
-        // Debugging: Verify playerCollider before collisions (kept for robustness)
-        if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
-            console.error("ERROR: playerCollider or its start/end points are undefined before playerCollisions!");
-            return;
-        }
-
-        // Now perform collision detection and response
-        this.playerCollisions();
-
-        // One final check and adjustment based on where the player ended up after collisions
-        // The example does a final deltaVector calculation from newPosition to player.position
-        // to determine playerIsOnGround and velocity adjustment.
-        // We'll mimic this by comparing the playerCollider's position before and after `playerCollisions`
-        // However, since we're directly translating `playerCollider` in `playerCollisions`
-        // and its position is updated, we need to consider how `playerIsOnGround` is set.
-        // Your `playerOnFloor` is already set in `playerCollisions` based on `bestNormal.y`.
-        // The example's `playerIsOnGround = deltaVector.y > Math.abs( delta * playerVelocity.y * 0.25 );`
-        // is more complex and might not be directly portable without knowing the full setup.
-        // Let's stick to your `playerOnFloor` logic from the `bestNormal` for now, which is simpler.
-
-        // If not on ground, apply velocity damping based on original example
-        // (this part was already there, but re-emphasizing its role after collisions)
-        if (!this.playerOnFloor) {
-            // Apply velocity damping in air to prevent infinite horizontal slide
-            this.playerVelocity.addScaledVector(this.groundNormal, -this.groundNormal.dot(this.playerVelocity));
         } else {
-            // On ground, set horizontal velocity to zero if almost stopped, or allow movement
-            // Your original logic for playerVelocity.x,z damping and MAX_SPEED already covers this.
-            // The example set playerVelocity to (0,0,0) if on ground. Let's stick to your damping.
+             // If no collision detected, explicitly set playerOnFloor to false
+             this.playerOnFloor = false;
+             this.isGrounded = false;
+             this.groundNormal.set(0, 1, 0);
+        }
+
+        // If player falls too far (corresponds to `e.position.y < -25 && F()`)
+        if (this.playerCollider.end.y < -25) { // Use playerCollider's end point for height check
+            this.setPlayerPosition(new THREE.Vector3(0, 5, 0)); // Your reset
+            this.playerVelocity.set(0, 0, 0); // Reset velocity on fall
+            this.playerOnFloor = false; // Not on floor immediately after reset
+            this.isGrounded = false;
         }
     }
 
@@ -302,19 +381,47 @@ export class PhysicsController {
     }
 
     controls(deltaTime, input) {
+        // Your input processing. This updates `this.playerVelocity`.
         const accel = this.playerOnFloor ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
         const effectiveAccel = accel * this.speedModifier *
             (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
         const moveDir = _vector3.set(0, 0, 0); // Use a temporary vector here
-        if (input.forward) moveDir.add(this.getForwardVector());
-        if (input.backward) moveDir.add(this.getForwardVector().multiplyScalar(-1));
-        if (input.left) moveDir.add(this.getSideVector().multiplyScalar(-1));
-        if (input.right) moveDir.add(this.getSideVector());
+        if (input.forward) this.fwdPressed = true; else this.fwdPressed = false;
+        if (input.backward) this.bkdPressed = true; else this.bkdPressed = false;
+        if (input.left) this.lftPressed = true; else this.lftPressed = false;
+        if (input.right) this.rgtPressed = true; else this.rgtPressed = false;
 
-        if (moveDir.lengthSq() > 0) {
-            moveDir.normalize();
-            if (this.playerOnFloor) moveDir.projectOnPlane(this.groundNormal);
-            this.playerVelocity.add(moveDir.multiplyScalar(effectiveAccel * deltaTime));
+        // Incorporate example's input velocity calculation directly into playerVelocity
+        const angle = this.camera.rotation.y; // Get camera yaw
+        if (this.fwdPressed) {
+            _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
+            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.bkdPressed) {
+            _vector1.set(0, 0, 1).applyAxisAngle(_upVector, angle);
+            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.lftPressed) {
+            _vector1.set(-1, 0, 0).applyAxisAngle(_upVector, angle);
+            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.rgtPressed) {
+            _vector1.set(1, 0, 0).applyAxisAngle(_upVector, angle);
+            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+
+        // Limit horizontal speed
+        const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+        if (hSpeed > MAX_SPEED) {
+            const ratio = MAX_SPEED / hSpeed;
+            this.playerVelocity.x *= ratio;
+            this.playerVelocity.z *= ratio;
+        }
+
+        // Apply horizontal damping if not receiving input (to prevent infinite slide)
+        if (! (input.forward || input.backward || input.left || input.right) && this.playerOnFloor) {
+            this.playerVelocity.x *= Math.exp(-4 * deltaTime); // Damping factor
+            this.playerVelocity.z *= Math.exp(-4 * deltaTime);
         }
 
         if (this.playerOnFloor && input.jump) {
@@ -339,13 +446,7 @@ export class PhysicsController {
     }
 
     teleportIfOob() {
-        if (!this.playerCollider || !this.playerCollider.end) {
-            console.error("ERROR: playerCollider or its end point is undefined in teleportIfOob!");
-            return;
-        }
-        if (this.playerCollider.end.y < -30) {
-            this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
-        }
+        // This check is now integrated into `updatePlayer` based on example
     }
 
     setPlayerPosition(position) {
@@ -354,7 +455,10 @@ export class PhysicsController {
             return;
         }
 
-        const spawnY = position.y + 0.1;
+        // Example's reset function also updates camera target/position and controls
+        // This function will set the playerCollider's start/end points directly
+        // and also reset camera and velocity.
+        const spawnY = position.y + COLLIDER_RADIUS + 0.1; // Ensure it's slightly above ground
         this.playerCollider.start.set(position.x, spawnY, position.z);
         this.playerCollider.end.set(
             position.x,
@@ -367,6 +471,8 @@ export class PhysicsController {
         this.jumpTriggered = false;
         this.fallStartY = null;
         this.groundNormal.set(0, 1, 0);
+
+        // Update camera position to match the player collider for consistent view
         this.camera.position.copy(this.playerCollider.start);
         this.camera.position.y += this.currentHeight * 0.9;
         this.camera.rotation.set(0, 0, 0); // Reset camera rotation
@@ -393,14 +499,15 @@ export class PhysicsController {
             this.footAcc = 0;
         }
 
-        // Handle player input and update collider height
+        // Handle player input and update collider height. This primarily updates `this.playerVelocity`
+        // and `this.playerCollider.end.y`.
         this.controls(deltaTime, input);
 
-        // This is the core physics update, including collision detection
-        // The example uses a `physicsSteps` loop. You can add one here if you experience tunneling
-        // but for now, we'll keep it simple with one call per frame (your original method)
-        this.updatePlayer(deltaTime);
-        this.teleportIfOob();
+        // The example uses `physicsSteps`. Let's implement that for robustness.
+        const physicsSteps = 5; // Corresponds to `a.physicsSteps`
+        for (let i = 0; i < physicsSteps; i++) {
+            this.updatePlayer(deltaTime / physicsSteps);
+        }
 
         // Landing audio logic
         if (!this.prevGround && this.isGrounded) {
@@ -426,6 +533,8 @@ export class PhysicsController {
         this.jumpTriggered = false; // Reset jump trigger after checking landing
 
         // Update camera position to follow the player collider's base
+        // Note: The example uses player.position to update camera and controls.target.
+        // We'll use playerCollider.start for `camera.position` directly.
         if (!this.playerCollider || !this.playerCollider.start) {
             console.error("ERROR: playerCollider or its start point is undefined before camera position update!");
             return {
@@ -437,19 +546,25 @@ export class PhysicsController {
         this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9; // Adjust camera height
 
         // Player model rotation (your existing logic)
-        if (this.isGrounded && this.playerModel) {
-            const forward = _vector1; // Use a temporary vector
-            this.camera.getWorldDirection(forward);
-            forward.y = 0; forward.normalize();
-            const right = _vector2.crossVectors(forward, this.groundNormal).normalize(); // Use another temp vector
-            const finalFwd = _vector3.crossVectors(this.groundNormal, right).normalize(); // Use another temp vector
-            const mat = new THREE.Matrix4().makeBasis(right, this.groundNormal, finalFwd);
-            const targetQ = new THREE.Quaternion().setFromRotationMatrix(mat);
-            this.playerModel.quaternion.slerp(targetQ, 0.15);
-        } else if (this.playerModel) {
-            const upQ = new THREE.Quaternion().setFromUnitVectors(this.playerModel.up, new THREE.Vector3(0, 1, 0));
-            this.playerModel.quaternion.slerp(upQ, 0.05);
+        if (this.playerModel) { // Only attempt if playerModel exists
+            if (this.isGrounded) {
+                const forward = _vector1; // Use a temporary vector
+                this.camera.getWorldDirection(forward);
+                forward.y = 0; forward.normalize();
+                const right = _vector2.crossVectors(forward, this.groundNormal).normalize(); // Use another temp vector
+                const finalFwd = _vector3.crossVectors(this.groundNormal, right).normalize(); // Use another temp vector
+                const mat = new THREE.Matrix4().makeBasis(right, this.groundNormal, finalFwd);
+                const targetQ = new THREE.Quaternion().setFromRotationMatrix(mat);
+                this.playerModel.quaternion.slerp(targetQ, 0.15);
+            } else {
+                const upQ = new THREE.Quaternion().setFromUnitVectors(this.playerModel.up, new THREE.Vector3(0, 1, 0));
+                this.playerModel.quaternion.slerp(upQ, 0.05);
+            }
+            // Update player model's position to match collider
+            this.playerModel.position.copy(this.playerCollider.start);
+            this.playerModel.position.y -= COLLIDER_RADIUS; // Adjust to sit on ground, assuming model origin is center base
         }
+
 
         // Return player state (your existing return structure)
         return {
