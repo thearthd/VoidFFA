@@ -143,18 +143,19 @@ export class PhysicsController {
 
         this.collisionMesh.geometry.boundsTree.shapecast({
             intersectsBounds: bounds => bounds.intersectsBox(box),
-            intersectsTriangle: tri => {
-                const closest = new THREE.Vector3();
-                const dist = tri.closestPointToSegment({ start: segStart, end: segEnd }, segStart, closest);
-                if (dist < cap.radius) {
-                    const pushDir = segStart.clone().sub(closest).normalize();
-                    const pushLen = cap.radius - dist;
-                    if (pushLen > deepest) {
-                        deepest = pushLen;
-                        normal.copy(pushDir);
-                    }
-                }
-            }
+intersectsTriangle: tri => {
+    const closest = new THREE.Vector3();
+    const segment = new THREE.Line3(segStart, segEnd); // <- FIXED
+    const dist = tri.closestPointToSegment(segment, closest);
+    if (dist < cap.radius) {
+        const dir = segStart.clone().sub(closest).normalize();
+        const len = cap.radius - dist;
+        if (len > deepest) {
+            deepest = len;
+            normal.copy(dir);
+        }
+    }
+}
         });
 
         this.playerOnFloor = normal.y > 0.5;
