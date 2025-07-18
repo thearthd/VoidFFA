@@ -22,8 +22,8 @@ const MAX_SPEED = 10;
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
 const _vector3 = new THREE.Vector3();
-const _tmpBox   = new THREE.Box3();
-const _plane    = new THREE.Plane();
+const _tmpBox = new THREE.Box3();
+const _plane = new THREE.Plane();
 
 export class PhysicsController {
     constructor(camera, scene, playerModel = null) {
@@ -67,6 +67,12 @@ export class PhysicsController {
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
         this.fallDelay = 300;
+
+        // Debugging: Verify initial playerCollider state
+        console.log("PhysicsController initialized. playerCollider:", this.playerCollider);
+        if (!this.playerCollider.start || !this.playerCollider.end) {
+            console.error("ERROR: playerCollider.start or playerCollider.end is undefined in constructor!");
+        }
     }
 
     setSpeedModifier(value) {
@@ -106,22 +112,36 @@ export class PhysicsController {
     }
 
     triangleCapsuleIntersect(cap, tri) {
+        // Debugging: Log the capsule points before operations
+        if (!cap || !cap.start || !cap.end) {
+            console.error("ERROR: triangleCapsuleIntersect received an invalid capsule!", cap);
+            return null;
+        }
+        // console.log("triangleCapsuleIntersect - cap.start:", cap.start, "cap.end:", cap.end); // Uncomment for verbose logging
+
         tri.getPlane(_plane);
         const dStart = _plane.distanceToPoint(cap.start) - cap.radius;
-        const dEnd   = _plane.distanceToPoint(cap.end)   - cap.radius;
+        const dEnd = _plane.distanceToPoint(cap.end) - cap.radius;
         if ((dStart > 0 && dEnd > 0) || (dStart < -cap.radius && dEnd < -cap.radius)) return null;
+
         const t = Math.abs(dStart) / (Math.abs(dStart) + Math.abs(dEnd));
         const midPoint = _vector1.copy(cap.start).lerp(cap.end, t);
         if (tri.containsPoint(midPoint)) {
             const depth = Math.min(-dStart, -dEnd);
             return { normal: _plane.normal.clone(), depth: Math.abs(depth) };
         }
+
         const edges = [[tri.a, tri.b], [tri.b, tri.c], [tri.c, tri.a]];
         const rSq = cap.radius * cap.radius;
-        const capLine = new THREE.Line3(cap.start, cap.end);
+        const capLine = new THREE.Line3(cap.start, cap.end); // This is where the error originates from if cap.start or cap.end are undefined
         for (const [v0, v1] of edges) {
             const triPoint = tri.closestPointToPoint(cap.start, _vector2);
+            // Ensure segPoint is not undefined before sub (though closestPointToPoint usually returns it)
             const segPoint = capLine.closestPointToPoint(triPoint, _vector3);
+            if (!segPoint) {
+                console.error("ERROR: segPoint is undefined after closestPointToPoint for capLine!", capLine, triPoint);
+                return null; // Or handle appropriately
+            }
             const distSq = triPoint.distanceToSquared(segPoint);
             if (distSq < rSq) {
                 const dist = Math.sqrt(distSq);
@@ -135,6 +155,12 @@ export class PhysicsController {
     }
 
     playerCollisions() {
+        // Debugging: Verify this.playerCollider state before cloning
+        if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
+            console.error("ERROR: this.playerCollider or its start/end is undefined before worldCap creation!", this.playerCollider);
+            return; // Prevent further errors
+        }
+
         const worldCap = new Capsule(
             this.playerCollider.start.clone(),
             this.playerCollider.end.clone(),
@@ -191,7 +217,19 @@ export class PhysicsController {
             this.playerVelocity.z *= ratio;
         }
         const deltaPos = _vector1.copy(this.playerVelocity).multiplyScalar(deltaTime);
+
+        // Debugging: Verify playerCollider before translate
+        if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
+            console.error("ERROR: playerCollider or its start/end points are undefined before translate!");
+            return; // Prevent further errors
+        }
         this.playerCollider.translate(deltaPos);
+
+        // Debugging: Verify playerCollider before collisions
+        if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
+            console.error("ERROR: playerCollider or its start/end points are undefined before playerCollisions!");
+            return; // Prevent further errors
+        }
         this.playerCollisions();
     }
 
@@ -215,10 +253,10 @@ export class PhysicsController {
         const effectiveAccel = accel * this.speedModifier *
             (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
         const moveDir = new THREE.Vector3();
-        if (input.forward)  moveDir.add(this.getForwardVector());
+        if (input.forward) moveDir.add(this.getForwardVector());
         if (input.backward) moveDir.add(this.getForwardVector().multiplyScalar(-1));
-        if (input.left)     moveDir.add(this.getSideVector().multiplyScalar(-1));
-        if (input.right)    moveDir.add(this.getSideVector());
+        if (input.left) moveDir.add(this.getSideVector().multiplyScalar(-1));
+        if (input.right) moveDir.add(this.getSideVector());
         if (moveDir.lengthSq() > 0) {
             moveDir.normalize();
             if (this.playerOnFloor) moveDir.projectOnPlane(this.groundNormal);
@@ -233,18 +271,35 @@ export class PhysicsController {
         const wantCrouch = input.crouch && this.isGrounded;
         this.targetHeight = wantCrouch ? CROUCH_HEIGHT : STAND_HEIGHT;
         this.currentHeight += (this.targetHeight - this.currentHeight) *
-                              Math.min(1, CROUCH_SPEED * deltaTime);
+            Math.min(1, CROUCH_SPEED * deltaTime);
+
+        // Debugging: Verify playerCollider before modifying its end point
+        if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
+            console.error("ERROR: playerCollider or its start/end points are undefined before updating end.y in controls!");
+            return; // Prevent further errors
+        }
         this.playerCollider.end.y = this.playerCollider.start.y +
-                                    (this.currentHeight - 2 * COLLIDER_RADIUS);
+            (this.currentHeight - 2 * COLLIDER_RADIUS);
     }
 
     teleportIfOob() {
+        // Debugging: Verify playerCollider before checking its end point
+        if (!this.playerCollider || !this.playerCollider.end) {
+            console.error("ERROR: playerCollider or its end point is undefined in teleportIfOob!");
+            return; // Prevent further errors
+        }
         if (this.playerCollider.end.y < -30) {
             this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
         }
     }
 
     setPlayerPosition(position) {
+        // Debugging: Verify playerCollider before setting its position
+        if (!this.playerCollider) {
+            console.error("ERROR: playerCollider is undefined in setPlayerPosition!");
+            return; // Prevent further errors
+        }
+
         const spawnY = position.y + 0.1;
         this.playerCollider.start.set(position.x, spawnY, position.z);
         this.playerCollider.end.set(
@@ -304,6 +359,15 @@ export class PhysicsController {
                 }, this.fallDelay);
             }
         }
+        // Debugging: Verify playerCollider before updating camera position
+        if (!this.playerCollider || !this.playerCollider.start) {
+            console.error("ERROR: playerCollider or its start point is undefined before camera position update!");
+            // Attempt to recover or stop further execution if critical
+            return {
+                x: 0, y: 0, z: 0, rotY: 0, isGrounded: false, velocity: new THREE.Vector3(), velocityY: 0
+            };
+        }
+
         this.camera.position.x = this.playerCollider.start.x;
         this.camera.position.z = this.playerCollider.start.z;
         this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9;
