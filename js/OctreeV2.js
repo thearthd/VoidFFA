@@ -14,6 +14,7 @@ import {
 } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 
 import { Capsule } from 'three/examples/jsm/math/Capsule.js';
+import { Box3Helper } from 'three/examples/jsm/helpers/Box3Helper.js'; // Added Box3Helper for visualization
 
 
 const _v1 = new Vector3();
@@ -644,7 +645,26 @@ export class OctreeV2 {
      * @param {number} [currentDepth=0] - Current recursion depth (internal use).
      * @returns {Object3D} A group containing the octree visualization.
      */
+    generateVisualization( color = 0x00ff00, maxDepth = -1, currentDepth = 0 ) {
+        const group = new Object3D(); // Use Object3D (Group is a subclass)
 
+        const traverseAndAddBoxes = (node, depth) => {
+            if (maxDepth === -1 || depth <= maxDepth) {
+                if (node.box) {
+                    const helper = new Box3Helper(node.box, new Color(color)); // Use Box3Helper and Color directly
+                    group.add(helper);
+                }
+            }
+            if (maxDepth === -1 || depth < maxDepth) {
+                for (const subTree of node.subTrees) {
+                    traverseAndAddBoxes(subTree, depth + 1);
+                }
+            }
+        };
+
+        traverseAndAddBoxes(this, currentDepth);
+        return group;
+    }
 
     /**
      * Serializes the Octree structure into a plain JavaScript object.
@@ -687,13 +707,27 @@ export class OctreeV2 {
             octree.triangleIndices = data.triangleIndices;
             octree.bounds = octree.box.clone();
 
+            // Validate indices for this node
+            for (let i = 0; i < octree.triangleIndices.length; i++) {
+                const idx = octree.triangleIndices[i];
+                if (idx === undefined || idx < 0 || idx >= allTriangles.length) {
+                    throw new Error(`Invalid triangle index ${idx} found during deserialization. allTriangles length: ${allTriangles.length}.`);
+                }
+            }
+
             for (const subTreeData of data.subTrees) {
-                octree.subTrees.push(deserializeNode(subTreeData));
+                octree.subTrees.push(deserializeNode(subTreeData)); // Recursive call
             }
             return octree;
         };
-        const newOctree = deserializeNode(serializedData);
-        newOctree._totalTriangleCount = allTriangles.length;
-        return newOctree;
+
+        try {
+            const newOctree = deserializeNode(serializedData);
+            newOctree._totalTriangleCount = allTriangles.length; // This is for progress tracking
+            return newOctree;
+        } catch (e) {
+            console.error("Octree deserialization failed due to invalid indices:", e.message);
+            throw e; // Re-throw to be caught by map.js
+        }
     }
 }
