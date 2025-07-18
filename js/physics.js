@@ -19,15 +19,15 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
 
-const SKIN = 0.005;
+const SKIN = 0.005; // Keep this small, it's a buffer to prevent immediate re-penetration
 
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
 const _vector3 = new THREE.Vector3();
-const _tmpBox = new THREE.Box3(); // This _tmpBox represents the player's collision volume in World Space
-const _tmpMat = new THREE.Matrix4();
-const _tmpInverseMat = new THREE.Matrix4(); // New temporary matrix for inverse
-const _tmpLocalBox = new THREE.Box3(); // New temporary box for local BVH node bounds in World Space
+const _tmpBox = new THREE.Box3(); // Player's collision volume in World Space
+const _tmpMat = new THREE.Matrix4(); // General purpose temporary matrix
+const _tmpInverseMat = new THREE.Matrix4(); // Temporary matrix for inverse operations
+const _tmpLocalBox = new THREE.Box3(); // Temporary box for local BVH node bounds in World Space
 const _tempSegment = new THREE.Line3();
 const _upVector = new THREE.Vector3(0, 1, 0);
 
@@ -51,7 +51,6 @@ export class PhysicsController {
         this.bvhMeshes = [];
         this.mouseTime = 0;
 
-        // Input states - now properly tracked
         this.fwdPressed = false;
         this.bkdPressed = false;
         this.lftPressed = false;
@@ -188,7 +187,6 @@ export class PhysicsController {
         currentCapsule.end.add(deltaPosition);
 
         // Prepare bounding box for broad-phase check (this is critical!)
-        // This _tmpBox represents the player's collision volume in World Space
         _tmpBox.makeEmpty();
         _tmpBox.expandByPoint(currentCapsule.start);
         _tmpBox.expandByPoint(currentCapsule.end);
@@ -212,15 +210,12 @@ export class PhysicsController {
             _tempSegment.set(_vector1, _vector2);
 
             mesh.geometry.boundsTree.shapecast({
-                // --- CRITICAL CHANGE FOR PERFORMANCE AND CORRECTNESS ---
                 intersectsBounds: box => {
                     // Transform the BVH node's local bounding box to world space
                     _tmpLocalBox.copy(box).applyMatrix4(mesh.matrixWorld);
                     // Then check if this world-space box intersects the player's world-space collision box
                     return _tmpLocalBox.intersectsBox(_tmpBox);
                 },
-                // --- END CRITICAL CHANGE ---
-
                 intersectsTriangle: tri => {
                     const triPoint = _vector1;
                     const capsulePoint = _vector2;
@@ -248,10 +243,16 @@ export class PhysicsController {
 
         if (collisionDetected) {
             // Transform the bestCollisionNormal back into world space
-            bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld); // Assuming first mesh's matrixWorld is representative
+            // Assuming all bvhMeshes share the same matrixWorld for a unified terrain
+            if (this.bvhMeshes.length > 0) { // Safety check
+                bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
+            }
 
-            if (collisionDepth > SKIN) {
-                const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(collisionDepth - SKIN);
+
+            // Apply displacement to move out of penetration
+            if (collisionDepth > 0) {
+                // Add SKIN to push slightly out of the collision
+                const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(collisionDepth + SKIN);
                 this.playerCollider.start.add(displacement);
                 this.playerCollider.end.add(displacement);
             }
@@ -264,8 +265,11 @@ export class PhysicsController {
 
                 this.playerVelocity.projectOnPlane(this.groundNormal);
             } else {
-                // For walls/ceilings, reflect velocity or stop it in that direction
-                this.playerVelocity.addScaledVector(bestCollisionNormal, -bestCollisionNormal.dot(this.playerVelocity));
+                // If it's a wall or ceiling, reflect/bounce velocity
+                const dot = this.playerVelocity.dot(bestCollisionNormal);
+                if (dot < 0) { // Only if moving towards the obstacle
+                    this.playerVelocity.addScaledVector(bestCollisionNormal, -dot); // Zero out velocity component in normal's direction
+                }
             }
         } else {
             // If no collision, player is not on floor
@@ -299,7 +303,6 @@ export class PhysicsController {
     }
 
     controls(deltaTime, input) {
-        // Update internal input states based on passed input object
         this.fwdPressed = input.forward;
         this.bkdPressed = input.backward;
         this.lftPressed = input.left;
@@ -309,7 +312,6 @@ export class PhysicsController {
         this.slowPressed = input.slow;
         // isAim should be set by your game logic, for example, when right-mouse button is down.
 
-        // Speed modifier calculation
         let currentSpeedModifier = this.speedModifier;
 
         if (this.crouchPressed) {
@@ -326,6 +328,8 @@ export class PhysicsController {
         const angle = this.camera.rotation.y;
 
         // Apply input-based acceleration to playerVelocity
+        // Consider applying acceleration based on current velocity direction for better "air control" or "ground friction"
+        // This current method adds velocity in world directions, which is okay for basic movement.
         if (this.fwdPressed) {
             _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
             this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
@@ -459,6 +463,14 @@ export class PhysicsController {
                     this.fallStartY = this.camera.position.y;
                     this.fallStartTimer = null;
                 }, this.fallDelay);
+            }
+            // Reset fallStartY if player somehow gets on ground without a "landing"
+            if (this.isGrounded) {
+                this.fallStartY = null;
+                if (this.fallStartTimer) {
+                    clearTimeout(this.fallStartTimer);
+                    this.fallStartTimer = null;
+                }
             }
         }
 
