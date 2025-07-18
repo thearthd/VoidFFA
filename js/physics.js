@@ -1,9 +1,8 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js";
 import { MeshBVH, acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm";
 import { Capsule } from "three/examples/jsm/math/Capsule.js";
-import { sendSoundEvent } from "./network.js"; // Ensure this path is correct for your project
+import { sendSoundEvent } from "./network.js";
 
-// Extend Three.js geometries and meshes for BVH
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -21,8 +20,13 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
 
-// Collision Skin: Extremely small buffer. Less push-out means less bouncing.
-const SKIN = 0.0001; // Further reduced. This should be a very, very tiny value.
+// Collision Buffer: A tiny value to ensure clearance after pushing out of penetration.
+// This should be as small as possible to prevent "popping" above the surface.
+const COLLISION_BUFFER = 0.000001; // Extremely small, effectively 0 but provides numerical stability.
+
+// "Sticky" Ground Force: A small constant downward velocity when grounded.
+// This ensures the player remains firmly on the ground without jittering.
+const GROUND_STICKY_VELOCITY = -0.1; // A small negative value (e.g., -0.1 to -0.5)
 
 // Reusable temporary vectors and matrices
 const _vector1 = new THREE.Vector3();
@@ -53,7 +57,6 @@ export class PhysicsController {
         this.groundNormal = new THREE.Vector3(0, 1, 0);
         this.bvhMeshes = [];
 
-        // Input flags
         this.fwdPressed = false;
         this.bkdPressed = false;
         this.lftPressed = false;
@@ -63,15 +66,12 @@ export class PhysicsController {
         this.slowPressed = false;
         this.isAim = false;
 
-        // Mouse lock
         const container = document.getElementById('container') || document.body;
         container.addEventListener('mousedown', () => {
             document.body.requestPointerLock();
-            // this.mouseTime = performance.now(); // Not strictly needed for physics
         });
         this.camera.rotation.order = 'YXZ';
 
-        // Audio
         this.footAudios = [
             new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
             new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
@@ -84,10 +84,9 @@ export class PhysicsController {
         this.landAudio.volume = 0.8;
         this.fallStartY = null;
         this.fallStartTimer = null;
-        this.prevOnGround = false; // Renamed for consistency
+        this.prevOnGround = false;
         this.fallDelay = 300;
 
-        // Crouch/Jump related
         this.jumpTriggered = false;
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
@@ -173,26 +172,20 @@ export class PhysicsController {
 
         // --- Start of Core Physics Logic with BVH ---
 
-        // 1. Apply Gravity:
-        // Gravity only truly affects vertical velocity when not grounded.
-        // When grounded, we let collision resolution handle it, or project it.
-        if (!this.onGround) {
-            this.playerVelocity.y += deltaTime * -GRAVITY;
-        }
+        // 1. Apply Gravity: Always apply gravity. Collision resolution and sticky force will manage grounding.
+        this.playerVelocity.y += deltaTime * -GRAVITY;
 
         // 2. Move player based on velocity (actual modification of playerCollider)
         const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
         this.playerCollider.start.add(deltaPosition);
         this.playerCollider.end.add(deltaPosition);
 
-        // 3. Reset grounded state for the current step (will be set if collision detected)
+        // 3. Reset grounded state for the current step
         this.onGround = false;
         this.groundNormal.set(0, 1, 0);
 
         // 4. Iterative Collision Resolution Loop
-        // Perform multiple collision checks and resolutions within this single physics sub-step.
-        // This is crucial for stability, especially on complex geometry or with fast movement.
-        const collisionIterations = 5; // How many times to try and resolve collisions per sub-step
+        const collisionIterations = 5;
         for (let i = 0; i < collisionIterations; i++) {
             let bestCollisionNormal = new THREE.Vector3();
             let collisionDepth = 0;
@@ -245,43 +238,55 @@ export class PhysicsController {
 
                 // Apply displacement to move out of penetration
                 if (collisionDepth > 0) {
-                    // Push out by current penetration depth + a tiny SKIN amount
-                    // This ensures we're definitely out, but minimally.
-                    const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(collisionDepth + SKIN);
+                    let displacementAmount;
+                    // For ground collisions, push out by collisionDepth plus a tiny buffer
+                    // For other collisions (walls/ceilings), use a slightly larger buffer or just collisionDepth
+                    if (bestCollisionNormal.dot(_upVector) > 0.75) {
+                        displacementAmount = collisionDepth + COLLISION_BUFFER;
+                    } else {
+                        displacementAmount = collisionDepth + COLLISION_BUFFER * 5; // A bit more buffer for walls to prevent sticking
+                    }
+
+                    const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(displacementAmount);
                     this.playerCollider.start.add(displacement);
                     this.playerCollider.end.add(displacement);
                 }
 
-                // Check if the collision is with the ground (normal pointing mostly up)
+                // Check if the collision is with the ground
                 if (bestCollisionNormal.dot(_upVector) > 0.75) {
                     this.onGround = true; // Set grounded state
                     this.groundNormal.copy(bestCollisionNormal);
 
-                    // If moving upwards while on ground, kill vertical velocity to prevent bounce
-                    if (this.playerVelocity.y > 0) {
-                        this.playerVelocity.y = 0;
+                    // When on the ground, ensure vertical velocity is reset
+                    // This handles landing and prevents "sticky" upward velocity from resolver
+                    if (this.playerVelocity.y > 0) { // If there's any upward velocity
+                         this.playerVelocity.y = 0; // Zero it out
                     }
                     // Project horizontal velocity onto the ground plane (for sliding)
                     this.playerVelocity.projectOnPlane(this.groundNormal);
+
+                    // Crucially, apply a small downward sticky force when grounded
+                    // This keeps the player firmly on the ground, preventing jitter from tiny gaps.
+                    this.playerVelocity.y = Math.min(this.playerVelocity.y, GROUND_STICKY_VELOCITY);
+
                 } else {
                     // Collision with a wall or ceiling: reflect/damp velocity component against normal
                     const dot = this.playerVelocity.dot(bestCollisionNormal);
                     if (dot < 0) { // If velocity is moving into the normal
-                        this.playerVelocity.addScaledVector(bestCollisionNormal, -dot); // Zero out velocity component in normal's direction
+                        this.playerVelocity.addScaledVector(bestCollisionNormal, -dot);
                     }
                 }
             } else {
                 // If no collision detected in an iteration, break the loop early
-                // as player is likely clear.
                 break;
             }
         } // End of collisionIterations loop
 
-        // 5. Out of bounds check (after all collision resolution for this sub-step)
+        // 5. Out of bounds check
         if (this.playerCollider.end.y < -25) {
             this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
             this.playerVelocity.set(0, 0, 0);
-            this.onGround = false; // Ensure state is correct
+            this.onGround = false;
         }
     }
 
@@ -303,7 +308,6 @@ export class PhysicsController {
 
     // Handles player input and updates desired velocity/collider height
     controls(deltaTime, input) {
-        // Update input state from the input object
         this.fwdPressed = input.forward;
         this.bkdPressed = input.backward;
         this.lftPressed = input.left;
@@ -312,7 +316,6 @@ export class PhysicsController {
         this.crouchPressed = input.crouch;
         this.slowPressed = input.slow;
 
-        // Determine current speed modifier
         let currentSpeedModifier = this.speedModifier;
         if (this.crouchPressed) {
             currentSpeedModifier *= 0.3;
@@ -322,7 +325,6 @@ export class PhysicsController {
             currentSpeedModifier *= 0.65;
         }
 
-        // Apply horizontal acceleration based on input and grounded state
         const accel = this.onGround ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
         const effectiveAccel = accel * currentSpeedModifier;
         const angle = this.camera.rotation.y;
@@ -344,7 +346,6 @@ export class PhysicsController {
             this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
         }
 
-        // Limit horizontal speed
         const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
         if (hSpeed > MAX_SPEED) {
             const ratio = MAX_SPEED / hSpeed;
@@ -352,7 +353,6 @@ export class PhysicsController {
             this.playerVelocity.z *= ratio;
         }
 
-        // Apply horizontal damping
         if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && this.onGround) {
             this.playerVelocity.x *= Math.exp(-6 * deltaTime);
             this.playerVelocity.z *= Math.exp(-6 * deltaTime);
@@ -365,34 +365,32 @@ export class PhysicsController {
         // Jump logic
         if (this.onGround && this.jumpPressed) {
             this.playerVelocity.y = JUMP_VELOCITY;
-            this.onGround = false; // No longer on ground
+            this.onGround = false;
             this.jumpTriggered = true;
         } else {
             this.jumpTriggered = false;
         }
 
         // Crouch/Stand transition:
-        // Set target height. The `updatePlayer` will ensure the capsule's base adheres to the ground.
         const wantCrouch = this.crouchPressed && this.onGround;
         this.targetHeight = wantCrouch ? CROUCH_HEIGHT : STAND_HEIGHT;
-        // Smoothly interpolate current height towards target height
         this.currentHeight += (this.targetHeight - this.currentHeight) *
             Math.min(1, CROUCH_SPEED * deltaTime);
 
-        // Update the collider's end point based on the current height, keeping `start.y` potentially constant
-        // The `updatePlayer` function will then adjust the whole capsule's `start` and `end` if needed by collision.
+        // Update the collider's end point based on the current height.
+        // The `start.y` will be kept at ground level by collision resolution if onGround is true.
         this.playerCollider.end.y = this.playerCollider.start.y + (this.currentHeight - 2 * COLLIDER_RADIUS);
     }
 
     // Teleports the player to a new position
     setPlayerPosition(position) {
-        // Position the base of the collider (start point) at the desired Y, plus radius for clearance.
-        const baseColliderY = position.y + COLLIDER_RADIUS + 0.1;
-        this.playerCollider.start.set(position.x, baseColliderY, position.z);
-        // Calculate the end point based on the current height from this new start point.
+        // Set collider start.y to be on the ground, plus radius.
+        const colliderBaseY = position.y + COLLIDER_RADIUS + 0.1; // Add small offset
+        this.playerCollider.start.set(position.x, colliderBaseY, position.z);
+        // Set collider end.y based on current height
         this.playerCollider.end.set(
             position.x,
-            baseColliderY + (this.currentHeight - 2 * COLLIDER_RADIUS),
+            colliderBaseY + (this.currentHeight - 2 * COLLIDER_RADIUS),
             position.z
         );
 
@@ -409,8 +407,8 @@ export class PhysicsController {
 
     // Main game loop update function
     update(deltaTime, input) {
-        deltaTime = Math.min(0.05, deltaTime); // Cap delta time
-        this.prevOnGround = this.onGround; // Store previous state
+        deltaTime = Math.min(0.05, deltaTime);
+        this.prevOnGround = this.onGround;
 
         // Footstep audio logic
         const speedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
@@ -431,7 +429,6 @@ export class PhysicsController {
 
         this.controls(deltaTime, input);
 
-        // Run physics simulation in fixed sub-steps
         const physicsSteps = 5;
         for (let i = 0; i < physicsSteps; i++) {
             this.updatePlayer(deltaTime / physicsSteps);
@@ -474,7 +471,7 @@ export class PhysicsController {
         }
         this.camera.position.x = this.playerCollider.start.x;
         this.camera.position.z = this.playerCollider.start.z;
-        this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9; // Keep camera at eye level, relative to start.y
+        this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9;
 
         // Update player model (if present)
         if (this.playerModel) {
@@ -506,7 +503,6 @@ export class PhysicsController {
         };
     }
 
-    // Helper to get player's current position (for sounds/network)
     _pos() {
         const p = this.camera.position;
         return { x: p.x, y: p.y, z: p.z };
