@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js";
 import { MeshBVH, acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm";
 import { Capsule } from "three/examples/jsm/math/Capsule.js";
-import { sendSoundEvent } from "./network.js";
+import { sendSoundEvent } from "./network.js"; // Make sure this path is correct
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -19,8 +19,7 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
 
-// Refined: Slightly smaller skin for less "floating"
-const SKIN = 0.005; // Was 0.02
+const SKIN = 0.005;
 
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
@@ -46,19 +45,19 @@ export class PhysicsController {
         this.playerDirection = new THREE.Vector3();
         this.playerOnFloor = false;
         this.isGrounded = false;
-        this.groundNormal = new THREE.Vector3(0, 1, 0); // Default up
+        this.groundNormal = new THREE.Vector3(0, 1, 0);
         this.bvhMeshes = [];
         this.mouseTime = 0;
 
-        // Input states
+        // Input states - now properly tracked
         this.fwdPressed = false;
         this.bkdPressed = false;
         this.lftPressed = false;
         this.rgtPressed = false;
-        this.jumpPressed = false; // Added to track jump input
-        this.crouchPressed = false; // Added to track crouch input
-        this.slowPressed = false; // Added to track slow input
-        this.isAim = false; // Assuming this is set externally
+        this.jumpPressed = false;
+        this.crouchPressed = false;
+        this.slowPressed = false;
+        this.isAim = false; // This needs to be set externally based on game state (e.g., aiming a weapon)
 
         const container = document.getElementById('container') || document.body;
         container.addEventListener('mousedown', () => {
@@ -81,8 +80,7 @@ export class PhysicsController {
         this.fallStartTimer = null;
         this.prevGround = false;
         this.jumpTriggered = false;
-        this.speedModifier = 1; // Default to 1, as it's modified by input states now
-        // this.isAim = false; // Already defined above, remove duplicate
+        this.speedModifier = 1; // Default to normal speed, can be changed by external sprint logic etc.
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
         this.fallDelay = 300;
@@ -95,6 +93,10 @@ export class PhysicsController {
 
     setSpeedModifier(value) {
         this.speedModifier = value;
+    }
+
+    setIsAim(value) { // Added setter for isAim
+        this.isAim = value;
     }
 
     async buildBVH(group, onProgress = () => {}) {
@@ -126,10 +128,13 @@ export class PhysicsController {
             this.playerCollider.start.add(deltaPosition);
             this.playerCollider.end.add(deltaPosition);
 
-            // Also apply input-based movement to collider, as `controls` only updates velocity
+            // Apply input-based movement to collider if BVH not ready
             const angle = this.camera.rotation.y;
-            const effectiveAccel = PLAYER_ACCEL_GROUND * this.speedModifier *
-                (this.isAim ? 0.65 : 1); // Crouch/Slow handled in controls via playerVelocity
+            let currentSpeedModifier = this.speedModifier;
+            if (this.crouchPressed) currentSpeedModifier *= 0.3;
+            else if (this.slowPressed) currentSpeedModifier *= 0.5;
+            else if (this.isAim) currentSpeedModifier *= 0.65;
+            const effectiveAccel = PLAYER_ACCEL_GROUND * currentSpeedModifier;
 
             if (this.fwdPressed) {
                 _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
@@ -152,7 +157,7 @@ export class PhysicsController {
                 this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
             }
 
-            // Apply horizontal damping if no input and not grounded (since we don't have collision yet)
+            // Apply horizontal damping if no input and not grounded
             if (! (this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && !this.playerOnFloor) {
                 this.playerVelocity.x *= Math.exp(-4 * deltaTime);
                 this.playerVelocity.z *= Math.exp(-4 * deltaTime);
@@ -166,29 +171,24 @@ export class PhysicsController {
         }
 
         // Physics calculations: Gravity
-        // Apply gravity if not on floor or if jumping
-        if (!this.playerOnFloor || this.jumpTriggered) { // Check if jump just happened
+        if (!this.playerOnFloor || this.jumpTriggered) {
             this.playerVelocity.y += deltaTime * -GRAVITY;
         } else {
-            // If on floor and not jumping, ensure we apply a small downward push to keep on floor
-            this.playerVelocity.y = -GRAVITY * deltaTime; // Small downward velocity to prevent floating
+            this.playerVelocity.y = -GRAVITY * deltaTime;
         }
 
+        // Create a *new* capsule for the current physics step's movement
+        const currentCapsule = this.playerCollider.clone();
 
-        // Store collider's position before applying velocity for delta calculation
-        const prevColliderStart = this.playerCollider.start.clone();
-        // The example applies velocity directly to player.position,
-        // we apply it to playerCollider's segment points.
+        // Apply velocity to the *new* capsule
         const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
-        this.playerCollider.start.add(deltaPosition);
-        this.playerCollider.end.add(deltaPosition);
+        currentCapsule.start.add(deltaPosition);
+        currentCapsule.end.add(deltaPosition);
 
-        // Prepare capsule for collision detection
+        // Prepare bounding box for broad-phase check (this is critical!)
         _tmpBox.makeEmpty();
-        _tempSegment.copy(this.playerCollider);
-
-        _tmpBox.expandByPoint(_tempSegment.start);
-        _tmpBox.expandByPoint(_tempSegment.end);
+        _tmpBox.expandByPoint(currentCapsule.start);
+        _tmpBox.expandByPoint(currentCapsule.end);
         _tmpBox.min.addScalar(-COLLIDER_RADIUS);
         _tmpBox.max.addScalar(COLLIDER_RADIUS);
 
@@ -198,19 +198,31 @@ export class PhysicsController {
 
         // Iterate through all BVH-enabled meshes for collisions
         for (const mesh of this.bvhMeshes) {
-            // Transform the capsule segment into the mesh's local space for shapecast
+            // Transform the *current* capsule segment into the mesh's local space for shapecast
             _tmpMat.copy(mesh.matrixWorld).invert();
-            const localSegment = _tempSegment.clone();
-            localSegment.start.applyMatrix4(_tmpMat);
-            localSegment.end.applyMatrix4(_tmpMat);
+            _vector1.copy(currentCapsule.start).applyMatrix4(_tmpMat);
+            _vector2.copy(currentCapsule.end).applyMatrix4(_tmpMat);
+
+            // Create a temporary local segment for the shapecast
+            _tempSegment.set(_vector1, _vector2);
 
             mesh.geometry.boundsTree.shapecast({
-                intersectsBounds: box => box.intersectsBox(_tmpBox),
+                intersectsBounds: box => {
+                    // Temporarily transform _tmpBox to the current mesh's local space for the check
+                    // We need a fresh matrix for this, don't modify _tmpMat directly if it's used elsewhere for the same mesh
+                    const tempInverseMeshMatrix = _tmpMat.clone(); // Use a clone for temporary modification
+                    tempInverseMeshMatrix.copy(mesh.matrixWorld).invert();
+                    _tmpBox.applyMatrix4(tempInverseMeshMatrix); // Transform _tmpBox to local mesh space for this specific check
+                    const intersects = box.intersectsBox(_tmpBox);
+                    // Transform _tmpBox back to its original world space for the next iteration
+                    _tmpBox.applyMatrix4(mesh.matrixWorld); // Apply the original matrixWorld to revert
+                    return intersects;
+                },
                 intersectsTriangle: tri => {
                     const triPoint = _vector1;
                     const capsulePoint = _vector2;
 
-                    const distance = tri.closestPointToSegment(localSegment, triPoint, capsulePoint);
+                    const distance = tri.closestPointToSegment(_tempSegment, triPoint, capsulePoint);
 
                     if (distance < COLLIDER_RADIUS) {
                         const currentDepth = COLLIDER_RADIUS - distance;
@@ -227,13 +239,12 @@ export class PhysicsController {
         }
 
         // Apply collision resolution if a collision was detected
-        this.playerOnFloor = false; // Reset first
+        this.playerOnFloor = false;
         this.isGrounded = false;
-        this.groundNormal.set(0, 1, 0); // Default up
+        this.groundNormal.set(0, 1, 0);
 
         if (collisionDetected) {
             // Transform the bestCollisionNormal back into world space
-            // Assuming all bvhMeshes share the same matrixWorld for now
             bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
 
             if (collisionDepth > SKIN) {
@@ -243,17 +254,14 @@ export class PhysicsController {
             }
 
             // Determine if on floor based on the dot product of collision normal and up vector
-            // A higher dot product means the normal is more aligned with "up", so it's a floor.
-            if (bestCollisionNormal.dot(_upVector) > 0.75) { // Use a threshold for "ground"
+            if (bestCollisionNormal.dot(_upVector) > 0.75) {
                 this.playerOnFloor = true;
                 this.isGrounded = true;
                 this.groundNormal.copy(bestCollisionNormal);
 
-                // Project player velocity onto the ground plane
-                // This prevents velocity from being absorbed by friction too much, allowing sliding.
                 this.playerVelocity.projectOnPlane(this.groundNormal);
             } else {
-                // If it's a wall or ceiling, reflect/bounce velocity
+                // For walls/ceilings, reflect velocity or stop it in that direction
                 this.playerVelocity.addScaledVector(bestCollisionNormal, -bestCollisionNormal.dot(this.playerVelocity));
             }
         } else {
@@ -293,14 +301,24 @@ export class PhysicsController {
         this.bkdPressed = input.backward;
         this.lftPressed = input.left;
         this.rgtPressed = input.right;
-        this.jumpPressed = input.jump; // Store jump input
-        this.crouchPressed = input.crouch; // Store crouch input
-        this.slowPressed = input.slow; // Store slow input
+        this.jumpPressed = input.jump;
+        this.crouchPressed = input.crouch;
+        this.slowPressed = input.slow;
+        // isAim should be set by your game logic, for example, when right-mouse button is down.
 
+        // Speed modifier calculation
+        let currentSpeedModifier = this.speedModifier; // Start with the base modifier (e.g., sprint speed)
+
+        if (this.crouchPressed) {
+            currentSpeedModifier *= 0.3; // Apply crouch penalty
+        } else if (this.slowPressed) {
+            currentSpeedModifier *= 0.5; // Apply slow penalty
+        } else if (this.isAim) {
+            currentSpeedModifier *= 0.65; // Apply aim penalty
+        }
 
         const accel = this.playerOnFloor ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
-        const effectiveAccel = accel * this.speedModifier *
-            (this.crouchPressed ? 0.3 : this.slowPressed ? 0.5 : this.isAim ? 0.65 : 1);
+        const effectiveAccel = accel * currentSpeedModifier;
 
         const angle = this.camera.rotation.y;
 
@@ -330,26 +348,24 @@ export class PhysicsController {
             this.playerVelocity.z *= ratio;
         }
 
-        // Apply horizontal damping if not receiving input and on floor
-        // Use a slightly different damping when on ground to allow for smoother stopping
+        // Apply horizontal damping
         if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && this.playerOnFloor) {
-            this.playerVelocity.x *= Math.exp(-6 * deltaTime); // Increased damping slightly for faster stop
+            this.playerVelocity.x *= Math.exp(-6 * deltaTime);
             this.playerVelocity.z *= Math.exp(-6 * deltaTime);
         }
-        // Apply air damping as well if not on floor
         else if (!this.playerOnFloor) {
-            this.playerVelocity.x *= Math.exp(-0.5 * deltaTime); // Lighter air damping
+            this.playerVelocity.x *= Math.exp(-0.5 * deltaTime);
             this.playerVelocity.z *= Math.exp(-0.5 * deltaTime);
         }
 
         // Jump logic
         if (this.playerOnFloor && this.jumpPressed) {
             this.playerVelocity.y = JUMP_VELOCITY;
-            this.playerOnFloor = false; // Immediately set to false after jump
+            this.playerOnFloor = false;
             this.isGrounded = false;
             this.jumpTriggered = true;
         } else {
-            this.jumpTriggered = false; // Reset jump trigger if not jumping
+            this.jumpTriggered = false;
         }
 
         // Crouch logic
@@ -358,7 +374,6 @@ export class PhysicsController {
         this.currentHeight += (this.targetHeight - this.currentHeight) *
             Math.min(1, CROUCH_SPEED * deltaTime);
 
-        // Adjust playerCollider's end point based on currentHeight
         if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
             console.error("ERROR: playerCollider or its start/end points are undefined before updating end.y in controls!");
             return;
@@ -425,7 +440,7 @@ export class PhysicsController {
         // Landing audio logic
         if (!this.prevGround && this.isGrounded) {
             const fellFar = this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1;
-            if (fellFar) { // Removed jumpTriggered from this condition, as jumping and landing is normal
+            if (fellFar) {
                 this.landAudio.currentTime = 0;
                 this.landAudio.play().catch(() => {});
                 sendSoundEvent("landingThud", "land", this._pos());
@@ -443,7 +458,6 @@ export class PhysicsController {
                 }, this.fallDelay);
             }
         }
-        // This was previously `this.jumpTriggered = false;` here, but moved it to `controls` where jump input is handled.
 
         // Update camera position to follow the player collider's base
         if (!this.playerCollider || !this.playerCollider.start) {
