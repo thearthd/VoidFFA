@@ -1,11 +1,42 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js";
-import { MeshBVH, acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm";
-import { Capsule } from "three/examples/jsm/math/Capsule.js";
+import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
+import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { MeshBVH, MeshBVHHelper } from 'three-mesh-bvh';
+import { Capsule } from 'three/examples/jsm/math/Capsule.js';
 import { sendSoundEvent } from "./network.js";
 
-THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
-THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
-THREE.Mesh.prototype.raycast = acceleratedRaycast;
+function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
+    let timerId = null, currentAudio = null;
+    function scheduleNext() {
+        const durationMs = currentAudio.duration * 1000;
+        const delay = Math.max(durationMs - leadTimeMs, 0);
+        timerId = setTimeout(() => {
+            if (currentAudio) currentAudio.removeEventListener('ended', scheduleNext);
+            currentAudio = new Audio(src);
+            currentAudio.volume = volume;
+            currentAudio.addEventListener('ended', scheduleNext);
+            currentAudio.play().catch(() => {});
+        }, delay);
+    }
+    return {
+        start() {
+            this.stop();
+            currentAudio = new Audio(src);
+            currentAudio.volume = volume;
+            currentAudio.addEventListener('ended', scheduleNext);
+            currentAudio.play().catch(() => {}).then(scheduleNext).catch(() => {});
+        },
+        stop() {
+            clearTimeout(timerId);
+            timerId = null;
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio.removeEventListener('ended', scheduleNext);
+                currentAudio = null;
+            }
+        }
+    };
+}
 
 const PLAYER_MASS = 70;
 const STAND_HEIGHT = 2.2;
@@ -19,17 +50,9 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
 
-const SKIN = 0.005;
-
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
 const _vector3 = new THREE.Vector3();
-const _tmpBox = new THREE.Box3();
-const _tmpMat = new THREE.Matrix4();
-const _tmpInverseMat = new THREE.Matrix4();
-const _tmpLocalBox = new THREE.Box3();
-const _tempSegment = new THREE.Line3();
-const _upVector = new THREE.Vector3(0, 1, 0);
 
 export class PhysicsController {
     constructor(camera, scene, playerModel = null) {
@@ -45,232 +68,126 @@ export class PhysicsController {
 
         this.playerVelocity = new THREE.Vector3();
         this.playerDirection = new THREE.Vector3();
-        this.playerOnFloor = false; // Internal flag, might be redundant with isGrounded
-        this.isGrounded = false; // Primary flag for character state
+        this.playerOnFloor = false;
+        this.isGrounded = false;
         this.groundNormal = new THREE.Vector3(0, 1, 0);
-        this.bvhMeshes = [];
+
+        this.collisionMesh = null;
+
         this.mouseTime = 0;
-
-        this.fwdPressed = false;
-        this.bkdPressed = false;
-        this.lftPressed = false;
-        this.rgtPressed = false;
-        this.jumpPressed = false;
-        this.crouchPressed = false;
-        this.slowPressed = false;
-        this.isAim = false;
-
         const container = document.getElementById('container') || document.body;
         container.addEventListener('mousedown', () => {
             document.body.requestPointerLock();
             this.mouseTime = performance.now();
         });
+
         this.camera.rotation.order = 'YXZ';
 
         this.footAudios = [
             new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
             new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
         ];
-        this.footAudios.forEach(audio => audio.volume = 0.7);
+        this.footAudios.forEach(audio => { audio.volume = 0.7; });
         this.footIndex = 0;
         this.footAcc = 0;
         this.baseFootInterval = 3;
         this.landAudio = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
         this.landAudio.volume = 0.8;
         this.fallStartY = null;
-        this.fallStartTimer = null;
         this.prevGround = false;
         this.jumpTriggered = false;
-        this.speedModifier = 1;
+
+        this.speedModifier = 0;
+        this.isAim = false;
         this.currentHeight = STAND_HEIGHT;
         this.targetHeight = STAND_HEIGHT;
         this.fallDelay = 300;
-
-        console.log("PhysicsController initialized. playerCollider:", this.playerCollider);
-        if (!this.playerCollider.start || !this.playerCollider.end) {
-            console.error("ERROR: playerCollider.start or playerCollider.end is undefined in constructor!");
-        }
     }
 
-    setSpeedModifier(value) {
-        this.speedModifier = value;
-    }
-
-    setIsAim(value) {
-        this.isAim = value;
-    }
-
-    async buildBVH(group, onProgress = () => {}) {
-        this.bvhMeshes = [];
-        let total = 0, loaded = 0;
-        group.traverse(node => {
-            if (node.isMesh && node.geometry.isBufferGeometry) total++;
-        });
-        group.traverse(node => {
-            if (!node.isMesh || !node.geometry.isBufferGeometry) return;
-            if (!node.geometry.index) {
-                const count = node.geometry.attributes.position.count;
-                const idx = new Array(count).fill(0).map((_, i) => i);
-                node.geometry.setIndex(idx);
+    async buildBVH(group) {
+        const geometries = [];
+        group.traverse(obj => {
+            if (obj.isMesh) {
+                const geom = obj.geometry.clone().applyMatrix4(obj.matrixWorld);
+                geometries.push(geom);
             }
-            node.geometry.boundsTree = new MeshBVH(node.geometry, { lazyGeneration: false });
-            this.bvhMeshes.push(node);
-            loaded++;
-            onProgress({ loaded, total });
         });
+        const merged = BufferGeometryUtils.mergeBufferGeometries(geometries, false);
+        merged.boundsTree = new MeshBVH(merged);
+        this.collisionMesh = new THREE.Mesh(merged, new THREE.MeshBasicMaterial());
+        // this.scene.add(new MeshBVHHelper(this.collisionMesh, 10));
+    }
+
+    playerCollisions() {
+        const cap = this.playerCollider;
+        const segStart = cap.start.clone();
+        const segEnd = cap.end.clone();
+        const box = new THREE.Box3().setFromPoints([segStart, segEnd]).expandByScalar(cap.radius);
+
+        let deepest = 0;
+        const normal = new THREE.Vector3();
+
+        this.collisionMesh.geometry.boundsTree.shapecast({
+            intersectsBounds: bounds => bounds.intersectsBox(box),
+            intersectsTriangle: tri => {
+                const closest = new THREE.Vector3();
+                const dist = tri.closestPointToSegment({ start: segStart, end: segEnd }, segStart, closest);
+                if (dist < cap.radius) {
+                    const pushDir = segStart.clone().sub(closest).normalize();
+                    const pushLen = cap.radius - dist;
+                    if (pushLen > deepest) {
+                        deepest = pushLen;
+                        normal.copy(pushDir);
+                    }
+                }
+            }
+        });
+
+        this.playerOnFloor = normal.y > 0.5;
+        this.isGrounded = this.playerOnFloor;
+        if (deepest > 0) {
+            cap.translate(normal.multiplyScalar(deepest));
+            if (this.playerVelocity.dot(normal) < 0) {
+                this.playerVelocity.projectOnPlane(normal);
+            }
+        }
     }
 
     updatePlayer(deltaTime) {
-        if (this.bvhMeshes.length === 0) {
-            this.playerVelocity.y += deltaTime * -GRAVITY;
-            const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
-            this.playerCollider.start.add(deltaPosition);
-            this.playerCollider.end.add(deltaPosition);
+        let damping = Math.exp(-4 * deltaTime) - 1;
 
-            const angle = this.camera.rotation.y;
-            let currentSpeedModifier = this.speedModifier;
-            if (this.crouchPressed) currentSpeedModifier *= 0.3;
-            else if (this.slowPressed) currentSpeedModifier *= 0.5;
-            else if (this.isAim) currentSpeedModifier *= 0.65;
-            const effectiveAccel = PLAYER_ACCEL_GROUND * currentSpeedModifier;
-
-            if (this.fwdPressed) {
-                _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
-                this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
-                this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
-            }
-            if (this.bkdPressed) {
-                _vector1.set(0, 0, 1).applyAxisAngle(_upVector, angle);
-                this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
-                this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
-            }
-            if (this.lftPressed) {
-                _vector1.set(-1, 0, 0).applyAxisAngle(_upVector, angle);
-                this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
-                this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
-            }
-            if (this.rgtPressed) {
-                _vector1.set(1, 0, 0).applyAxisAngle(_upVector, angle);
-                this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
-                this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
-            }
-
-            if (! (this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && !this.playerOnFloor) {
-                this.playerVelocity.x *= Math.exp(-4 * deltaTime);
-                this.playerVelocity.z *= Math.exp(-4 * deltaTime);
-            }
-            if (this.playerCollider.end.y < -25) {
-                this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
-                this.playerVelocity.set(0, 0, 0);
-            }
-            return;
-        }
-
-        // Physics calculations: Gravity
-        if (!this.isGrounded) { // Only apply full gravity if not grounded (i.e., truly airborne or falling)
-            this.playerVelocity.y += deltaTime * -GRAVITY;
+        if (!this.playerOnFloor) {
+            this.playerVelocity.y -= GRAVITY * deltaTime;
+            damping *= 0.1;
         } else {
-            // When grounded, apply a slight downward force to ensure we stick.
-            this.playerVelocity.y = -0.01;
-        }
-
-        // Create a *new* capsule for the current physics step's movement
-        const currentCapsule = this.playerCollider.clone();
-
-        // Apply velocity to the *new* capsule
-        const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
-        currentCapsule.start.add(deltaPosition);
-        currentCapsule.end.add(deltaPosition);
-
-        // Prepare bounding box for broad-phase check
-        _tmpBox.makeEmpty();
-        _tmpBox.expandByPoint(currentCapsule.start);
-        _tmpBox.expandByPoint(currentCapsule.end);
-        _tmpBox.min.addScalar(-COLLIDER_RADIUS);
-        _tmpBox.max.addScalar(COLLIDER_RADIUS);
-
-        let bestCollisionNormal = new THREE.Vector3();
-        let collisionDepth = 0;
-        let collisionDetected = false;
-
-        // Reset grounded state at the beginning of each physics step
-        this.playerOnFloor = false; // Can likely remove this in favor of isGrounded
-        this.isGrounded = false;
-        this.groundNormal.set(0, 1, 0);
-
-
-        for (const mesh of this.bvhMeshes) {
-            _tmpInverseMat.copy(mesh.matrixWorld).invert();
-
-            _vector1.copy(currentCapsule.start).applyMatrix4(_tmpInverseMat);
-            _vector2.copy(currentCapsule.end).applyMatrix4(_tmpInverseMat);
-
-            _tempSegment.set(_vector1, _vector2);
-
-            mesh.geometry.boundsTree.shapecast({
-                intersectsBounds: box => {
-                    _tmpLocalBox.copy(box).applyMatrix4(mesh.matrixWorld);
-                    return _tmpLocalBox.intersectsBox(_tmpBox);
-                },
-                intersectsTriangle: tri => {
-                    const triPoint = _vector1;
-                    const capsulePoint = _vector2;
-
-                    const distance = tri.closestPointToSegment(_tempSegment, triPoint, capsulePoint);
-
-                    if (distance < COLLIDER_RADIUS) {
-                        const currentDepth = COLLIDER_RADIUS - distance;
-                        const currentNormal = capsulePoint.sub(triPoint).normalize();
-
-                        if (currentDepth > collisionDepth) {
-                            collisionDepth = currentDepth;
-                            bestCollisionNormal.copy(currentNormal);
-                            collisionDetected = true;
-                        }
-                    }
-                }
-            });
-        }
-
-        if (collisionDetected) {
-            if (this.bvhMeshes.length > 0) {
-                bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
-            }
-
-            if (collisionDepth > 0) {
-                 const displacementAmount = collisionDepth - SKIN;
-                 if (displacementAmount > 0) {
-                     const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(displacementAmount);
-                     this.playerCollider.start.add(displacement);
-                     this.playerCollider.end.add(displacement);
-                 }
-            }
-
-            if (bestCollisionNormal.dot(_upVector) > 0.75) {
-                this.playerOnFloor = true; // Still using this for internal logic
-                this.isGrounded = true;   // This is the main flag for external systems and gravity logic
-                this.groundNormal.copy(bestCollisionNormal);
-
-                // If any upward velocity while landing, kill it immediately
-                if (this.playerVelocity.y > 0) {
+            const gravityComponent = _vector3.copy(this.groundNormal).multiplyScalar(-GRAVITY * deltaTime);
+            this.playerVelocity.add(gravityComponent);
+            this.playerVelocity.projectOnPlane(this.groundNormal);
+            if (this.groundNormal.y > 0.99) {
+                if (this.playerVelocity.y < 0) {
                     this.playerVelocity.y = 0;
                 }
-                this.playerVelocity.projectOnPlane(this.groundNormal);
-
             } else {
-                const dot = this.playerVelocity.dot(bestCollisionNormal);
-                if (dot < 0) {
-                    this.playerVelocity.addScaledVector(bestCollisionNormal, -dot);
+                if (this.playerVelocity.dot(this.groundNormal) <= 0) {
+                    this.playerVelocity.add(_vector3.copy(this.groundNormal).multiplyScalar(-0.1));
                 }
             }
         }
 
-        if (this.playerCollider.end.y < -25) {
-            this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
-            this.playerVelocity.set(0, 0, 0);
-            this.playerOnFloor = false;
-            this.isGrounded = false;
+        this.playerVelocity.x += this.playerVelocity.x * damping;
+        this.playerVelocity.z += this.playerVelocity.z * damping;
+
+        const horizontalSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+        if (horizontalSpeed > MAX_SPEED) {
+            const ratio = MAX_SPEED / horizontalSpeed;
+            this.playerVelocity.x *= ratio;
+            this.playerVelocity.z *= ratio;
         }
+
+        const deltaPosition = _vector1.copy(this.playerVelocity).multiplyScalar(deltaTime);
+        this.playerCollider.translate(deltaPosition);
+
+        this.playerCollisions();
     }
 
     getForwardVector() {
@@ -289,116 +206,68 @@ export class PhysicsController {
     }
 
     controls(deltaTime, input) {
-        this.fwdPressed = input.forward;
-        this.bkdPressed = input.backward;
-        this.lftPressed = input.left;
-        this.rgtPressed = input.right;
-        this.jumpPressed = input.jump;
-        this.crouchPressed = input.crouch;
-        this.slowPressed = input.slow;
+        const acceleration = this.playerOnFloor ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
+        const effectiveAcceleration = acceleration * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
+        const moveDirection = new THREE.Vector3();
 
-        let currentSpeedModifier = this.speedModifier;
+        if (input.forward) moveDirection.add(this.getForwardVector());
+        if (input.backward) moveDirection.add(this.getForwardVector().multiplyScalar(-1));
+        if (input.left) moveDirection.add(this.getSideVector().multiplyScalar(-1));
+        if (input.right) moveDirection.add(this.getSideVector());
 
-        if (this.crouchPressed) {
-            currentSpeedModifier *= 0.3;
-        } else if (this.slowPressed) {
-            currentSpeedModifier *= 0.5;
-        } else if (this.isAim) {
-            currentSpeedModifier *= 0.65;
+        if (moveDirection.lengthSq() > 0) {
+            moveDirection.normalize();
+            if (this.playerOnFloor) moveDirection.projectOnPlane(this.groundNormal);
+            this.playerVelocity.add(moveDirection.multiplyScalar(effectiveAcceleration * deltaTime));
         }
 
-        const accel = this.isGrounded ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR; // Use isGrounded here
-        const effectiveAccel = accel * currentSpeedModifier;
-
-        const angle = this.camera.rotation.y;
-
-        if (this.fwdPressed) {
-            _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
-            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
-        }
-        if (this.bkdPressed) {
-            _vector1.set(0, 0, 1).applyAxisAngle(_upVector, angle);
-            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
-        }
-        if (this.lftPressed) {
-            _vector1.set(-1, 0, 0).applyAxisAngle(_upVector, angle);
-            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
-        }
-        if (this.rgtPressed) {
-            _vector1.set(1, 0, 0).applyAxisAngle(_upVector, angle);
-            this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
-        }
-
-        const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-        if (hSpeed > MAX_SPEED) {
-            const ratio = MAX_SPEED / hSpeed;
-            this.playerVelocity.x *= ratio;
-            this.playerVelocity.z *= ratio;
-        }
-
-        if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && this.isGrounded) { // Use isGrounded
-            this.playerVelocity.x *= Math.exp(-6 * deltaTime);
-            this.playerVelocity.z *= Math.exp(-6 * deltaTime);
-        }
-        else if (!this.isGrounded) { // Use isGrounded
-            this.playerVelocity.x *= Math.exp(-0.5 * deltaTime);
-            this.playerVelocity.z *= Math.exp(-0.5 * deltaTime);
-        }
-
-        if (this.isGrounded && this.jumpPressed) { // Use isGrounded
+        if (this.playerOnFloor && input.jump) {
             this.playerVelocity.y = JUMP_VELOCITY;
             this.playerOnFloor = false;
             this.isGrounded = false;
             this.jumpTriggered = true;
-        } else {
-            this.jumpTriggered = false;
         }
 
-        const wantCrouch = this.crouchPressed && this.isGrounded; // Use isGrounded
+        const wantCrouch = input.crouch && this.isGrounded;
         this.targetHeight = wantCrouch ? CROUCH_HEIGHT : STAND_HEIGHT;
-        this.currentHeight += (this.targetHeight - this.currentHeight) *
-            Math.min(1, CROUCH_SPEED * deltaTime);
+        this.currentHeight += (this.targetHeight - this.currentHeight) * Math.min(1, CROUCH_SPEED * deltaTime);
+        this.playerCollider.end.y = this.playerCollider.start.y + (this.currentHeight - 2 * COLLIDER_RADIUS);
+    }
 
-        if (!this.playerCollider || !this.playerCollider.start || !this.playerCollider.end) {
-            console.error("ERROR: playerCollider or its start/end points are undefined before updating end.y in controls!");
-            return;
+    teleportIfOob() {
+        if (this.playerCollider.end.y < -30 || this.playerCollider.start.y < -30) {
+            this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
+            this.playerVelocity.set(0, 0, 0);
+            this.playerOnFloor = false;
+            this.isGrounded = false;
+            this.jumpTriggered = false;
+            this.fallStartY = null;
         }
-        this.playerCollider.end.y = this.playerCollider.start.y +
-            (this.currentHeight - 2 * COLLIDER_RADIUS);
     }
 
     setPlayerPosition(position) {
-        if (!this.playerCollider) {
-            console.error("ERROR: playerCollider is undefined in setPlayerPosition!");
-            return;
-        }
-
-        const spawnY = position.y + COLLIDER_RADIUS + 0.1;
+        const spawnY = position.y + 0.1;
         this.playerCollider.start.set(position.x, spawnY, position.z);
-        this.playerCollider.end.set(
-            position.x,
-            spawnY + (this.currentHeight - 2 * COLLIDER_RADIUS),
-            position.z
-        );
+        this.playerCollider.end.set(position.x, spawnY + (this.currentHeight - 2 * COLLIDER_RADIUS), position.z);
+        this.playerCollider.radius = COLLIDER_RADIUS;
         this.playerVelocity.set(0, 0, 0);
         this.playerOnFloor = false;
         this.isGrounded = false;
         this.jumpTriggered = false;
         this.fallStartY = null;
         this.groundNormal.set(0, 1, 0);
-
         this.camera.position.copy(this.playerCollider.start);
-        this.camera.position.y += this.currentHeight * 0.9;
+        this.camera.position.y += (this.currentHeight * 0.9);
         this.camera.rotation.set(0, 0, 0);
     }
 
     update(deltaTime, input) {
         deltaTime = Math.min(0.05, deltaTime);
-        this.prevGround = this.isGrounded; // Capture previous grounded state before update
+        this.prevGround = this.isGrounded;
+        const currentSpeedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
 
-        const speedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-        if (speedXZ > FOOT_DISABLED_THRESHOLD && this.isGrounded && !input.slow && !input.crouch) {
-            const interval = this.baseFootInterval / speedXZ;
+        if (currentSpeedXZ > FOOT_DISABLED_THRESHOLD && this.isGrounded && !input.slow && !input.crouch) {
+            const interval = this.baseFootInterval / currentSpeedXZ;
             this.footAcc += deltaTime;
             if (this.footAcc >= interval) {
                 this.footAcc -= interval;
@@ -408,72 +277,57 @@ export class PhysicsController {
                 sendSoundEvent("footstep", "run", this._pos());
                 this.footIndex = 1 - this.footIndex;
             }
-        } else if (this.isGrounded && speedXZ <= FOOT_DISABLED_THRESHOLD) {
+        } else if (this.isGrounded && currentSpeedXZ <= FOOT_DISABLED_THRESHOLD) {
             this.footAcc = 0;
         }
 
         this.controls(deltaTime, input);
+        this.updatePlayer(deltaTime);
+        this.teleportIfOob();
 
-        const physicsSteps = 5;
-        for (let i = 0; i < physicsSteps; i++) {
-            this.updatePlayer(deltaTime / physicsSteps);
-        }
-
-        // Landing audio logic
-        if (!this.prevGround && this.isGrounded) { // Check if just landed
-            const fellFar = this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1;
-            if (fellFar) {
+        if (!this.prevGround && this.isGrounded) {
+            if ((this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1) ||
+                (this.jumpTriggered && (this.fallStartY - this.camera.position.y) > 1)) {
                 this.landAudio.currentTime = 0;
                 this.landAudio.play().catch(() => {});
                 sendSoundEvent("landingThud", "land", this._pos());
             }
-            this.fallStartY = null; // Reset fall start if landed
+            this.fallStartY = null;
             if (this.fallStartTimer) {
                 clearTimeout(this.fallStartTimer);
                 this.fallStartTimer = null;
             }
-        } else if (!this.isGrounded && this.fallStartY === null && this.playerVelocity.y < 0) { // If now airborne and falling
+        } else if (!this.isGrounded && this.fallStartY === null) {
             if (!this.fallStartTimer) {
                 this.fallStartTimer = setTimeout(() => {
                     this.fallStartY = this.camera.position.y;
                     this.fallStartTimer = null;
                 }, this.fallDelay);
             }
-        } else if (this.isGrounded && this.fallStartY !== null) { // If player became grounded before timer or without falling
-             this.fallStartY = null;
-             if (this.fallStartTimer) {
-                 clearTimeout(this.fallStartTimer);
-                 this.fallStartTimer = null;
-             }
         }
 
-
-        if (!this.playerCollider || !this.playerCollider.start) {
-            console.error("ERROR: playerCollider or its start point is undefined before camera position update!");
-            return {
-                x: 0, y: 0, z: 0, rotY: 0, isGrounded: false, velocity: new THREE.Vector3(), velocityY: 0
-            };
-        }
         this.camera.position.x = this.playerCollider.start.x;
         this.camera.position.z = this.playerCollider.start.z;
-        this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9;
+        this.camera.position.y = this.playerCollider.start.y + (this.currentHeight * 0.9);
 
-        if (this.playerModel) {
-            if (this.isGrounded) {
-                const forward = _vector1;
-                this.camera.getWorldDirection(forward);
-                forward.y = 0; forward.normalize();
-                const right = _vector2.crossVectors(forward, this.groundNormal).normalize();
-                const finalFwd = _vector3.crossVectors(this.groundNormal, right).normalize();
-                const mat = new THREE.Matrix4().makeBasis(right, this.groundNormal, finalFwd);
-                const targetQ = new THREE.Quaternion().setFromRotationMatrix(mat);
-                this.playerModel.quaternion.slerp(targetQ, 0.15);
-            } else {
-                const upQ = new THREE.Quaternion().setFromUnitVectors(this.playerModel.up, new THREE.Vector3(0, 1, 0));
-                this.playerModel.quaternion.slerp(upQ, 0.05);
-            }
-            this.playerModel.position.copy(this.playerCollider.start);
-            this.playerModel.position.y -= COLLIDER_RADIUS;
+        if (this.isGrounded && this.playerModel) {
+            const smoothingFactor = 0.15;
+            const playerWorldForward = new THREE.Vector3();
+            this.camera.getWorldDirection(playerWorldForward);
+            playerWorldForward.y = 0;
+            playerWorldForward.normalize();
+
+            const playerWorldRight = new THREE.Vector3().crossVectors(playerWorldForward, this.groundNormal).normalize();
+            const finalForward = new THREE.Vector3().crossVectors(this.groundNormal, playerWorldRight).normalize();
+
+            const orientationMatrix = new THREE.Matrix4();
+            orientationMatrix.makeBasis(playerWorldRight, this.groundNormal, finalForward);
+
+            const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(orientationMatrix);
+            this.playerModel.quaternion.slerp(targetQuaternion, smoothingFactor);
+        } else if (this.playerModel) {
+            const upAlignmentQuaternion = new THREE.Quaternion().setFromUnitVectors(this.playerModel.up, new THREE.Vector3(0, 1, 0));
+            this.playerModel.quaternion.slerp(upAlignmentQuaternion, 0.05);
         }
 
         return {
