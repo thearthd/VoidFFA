@@ -1,713 +1,689 @@
-// OctreeV2.js
-// This file contains the OctreeV2 class and its helper functions,
-// extracted from the previous HTML Canvas for modularity.
-
 import {
 	Box3,
 	Line3,
 	Plane,
 	Sphere,
 	Triangle,
-	Vector3,
-    Color, // Added Color for generateVisualization
-    Object3D // Added Object3D for generateVisualization (Group is a subclass)
+	Vector3
 } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 
-import { Capsule } from 'three/examples/jsm/math/Capsule.js';
-
+ import { Capsule } from 'three/examples/jsm/math/Capsule.js'; 
 
 const _v1 = new Vector3();
 const _v2 = new Vector3();
-const _point1 = new Vector3();
-const _point2 = new Vector3();
+const _point1 = new Vector3(); // Added missing _point1
+const _point2 = new Vector3(); // Added missing _point2
 const _plane = new Plane();
 const _line1 = new Line3();
 const _line2 = new Line3();
 const _sphere = new Sphere();
-const _capsule = new Capsule(); // Corrected import for Capsule
-
+const _capsule = new Capsule();
 
 // Missing lineToLineClosestPoints from the original three.js example.
 // Re-adding it as it's used by triangleCapsuleIntersect.
 function lineToLineClosestPoints( line1, line2, target1 = null, target2 = null ) {
 
-    const r = _v1.copy( line1.end ).sub( line1.start );
-    const s = _v2.copy( line2.end ).sub( line2.start );
-    const w = _point1.copy( line2.start ).sub( line1.start ); // Using _point1 as temp
+	const r = _v1.copy( line1.end ).sub( line1.start );
+	const s = _v2.copy( line2.end ).sub( line2.start );
+	const w = _point1.copy( line2.start ).sub( line1.start ); // Using _point1 as temp
 
-    const a = r.dot( s ),
-        b = r.dot( r ),
-        c = s.dot( s ),
-        d = s.dot( w ),
-        e = r.dot( w );
+	const a = r.dot( s ),
+		b = r.dot( r ),
+		c = s.dot( s ),
+		d = s.dot( w ),
+		e = r.dot( w );
 
-    let t1, t2;
-    const EPS = 1e-10; // Defined locally in original, moved here for consistency
-    const divisor = b * c - a * a;
+	let t1, t2;
+	const EPS = 1e-10; // Defined locally in original, moved here for consistency
+	const divisor = b * c - a * a;
 
-    if ( Math.abs( divisor ) < EPS ) {
+	if ( Math.abs( divisor ) < EPS ) {
 
-        const d1 = - d / c;
-        const d2 = ( a - d ) / c;
+		const d1 = - d / c;
+		const d2 = ( a - d ) / c;
 
-        if ( Math.abs( d1 - 0.5 ) < Math.abs( d2 - 0.5 ) ) {
+		if ( Math.abs( d1 - 0.5 ) < Math.abs( d2 - 0.5 ) ) {
 
-            t1 = 0;
-            t2 = d1;
+			t1 = 0;
+			t2 = d1;
 
-        } else {
+		} else {
 
-            t1 = 1;
-            t2 = d2;
+			t1 = 1;
+			t2 = d2;
 
-        }
+		}
 
-    } else {
+	} else {
 
-        t1 = ( d * a + e * c ) / divisor;
-        t2 = ( t1 * a - d ) / c;
+		t1 = ( d * a + e * c ) / divisor;
+		t2 = ( t1 * a - d ) / c;
 
-    }
+	}
 
-    t1 = Math.max( 0, Math.min( 1, t1 ) );
-    t2 = Math.max( 0, Math.min( 1, t2 ) );
+	t1 = Math.max( 0, Math.min( 1, t1 ) );
+	t2 = Math.max( 0, Math.min( 1, t2 ) );
 
-    if ( target1 ) {
+	if ( target1 ) {
 
-        target1.copy( r ).multiplyScalar( t1 ).add( line1.start );
+		target1.copy( r ).multiplyScalar( t1 ).add( line1.start );
 
-    }
+	}
 
-    if ( target2 ) {
+	if ( target2 ) {
 
-        target2.copy( s ).multiplyScalar( t2 ).add( line2.start );
+		target2.copy( s ).multiplyScalar( t2 ).add( line2.start );
 
-    }
+	}
 
 }
 
 
-export class OctreeV2 {
+class OctreeV2 {
 
-    constructor( box ) {
+	constructor( box ) {
 
-        this.triangleIndices = []; // Stores indices to a global triangle array
-        this.box = box;
-        this.subTrees = [];
-        this.bounds = null; // Will be initialized in addTriangle
+		this.triangles = [];
+		this.box = box;
+		this.subTrees = [];
+		this.bounds = null; // Will be initialized in addTriangle
+
+		// Custom properties for progress tracking
+		this._totalTrianglesAdded = 0; // Tracks triangles added during fromGraphNode
+		this._totalTriangleCount = 0; // The total number of triangles expected from the entire GLTF scene
+		this._onProgressCallback = null; // Stored callback for progress updates
+		this._addPhaseWeight = 0.5; // How much of the total build is the 'addTriangle' phase (0.0 to 1.0)
+		this._buildPhaseWeight = 0.5; // How much of the total build is the 'split' phase (0.0 to 1.0)
+
+		// Internal state for iterative splitting to avoid stack overflow and enable progress
+		this._splitQueue = []; // Stores { octreeInstance: Octree, level: number }
+		this._cellsProcessedForSplit = 0; // Counts how many cells have been processed in splitting
+		this._totalCellsToSplitEstimate = 0; // Estimate for total cells that will be split
+	}
+
+	addTriangle( triangle ) {
+
+		if ( ! this.bounds ) this.bounds = new Box3();
+
+		this.bounds.min.x = Math.min( this.bounds.min.x, triangle.a.x, triangle.b.x, triangle.c.x );
+		this.bounds.min.y = Math.min( this.bounds.min.y, triangle.a.y, triangle.b.y, triangle.c.y );
+		this.bounds.min.z = Math.min( this.bounds.min.z, triangle.a.z, triangle.b.z, triangle.c.z );
+		this.bounds.max.x = Math.max( this.bounds.max.x, triangle.a.x, triangle.b.x, triangle.c.x );
+		this.bounds.max.y = Math.max( this.bounds.max.y, triangle.a.y, triangle.b.y, triangle.c.y );
+		this.bounds.max.z = Math.max( this.bounds.max.z, triangle.a.z, triangle.b.z, triangle.c.z );
+
+		this.triangles.push( triangle );
+		this._totalTrianglesAdded++; // Increment counter for progress
+
+		return this;
+
+	}
+
+	calcBox() {
+
+		// If no triangles were added, bounds might be empty. Handle this case.
+		if (this.triangles.length === 0) {
+			this.box = new Box3(); // Create an empty box
+			return this;
+		}
+
+		this.box = this.bounds.clone();
+
+		// offset small amount to account for regular grid
+		this.box.min.x -= 0.01;
+		this.box.min.y -= 0.01;
+		this.box.min.z -= 0.01;
+
+		return this;
+
+	}
+
+	// This is the new iterative split method, replacing the old recursive 'split'
+	_splitIterative( level, onComplete ) {
+		const trianglesPerLeaf = 8; // Hardcoded from original example, can be a class property
+		const maxLevel = 16; // Hardcoded from original example, can be a class property
+
+		const processBatchSize = 100; // Number of cells to process per animation frame
+
+		// If this is the initial call to _splitIterative (level 0), ensure the root is in the queue
+		if (level === 0 && this._splitQueue.length === 0 && this.triangles.length > trianglesPerLeaf) {
+			this._splitQueue.push({ octree: this, level: 0 });
+			// Estimate total cells to split. This is a rough heuristic.
+			// A deeper tree means more cells. A simple estimate is (total triangles / triangles per leaf) * 2 or 3.
+			this._totalCellsToSplitEstimate = Math.ceil(this._totalTriangleCount / trianglesPerLeaf) * 2;
+			if (this._totalCellsToSplitEstimate === 0) this._totalCellsToSplitEstimate = 1; // Avoid division by zero
+		} else if (this.triangles.length <= trianglesPerLeaf || level >= maxLevel) {
+			// If this specific octree instance doesn't need splitting, and it's not the root initiating,
+			// just complete. This handles cases where a child cell might be pushed but then found to be small enough.
+			onComplete();
+			return;
+		}
+
+
+		const processNextSplitBatch = () => {
+			let processedInBatch = 0;
+			while (this._splitQueue.length > 0 && processedInBatch < processBatchSize) {
+				const { octree, level } = this._splitQueue.shift(); // Get the next cell to process
+
+				// --- DEBUG LOG: Processing Cell ---
+			//	console.log(`[Octree Debug] Processing cell: Level ${level}, Triangles: ${octree.triangles.length}, Queue size: ${this._splitQueue.length + 1} (before shift)`);
+				// --- END DEBUG LOG ---
+
+
+				// Only split if it still needs splitting (e.g., if triangles haven't been moved by a parent's split)
+				if (octree.triangles.length > trianglesPerLeaf && level < maxLevel) {
+
+					const subTrees = [];
+					const halfsize = _v2.copy( octree.box.max ).sub( octree.box.min ).multiplyScalar( 0.5 );
+
+					for ( let x = 0; x < 2; x ++ ) {
+						for ( let y = 0; y < 2; y ++ ) {
+							for ( let z = 0; z < 2; z ++ ) {
+								const box = new Box3();
+								const v = _v1.set( x, y, z );
+								box.min.copy( octree.box.min ).add( v.multiply( halfsize ) );
+								box.max.copy( box.min ).add( halfsize );
+								// --- IMPORTANT: Ensure you're creating OctreeV2 instances here ---
+								subTrees.push( new OctreeV2( box ) );
+								// --- END IMPORTANT ---
+							}
+						}
+					}
+
+					let triangle;
+					// Move triangles from the current octree instance to its new sub-trees
+					// Use splice to empty the current octree's triangles array
+					const trianglesToRedistribute = octree.triangles.splice(0);
+
+					// --- DEBUG LOG: Triangles Redistributed ---
+				//	console.log(`[Octree Debug] Redistributing ${trianglesToRedistribute.length} triangles from current cell.`);
+					// --- END DEBUG LOG ---
+
+					while ( triangle = trianglesToRedistribute.pop() ) {
+						for ( let i = 0; i < subTrees.length; i ++ ) {
+							if ( subTrees[ i ].box.intersectsTriangle( triangle ) ) {
+								subTrees[ i ].triangles.push( triangle );
+							}
+						}
+					}
+
+					for ( let i = 0; i < subTrees.length; i ++ ) {
+						const len = subTrees[ i ].triangles.length;
+
+						if ( len > trianglesPerLeaf && level <= maxLevel ) {
+							// Push to queue for further splitting in future batches
+							this._splitQueue.push({ octree: subTrees[i], level: level + 1 });
+							// --- DEBUG LOG: Child Added to Queue ---
+						//	console.log(`[Octree Debug] Child cell added to queue: Level ${level + 1}, Triangles: ${len}. New queue size: ${this._splitQueue.length}`);
+							// --- END DEBUG LOG ---
+						}
+
+						if ( len !== 0 ) {
+							octree.subTrees.push( subTrees[ i ] );
+						}
+					}
+				}
+				this._cellsProcessedForSplit++;
+				processedInBatch++;
+			}
+
+			// Report progress for the 'build' (splitting) phase
+			if (this._onProgressCallback && this._totalTriangleCount > 0) {
+				const currentSplitProgress = Math.min(1, this._cellsProcessedForSplit / this._totalCellsToSplitEstimate);
+				const overallProgress = this._addPhaseWeight + (currentSplitProgress * this._buildPhaseWeight);
+				this._onProgressCallback({ loaded: overallProgress, total: 1 });
+				// --- DEBUG LOG: Progress Update ---
+				//console.log(`[Octree Debug] Progress: ${overallProgress.toFixed(4)} (Cells processed: ${this._cellsProcessedForSplit}, Queue: ${this._splitQueue.length})`);
+				// --- END DEBUG LOG ---
+			}
 
-        this._totalTrianglesAdded = 0;
-        this._totalTriangleCount = 0;
-        this._onProgressCallback = null;
-        this._addPhaseWeight = 0.5;
-        this._buildPhaseWeight = 0.5;
+			if (this._splitQueue.length > 0) {
+				requestAnimationFrame(processNextSplitBatch); // Schedule next batch
+			} else {
+				// All cells have been processed and split
+				this._onProgressCallback({ loaded: 1, total: 1 }); // Ensure final 100%
+			//	console.log("[Octree Debug] Octree splitting complete."); // Final completion log
+				if (onComplete) onComplete();
+			}
+		};
 
-        this._splitQueue = [];
-        this._cellsProcessedForSplit = 0;
-        this._totalCellsToSplitEstimate = 0;
-    }
-
-    addTriangle( triangle, originalIndex ) {
-
-        if ( ! this.bounds ) this.bounds = new Box3(); // Use Box3 directly
-
-        this.bounds.min.x = Math.min( this.bounds.min.x, triangle.a.x, triangle.b.x, triangle.c.x );
-        this.bounds.min.y = Math.min( this.bounds.min.y, triangle.a.y, triangle.b.y, triangle.c.y );
-        this.bounds.min.z = Math.min( this.bounds.min.z, triangle.a.z, triangle.b.z, triangle.c.z );
-        this.bounds.max.x = Math.max( this.bounds.max.x, triangle.a.x, triangle.b.x, triangle.c.x );
-        this.bounds.max.y = Math.max( this.bounds.max.y, triangle.a.y, triangle.b.y, triangle.c.y );
-        this.bounds.max.z = Math.max( this.bounds.max.z, triangle.a.z, triangle.b.z, triangle.c.z );
-
-        this.triangleIndices.push( originalIndex );
-        this._totalTrianglesAdded++;
-
-        return this;
-
-    }
-
-    calcBox() {
-
-        if (this.triangleIndices.length === 0) {
-            this.box = new Box3(); // Use Box3 directly
-            return this;
-        }
-
-        this.box = this.bounds.clone();
-
-        this.box.min.x -= 0.01;
-        this.box.min.y -= 0.01;
-        this.box.min.z -= 0.01;
-
-        return this;
-
-    }
-
-    _splitIterative( level, allTriangles, onComplete ) {
-        const trianglesPerLeaf = 8;
-        const maxLevel = 10;
-
-        const processBatchSize = 100;
-
-        if (level === 0 && this._splitQueue.length === 0 && this.triangleIndices.length > trianglesPerLeaf) {
-            this._splitQueue.push({ octree: this, level: 0 });
-            this._totalCellsToSplitEstimate = Math.ceil(this._totalTriangleCount / trianglesPerLeaf) * 2;
-            if (this._totalCellsToSplitEstimate === 0) this._totalCellsToSplitEstimate = 1;
-        } else if (this.triangleIndices.length <= trianglesPerLeaf || level >= maxLevel) {
-            onComplete();
-            return;
-        }
-
-
-        const processNextSplitBatch = () => {
-            let processedInBatch = 0;
-            while (this._splitQueue.length > 0 && processedInBatch < processBatchSize) {
-                const { octree, level } = this._splitQueue.shift();
-
-                if (octree.triangleIndices.length > trianglesPerLeaf && level < maxLevel) {
-
-                    const subTrees = [];
-                    const halfsize = _v2.copy( octree.box.max ).sub( octree.box.min ).multiplyScalar( 0.5 );
-
-                    for ( let x = 0; x < 2; x ++ ) {
-                        for ( let y = 0; y < 2; y ++ ) {
-                            for ( let z = 0; z < 2; z ++ ) {
-                                const box = new Box3(); // Use Box3 directly
-                                const v = _v1.set( x, y, z );
-                                box.min.copy( octree.box.min ).add( v.multiply( halfsize ) );
-                                box.max.copy( box.min ).add( halfsize );
-                                subTrees.push( new OctreeV2( box ) );
-                            }
-                        }
-                    }
+		// Start the batched processing
+		requestAnimationFrame(processNextSplitBatch);
+	}
 
-                    let triangleIndex;
-                    const triangleIndicesToRedistribute = octree.triangleIndices.splice(0);
 
-                    while ( triangleIndex = triangleIndicesToRedistribute.pop() ) {
-                        const triangle = allTriangles[triangleIndex];
-                        for (let subTreeIdx = 0; subTreeIdx < subTrees.length; subTreeIdx++) {
-                            if ( subTrees[ subTreeIdx ].box.intersectsTriangle( triangle ) ) {
-                                subTrees[ subTreeIdx ].triangleIndices.push( triangleIndex );
-                            }
-                        }
-                    }
+	/**
+	 * Builds the Octree.
+	 *
+	 * @param {function({loaded: number, total: number}):void} [onProgress] - Callback for progress updates (0-1).
+	 * @return {Promise<Octree>} A promise that resolves to this Octree when building is complete.
+	 */
+	build( onProgress = () => {} ) {
+		this._onProgressCallback = onProgress; // Store the callback
+		// _totalTriangleCount is already set by fromGraphNode
+		this._cellsProcessedForSplit = 0; // Reset for this build cycle
+		this._splitQueue = []; // Clear queue from previous runs
 
-                    for ( let i = 0; i < subTrees.length; i ++ ) {
-                        const len = subTrees[ i ].triangleIndices.length;
+		this.calcBox(); // This is synchronous and calculates the overall bounding box
 
-                        if ( len > trianglesPerLeaf && level <= maxLevel ) {
-                            this._splitQueue.push({ octree: subTrees[i], level: level + 1 });
-                        }
+		// If no triangles, or already handled by fromGraphNode's initial check
+		if (this.triangles.length === 0 && this.subTrees.length === 0) {
+			onProgress({ loaded: 1, total: 1 });
+			return Promise.resolve(this);
+		}
 
-                        if ( len !== 0 ) {
-                            octree.subTrees.push( subTrees[ i ] );
-                        }
-                    }
-                }
-                this._cellsProcessedForSplit++;
-                processedInBatch++;
-            }
+		return new Promise(resolve => {
+			// Start the iterative splitting process.
+			// The _splitIterative method will manage its own requestAnimationFrame loop
+			// and call the resolve callback when it's truly done.
+			this._splitIterative(0, () => {
+				resolve(this);
+			});
+		});
+	}
 
-            if (this._onProgressCallback && this._totalTriangleCount > 0) {
-                const currentSplitProgress = Math.min(1, this._cellsProcessedForSplit / this._totalCellsToSplitEstimate);
-                const overallProgress = this._addPhaseWeight + (currentSplitProgress * this._buildPhaseWeight);
-                this._onProgressCallback({ loaded: overallProgress, total: 1 });
-            }
+	getRayTriangles( ray, triangles ) {
 
-            if (this._splitQueue.length > 0) {
-                requestAnimationFrame(processNextSplitBatch);
-            } else {
-                this._onProgressCallback({ loaded: 1, total: 1 });
-                if (onComplete) onComplete();
-            }
-        };
+		for ( let i = 0; i < this.subTrees.length; i ++ ) {
 
-        requestAnimationFrame(processNextSplitBatch);
-    }
+			const subTree = this.subTrees[ i ];
+			if ( ! ray.intersectsBox( subTree.box ) ) continue;
 
+			if ( subTree.triangles.length > 0 ) {
 
-    /**
-     * Builds the Octree.
-     *
-     * @param {Array<Triangle>} allTriangles - A flat array of all triangles from the model.
-     * @param {function({loaded: number, total: number}):void} [onProgress] - Callback for progress updates (0-1).
-     * @return {Promise<Octree>} A promise that resolves to this Octree when building is complete.
-     */
-    build( allTriangles, onProgress = () => {} ) {
-        this._onProgressCallback = onProgress;
-        this._cellsProcessedForSplit = 0;
-        this._splitQueue = [];
+				for ( let j = 0; j < subTree.triangles.length; j ++ ) {
 
-        this.calcBox();
+					if ( triangles.indexOf( subTree.triangles[ j ] ) === - 1 ) triangles.push( subTree.triangles[ j ] );
 
-        if (this.triangleIndices.length === 0 && this.subTrees.length === 0) {
-            onProgress({ loaded: 1, total: 1 });
-            return Promise.resolve(this);
-        }
+				}
 
-        return new Promise(resolve => {
-            this._splitIterative(0, allTriangles, () => {
-                resolve(this);
-            });
-        });
-    }
+			} else {
 
-    getRayTriangles( ray, triangles, allTriangles ) {
+				subTree.getRayTriangles( ray, triangles );
 
-        for ( let i = 0; i < this.subTrees.length; i ++ ) {
+			}
 
-            const subTree = this.subTrees[ i ];
-            if ( ! ray.intersectsBox( subTree.box ) ) continue;
+		}
 
-            if ( subTree.triangleIndices.length > 0 ) {
+		return triangles;
 
-                for ( let j = 0; j < subTree.triangleIndices.length; j ++ ) {
+	}
 
-                    const triangle = allTriangles[subTree.triangleIndices[j]];
-                    if ( triangles.indexOf( triangle ) === - 1 ) triangles.push( triangle );
+	triangleCapsuleIntersect( capsule, triangle ) {
 
-                }
+		triangle.getPlane( _plane );
 
-            } else {
+		const d1 = _plane.distanceToPoint( capsule.start ) - capsule.radius;
+		const d2 = _plane.distanceToPoint( capsule.end ) - capsule.radius;
 
-                subTree.getRayTriangles( ray, triangles, allTriangles );
+		if ( ( d1 > 0 && d2 > 0 ) || ( d1 < - capsule.radius && d2 < - capsule.radius ) ) {
 
-            }
+			return false;
 
-        }
+		}
 
-        return triangles;
+		const delta = Math.abs( d1 / ( Math.abs( d1 ) + Math.abs( d2 ) ) );
+		const intersectPoint = _v1.copy( capsule.start ).lerp( capsule.end, delta );
 
-    }
+		if ( triangle.containsPoint( intersectPoint ) ) {
 
-    triangleCapsuleIntersect( capsule, triangle ) {
+			return { normal: _plane.normal.clone(), point: intersectPoint.clone(), depth: Math.abs( Math.min( d1, d2 ) ) };
 
-        triangle.getPlane( _plane );
+		}
 
-        const d1 = _plane.distanceToPoint( capsule.start ) - capsule.radius;
-        const d2 = _plane.distanceToPoint( capsule.end ) - capsule.radius;
+		const r2 = capsule.radius * capsule.radius;
 
-        if ( ( d1 > 0 && d2 > 0 ) || ( d1 < - capsule.radius && d2 < - capsule.radius ) ) {
+		const line1 = _line1.set( capsule.start, capsule.end );
 
-            return false;
+		const lines = [
+			[ triangle.a, triangle.b ],
+			[ triangle.b, triangle.c ],
+			[ triangle.c, triangle.a ]
+		];
 
-        }
+		for ( let i = 0; i < lines.length; i ++ ) {
 
-        const delta = Math.abs( d1 / ( Math.abs( d1 ) + Math.abs( d2 ) ) );
-        const intersectPoint = _v1.copy( capsule.start ).lerp( capsule.end, delta );
+			const line2 = _line2.set( lines[ i ][ 0 ], lines[ i ][ 1 ] );
 
-        if ( triangle.containsPoint( intersectPoint ) ) {
+			// This line was calling a non-existent method.
+			// Replaced with the correct `lineToLineClosestPoints` helper function.
+			lineToLineClosestPoints( line1, line2, _point1, _point2 );
 
-            return { normal: _plane.normal.clone(), point: intersectPoint.clone(), depth: Math.abs( Math.min( d1, d2 ) ) };
+			if ( _point1.distanceToSquared( _point2 ) < r2 ) {
 
-        }
+				return { normal: _point1.clone().sub( _point2 ).normalize(), point: _point2.clone(), depth: capsule.radius - _point1.distanceTo( _point2 ) };
 
-        const r2 = capsule.radius * capsule.radius;
+			}
 
-        const line1 = _line1.set( capsule.start, capsule.end );
+		}
 
-        const lines = [
-            [ triangle.a, triangle.b ],
-            [ triangle.b, triangle.c ],
-            [ triangle.c, triangle.a ]
-        ];
+		return false;
 
-        for ( let i = 0; i < lines.length; i ++ ) {
+	}
 
-            const line2 = _line2.set( lines[ i ][ 0 ], lines[ i ][ 1 ] );
+	triangleSphereIntersect( sphere, triangle ) {
 
-            lineToLineClosestPoints( line1, line2, _point1, _point2 );
+		triangle.getPlane( _plane );
 
-            if ( _point1.distanceToSquared( _point2 ) < r2 ) {
+		if ( ! sphere.intersectsPlane( _plane ) ) return false;
 
-                return { normal: _point1.clone().sub( _point2 ).normalize(), point: _point2.clone(), depth: capsule.radius - _point1.distanceTo( _point2 ) };
+		const depth = Math.abs( _plane.distanceToSphere( sphere ) );
+		const r2 = sphere.radius * sphere.radius - depth * depth;
 
-            }
+		const plainPoint = _plane.projectPoint( sphere.center, _v1 );
 
-        }
+		if ( triangle.containsPoint( sphere.center ) ) {
 
-        return false;
+			return { normal: _plane.normal.clone(), point: plainPoint.clone(), depth: Math.abs( _plane.distanceToSphere( sphere ) ) };
 
-    }
+		}
 
-    triangleSphereIntersect( sphere, triangle ) {
+		const lines = [
+			[ triangle.a, triangle.b ],
+			[ triangle.b, triangle.c ],
+			[ triangle.c, triangle.a ]
+		];
 
-        triangle.getPlane( _plane );
+		for ( let i = 0; i < lines.length; i ++ ) {
 
-        if ( ! sphere.intersectsPlane( _plane ) ) return false;
+			_line1.set( lines[ i ][ 0 ], lines[ i ][ 1 ] );
+			_line1.closestPointToPoint( plainPoint, true, _v2 );
 
-        const depth = Math.abs( _plane.distanceToSphere( sphere ) );
-        const r2 = sphere.radius * sphere.radius - depth * depth;
+			const d = _v2.distanceToSquared( sphere.center );
 
-        const plainPoint = _plane.projectPoint( sphere.center, _v1 );
+			if ( d < r2 ) {
 
-        if ( triangle.containsPoint( sphere.center ) ) {
+				return { normal: sphere.center.clone().sub( _v2 ).normalize(), point: _v2.clone(), depth: sphere.radius - Math.sqrt( d ) };
 
-            return { normal: _plane.normal.clone(), point: plainPoint.clone(), depth: Math.abs( _plane.distanceToSphere( sphere ) ) };
+			}
 
-        }
+		}
 
-        const lines = [
-            [ triangle.a, triangle.b ],
-            [ triangle.b, triangle.c ],
-            [ triangle.c, triangle.a ]
-        ];
+		return false;
 
-        for ( let i = 0; i < lines.length; i ++ ) {
+	}
 
-            _line1.set( lines[ i ][ 0 ], lines[ i ][ 1 ] );
-            _line1.closestPointToPoint( plainPoint, true, _v2 );
+	getSphereTriangles( sphere, triangles ) {
 
-            const d = _v2.distanceToSquared( sphere.center );
+		for ( let i = 0; i < this.subTrees.length; i ++ ) {
 
-            if ( d < r2 ) {
+			const subTree = this.subTrees[ i ];
 
-                return { normal: sphere.center.clone().sub( _v2 ).normalize(), point: _v2.clone(), depth: sphere.radius - Math.sqrt( d ) };
+			if ( ! sphere.intersectsBox( subTree.box ) ) continue;
 
-            }
+			if ( subTree.triangles.length > 0 ) {
 
-        }
+				for ( let j = 0; j < subTree.triangles.length; j ++ ) {
 
-        return false;
+					if ( triangles.indexOf( subTree.triangles[ j ] ) === - 1 ) triangles.push( subTree.triangles[ j ] );
 
-    }
+				}
 
-    getSphereTriangles( sphere, triangles, allTriangles ) {
+			} else {
 
-        for ( let i = 0; i < this.subTrees.length; i ++ ) {
+				subTree.getSphereTriangles( sphere, triangles );
 
-            const subTree = this.subTrees[ i ];
+			}
 
-            if ( ! sphere.intersectsBox( subTree.box ) ) continue;
+		}
 
-            if ( subTree.triangleIndices.length > 0 ) {
+	}
 
-                for ( let j = 0; j < subTree.triangleIndices.length; j ++ ) {
+	getCapsuleTriangles( capsule, triangles ) {
 
-                    const triangle = allTriangles[subTree.triangleIndices[j]];
-                    if ( triangles.indexOf( triangle ) === - 1 ) triangles.push( triangle );
+		for ( let i = 0; i < this.subTrees.length; i ++ ) {
 
-                }
+			const subTree = this.subTrees[ i ];
 
-            } else {
+			if ( ! capsule.intersectsBox( subTree.box ) ) continue;
 
-                subTree.getSphereTriangles( sphere, triangles, allTriangles );
+			if ( subTree.triangles.length > 0 ) {
 
-            }
+				for ( let j = 0; j < subTree.triangles.length; j ++ ) {
 
-        }
+					if ( triangles.indexOf( subTree.triangles[ j ] ) === - 1 ) triangles.push( subTree.triangles[ j ] );
 
-    }
+				}
 
-    getCapsuleTriangles( capsule, triangles, allTriangles ) {
+			} else {
 
-        for ( let i = 0; i < this.subTrees.length; i ++ ) {
+				subTree.getCapsuleTriangles( capsule, triangles );
 
-            const subTree = this.subTrees[ i ];
+			}
 
-            if ( ! capsule.intersectsBox( subTree.box ) ) continue;
+		}
 
-            if ( subTree.triangleIndices.length > 0 ) {
+	}
 
-                for ( let j = 0; j < subTree.triangleIndices.length; j ++ ) {
+	sphereIntersect( sphere ) {
 
-                    const triangle = allTriangles[subTree.triangleIndices[j]];
-                    if ( triangles.indexOf( triangle ) === - 1 ) triangles.push( triangle );
+		_sphere.copy( sphere );
 
-                }
+		const triangles = [];
+		let result, hit = false;
 
-            } else {
+		this.getSphereTriangles( sphere, triangles );
 
-                subTree.getCapsuleTriangles( capsule, triangles, allTriangles );
+		for ( let i = 0; i < triangles.length; i ++ ) {
 
-            }
+			if ( result = this.triangleSphereIntersect( _sphere, triangles[ i ] ) ) {
 
-        }
+				hit = true;
 
-    }
+				_sphere.center.add( result.normal.multiplyScalar( result.depth ) );
 
-    sphereIntersect( sphere, allTriangles ) {
+			}
 
-        _sphere.copy( sphere );
+		}
 
-        const triangles = [];
-        let result, hit = false;
+		if ( hit ) {
 
-        this.getSphereTriangles( sphere, triangles, allTriangles );
+			const collisionVector = _sphere.center.clone().sub( sphere.center );
+			const depth = collisionVector.length();
 
-        for ( let i = 0; i < triangles.length; i ++ ) {
+			return { normal: collisionVector.normalize(), depth: depth };
 
-            if ( result = this.triangleSphereIntersect( _sphere, triangles[ i ] ) ) {
+		}
 
-                hit = true;
+		return false;
 
-                _sphere.center.add( result.normal.multiplyScalar( result.depth ) );
+	}
 
-            }
+	capsuleIntersect( capsule ) {
 
-        }
+		_capsule.copy( capsule );
 
-        if ( hit ) {
+		const triangles = [];
+		let result, hit = false;
 
-            const collisionVector = _sphere.center.clone().sub( sphere.center );
-            const depth = collisionVector.length();
+		this.getCapsuleTriangles( _capsule, triangles );
 
-            return { normal: collisionVector.normalize(), depth: depth };
+		for ( let i = 0; i < triangles.length; i ++ ) {
 
-        }
+			if ( result = this.triangleCapsuleIntersect( _capsule, triangles[ i ] ) ) {
 
-        return false;
+				hit = true;
 
-    }
+				_capsule.translate( result.normal.multiplyScalar( result.depth ) );
 
-    capsuleIntersect( capsule, allTriangles ) {
+			}
 
-        _capsule.copy( capsule );
+		}
 
-        const triangles = [];
-        let result, hit = false;
+		if ( hit ) {
 
-        this.getCapsuleTriangles( _capsule, triangles, allTriangles );
+			const collisionVector = _capsule.getCenter( new Vector3() ).sub( capsule.getCenter( _v1 ) );
+			const depth = collisionVector.length();
 
-        for ( let i = 0; i < triangles.length; i ++ ) {
+			return { normal: collisionVector.normalize(), depth: depth };
 
-            if ( result = this.triangleCapsuleIntersect( _capsule, triangles[ i ] ) ) {
+		}
 
-                hit = true;
+		return false;
 
-                _capsule.translate( result.normal.multiplyScalar( result.depth ) );
+	}
 
-            }
+	rayIntersect( ray ) {
 
-        }
+		if ( ray.direction.length() === 0 ) return;
 
-        if ( hit ) {
+		const triangles = [];
+		let triangle, position, distance = 1e100;
 
-            const collisionVector = _capsule.getCenter( new Vector3() ).sub( capsule.getCenter( _v1 ) ); // Use Vector3 directly
-            const depth = collisionVector.length();
+		this.getRayTriangles( ray, triangles );
 
-            return { normal: collisionVector.normalize(), depth: depth };
+		for ( let i = 0; i < triangles.length; i ++ ) {
 
-        }
+			const result = ray.intersectTriangle( triangles[ i ].a, triangles[ i ].b, triangles[ i ].c, true, _v1 );
 
-        return false;
+			if ( result ) {
 
-    }
+				const newdistance = result.sub( ray.origin ).length();
 
-    rayIntersect( ray, allTriangles ) {
+				if ( distance > newdistance ) {
 
-        if ( ray.direction.length() === 0 ) return;
+					position = result.clone().add( ray.origin );
+					distance = newdistance;
+					triangle = triangles[ i ];
 
-        const triangles = [];
-        let triangle, position, distance = 1e100;
+				}
 
-        this.getRayTriangles( ray, triangles, allTriangles );
+			}
 
-        for ( let i = 0; i < triangles.length; i ++ ) {
+		}
 
-            const result = ray.intersectTriangle( triangles[ i ].a, triangles[ i ].b, triangles[ i ].c, true, _v1 );
+		return distance < 1e100 ? { distance: distance, triangle: triangle, position: position } : false;
 
-            if ( result ) {
+	}
 
-                const newdistance = result.sub( ray.origin ).length();
+	/**
+	 * Constructs the Octree from the given 3D object.
+	 *
+	 * @param {Object3D} group - The scene graph node.
+	 * @param {function({loaded: number, total: number}):void} [onProgress] - Callback for progress updates (0-1).
+	 * @return {Promise<Octree>} A promise that resolves to this Octree when building is complete.
+	 */
+	fromGraphNode( group, onProgress = () => {} ) {
 
-                if ( distance > newdistance ) {
+		this.clear(); // Clear existing data before building
 
-                    position = result.clone().add( ray.origin );
-                    distance = newdistance;
-                    triangle = triangles[ i ];
+		group.updateWorldMatrix( true, true );
 
-                }
+		let totalMeshTriangles = 0;
+		group.traverse( ( obj ) => {
+			if ( obj.isMesh === true ) { // Removed `this.layers.test( obj.layers )` as Layers is not in this version
+				const geometry = obj.geometry;
+				const positionAttribute = geometry.getAttribute( 'position' );
+				if (positionAttribute) {
+					totalMeshTriangles += (geometry.index ? geometry.index.count : positionAttribute.count) / 3;
+				}
+			}
+		});
 
-            }
+		this._totalTriangleCount = totalMeshTriangles; // Set the total expected triangles
+		this._totalTrianglesAdded = 0; // Reset for this build cycle
+		this._onProgressCallback = onProgress; // Store the callback for internal use
+		this._splitQueue = [];
+		this._cellsProcessedForSplit = 0;
+		this._totalCellsToSplitEstimate = 0; // Reset estimate
 
-        }
+		const trianglesToAddQueue = []; // Store triangles to add in a queue
 
-        return distance < 1e100 ? { distance: distance, triangle: triangle, position: position } : false;
+		group.traverse( ( obj ) => {
 
-    }
+			if ( obj.isMesh === true ) { // Removed `this.layers.test( obj.layers )`
 
+				let geometry, isTemp = false;
 
-    /**
-     * Constructs the Octree from the given 3D object.
-     * This method also extracts all triangles into a flat array.
-     *
-     * @param {Object3D} group - The scene graph node.
-     * @param {function({loaded: number, total: number}):void} [onProgress] - Callback for progress updates (0-1).
-     * @return {Promise<Array<Triangle>>} A promise that resolves to the flat array of all triangles.
-     */
-    fromGraphNode( group, onProgress = () => {} ) {
+				if ( obj.geometry.index !== null ) {
 
-        this.clear();
+					isTemp = true;
+					geometry = obj.geometry.toNonIndexed();
 
-        group.updateWorldMatrix( true, true );
+				} else {
 
-        let totalMeshTriangles = 0;
-        const allTriangles = [];
+					geometry = obj.geometry;
 
-        group.traverse( ( obj ) => {
-            if ( obj.isMesh === true ) {
-                let geometry, isTemp = false;
+				}
 
-                if ( obj.geometry.index !== null ) {
-                    isTemp = true;
-                    geometry = obj.geometry.toNonIndexed();
-                } else {
-                    geometry = obj.geometry;
-                }
+				const positionAttribute = geometry.getAttribute( 'position' );
 
-                const positionAttribute = geometry.getAttribute( 'position' );
-                if (positionAttribute) {
-                    totalMeshTriangles += positionAttribute.count / 3;
-                    for ( let i = 0; i < positionAttribute.count; i += 3 ) {
-                        const v1 = new Vector3().fromBufferAttribute( positionAttribute, i ); // Use Vector3 directly
-                        const v2 = new Vector3().fromBufferAttribute( positionAttribute, i + 1 ); // Use Vector3 directly
-                        const v3 = new Vector3().fromBufferAttribute( positionAttribute, i + 2 ); // Use Vector3 directly
+				for ( let i = 0; i < positionAttribute.count; i += 3 ) {
 
-                        v1.applyMatrix4( obj.matrixWorld );
-                        v2.applyMatrix4( obj.matrixWorld );
-                        v3.applyMatrix4( obj.matrixWorld );
+					const v1 = new Vector3().fromBufferAttribute( positionAttribute, i );
+					const v2 = new Vector3().fromBufferAttribute( positionAttribute, i + 1 );
+					const v3 = new Vector3().fromBufferAttribute( positionAttribute, i + 2 );
 
-                        allTriangles.push(new Triangle( v1, v2, v3 )); // Use Triangle directly
-                    }
-                }
+					v1.applyMatrix4( obj.matrixWorld );
+					v2.applyMatrix4( obj.matrixWorld );
+					v3.applyMatrix4( obj.matrixWorld );
 
-                if ( isTemp ) {
-                    geometry.dispose();
-                }
-            }
-        });
+					trianglesToAddQueue.push(new Triangle( v1, v2, v3 ));
 
-        this._totalTriangleCount = totalMeshTriangles;
-        this._totalTrianglesAdded = 0;
-        this._onProgressCallback = onProgress;
-        this._splitQueue = [];
-        this._cellsProcessedForSplit = 0;
-        this._totalCellsToSplitEstimate = 0;
+				}
 
-        const triangleIndicesToAddQueue = [];
-        for(let i = 0; i < allTriangles.length; i++) {
-            triangleIndicesToAddQueue.push(i);
-        }
+				if ( isTemp ) {
 
-        return new Promise(resolve => {
-            const processAddTrianglesBatch = () => {
-                let processedInBatch = 0;
-                const triangleAddBatchSize = 1000;
-                while(triangleIndicesToAddQueue.length > 0 && processedInBatch < triangleAddBatchSize) {
-                    const triangleIndex = triangleIndicesToAddQueue.shift();
-                    this.addTriangle(allTriangles[triangleIndex], triangleIndex);
-                    processedInBatch++;
+					geometry.dispose();
 
-                    const progress = (this._totalTrianglesAdded / this._totalTriangleCount) * this._addPhaseWeight;
-                    if (this._onProgressCallback) {
-                        this._onProgressCallback({ loaded: progress, total: 1 });
-                    }
-                }
+				}
 
-                if (triangleIndicesToAddQueue.length > 0) {
-                    requestAnimationFrame(processAddTrianglesBatch);
-                } else {
-                    this.build(allTriangles, this._onProgressCallback).then(() => {
-                        resolve(allTriangles); // Resolve with allTriangles
-                    });
-                }
-            };
+			}
 
-            requestAnimationFrame(processAddTrianglesBatch);
-        });
-    }
+		} );
 
-    clear() {
+		// Now, process trianglesToAddQueue in batches to report progress
+		const triangleAddBatchSize = 1000; // Process 1000 triangles per frame
+		let trianglesAddedInCurrentPhase = 0; // Tracks triangles added in this specific phase
 
-        this.box = null;
-        this.bounds = null;
-        this.triangleIndices.length = 0;
-        this.subTrees.length = 0;
+		return new Promise(resolve => {
+			const processAddTrianglesBatch = () => {
+				let processedInBatch = 0;
+				while(trianglesToAddQueue.length > 0 && processedInBatch < triangleAddBatchSize) {
+					this.addTriangle(trianglesToAddQueue.shift()); // This increments _totalTrianglesAdded
+					processedInBatch++;
+					trianglesAddedInCurrentPhase++;
 
+					// Update progress for the 'addTriangle' phase
+					const progress = (trianglesAddedInCurrentPhase / this._totalTriangleCount) * this._addPhaseWeight;
+					if (this._onProgressCallback) {
+						this._onProgressCallback({ loaded: progress, total: 1 });
+					}
+				}
 
-        this._totalTrianglesAdded = 0;
-        this._totalTriangleCount = 0;
-        this._onProgressCallback = null;
-        this._splitQueue = [];
-        this._cellsProcessedForSplit = 0;
-        this._totalCellsToSplitEstimate = 0;
+				if (trianglesToAddQueue.length > 0) {
+					requestAnimationFrame(processAddTrianglesBatch);
+				} else {
+					// All triangles have been added. Now start the build (split) phase.
+					this.build(this._onProgressCallback).then(() => { // Pass the stored callback to build()
+						resolve(this); // Resolve fromGraphNode's promise when build is complete
+					});
+				}
+			};
 
-        return this;
+			requestAnimationFrame(processAddTrianglesBatch);
+		});
+	}
 
-    }
+	clear() {
 
-    /**
-     * Generates a THREE.Group containing THREE.Box3Helper for each octree node.
-     * @param {Color} [color=0x00ff00] - Color of the bounding boxes.
-     * @param {number} [maxDepth=-1] - Maximum depth to visualize. -1 for all depths.
-     * @param {number} [currentDepth=0] - Current recursion depth (internal use).
-     * @returns {Object3D} A group containing the octree visualization.
-     */
+		this.box = null;
+		this.bounds = null; // Reset bounds as well
+		this.triangles.length = 0;
+		this.subTrees.length = 0;
 
 
-    /**
-     * Serializes the Octree structure into a plain JavaScript object.
-     * Only stores bounding box data and triangle indices.
-     * @returns {Object} A serializable representation of the octree.
-     */
-    serialize() {
-        const serializeNode = (node) => {
-            const serialized = {
-                box: {
-                    min: [node.box.min.x, node.box.min.y, node.box.min.z],
-                    max: [node.box.max.x, node.box.max.y, node.box.max.z]
-                },
-                triangleIndices: node.triangleIndices,
-                subTrees: []
-            };
-            for (const subTree of node.subTrees) {
-                serialized.subTrees.push(serializeNode(subTree));
-            }
-            return serialized;
-        };
-        return serializeNode(this);
-    }
+		this._totalTrianglesAdded = 0;
+		this._totalTriangleCount = 0;
+		this._onProgressCallback = null;
+		this._splitQueue = [];
+		this._cellsProcessedForSplit = 0;
+		this._totalCellsToSplitEstimate = 0;
 
-    /**
-     * Deserializes a plain JavaScript object into an OctreeV2 instance.
-     * Requires the original flat array of THREE.Triangle objects.
-     * @param {Object} serializedData - The serialized octree data.
-     * @param {Array<Triangle>} allTriangles - The flat array of all triangles from the model.
-     * @returns {OctreeV2} A new OctreeV2 instance.
-     */
-    static deserialize(serializedData, allTriangles) {
-        const deserializeNode = (data) => {
-            const octree = new OctreeV2(
-                new Box3( // Use Box3 directly
-                    new Vector3(data.box.min[0], data.box.min[1], data.box.min[2]), // Use Vector3 directly
-                    new Vector3(data.box.max[0], data.box.max[1], data.box.max[2]) // Use Vector3 directly
-                )
-            );
-            octree.triangleIndices = data.triangleIndices;
-            octree.bounds = octree.box.clone();
+		return this;
 
-            // Validate indices for this node
-            for (let i = 0; i < octree.triangleIndices.length; i++) {
-                const idx = octree.triangleIndices[i];
-                if (idx === undefined || idx < 0 || idx >= allTriangles.length) {
-                    throw new Error(`Invalid triangle index ${idx} found during deserialization. allTriangles length: ${allTriangles.length}.`);
-                }
-            }
+	}
 
-            for (const subTreeData of data.subTrees) {
-                octree.subTrees.push(deserializeNode(subTreeData)); // Recursive call
-            }
-            return octree;
-        };
-
-        try {
-            const newOctree = deserializeNode(serializedData);
-            newOctree._totalTriangleCount = allTriangles.length; // This is for progress tracking
-            return newOctree;
-        } catch (e) {
-            console.error("Octree deserialization failed due to invalid indices:", e.message);
-            throw e; // Re-throw to be caught by map.js
-        }
-    }
 }
+
+export { OctreeV2 };
