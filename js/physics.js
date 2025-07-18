@@ -1,17 +1,11 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js';
-import {
-  MeshBVH,
-  acceleratedRaycast,
-  computeBoundsTree,
-  disposeBoundsTree
-} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js";
+import { MeshBVH, acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm";
+import { Capsule } from "three/examples/jsm/math/Capsule.js";
+import { sendSoundEvent } from "./network.js";
 
-// Then wire up the BVH helpers:
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
-import { Capsule } from "three/examples/jsm/math/Capsule.js";
-import { sendSoundEvent } from "./network.js";
 
 const PLAYER_MASS = 70;
 const STAND_HEIGHT = 2.2;
@@ -36,35 +30,29 @@ export class PhysicsController {
         this.camera = camera;
         this.scene = scene;
         this.playerModel = playerModel;
-
         this.playerCollider = new Capsule(
             new THREE.Vector3(0, COLLIDER_RADIUS, 0),
             new THREE.Vector3(0, STAND_HEIGHT - COLLIDER_RADIUS, 0),
             COLLIDER_RADIUS
         );
-
         this.playerVelocity = new THREE.Vector3();
         this.playerDirection = new THREE.Vector3();
         this.playerOnFloor = false;
         this.isGrounded = false;
         this.groundNormal = new THREE.Vector3(0, 1, 0);
-
         this.bvhMeshes = [];
-
         this.mouseTime = 0;
         const container = document.getElementById('container') || document.body;
         container.addEventListener('mousedown', () => {
             document.body.requestPointerLock();
             this.mouseTime = performance.now();
         });
-
         this.camera.rotation.order = 'YXZ';
-
         this.footAudios = [
             new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
             new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
         ];
-        this.footAudios.forEach(audio => { audio.volume = 0.7; });
+        this.footAudios.forEach(audio => audio.volume = 0.7);
         this.footIndex = 0;
         this.footAcc = 0;
         this.baseFootInterval = 3;
@@ -74,7 +62,6 @@ export class PhysicsController {
         this.fallStartTimer = null;
         this.prevGround = false;
         this.jumpTriggered = false;
-
         this.speedModifier = 0;
         this.isAim = false;
         this.currentHeight = STAND_HEIGHT;
@@ -89,17 +76,14 @@ export class PhysicsController {
     async buildBVH(group, onProgress = () => {}) {
         this.bvhMeshes = [];
         let total = 0, loaded = 0;
-
         group.traverse(node => {
             if (node.isMesh && node.geometry.isBufferGeometry) total++;
         });
-
         group.traverse(node => {
             if (!node.isMesh || !node.geometry.isBufferGeometry) return;
             if (!node.geometry.index) {
                 const count = node.geometry.attributes.position.count;
-                const idx = [];
-                for (let i = 0; i < count; i++) idx.push(i);
+                const idx = new Array(count).fill(0).map((_, i) => i);
                 node.geometry.setIndex(idx);
             }
             node.geometry.boundsTree = new MeshBVH(node.geometry, { lazyGeneration: false });
@@ -115,9 +99,7 @@ export class PhysicsController {
         for (const mesh of this.bvhMeshes) {
             mesh.geometry.boundsTree.shapecast({
                 intersectsBounds: box => box.intersectsBox(_tmpBox),
-                intersectsTriangle: tri => {
-                    outTris.push(tri);
-                }
+                intersectsTriangle: tri => outTris.push(tri)
             });
         }
         return outTris;
@@ -128,40 +110,27 @@ export class PhysicsController {
         const dStart = _plane.distanceToPoint(cap.start) - cap.radius;
         const dEnd   = _plane.distanceToPoint(cap.end)   - cap.radius;
         if ((dStart > 0 && dEnd > 0) || (dStart < -cap.radius && dEnd < -cap.radius)) return null;
-
         const t = Math.abs(dStart) / (Math.abs(dStart) + Math.abs(dEnd));
-        const midPoint = new THREE.Vector3().copy(cap.start).lerp(cap.end, t);
-
+        const midPoint = _vector1.copy(cap.start).lerp(cap.end, t);
         if (tri.containsPoint(midPoint)) {
             const depth = Math.min(-dStart, -dEnd);
             return { normal: _plane.normal.clone(), depth: Math.abs(depth) };
         }
-
-        const edges = [
-            [tri.a, tri.b],
-            [tri.b, tri.c],
-            [tri.c, tri.a]
-        ];
-        const capSeg = { start: cap.start, end: cap.end };
+        const edges = [[tri.a, tri.b], [tri.b, tri.c], [tri.c, tri.a]];
         const rSq = cap.radius * cap.radius;
-
+        const capLine = new THREE.Line3(cap.start, cap.end);
         for (const [v0, v1] of edges) {
-            const edgeSeg = { start: v0, end: v1 };
-            const ptOnTri = _vector1;
-            const ptOnCap = _vector2;
-            tri.closestPointToPoint(ptOnTri, cap.start);
-            const seg = new THREE.Line3(cap.start, cap.end);
-            seg.closestPointToPoint(ptOnTri, ptOnCap);
-            const distSq = ptOnTri.distanceToSquared(ptOnCap);
+            const triPoint = tri.closestPointToPoint(cap.start, _vector2);
+            const segPoint = capLine.closestPointToPoint(triPoint, _vector3);
+            const distSq = triPoint.distanceToSquared(segPoint);
             if (distSq < rSq) {
                 const dist = Math.sqrt(distSq);
                 return {
-                    normal: ptOnCap.clone().sub(ptOnTri).normalize(),
+                    normal: segPoint.clone().sub(triPoint).normalize(),
                     depth: cap.radius - dist
                 };
             }
         }
-
         return null;
     }
 
@@ -177,17 +146,14 @@ export class PhysicsController {
             const hit = this.triangleCapsuleIntersect(worldCap, tri);
             if (hit && (!best || hit.depth > best.depth)) best = hit;
         }
-
         this.playerOnFloor = false;
         this.isGrounded = false;
         this.groundNormal.set(0, 1, 0);
-
         if (best) {
             const { normal, depth } = best;
             this.playerOnFloor = normal.y > 0.5;
             this.isGrounded = this.playerOnFloor;
             if (this.playerOnFloor) this.groundNormal.copy(normal);
-
             const SKIN = 0.02;
             if (depth > SKIN) {
                 this.playerCollider.translate(_vector1.copy(normal).multiplyScalar(depth - SKIN));
@@ -216,20 +182,16 @@ export class PhysicsController {
                 }
             }
         }
-
         this.playerVelocity.x += this.playerVelocity.x * damping;
         this.playerVelocity.z += this.playerVelocity.z * damping;
-
         const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
         if (hSpeed > MAX_SPEED) {
             const ratio = MAX_SPEED / hSpeed;
             this.playerVelocity.x *= ratio;
             this.playerVelocity.z *= ratio;
         }
-
         const deltaPos = _vector1.copy(this.playerVelocity).multiplyScalar(deltaTime);
         this.playerCollider.translate(deltaPos);
-
         this.playerCollisions();
     }
 
@@ -250,31 +212,30 @@ export class PhysicsController {
 
     controls(deltaTime, input) {
         const accel = this.playerOnFloor ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
-        const effectiveAccel = accel * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
-
+        const effectiveAccel = accel * this.speedModifier *
+            (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
         const moveDir = new THREE.Vector3();
-        if (input.forward) moveDir.add(this.getForwardVector());
+        if (input.forward)  moveDir.add(this.getForwardVector());
         if (input.backward) moveDir.add(this.getForwardVector().multiplyScalar(-1));
-        if (input.left) moveDir.add(this.getSideVector().multiplyScalar(-1));
-        if (input.right) moveDir.add(this.getSideVector());
-
+        if (input.left)     moveDir.add(this.getSideVector().multiplyScalar(-1));
+        if (input.right)    moveDir.add(this.getSideVector());
         if (moveDir.lengthSq() > 0) {
             moveDir.normalize();
             if (this.playerOnFloor) moveDir.projectOnPlane(this.groundNormal);
             this.playerVelocity.add(moveDir.multiplyScalar(effectiveAccel * deltaTime));
         }
-
         if (this.playerOnFloor && input.jump) {
             this.playerVelocity.y = JUMP_VELOCITY;
             this.playerOnFloor = false;
             this.isGrounded = false;
             this.jumpTriggered = true;
         }
-
         const wantCrouch = input.crouch && this.isGrounded;
         this.targetHeight = wantCrouch ? CROUCH_HEIGHT : STAND_HEIGHT;
-        this.currentHeight += (this.targetHeight - this.currentHeight) * Math.min(1, CROUCH_SPEED * deltaTime);
-        this.playerCollider.end.y = this.playerCollider.start.y + (this.currentHeight - 2 * COLLIDER_RADIUS);
+        this.currentHeight += (this.targetHeight - this.currentHeight) *
+                              Math.min(1, CROUCH_SPEED * deltaTime);
+        this.playerCollider.end.y = this.playerCollider.start.y +
+                                    (this.currentHeight - 2 * COLLIDER_RADIUS);
     }
 
     teleportIfOob() {
@@ -286,7 +247,11 @@ export class PhysicsController {
     setPlayerPosition(position) {
         const spawnY = position.y + 0.1;
         this.playerCollider.start.set(position.x, spawnY, position.z);
-        this.playerCollider.end.set(position.x, spawnY + (this.currentHeight - 2 * COLLIDER_RADIUS), position.z);
+        this.playerCollider.end.set(
+            position.x,
+            spawnY + (this.currentHeight - 2 * COLLIDER_RADIUS),
+            position.z
+        );
         this.playerVelocity.set(0, 0, 0);
         this.playerOnFloor = false;
         this.isGrounded = false;
@@ -301,7 +266,6 @@ export class PhysicsController {
     update(deltaTime, input) {
         deltaTime = Math.min(0.05, deltaTime);
         this.prevGround = this.isGrounded;
-
         const speedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
         if (speedXZ > FOOT_DISABLED_THRESHOLD && this.isGrounded && !input.slow && !input.crouch) {
             const interval = this.baseFootInterval / speedXZ;
@@ -317,11 +281,9 @@ export class PhysicsController {
         } else if (this.isGrounded && speedXZ <= FOOT_DISABLED_THRESHOLD) {
             this.footAcc = 0;
         }
-
         this.controls(deltaTime, input);
         this.updatePlayer(deltaTime);
         this.teleportIfOob();
-
         if (!this.prevGround && this.isGrounded) {
             const fellFar = this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1;
             if (fellFar || (this.jumpTriggered && fellFar)) {
@@ -342,11 +304,9 @@ export class PhysicsController {
                 }, this.fallDelay);
             }
         }
-
         this.camera.position.x = this.playerCollider.start.x;
         this.camera.position.z = this.playerCollider.start.z;
         this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9;
-
         if (this.isGrounded && this.playerModel) {
             const forward = new THREE.Vector3();
             this.camera.getWorldDirection(forward);
@@ -360,7 +320,6 @@ export class PhysicsController {
             const upQ = new THREE.Quaternion().setFromUnitVectors(this.playerModel.up, new THREE.Vector3(0, 1, 0));
             this.playerModel.quaternion.slerp(upQ, 0.05);
         }
-
         return {
             x: this.camera.position.x,
             y: this.camera.position.y,
