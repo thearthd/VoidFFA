@@ -128,7 +128,9 @@ export class PhysicsController {
             onProgress({ loaded, total });
         });
     }
-
+    setSpeedModifier(value) {
+        this.speedModifier = value;
+    }
     /**
      * Test capsule against all BVH meshes and return the deepest hit
      * as { normal: Vector3, depth: Number } or null.
