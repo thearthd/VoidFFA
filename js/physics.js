@@ -128,6 +128,10 @@ export class PhysicsController {
         // this.scene.add(new MeshBVHHelper(this.collisionMesh, 10));
     }
 
+        setSpeedModifier(value) {
+        this.speedModifier = value;
+    }
+
     playerCollisions() {
         const cap = this.playerCollider;
         const segStart = cap.start.clone();
