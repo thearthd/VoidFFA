@@ -123,172 +123,153 @@ export class PhysicsController {
     }
 
     // Handles core physics updates including gravity, movement, and iterative collision resolution
-    updatePlayer(deltaTime) {
-        // Fallback for when BVH is not ready
-        if (this.bvhMeshes.length === 0) {
-            this.playerVelocity.y += deltaTime * -GRAVITY;
-            const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
-            this.playerCollider.start.add(deltaPosition);
-            this.playerCollider.end.add(deltaPosition);
-
-            const angle = this.camera.rotation.y;
-            let currentSpeedModifier = this.speedModifier;
-            if (this.crouchPressed) currentSpeedModifier *= 0.3;
-            else if (this.slowPressed) currentSpeedModifier *= 0.5;
-            else if (this.isAim) currentSpeedModifier *= 0.65;
-            const effectiveAccel = PLAYER_ACCEL_GROUND * currentSpeedModifier;
-
-            if (this.fwdPressed) {
-                _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
-                this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
-                this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
-            }
-            if (this.bkdPressed) {
-                _vector1.set(0, 0, 1).applyAxisAngle(_upVector, angle);
-                this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
-                this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
-            }
-            if (this.lftPressed) {
-                _vector1.set(-1, 0, 0).applyAxisAngle(_upVector, angle);
-                this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
-                this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
-            }
-            if (this.rgtPressed) {
-                _vector1.set(1, 0, 0).applyAxisAngle(_upVector, angle);
-                this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
-                this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
-            }
-
-            if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && !this.onGround) {
-                this.playerVelocity.x *= Math.exp(-4 * deltaTime);
-                this.playerVelocity.z *= Math.exp(-4 * deltaTime);
-            }
-            if (this.playerCollider.end.y < -25) {
-                this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
-                this.playerVelocity.set(0, 0, 0);
-            }
-            return;
-        }
-
-        // --- Start of Core Physics Logic with BVH ---
-
-        // 1. Apply Gravity: Always apply gravity. Collision resolution and sticky force will manage grounding.
+updatePlayer(deltaTime) {
+    // If no BVH meshes are loaded, perform basic movement without collision
+    if (this.bvhMeshes.length === 0) {
         this.playerVelocity.y += deltaTime * -GRAVITY;
-
-        // 2. Move player based on velocity (actual modification of playerCollider)
         const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
         this.playerCollider.start.add(deltaPosition);
         this.playerCollider.end.add(deltaPosition);
 
-        // 3. Reset grounded state for the current step
-        this.onGround = false;
-        this.groundNormal.set(0, 1, 0);
+        const angle = this.camera.rotation.y;
+        let currentSpeedModifier = this.speedModifier;
+        if (this.crouchPressed) currentSpeedModifier *= 0.3;
+        else if (this.slowPressed) currentSpeedModifier *= 0.5;
+        else if (this.isAim) currentSpeedModifier *= 0.65;
+        const effectiveAccel = PLAYER_ACCEL_GROUND * currentSpeedModifier;
 
-        // 4. Iterative Collision Resolution Loop
-        const collisionIterations = 5;
-        for (let i = 0; i < collisionIterations; i++) {
-            let bestCollisionNormal = new THREE.Vector3();
-            let collisionDepth = 0;
-            let collisionDetected = false;
+        if (this.fwdPressed) {
+            _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.bkdPressed) {
+            _vector1.set(0, 0, 1).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.lftPressed) {
+            _vector1.set(-1, 0, 0).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
+        if (this.rgtPressed) {
+            _vector1.set(1, 0, 0).applyAxisAngle(_upVector, angle);
+            this.playerCollider.start.addScaledVector(_vector1, effectiveAccel * deltaTime);
+            this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
+        }
 
-            // Prepare bounding box for broad-phase check of current collider position
-            _tmpBox.makeEmpty();
-            _tmpBox.expandByPoint(this.playerCollider.start);
-            _tmpBox.expandByPoint(this.playerCollider.end);
-            _tmpBox.min.addScalar(-COLLIDER_RADIUS);
-            _tmpBox.max.addScalar(COLLIDER_RADIUS);
+        if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && !this.playerOnFloor) {
+            this.playerVelocity.x *= Math.exp(-4 * deltaTime);
+            this.playerVelocity.z *= Math.exp(-4 * deltaTime);
+        }
 
-            // Perform shapecast for all BVH meshes
-            for (const mesh of this.bvhMeshes) {
-                _tmpInverseMat.copy(mesh.matrixWorld).invert();
-                _vector1.copy(this.playerCollider.start).applyMatrix4(_tmpInverseMat);
-                _vector2.copy(this.playerCollider.end).applyMatrix4(_tmpInverseMat);
-                _tempSegment.set(_vector1, _vector2);
-
-                mesh.geometry.boundsTree.shapecast({
-                    intersectsBounds: box => {
-                        _tmpLocalBox.copy(box).applyMatrix4(mesh.matrixWorld);
-                        return _tmpLocalBox.intersectsBox(_tmpBox);
-                    },
-                    intersectsTriangle: tri => {
-                        const triPoint = _vector1;
-                        const capsulePoint = _vector2;
-
-                        const distance = tri.closestPointToSegment(_tempSegment, triPoint, capsulePoint);
-
-                        if (distance < COLLIDER_RADIUS) {
-                            const currentDepth = COLLIDER_RADIUS - distance;
-                            const currentNormal = capsulePoint.sub(triPoint).normalize();
-
-                            if (currentDepth > collisionDepth) {
-                                collisionDepth = currentDepth;
-                                bestCollisionNormal.copy(currentNormal);
-                                collisionDetected = true;
-                            }
-                        }
-                    }
-                });
-            }
-
-            if (collisionDetected) {
-                // Transform the normal back to world space
-                if (this.bvhMeshes.length > 0) {
-                    bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
-                }
-
-                // Apply displacement to move out of penetration
-                if (collisionDepth > 0) {
-                    let displacementAmount;
-                    // For ground collisions, push out by collisionDepth plus a tiny buffer
-                    // For other collisions (walls/ceilings), use a slightly larger buffer or just collisionDepth
-                    if (bestCollisionNormal.dot(_upVector) > 0.75) {
-                        displacementAmount = collisionDepth + COLLISION_BUFFER;
-                    } else {
-                        displacementAmount = collisionDepth + COLLISION_BUFFER * 5; // A bit more buffer for walls to prevent sticking
-                    }
-
-                    const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(displacementAmount);
-                    this.playerCollider.start.add(displacement);
-                    this.playerCollider.end.add(displacement);
-                }
-
-                // Check if the collision is with the ground
-                if (bestCollisionNormal.dot(_upVector) > 0.75) {
-                    this.onGround = true; // Set grounded state
-                    this.groundNormal.copy(bestCollisionNormal);
-
-                    // When on the ground, ensure vertical velocity is reset
-                    // This handles landing and prevents "sticky" upward velocity from resolver
-                    if (this.playerVelocity.y > 0) { // If there's any upward velocity
-                         this.playerVelocity.y = 0; // Zero it out
-                    }
-                    // Project horizontal velocity onto the ground plane (for sliding)
-                    this.playerVelocity.projectOnPlane(this.groundNormal);
-
-                    // Crucially, apply a small downward sticky force when grounded
-                    // This keeps the player firmly on the ground, preventing jitter from tiny gaps.
-                    this.playerVelocity.y = Math.min(this.playerVelocity.y, GROUND_STICKY_VELOCITY);
-
-                } else {
-                    // Collision with a wall or ceiling: reflect/damp velocity component against normal
-                    const dot = this.playerVelocity.dot(bestCollisionNormal);
-                    if (dot < 0) { // If velocity is moving into the normal
-                        this.playerVelocity.addScaledVector(bestCollisionNormal, -dot);
-                    }
-                }
-            } else {
-                // If no collision detected in an iteration, break the loop early
-                break;
-            }
-        } // End of collisionIterations loop
-
-        // 5. Out of bounds check
         if (this.playerCollider.end.y < -25) {
             this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
             this.playerVelocity.set(0, 0, 0);
-            this.onGround = false;
+        }
+        return;
+    }
+
+    // 1. Apply Gravity
+    if (!this.isGrounded) {
+        this.playerVelocity.y += deltaTime * -GRAVITY;
+    } else {
+        this.playerVelocity.y = -0.01;
+    }
+
+    // 2. Predict next position
+    const currentCapsule = this.playerCollider.clone();
+    const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
+    currentCapsule.start.add(deltaPosition);
+    currentCapsule.end.add(deltaPosition);
+
+    // 3. Broad-phase box
+    _tmpBox.makeEmpty();
+    _tmpBox.expandByPoint(currentCapsule.start);
+    _tmpBox.expandByPoint(currentCapsule.end);
+    _tmpBox.min.addScalar(-COLLIDER_RADIUS);
+    _tmpBox.max.addScalar(COLLIDER_RADIUS);
+
+    // 4. Reset collision state but remember if we were grounded
+    const wasGrounded = this.isGrounded;
+    this.playerOnFloor = false;
+    this.isGrounded = false;
+    this.groundNormal.set(0, 1, 0);
+
+    let bestCollisionNormal = new THREE.Vector3();
+    let collisionDepth = 0;
+    let collisionDetected = false;
+
+    // 5. BVH shapecast
+    for (const mesh of this.bvhMeshes) {
+        _tmpInverseMat.copy(mesh.matrixWorld).invert();
+        _vector1.copy(currentCapsule.start).applyMatrix4(_tmpInverseMat);
+        _vector2.copy(currentCapsule.end).applyMatrix4(_tmpInverseMat);
+        _tempSegment.set(_vector1, _vector2);
+
+        mesh.geometry.boundsTree.shapecast({
+            intersectsBounds: box => {
+                _tmpLocalBox.copy(box).applyMatrix4(mesh.matrixWorld);
+                return _tmpLocalBox.intersectsBox(_tmpBox);
+            },
+            intersectsTriangle: tri => {
+                const triPt = _vector1;
+                const capPt = _vector2;
+                const dist = tri.closestPointToSegment(_tempSegment, triPt, capPt);
+                if (dist < COLLIDER_RADIUS) {
+                    const depth = COLLIDER_RADIUS - dist;
+                    const normal = capPt.sub(triPt).normalize();
+                    if (depth > collisionDepth) {
+                        collisionDepth = depth;
+                        bestCollisionNormal.copy(normal);
+                        collisionDetected = true;
+                    }
+                }
+            }
+        });
+    }
+
+    // 6. Collision resolution
+    if (collisionDetected) {
+        bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
+        const dispAmt = collisionDepth - SKIN;
+        if (dispAmt > 0) {
+            const disp = _vector3.copy(bestCollisionNormal).multiplyScalar(dispAmt);
+            this.playerCollider.start.add(disp);
+            this.playerCollider.end.add(disp);
+        }
+
+        if (bestCollisionNormal.dot(_upVector) > 0.75) {
+            this.playerOnFloor = true;
+            this.isGrounded = true;
+            this.groundNormal.copy(bestCollisionNormal);
+            if (this.playerVelocity.y > 0) {
+                this.playerVelocity.y = 0;
+            }
+            this.playerVelocity.projectOnPlane(this.groundNormal);
+        } else {
+            const dot = this.playerVelocity.dot(bestCollisionNormal);
+            if (dot < 0) {
+                this.playerVelocity.addScaledVector(bestCollisionNormal, -dot);
+            }
         }
     }
+
+    // 7. “Sticky” ground fix
+    if (!collisionDetected && wasGrounded) {
+        this.isGrounded = true;
+        this.playerOnFloor = true;
+    }
+
+    // 8. Out of Bounds Teleport
+    if (this.playerCollider.end.y < -25) {
+        this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
+        this.playerVelocity.set(0, 0, 0);
+        this.playerOnFloor = false;
+        this.isGrounded = false;
+    }
+}
 
     // Helper functions for camera direction
     getForwardVector() {
