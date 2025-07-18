@@ -1,5 +1,15 @@
-import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import { MeshBVH } from "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/build/index.module.js";
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js';
+import {
+  MeshBVH,
+  acceleratedRaycast,
+  computeBoundsTree,
+  disposeBoundsTree
+} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
+
+// Then wire up the BVH helpers:
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 import { Capsule } from "three/examples/jsm/math/Capsule.js";
 import { sendSoundEvent } from "./network.js";
 
