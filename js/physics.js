@@ -180,33 +180,33 @@ export class PhysicsController {
      * @param {object} input An object containing input states (e.g., forward, backward, jump, crouch, slow, aim).
      */
     controls(deltaTime, input) {
-        const baseSpeed = MAX_SPEED * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
+        const speedFactor = this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
+        const maxSpeed = MAX_SPEED * speedFactor;
+
         const moveDir = new THREE.Vector3();
         if (input.forward) moveDir.add(this.getForwardVector());
         if (input.backward) moveDir.add(this.getForwardVector().multiplyScalar(-1));
         if (input.left) moveDir.add(this.getSideVector().multiplyScalar(-1));
         if (input.right) moveDir.add(this.getSideVector());
-        if (moveDir.lengthSq() > 0) moveDir.normalize();
+        moveDir.normalize();
 
-        const targetVX = moveDir.x * baseSpeed;
-        const targetVZ = moveDir.z * baseSpeed;
-        const accel = this.isGrounded ? ACCEL_GROUND : ACCEL_AIR;
-        const decel = this.isGrounded ? DECEL_GROUND : DECEL_AIR;
+        const desiredVX = moveDir.x * maxSpeed;
+        const desiredVZ = moveDir.z * maxSpeed;
 
-        // X axis
-        const dvx = targetVX - this.playerVelocity.x;
-        if (Math.abs(dvx) > 0) {
-            const rate = (Math.sign(dvx) === Math.sign(targetVX)) ? accel : decel;
-            const change = Math.sign(dvx) * rate * deltaTime;
-            this.playerVelocity.x += (Math.abs(change) < Math.abs(dvx) ? change : dvx);
-        }
-        // Z axis
-        const dvz = targetVZ - this.playerVelocity.z;
-        if (Math.abs(dvz) > 0) {
-            const rate = (Math.sign(dvz) === Math.sign(targetVZ)) ? accel : decel;
-            const change = Math.sign(dvz) * rate * deltaTime;
-            this.playerVelocity.z += (Math.abs(change) < Math.abs(dvz) ? change : dvz);
-        }
+        const accelRate = this.isGrounded ? ACCEL_GROUND : ACCEL_AIR;
+        const decelRate = this.isGrounded ? DECEL_GROUND : DECEL_AIR;
+
+        const deltaVX = desiredVX - this.playerVelocity.x;
+        const signX = Math.sign(deltaVX);
+        const rateX = (Math.abs(desiredVX) > Math.abs(this.playerVelocity.x) ? accelRate : decelRate);
+        const changeX = signX * rateX * deltaTime;
+        this.playerVelocity.x += Math.abs(changeX) < Math.abs(deltaVX) ? changeX : deltaVX;
+
+        const deltaVZ = desiredVZ - this.playerVelocity.z;
+        const signZ = Math.sign(deltaVZ);
+        const rateZ = (Math.abs(desiredVZ) > Math.abs(this.playerVelocity.z) ? accelRate : decelRate);
+        const changeZ = signZ * rateZ * deltaTime;
+        this.playerVelocity.z += Math.abs(changeZ) < Math.abs(deltaVZ) ? changeZ : deltaVZ;
 
         if (this.isGrounded && input.jump) {
             this.playerVelocity.y = JUMP_VELOCITY;
