@@ -84,7 +84,6 @@ export class PhysicsController {
         this.player.castShadow = true;
         this.player.receiveShadow = true;
         this.player.material.shadowSide = 2; // Render shadows on both sides of the material
-        this.scene.add(this.player); // Add the player mesh to the scene
 
         // Physics state variables
         this.playerVelocity = new THREE.Vector3();
