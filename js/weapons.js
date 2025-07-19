@@ -760,7 +760,7 @@ update(inputState, delta, playerState) {
   // Note: If you want player mouse input to be added *after* recoil, you'll need to
   // manage camera rotation more carefully. This assumes recoil is applied to the
   // final camera rotation.
-  this.camera.rotation.x = this._recoil.lastCameraX + this._recoil.offsetX;
+  this.camera.rotation.x += this._recoil.lastCameraX + this._recoil.offsetX;
 }
 
 
