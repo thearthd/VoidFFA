@@ -12,7 +12,7 @@ const PLAYER_CAPSULE_RADIUS = 0.5;
 const PLAYER_CAPSULE_SEGMENT_LENGTH = 1.0; // Length of the cylindrical part of the capsule
 const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + 2 * PLAYER_CAPSULE_RADIUS; // Total height of the standing player (2.0)
 
-const PLAYER_ACCEL_GROUND = 25; // Acceleration when on the ground
+const PLAYER_ACCEL_GROUND = 125; // Acceleration when on the ground
 const PLAYER_ACCEL_AIR = 8; // Acceleration when in the air
 const MAX_SPEED = 10; // Maximum horizontal speed
 
