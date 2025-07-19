@@ -241,15 +241,6 @@ export class WeaponController {
     this.scene = window.scene;
     this.raycaster = new THREE.Raycaster();
 
-window.addEventListener("applyRecoilEvent", event => {
-  const recoilRad = event.detail;
-  // kick the camera up:
-  this.camera.rotation.x = THREE.MathUtils.clamp(
-    this.camera.rotation.x + recoilRad,
-    -Math.PI/2, Math.PI/2
-  );
-});
-
    
   }
 
@@ -637,7 +628,10 @@ update(inputState, delta, playerState) {
           this.ammoInMagazine--;
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          window.dispatchEvent(new CustomEvent("applyRecoilEvent", { detail: recoilAngle }));
+this._recoil.targetX = THREE.MathUtils.clamp(
+  this._recoil.targetX + recoilAngle,
+  -Math.PI / 2, Math.PI / 2
+);
           this.state.recoiling   = true;
           this.state.recoilStart = now;
           if (this.currentKey === "ak-47" && this.burstCount === 2 && !(velocity > 2 || !isGrounded || isCrouched)) {
@@ -737,6 +731,9 @@ update(inputState, delta, playerState) {
     }
     return true;
   });
+
+  this._recoil.currentX += (this._recoil.targetX - this._recoil.currentX) * delta * 10;
+this.camera.rotation.x = this._recoil.currentX;
 }
 
 
@@ -1259,7 +1256,6 @@ export async function preloadWeaponPrototypes(onComplete) {
     console.log(`Loaded ${name}`);
   }
 }
-
 
 
 // Call once at startup:
