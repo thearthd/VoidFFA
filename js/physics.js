@@ -176,40 +176,38 @@ export class PhysicsController {
      * @param {object} input An object containing input states (e.g., forward, backward, jump, crouch, slow, aim).
      */
     controls(deltaTime, input) {
-        // Calculate desired movement speed based on MAX_SPEED and modifiers
-        const baseSpeed = MAX_SPEED;
-        const currentMoveSpeed = baseSpeed * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
+        const baseSpeed = MAX_SPEED * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
+        const moveDir = new THREE.Vector3();
+        if (input.forward) moveDir.add(this.getForwardVector());
+        if (input.backward) moveDir.add(this.getForwardVector().multiplyScalar(-1));
+        if (input.left) moveDir.add(this.getSideVector().multiplyScalar(-1));
+        if (input.right) moveDir.add(this.getSideVector());
+        if (moveDir.lengthSq() > 0) moveDir.normalize();
 
-        const moveDirection = new THREE.Vector3();
-        if (input.forward) {
-            moveDirection.add(this.getForwardVector());
+        const targetVX = moveDir.x * baseSpeed;
+        const targetVZ = moveDir.z * baseSpeed;
+        const accel = this.isGrounded ? ACCEL_GROUND : ACCEL_AIR;
+        const decel = this.isGrounded ? DECEL_GROUND : DECEL_AIR;
+
+        // X axis
+        const dvx = targetVX - this.playerVelocity.x;
+        if (Math.abs(dvx) > 0) {
+            const rate = (Math.sign(dvx) === Math.sign(targetVX)) ? accel : decel;
+            const change = Math.sign(dvx) * rate * deltaTime;
+            this.playerVelocity.x += (Math.abs(change) < Math.abs(dvx) ? change : dvx);
         }
-        if (input.backward) {
-            moveDirection.add(this.getForwardVector().multiplyScalar(-1));
-        }
-        if (input.left) {
-            moveDirection.add(this.getSideVector().multiplyScalar(-1));
-        }
-        if (input.right) {
-            moveDirection.add(this.getSideVector());
+        // Z axis
+        const dvz = targetVZ - this.playerVelocity.z;
+        if (Math.abs(dvz) > 0) {
+            const rate = (Math.sign(dvz) === Math.sign(targetVZ)) ? accel : decel;
+            const change = Math.sign(dvz) * rate * deltaTime;
+            this.playerVelocity.z += (Math.abs(change) < Math.abs(dvz) ? change : dvz);
         }
 
-        if (moveDirection.lengthSq() > 0) {
-            moveDirection.normalize();
-            // Directly set horizontal velocity based on desired speed
-            this.playerVelocity.x = moveDirection.x * currentMoveSpeed;
-            this.playerVelocity.z = moveDirection.z * currentMoveSpeed;
-        } else {
-            // If no input, set horizontal velocity to zero for immediate stopping
-            this.playerVelocity.x = 0;
-            this.playerVelocity.z = 0;
-        }
-
-        // Handle jumping
         if (this.isGrounded && input.jump) {
-            this.playerVelocity.y = JUMP_VELOCITY; // Apply upward jump velocity
-            this.isGrounded = false; // Player is no longer on the ground
-            this.jumpTriggered = true; // Set jump flag
+            this.playerVelocity.y = JUMP_VELOCITY;
+            this.isGrounded = false;
+            this.jumpTriggered = true;
         }
     }
 
@@ -218,34 +216,21 @@ export class PhysicsController {
      * @param {number} delta The time elapsed since the last frame.
      */
     updatePlayer(delta) {
-        // Apply gravity
-        // When on ground, apply a small downward velocity to keep player "stuck" to it.
-        // This is crucial for reliable ground detection with shapecast.
         if (this.isGrounded) {
-            this.playerVelocity.y = -GRAVITY * delta * 0.1; // Small downward push
+            this.playerVelocity.y = -GRAVITY * delta * 0.1;
         } else {
-            // When in air, gravity continuously accelerates downwards
-            this.playerVelocity.y -= GRAVITY * delta; // Full gravity in air
+            this.playerVelocity.y -= GRAVITY * delta;
         }
 
-        // Apply damping to horizontal velocity
-        // This damping will now primarily affect horizontal velocity when input stops
-        // or if the velocity somehow exceeds MAX_SPEED (though it shouldn't if set directly).
-        let damping = Math.exp(-4 * delta) - 1;
-        this.playerVelocity.x += this.playerVelocity.x * damping;
-        this.playerVelocity.z += this.playerVelocity.z * damping;
-
-        // Cap horizontal speed (still relevant if other forces apply or for robustness)
-        const horizontalSpeed = Math.sqrt(this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z);
+        const horizontalSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
         if (horizontalSpeed > MAX_SPEED) {
-            const ratio = MAX_SPEED / horizontalSpeed;
-            this.playerVelocity.x *= ratio;
-            this.playerVelocity.z *= ratio;
+            const scale = MAX_SPEED / horizontalSpeed;
+            this.playerVelocity.x *= scale;
+            this.playerVelocity.z *= scale;
         }
 
-        // Move the player's visual mesh by the current velocity
         this.player.position.addScaledVector(this.playerVelocity, delta);
-        this.player.updateMatrixWorld(); // Update player's world matrix for correct collision checks
+        this.player.updateMatrixWorld();
 
         // --- Collision Resolution using MeshBVH shapecast ---
         const capsuleInfo = this.player.capsuleInfo;
