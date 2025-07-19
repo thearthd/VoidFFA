@@ -656,7 +656,7 @@ update(inputState, delta, playerState) {
 
           // *** NEW RECOIL APPLICATION LOGIC ***
           // Add the recoil amount to the current offset and start the recovery animation
-          this._recoil.currentOffset += recoilAngle * 2.5; // Accumulate recoil
+          this._recoil.currentOffset += recoilAngle; // Accumulate recoil
           this._recoil.recoilStartTime = now; // Mark the start of this recoil event
           // No need to reset targetOffsetX or offsetX, as we are animating currentOffset directly.
 
