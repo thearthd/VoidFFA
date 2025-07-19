@@ -242,8 +242,10 @@ export class WeaponController {
     this.raycaster = new THREE.Raycaster();
 
 this._recoil = {
-  currentX: 0,  // current smoothed value (applied to camera.rotation.x)
-  targetX: 0    // target value set when a shot is fired
+  offsetX: 0,            // animated offset
+  targetOffsetX: 0,      // recoil step target
+  returnToX: 0,          // value to return to
+  lastCameraX: 0         // what the pitch was before last shot
 };
   }
 
@@ -632,10 +634,8 @@ update(inputState, delta, playerState) {
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
           this._recoil.targetX = THREE.MathUtils.clamp(
-this._recoil.targetOffsetX = THREE.MathUtils.clamp(
-  this._recoil.targetOffsetX + recoilAngle,
-  -Math.PI / 2, Math.PI / 2
-);
+this._recoil.lastCameraX = this.camera.rotation.x;
+this._recoil.targetOffsetX += recoilAngle;
           this.state.recoiling   = true;
           this.state.recoilStart = now;
           if (this.currentKey === "ak-47" && this.burstCount === 2 && !(velocity > 2 || !isGrounded || isCrouched)) {
@@ -736,10 +736,26 @@ this._recoil.targetOffsetX = THREE.MathUtils.clamp(
     return true;
   });
 
+this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * 5;
+
+// Smooth the recoil offset
 this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 10;
 
-// Apply recoil on top of player look rotation
-this.camera.rotation.x += this._recoil.offsetX;
+// Calculate the camera pitch delta from where it was when shot
+const currentX = this.camera.rotation.x;
+const targetReturn = this._recoil.lastCameraX;
+
+// Only apply recoil correction if player isn't resisting (not moving mouse much)
+const mouseStill = Math.abs(currentX - targetReturn) < 0.15;
+
+if (mouseStill) {
+  // Apply recoil offset only if camera is near original pre-shot angle
+  this.camera.rotation.x += this._recoil.offsetX;
+} else {
+  // Let the player aim freely
+  this._recoil.offsetX = 0;
+  this._recoil.targetOffsetX = 0;
+}
 }
 
 
