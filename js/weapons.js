@@ -217,9 +217,6 @@ export class WeaponController {
     this.lastShotTime = 0;
     this.burstCount = 0;
     this._reloadEndPlayed = false;
-    this.checkBulletHit = this.checkBulletHit.bind(this);
-    this.checkBulletPenetration = this.checkBulletPenetration.bind(this);
-    this.fireBullet = this.fireBullet.bind(this);
     this.checkMeleeHit = this.checkMeleeHit.bind(this);
     this.viewModel = new THREE.Group();
     this.parts = { slide: null, muzzle: null };
@@ -772,180 +769,112 @@ update(inputState, delta, playerState) {
    */
    
 // checkBulletHit: Remove sound playing logic
-checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
-    // Assuming this.worldBVH was set via physicsController.worldBVH = collider.geometry.boundsTree
-    if (!this.worldBVH) {
-        console.error("World BVH not available for bullet penetration detection.");
-        return null;
+  checkBulletHit(origin, direction, intersectionPointOut) {
+    const ray = new THREE.Ray(origin.clone(), direction.clone());
+    let closest = null;
+
+    for (const rp of Object.values(window.remotePlayers || {})) {
+      const meshes = [];
+      if (rp.bodyMesh) meshes.push(rp.bodyMesh);
+      if (rp.headMesh) meshes.push(rp.headMesh);
+
+      for (const mesh of meshes) {
+        if (!mesh.geometry.boundsTree) continue;
+        const hits = ray.intersectObject(mesh, true);
+        if (hits.length === 0) continue;
+        const hit = hits[0];
+        if (!closest || hit.distance < closest.distance) {
+          closest = {
+            mesh,
+            isHead: mesh.userData.isPlayerHead === true,
+            intersection: hit.point.clone(),
+            distance: hit.distance
+          };
+        }
+      }
+    }
+
+    if (!closest) return null;
+    if (intersectionPointOut instanceof THREE.Vector3) {
+      intersectionPointOut.copy(closest.intersection);
+    }
+    return {
+      mesh: closest.mesh,
+      isHead: closest.isHead,
+      intersection: closest.intersection.clone(),
+      distance: closest.distance
+    };
+  }
+
+  /**
+   * Handles world + player intersections, with optional penetration.
+   */
+  checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
+    if (!this.physicsController.worldBVH) {
+      console.error("World BVH not available for bullet penetration detection.");
+      return null;
     }
 
     let currentOrigin = origin.clone();
     let worldPenetrationCount = 0;
-    let allWorldHits = [];
+    const allWorldHits = [];
     let playerHitResult = null;
 
     for (let i = 0; i <= maxWorldPenetrations; i++) {
-        // Recreate the ray from the updated origin
-        const ray = new THREE.Ray(currentOrigin, direction);
+      const ray = new THREE.Ray(currentOrigin, direction);
 
-        // --- World Collision Detection using the BVH-accelerated Mesh.raycast ---
-        // this.collider was set in createCrocodilosConstruction/createSigmaCity
-        const worldIntersects = ray.intersectObject(this.collider, true);
-        let worldIntersection = worldIntersects.length > 0 ? worldIntersects[0] : null;
+      // World collision
+      const worldHits = ray.intersectObject(this.physicsController.collider, true);
+      const worldIntersection = worldHits.length ? worldHits[0] : null;
 
-        // --- Player Collision Detection (re-using checkBulletHit) ---
-        const currentPlayerHit = this.checkBulletHit(currentOrigin, direction);
+      // Player collision
+      const playerHit = this.checkBulletHit(currentOrigin, direction);
 
-        // Determine the closest hit
-        let closestHit, hitType;
-        if (worldIntersection && (!currentPlayerHit || worldIntersection.distance <= currentPlayerHit.distance)) {
-            closestHit = worldIntersection;
-            hitType = 'world';
-        } else if (currentPlayerHit) {
-            closestHit = currentPlayerHit;
-            hitType = 'player';
-        }
+      // Choose closest
+      let closestHit, hitType;
+      if (worldIntersection && (!playerHit || worldIntersection.distance <= playerHit.distance)) {
+        closestHit = worldIntersection;
+        hitType = 'world';
+      } else if (playerHit) {
+        closestHit = playerHit;
+        hitType = 'player';
+      } else break;
 
-        if (!closestHit) break;
+      if (hitType === 'player') {
+        playerHitResult = {
+          mesh: closestHit.mesh,
+          isHead: closestHit.isHead,
+          intersection: closestHit.intersection.clone(),
+          distance: origin.distanceTo(closestHit.intersection)
+        };
+        break;
+      }
 
-        if (hitType === 'player') {
-            playerHitResult = {
-                mesh: closestHit.mesh,
-                isHead: closestHit.isHead,
-                intersection: closestHit.intersection.clone(),
-                distance: origin.distanceTo(closestHit.intersection)
-            };
-            break;
-        } else {
-            // World hit
-            worldPenetrationCount++;
-            // Compute hit normal in world space
-            let hitNormal;
-            if (closestHit.face && closestHit.object) {
-                hitNormal = closestHit.face.normal.clone()
-                    .transformDirection(closestHit.object.matrixWorld)
-                    .normalize();
-            } else {
-                hitNormal = direction.clone().negate();
-            }
+      // World hit
+      worldPenetrationCount++;
+      const normal = (closestHit.face && closestHit.object)
+        ? closestHit.face.normal.clone().transformDirection(closestHit.object.matrixWorld).normalize()
+        : direction.clone().negate();
 
-            allWorldHits.push({
-                point: closestHit.point.clone(),
-                normal: hitNormal,
-                distance: currentOrigin.distanceTo(closestHit.point),
-                object: closestHit.object
-            });
+      allWorldHits.push({
+        point: closestHit.point.clone(),
+        normal,
+        distance: currentOrigin.distanceTo(closestHit.point),
+        object: closestHit.object
+      });
 
-            if (worldPenetrationCount > maxWorldPenetrations) {
-                playerHitResult = null;
-                break;
-            }
+      if (worldPenetrationCount > maxWorldPenetrations) break;
 
-            // Advance origin just past the hit point
-            currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
-        }
+      currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
     }
-
-    const isPenetrationShot = playerHitResult !== null && worldPenetrationCount > 0;
-    return {
-        playerHitResult,
-        allWorldHits,
-        penetrationCount: worldPenetrationCount,
-        isPenetrationShot
-    };
-}
-
-
-
-checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
-    // Assuming this.worldBVH is pre-built on your static world geometry
-    const worldBVH = this.physicsController?.worldBVH;
-    if (!worldBVH) {
-        console.error("World BVH not available for bullet penetration detection.");
-        return null;
-    }
-
-    let currentOrigin = origin.clone();
-    let worldPenetrationCount = 0;
-    let allWorldHits = [];
-    let playerHitResult = null;
-
-    for (let i = 0; i <= maxWorldPenetrations; i++) {
-        const ray = new THREE.Ray(currentOrigin, direction);
-
-        // --- World Collision Detection using BVH ---
-        const worldIntersects = worldBVH.raycast(ray); // Direct BVH raycast
-        let worldIntersection = null;
-        if (worldIntersects.length > 0) {
-            worldIntersection = worldIntersects[0]; // Get the closest world intersection
-        }
-
-        // --- Player Collision Detection (re-using checkBulletHit) ---
-        const currentPlayerHit = this.checkBulletHit(currentOrigin, direction);
-
-        let closestHit = null;
-        let hitType = null;
-
-        // Determine the closest hit (world or player)
-        if (worldIntersection && (!currentPlayerHit || worldIntersection.distance <= currentPlayerHit.distance)) {
-            closestHit = worldIntersection;
-            hitType = 'world';
-        } else if (currentPlayerHit) {
-            closestHit = currentPlayerHit;
-            hitType = 'player';
-        }
-
-        if (closestHit) {
-            if (hitType === 'player') {
-                playerHitResult = {
-                    mesh: closestHit.mesh,
-                    isHead: closestHit.isHead,
-                    intersection: closestHit.intersection.clone(),
-                    distance: origin.distanceTo(closestHit.intersection)
-                };
-                break; // Player hit, stop penetration checks
-            } else if (hitType === 'world') {
-                worldPenetrationCount++;
-
-                let hitNormal;
-                // For BVH intersections, the normal is usually available on the intersection object
-                if (closestHit.face && closestHit.face.normal) {
-                    // Transform the normal to world space
-                    hitNormal = closestHit.face.normal.clone().transformDirection(closestHit.object.matrixWorld).normalize();
-                } else {
-                    hitNormal = direction.clone().negate(); // Fallback if normal is not directly available
-                }
-
-                allWorldHits.push({
-                    point: closestHit.point.clone(),
-                    normal: hitNormal,
-                    distance: currentOrigin.distanceTo(closestHit.point),
-                    object: closestHit.object
-                });
-
-                if (worldPenetrationCount > maxWorldPenetrations) {
-                    playerHitResult = null; // No player hit if max penetrations exceeded
-                    break;
-                }
-
-                // Move the origin slightly past the hit point to continue the raycast
-                currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
-            }
-        } else {
-            break; // No more hits
-        }
-    }
-
-    const isPenetrationShot = playerHitResult !== null && worldPenetrationCount > 0;
 
     return {
-        playerHitResult: playerHitResult,
-        allWorldHits: allWorldHits,
-        penetrationCount: worldPenetrationCount,
-        isPenetrationShot: isPenetrationShot
+      playerHitResult,
+      allWorldHits,
+      penetrationCount: worldPenetrationCount,
+      isPenetrationShot: !!(playerHitResult && worldPenetrationCount > 0)
     };
-}
-
+  }
 
 
 fireBullet(spreadAngle) {
