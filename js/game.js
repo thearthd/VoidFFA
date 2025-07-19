@@ -11,6 +11,16 @@ import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/
 import Stats from 'stats.js';
 import { dbRefs, disposeGame, fullCleanup, activeGameId } from "./network.js";
 
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import {
+    computeBoundsTree,
+    disposeBoundsTree,
+    acceleratedRaycast,
+    MeshBVH, // <--- Added MeshBVH import
+    MeshBVHHelper,
+    StaticGeometryGenerator
+} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
+
 import { createSigmaCity } from "./map.js";
 import { createCrocodilosConstruction } from "./map.js";
 
