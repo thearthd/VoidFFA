@@ -1064,6 +1064,15 @@ bodyMesh.userData.isPlayerBodyPart = true;
 bodyMesh.userData.playerId = data.id;
 group.add(bodyMesh);
 
+     if (!bodyMesh.geometry.index) {
+    bodyMesh.geometry.setIndex(
+      generateSequentialIndices(bodyMesh.geometry.attributes.position.count)
+    );
+  }
+  bodyMesh.geometry.computeBoundsTree();
+
+  group.add(bodyMesh);
+
 // ─── Head ──────────────────────────────────────────────────────────────────────
 const headGeom = new THREE.SphereGeometry(0.15, 8, 8);
 const headMat = new THREE.MeshStandardMaterial({ color: 0xffffaa });
@@ -1074,6 +1083,15 @@ headMesh.userData.isPlayerBodyPart = true;
 headMesh.userData.playerId = data.id;
 headMesh.userData.isPlayerHead = true;
 group.add(headMesh);
+
+      if (!headMesh.geometry.index) {
+    headMesh.geometry.setIndex(
+      generateSequentialIndices(headMesh.geometry.attributes.position.count)
+    );
+  }
+  headMesh.geometry.computeBoundsTree();
+
+  group.add(headMesh);
 
 // ─── Health Bar ───────────────────────────────────────────────────────────────
 // Ensure createHealthBar exists and returns expected object structure
