@@ -21,6 +21,12 @@ import {
     StaticGeometryGenerator
 } from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
 
+// ─── BVH Setup ────────────────────────────────────────────────────────────
+// Extend THREE.BufferGeometry and THREE.Mesh prototypes for BVH functionality
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
 import { createSigmaCity } from "./map.js";
 import { createCrocodilosConstruction } from "./map.js";
 
