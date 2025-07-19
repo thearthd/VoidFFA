@@ -769,55 +769,87 @@ update(inputState, delta, playerState) {
    */
    
 // checkBulletHit: Remove sound playing logic
-checkBulletHit(origin, direction, intersectionPointOut) {
-    const ray = new THREE.Ray(origin.clone(), direction.clone());
+checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
+    // Assuming this.worldBVH was set via physicsController.worldBVH = collider.geometry.boundsTree
+    if (!this.worldBVH) {
+        console.error("World BVH not available for bullet penetration detection.");
+        return null;
+    }
 
-    // Ensure intersectionPointOut is a Vector3
-    const tempIntersectionPoint = intersectionPointOut instanceof THREE.Vector3 ? intersectionPointOut : new THREE.Vector3();
+    let currentOrigin = origin.clone();
+    let worldPenetrationCount = 0;
+    let allWorldHits = [];
+    let playerHitResult = null;
 
-    let closestPlayerIntersection = null;
+    for (let i = 0; i <= maxWorldPenetrations; i++) {
+        // Recreate the ray from the updated origin
+        const ray = new THREE.Ray(currentOrigin, direction);
 
-    // --- Player Collision Detection using BVH ---
-    // Iterate through remote players and perform raycasting against their BVHs
-    for (const rp of Object.values(window.remotePlayers || {})) {
-        // Assuming rp.bodyMesh and rp.headMesh have BVHs built on their geometries
-        // This typically means you've patched THREE.Mesh.prototype.raycast
-        // or you're calling raycastBVH directly.
-        const playerMeshes = [];
-        if (rp.bodyMesh) playerMeshes.push(rp.bodyMesh);
-        if (rp.headMesh) playerMeshes.push(rp.headMesh);
+        // --- World Collision Detection using the BVH-accelerated Mesh.raycast ---
+        // this.collider was set in createCrocodilosConstruction/createSigmaCity
+        const worldIntersects = ray.intersectObject(this.collider, true);
+        let worldIntersection = worldIntersects.length > 0 ? worldIntersects[0] : null;
 
-        for (const mesh of playerMeshes) {
-            if (!mesh || !mesh.geometry.boundsTree) continue; // Check if BVH exists
+        // --- Player Collision Detection (re-using checkBulletHit) ---
+        const currentPlayerHit = this.checkBulletHit(currentOrigin, direction);
 
-            const intersects = ray.intersectObject(mesh); // This will use the BVH if patched
-            if (intersects.length > 0) {
-                const intersection = intersects[0];
-                if (!closestPlayerIntersection || intersection.distance < closestPlayerIntersection.distance) {
-                    closestPlayerIntersection = {
-                        mesh: mesh,
-                        isHead: mesh.userData.isPlayerHead === true, // Assuming this userData is set
-                        intersection: intersection.point,
-                        distance: intersection.distance
-                    };
-                }
+        // Determine the closest hit
+        let closestHit, hitType;
+        if (worldIntersection && (!currentPlayerHit || worldIntersection.distance <= currentPlayerHit.distance)) {
+            closestHit = worldIntersection;
+            hitType = 'world';
+        } else if (currentPlayerHit) {
+            closestHit = currentPlayerHit;
+            hitType = 'player';
+        }
+
+        if (!closestHit) break;
+
+        if (hitType === 'player') {
+            playerHitResult = {
+                mesh: closestHit.mesh,
+                isHead: closestHit.isHead,
+                intersection: closestHit.intersection.clone(),
+                distance: origin.distanceTo(closestHit.intersection)
+            };
+            break;
+        } else {
+            // World hit
+            worldPenetrationCount++;
+            // Compute hit normal in world space
+            let hitNormal;
+            if (closestHit.face && closestHit.object) {
+                hitNormal = closestHit.face.normal.clone()
+                    .transformDirection(closestHit.object.matrixWorld)
+                    .normalize();
+            } else {
+                hitNormal = direction.clone().negate();
             }
+
+            allWorldHits.push({
+                point: closestHit.point.clone(),
+                normal: hitNormal,
+                distance: currentOrigin.distanceTo(closestHit.point),
+                object: closestHit.object
+            });
+
+            if (worldPenetrationCount > maxWorldPenetrations) {
+                playerHitResult = null;
+                break;
+            }
+
+            // Advance origin just past the hit point
+            currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
         }
     }
 
-    if (closestPlayerIntersection) {
-        if (intersectionPointOut instanceof THREE.Vector3) {
-            intersectionPointOut.copy(closestPlayerIntersection.intersection);
-        }
-        return {
-            mesh: closestPlayerIntersection.mesh,
-            isHead: closestPlayerIntersection.isHead,
-            intersection: closestPlayerIntersection.intersection.clone(),
-            distance: closestPlayerIntersection.distance
-        };
-    }
-
-    return null; // Return null if no hit is found
+    const isPenetrationShot = playerHitResult !== null && worldPenetrationCount > 0;
+    return {
+        playerHitResult,
+        allWorldHits,
+        penetrationCount: worldPenetrationCount,
+        isPenetrationShot
+    };
 }
 
 
