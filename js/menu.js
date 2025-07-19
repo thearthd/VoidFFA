@@ -1351,14 +1351,42 @@ function settingsButtonHit() {
     clearMenuCanvas();
     add(logo);
 
-    // You can add your settings UI elements here
+    // Get the HTML elements for the sensitivity slider and settings box
+    const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
+    const settingsBox = document.getElementById("settings-box");
+
+    // Show these elements
+    if (sensitivitySliderContainer) {
+        sensitivitySliderContainer.style.display = "flex"; // Or "block", depending on your CSS layout
+    }
+    if (settingsBox) {
+        settingsBox.style.display = "block"; // Or "flex", depending on your CSS layout
+    }
+
+    // You can keep a settings text, or remove it if the HTML elements fully replace it
     let settingsText = new Text("Adjust your game settings here.", "30pt Arial");
     settingsText.setColor("#aaaaaa");
-    settingsText.setPosition(getWidth() / 2, getHeight() / 2);
+    settingsText.setPosition(getWidth() / 2, getHeight() / 2 - 150); // Adjust position if needed
     add(settingsText);
     currentMenuObjects.push(settingsText);
 
-    addBackButton();
+    addBackButton(); // Keep the back button to return to the main menu
+
+    // When going back from settings, hide the HTML settings elements again
+    const backButton = currentMenuObjects.find(obj => obj instanceof ImageShape && obj.x === 50 && obj.y === 50); // Assuming this is your back button image
+    if (backButton && backButton.hitbox) {
+        // Override the original onClick to also hide settings elements
+        backButton.hitbox.onClick = () => {
+            currentPage = 0;
+            menu();
+            if (sensitivitySliderContainer) {
+                sensitivitySliderContainer.style.display = "none";
+            }
+            if (settingsBox) {
+                settingsBox.style.display = "none";
+            }
+        };
+    }
 }
 
 /**
