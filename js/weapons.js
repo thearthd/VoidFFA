@@ -770,9 +770,10 @@ update(inputState, delta, playerState) {
    
 // checkBulletHit: Remove sound playing logic
   checkBulletHit(origin, direction, intersectionPointOut) {
-    const ray = new THREE.Ray(origin.clone(), direction.clone());
-    let closest = null;
+    // Use Raycaster instead of THREE.Ray
+    const raycaster = new THREE.Raycaster(origin.clone(), direction.clone());
 
+    let closest = null;
     for (const rp of Object.values(window.remotePlayers || {})) {
       const meshes = [];
       if (rp.bodyMesh) meshes.push(rp.bodyMesh);
@@ -780,7 +781,8 @@ update(inputState, delta, playerState) {
 
       for (const mesh of meshes) {
         if (!mesh.geometry.boundsTree) continue;
-        const hits = ray.intersectObject(mesh, true);
+        // This will use the acceleratedRaycast you patched into THREE.Mesh.prototype.raycast
+        const hits = raycaster.intersectObject(mesh, true);
         if (hits.length === 0) continue;
         const hit = hits[0];
         if (!closest || hit.distance < closest.distance) {
@@ -810,8 +812,8 @@ update(inputState, delta, playerState) {
    * Handles world + player intersections, with optional penetration.
    */
   checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
-    if (!this.physicsController.worldBVH) {
-      console.error("World BVH not available for bullet penetration detection.");
+    if (!this.physicsController.worldBVH || !this.physicsController.collider) {
+      console.error("World BVH or collider mesh not available.");
       return null;
     }
 
@@ -821,16 +823,16 @@ update(inputState, delta, playerState) {
     let playerHitResult = null;
 
     for (let i = 0; i <= maxWorldPenetrations; i++) {
-      const ray = new THREE.Ray(currentOrigin, direction);
+      const raycaster = new THREE.Raycaster(currentOrigin.clone(), direction.clone());
 
-      // World collision
-      const worldHits = ray.intersectObject(this.physicsController.collider, true);
+      // World collision using Mesh.raycast (which uses BVH under the hood)
+      const worldHits = raycaster.intersectObject(this.physicsController.collider, true);
       const worldIntersection = worldHits.length ? worldHits[0] : null;
 
       // Player collision
       const playerHit = this.checkBulletHit(currentOrigin, direction);
 
-      // Choose closest
+      // Choose closest hit
       let closestHit, hitType;
       if (worldIntersection && (!playerHit || worldIntersection.distance <= playerHit.distance)) {
         closestHit = worldIntersection;
@@ -838,7 +840,9 @@ update(inputState, delta, playerState) {
       } else if (playerHit) {
         closestHit = playerHit;
         hitType = 'player';
-      } else break;
+      } else {
+        break;
+      }
 
       if (hitType === 'player') {
         playerHitResult = {
@@ -865,6 +869,7 @@ update(inputState, delta, playerState) {
 
       if (worldPenetrationCount > maxWorldPenetrations) break;
 
+      // Advance origin past this hit
       currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
     }
 
@@ -876,14 +881,14 @@ update(inputState, delta, playerState) {
     };
   }
 
-
 fireBullet(spreadAngle) {
     // worldBVH should be available from physicsController
-    const worldBVH = this.physicsController?.worldBVH;
+    const worldBVH = this.physicsController.worldBVH;
     if (!worldBVH) {
-        console.error("World BVH not available to fire bullet.");
-        return;
+      console.error("World BVH not available to fire bullet.");
+      return;
     }
+
 
     this.camera.updateMatrixWorld();
     if (typeof scene !== 'undefined' && scene.updateMatrixWorld) {
