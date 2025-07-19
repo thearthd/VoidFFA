@@ -45,7 +45,7 @@ export function getSpreadMultiplier(
   switch (weaponKey) {
     case "ak-47":
       standingBase = 0.01; runBase = 0.1; airBase = 0.15;
-      crouchFactor = 0.25; runThreshold = 4; aimFactor = 0.25;
+      crouchFactor = 0.1; runThreshold = 4; aimFactor = 0.25;
       break;
     case "deagle":
       standingBase = 0.01; runBase = 0.1; airBase = 0.15;
