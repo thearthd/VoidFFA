@@ -11,23 +11,6 @@ import { updateAmmoDisplay } from "./ui.js";
 import { mergeBufferGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { sendBulletHole } from "./network.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import {
-    computeBoundsTree,
-    disposeBoundsTree,
-    acceleratedRaycast,
-    MeshBVH, // <--- Added MeshBVH import
-    MeshBVHHelper,
-    StaticGeometryGenerator
-} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
-
-// ─── BVH Setup ────────────────────────────────────────────────────────────
-// Extend THREE.BufferGeometry and THREE.Mesh prototypes for BVH functionality
-THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
-THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
-THREE.Mesh.prototype.raycast = acceleratedRaycast;
-
 import { Loader } from './Loader.js';
 
 
