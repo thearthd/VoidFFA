@@ -11,7 +11,7 @@ const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 const PLAYER_CAPSULE_RADIUS = 0.5;
 const PLAYER_CAPSULE_SEGMENT_LENGTH = 2.2 - PLAYER_CAPSULE_RADIUS; // Length of the cylindrical part of the capsule
 const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + 2 * PLAYER_CAPSULE_RADIUS; // Total height of the standing player (2.0)
-// ff
+// fff
 // NEW: Constants for controlled movement and crouching
 const PLAYER_ACCEL_GROUND = 3; // How quickly player reaches max speed on ground
 const PLAYER_DECEL_GROUND = 5; // How quickly player stops on ground (faster than accel)
