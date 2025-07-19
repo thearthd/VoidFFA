@@ -736,7 +736,7 @@ this._recoil.targetX = THREE.MathUtils.clamp(
   });
 
   this._recoil.currentX += (this._recoil.targetX - this._recoil.currentX) * delta * 10;
-this.camera.rotation.x = this._recoil.currentX;
+this.camera.rotation.x += this._recoil.currentX;
 }
 
 
