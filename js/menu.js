@@ -1377,12 +1377,6 @@ function settingsButtonHit() {
         settingsBox.style.display = "block"; // Or "flex", depending on your CSS layout
     }
 
-    // You can keep a settings text, or remove it if the HTML elements fully replace it
-    let settingsText = new Text("Adjust your game settings here.", "30pt Arial");
-    settingsText.setColor("#aaaaaa");
-    settingsText.setPosition(getWidth() / 2, getHeight() / 2 - 150); // Adjust position if needed
-    add(settingsText);
-    currentMenuObjects.push(settingsText);
 
     addBackButton(); // Keep the back button to return to the main menu
 
