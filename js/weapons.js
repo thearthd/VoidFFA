@@ -123,7 +123,7 @@ export class WeaponController {
       heavySwingTime: 300/600,
       pullDuration: 300/600/2,
       reloadDuration: null,
-      speedModifier: 1 + 0.4,
+      speedModifier: 1 + 0.2,
       rpm: 120,
       tracerLength: 0,
     },
@@ -139,7 +139,7 @@ export class WeaponController {
       recoilDistance: 0.08,
       recoilDuration: 0.08,
       tracerLength: 100,
-      speedModifier: 0.8 + 0.3,
+      speedModifier: 0.8 + 0.1,
       tracerLength: 30,
     },
     "ak-47": {
@@ -154,7 +154,7 @@ export class WeaponController {
       recoilDistance: 0.07,
       recoilDuration: 0.06,
       tracerLength: 100,
-      speedModifier: 0.65 + 0.3,
+      speedModifier: 0.65 + 0.1,
       tracerLength: 20,
     },
     marshal: {
@@ -170,7 +170,7 @@ export class WeaponController {
       recoilDuration: 0.1,
       isSniper: true,
       tracerLength: 100,
-      speedModifier: 0.4 + 0.4,
+      speedModifier: 0.4 + 0.2,
       tracerLength: 40,
     },
   };
