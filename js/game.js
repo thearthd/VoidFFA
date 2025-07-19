@@ -11,6 +11,17 @@ import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/
 import Stats from 'stats.js';
 import { dbRefs, disposeGame, fullCleanup, activeGameId } from "./network.js";
 
+import {
+    dbRefs,
+    getFirebaseServerTime,
+    gameEndTime,
+    gameCurrentTime, // Import the new gameCurrentTime
+    activeGameId,
+    fullCleanup,
+    startHostTimeSync // Import the new function
+} from "./network.js";
+
+
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
     computeBoundsTree,
