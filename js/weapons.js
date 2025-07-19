@@ -245,7 +245,7 @@ window.addEventListener("applyRecoilEvent", event => {
   const recoilRad = event.detail;
   // kick the camera up:
   this.camera.rotation.x = THREE.MathUtils.clamp(
-    this.camera.rotation.x - recoilRad,
+    this.camera.rotation.x + recoilRad,
     -Math.PI/2, Math.PI/2
   );
 });
