@@ -14,7 +14,7 @@ const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + 2 * PLAYER_CAPSULE_R
 
 const PLAYER_ACCEL_GROUND = 25; // Acceleration when on the ground
 const PLAYER_ACCEL_AIR = 8; // Acceleration when in the air
-const MAX_SPEED = 10; // Maximum horizontal speed
+const MAX_SPEED = 90; // Maximum horizontal speed
 
 const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps stop
 
@@ -299,6 +299,9 @@ export class PhysicsController {
         // If the player was primarily adjusted vertically upwards (against gravity), they are on ground
         // Also, if player's y velocity is significantly positive (moving upwards), they are not grounded.
         this.playerIsOnGround = (deltaVector.y > Math.abs(delta * this.playerVelocity.y * 0.25)) && (this.playerVelocity.y <= 0.05);
+
+        // Log the grounded state to the console
+        console.log("Player Grounded State:", this.playerIsOnGround);
 
         // Apply the collision adjustment to the player's actual position
         const offset = Math.max(0.0, deltaVector.length() - 1e-5);
