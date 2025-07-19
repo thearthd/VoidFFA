@@ -677,6 +677,66 @@ export async function fullCleanup(gameIdToCleanup) { // <-- Defined here
     // This is a common practice for complex game resets in client-side applications
     window.location.reload();
 }
+
+export function setupPlayersListener(playersRef) { // <-- Defined here
+    // Detach any existing listener to prevent duplicates
+    if (playersListener) {
+        playersRef.off("value", playersListener);
+    }
+
+    playersListener = playersRef.on("value", (snapshot) => {
+        const playersData = snapshot.val();
+        if (!playersData) {
+            // If there are no players, maybe clear all remote players
+            Object.keys(remotePlayers).forEach(id => removeRemotePlayerModel(id));
+            return;
+        }
+
+        const currentValidIds = new Set();
+
+        // Iterate over players from Firebase
+        for (const id in playersData) {
+            const data = playersData[id];
+            currentValidIds.add(id);
+
+            if (id === localPlayerId) {
+                // Update local player's state based on DB (e.g., health, death status)
+                if (window.localPlayer) {
+                    const oldHealth = window.localPlayer.health;
+                    window.localPlayer.health = data.health;
+                    window.localPlayer.shield = data.shield;
+                    window.localPlayer.isDead = data.isDead;
+                    window.localPlayer.kills = data.kills;
+                    window.localPlayer.deaths = data.deaths;
+                    window.localPlayer.ks = data.ks;
+                    updateHealthShieldUI(data.health, data.shield);
+
+                    if (oldHealth > 0 && data.health <= 0 && !window.localPlayer.isDead) {
+                        // This means the local player just died (health went to 0 or below)
+                        handleLocalDeath(data.killerUsername); // Pass killer username if available
+                    }
+                }
+                continue; // Skip processing local player as a remote player
+            }
+
+            if (!remotePlayers[id]) {
+                // New player joined
+                addRemotePlayer(id, data);
+            } else {
+                // Existing player updated
+                updateRemotePlayer(id, data);
+            }
+        }
+
+        // Remove players who are no longer in the Firebase snapshot
+        Object.keys(remotePlayers).forEach(id => {
+            if (!currentValidIds.has(id)) {
+                removeRemotePlayerModel(id);
+            }
+        });
+    });
+    console.log("Firebase players listener started.");
+}
 // Function for a designated host to update gameCurrentTime in Firebase
 export function startHostTimeSync(gameConfigRef) {
     if (gameCurrentTimeInterval) {
