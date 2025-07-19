@@ -479,6 +479,15 @@ update(inputState, delta, playerState) {
   const justClicked = inputState.fireJustPressed;
   const defaultAimPos = new THREE.Vector3(0, -0.3, -0.5);
 
+  // Initialize _recoil properties if they don't exist
+  if (!this._recoil) {
+    this._recoil = {
+      offset: 0,       // The actual recoil offset applied to the camera
+      targetOffset: 0  // The target recoil offset (accumulates, does not recover)
+    };
+  }
+
+
   if (this.currentKey !== this._prevKey) {
     if (this._prevKey === "marshal" && this._aiming) {
       scopeOverlay.style.display = 'none';
@@ -642,10 +651,10 @@ update(inputState, delta, playerState) {
           this.playWeaponSound("shot");
           updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
 
-          // Now, *after* the bullet is fired, apply the recoil to the target offset
+          // Now, *after* the bullet is fired, add the recoil to the target offset
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          this._recoil.targetOffsetX += recoilAngle * 2.5; // Add to target offset
-          // No recoil recovery: targetOffsetX will stay at its new value
+          this._recoil.targetOffset += recoilAngle * 2.5; // Accumulate recoil
+          // No recovery for targetOffset
 
         } else {
           this.isReloadingFlag   = true;
@@ -741,26 +750,15 @@ update(inputState, delta, playerState) {
     return true;
   });
 
-  // Camera Recoil - Smooth Application, NO Recovery
-  // The 'targetOffsetX' now only accumulates recoil, it doesn't decay to zero.
-  // 'offsetX' still smoothly interpolates towards 'targetOffsetX'.
+  // --- Camera Recoil: Smooth Application, NO Recovery, combined with player input ---
+  const RECOIL_SMOOTH_RATE = 40 * 1.25; // Controls how quickly the recoil takes effect (higher = snappier)
 
-  // Define the smoothing rate for the recoil.
-  // Higher value = snappier recoil application. Lower value = slower, smoother application.
-  const RECOIL_SMOOTH_RATE = 40 * 1.25; // Adjusted for better feel, experiment with this value!
+  // Smoothly interpolate the current recoil offset towards the accumulated target offset
+  this._recoil.offset += (this._recoil.targetOffset - this._recoil.offset) * delta * RECOIL_SMOOTH_RATE;
 
-  // The targetOffsetX is now only increased when firing. It does NOT decay.
-  // this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * RECOIL_DECAY_RATE_TARGET; // REMOVED THIS LINE
-
-  // Smooth the actual applied recoil (offsetX) towards the target (targetOffsetX)
-  // This is what makes the recoil feel "smooth" rather than an instant snap.
-  this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * RECOIL_SMOOTH_RATE;
-
-  // Apply the smoothed recoil offset ADDITIVELY to the camera's pitch.
-  // Note: If you want player mouse input to be added *after* recoil, you'll need to
-  // manage camera rotation more carefully. This assumes recoil is applied to the
-  // final camera rotation.
-  this.camera.rotation.x += this._recoil.lastCameraX + this._recoil.offsetX;
+  // Apply the player's camera pitch AND the recoil offset
+  // Assuming playerState.cameraPitch is the pitch from mouse input
+  this.camera.rotation.x = playerState.cameraPitch + this._recoil.offset;
 }
 
 
