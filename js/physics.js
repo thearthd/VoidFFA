@@ -13,10 +13,10 @@ const PLAYER_CAPSULE_SEGMENT_LENGTH = 1.0; // Length of the cylindrical part of 
 const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + 2 * PLAYER_CAPSULE_RADIUS; // Total height of the standing player (2.0)
 // ff
 // NEW: Constants for controlled movement and crouching
-const PLAYER_ACCEL_GROUND = 25; // How quickly player reaches max speed on ground
-const PLAYER_DECEL_GROUND = 40; // How quickly player stops on ground (faster than accel)
-const PLAYER_ACCEL_AIR = 15;    // How quickly player reaches max speed in air (slower)
-const PLAYER_DECEL_AIR = 20;     // How quickly player stops in air (slower than ground decel)
+const PLAYER_ACCEL_GROUND = 3; // How quickly player reaches max speed on ground
+const PLAYER_DECEL_GROUND = 5; // How quickly player stops on ground (faster than accel)
+const PLAYER_ACCEL_AIR = 1;    // How quickly player reaches max speed in air (slower)
+const PLAYER_DECEL_AIR = 3;     // How quickly player stops in air (slower than ground decel)
 const CROUCH_HEIGHT_RATIO = 0.6; // Player height when crouched (e.g., 60% of original)
 const CROUCH_SPEED = 8;        // Speed at which player crouches/stands
 
