@@ -475,11 +475,11 @@ update(inputState, delta, playerState) {
     // Initialize _recoil if it hasn't been (for standalone snippet execution)
     if (!this._recoil) {
         this._recoil = {
-            currentRecoilAmount: 0,
-            recoilTarget: 0,
+            appliedRecoilOffset: 0,
+            targetRecoilOffset: 0,
             recoilStartTime: 0,
             decayDuration: 0.3, // Example duration, adjust as needed
-            lastAppliedRecoil: 0
+            baseCameraX: 0
         };
     }
 
@@ -646,20 +646,26 @@ update(inputState, delta, playerState) {
                     this.burstCount++;
                     const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
 
-                    // --- UPDATED RECOIL LOGIC: Accumulate recoil ---
+                    // --- NEW RECOIL LOGIC: Apply recoil to target offset ---
+                    // If this is the first recoil in a sequence, or recoil has fully decayed,
+                    // capture the current camera's X rotation as the base to return to.
+                    if (this._recoil.targetRecoilOffset === 0) {
+                        this._recoil.baseCameraX = this.camera.rotation.x;
+                    }
+
                     // Add the new recoil angle to the total target recoil offset.
                     // This allows recoil to stack if shots are fired rapidly.
-                    this._recoil.recoilTarget += recoilAngle;
+                    this._recoil.targetRecoilOffset += recoilAngle;
 
                     // Reset the start time for the decay. This makes new recoil "reset" the decay timer.
                     this._recoil.recoilStartTime = now;
 
                     // Clamp the target offset to prevent extreme rotations
-                    this._recoil.recoilTarget = THREE.MathUtils.clamp(
-                        this._recoil.recoilTarget,
+                    this._recoil.targetRecoilOffset = THREE.MathUtils.clamp(
+                        this._recoil.targetRecoilOffset,
                         -Math.PI / 4, Math.PI / 4 // Adjust these values based on desired max recoil
                     );
-                    // --- END UPDATED RECOIL LOGIC ---
+                    // --- END NEW RECOIL LOGIC ---
 
 
                     this.state.recoiling = true;
@@ -764,7 +770,7 @@ update(inputState, delta, playerState) {
         return true;
     });
 
-    // --- REVISED RECOIL DECAY AND ADDITIVE APPLICATION ---
+    // --- UPDATED RECOIL DECAY AND APPLICATION ---
     // Calculate elapsed time since the last recoil application
     const elapsedRecoilTime = now - this._recoil.recoilStartTime;
 
@@ -772,38 +778,37 @@ update(inputState, delta, playerState) {
     let decayProgress = Math.min(1, elapsedRecoilTime / this._recoil.decayDuration);
 
     // Apply an easing function for smoother decay (e.g., easeOutQuad)
+    // This makes the recoil return faster at the beginning and slow down towards the end.
     decayProgress = decayProgress * decayProgress; // easeOutQuad
 
-    // Calculate the current desired recoil amount based on decay progress.
-    // This value decays from `recoilTarget` (the total accumulated recoil) towards 0.
-    const desiredRecoilAmount = THREE.MathUtils.lerp(this._recoil.recoilTarget, 0, decayProgress);
+    // Calculate the current desired recoil offset based on decay progress.
+    // This value decays from `targetRecoilOffset` (the total accumulated recoil) towards 0.
+    const currentDesiredRecoilOffset = THREE.MathUtils.lerp(this._recoil.targetRecoilOffset, 0, decayProgress);
 
-    // Smoothly interpolate `currentRecoilAmount` towards `desiredRecoilAmount`.
+    // Smoothly interpolate `appliedRecoilOffset` towards `currentDesiredRecoilOffset`.
+    // This adds a layer of smoothing to the recoil application, preventing jerky movements.
     const recoilSmoothness = 40; // Adjust for snappiness of the recoil effect
-    this._recoil.currentRecoilAmount = THREE.MathUtils.lerp(
-        this._recoil.currentRecoilAmount,
-        desiredRecoilAmount,
+    this._recoil.appliedRecoilOffset = THREE.MathUtils.lerp(
+        this._recoil.appliedRecoilOffset,
+        currentDesiredRecoilOffset,
         delta * recoilSmoothness
     );
 
-    // Calculate the change in recoil from the last frame.
-    // This delta is what we will *add* to the camera's rotation.
-    const recoilDelta = this._recoil.currentRecoilAmount - this._recoil.lastAppliedRecoil;
+    // Apply the recoil to the camera's rotation.
+    // The camera's X rotation is set to its base position (when recoil started)
+    // plus the smoothly applied recoil offset.
+    // This assumes that `this.camera.rotation.x` is primarily managed for recoil,
+    // and the player's vertical look is either handled by a parent object's rotation
+    // or by setting `this.camera.rotation.x` *before* this recoil logic.
+    this.camera.rotation.x += this._recoil.baseCameraX + this._recoil.appliedRecoilOffset;
 
-    // Apply the recoil delta to the camera's rotation.
-    // This adds the recoil on top of any existing camera rotation (e.g., from player input).
-    this.camera.rotation.x += recoilDelta;
-
-    // Update lastAppliedRecoil for the next frame's calculation.
-    this._recoil.lastAppliedRecoil = this._recoil.currentRecoilAmount;
-
-    // If recoil has fully decayed (or is very close to zero), reset the target and current amounts.
-    if (decayProgress >= 1 && Math.abs(this._recoil.currentRecoilAmount) < 0.001) {
-        this._recoil.recoilTarget = 0;
-        this._recoil.currentRecoilAmount = 0;
-        this._recoil.lastAppliedRecoil = 0; // Ensure it's exactly zero
+    // If recoil has fully decayed (or is very close to zero), reset the target offset.
+    // This ensures that the next time recoil is applied, `baseCameraX` is correctly captured.
+    if (decayProgress >= 1 && Math.abs(this._recoil.appliedRecoilOffset) < 0.001) {
+        this._recoil.targetRecoilOffset = 0;
+        this._recoil.appliedRecoilOffset = 0; // Ensure it's exactly zero
     }
-    // --- END REVISED RECOIL DECAY AND ADDITIVE APPLICATION ---
+    // --- END UPDATED RECOIL DECAY AND APPLICATION ---
 }
 
 
