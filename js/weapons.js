@@ -934,7 +934,6 @@ update(inputState, delta, playerState) {
       tx: tracerEnd.x, ty: tracerEnd.y, tz: tracerEnd.z
     });
   }
-}
 
 
 checkMeleeHit(collidables) {
