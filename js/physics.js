@@ -6,6 +6,10 @@ import { sendSoundEvent } from "./network.js";
 const PLAYER_MASS = 70;
 const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
+const ACCEL_GROUND = 3;
+const DECEL_GROUND = 6;
+const ACCEL_AIR = 2;
+const DECEL_AIR = 4;
 
 // Player capsule dimensions (matching the provided example's player setup)
 const PLAYER_CAPSULE_RADIUS = 0.5;
