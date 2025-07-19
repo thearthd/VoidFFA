@@ -770,10 +770,9 @@ update(inputState, delta, playerState) {
    
 // checkBulletHit: Remove sound playing logic
   checkBulletHit(origin, direction, intersectionPointOut) {
-    // Use Raycaster instead of THREE.Ray
     const raycaster = new THREE.Raycaster(origin.clone(), direction.clone());
-
     let closest = null;
+
     for (const rp of Object.values(window.remotePlayers || {})) {
       const meshes = [];
       if (rp.bodyMesh) meshes.push(rp.bodyMesh);
@@ -781,9 +780,8 @@ update(inputState, delta, playerState) {
 
       for (const mesh of meshes) {
         if (!mesh.geometry.boundsTree) continue;
-        // This will use the acceleratedRaycast you patched into THREE.Mesh.prototype.raycast
         const hits = raycaster.intersectObject(mesh, true);
-        if (hits.length === 0) continue;
+        if (!hits.length) continue;
         const hit = hits[0];
         if (!closest || hit.distance < closest.distance) {
           closest = {
@@ -808,13 +806,10 @@ update(inputState, delta, playerState) {
     };
   }
 
-  /**
-   * Handles world + player intersections, with optional penetration.
-   */
   checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
     if (!this.physicsController.worldBVH || !this.physicsController.collider) {
       console.error("World BVH or collider mesh not available.");
-      return null;
+      return { playerHitResult: null, allWorldHits: [], penetrationCount: 0, isPenetrationShot: false };
     }
 
     let currentOrigin = origin.clone();
@@ -824,15 +819,10 @@ update(inputState, delta, playerState) {
 
     for (let i = 0; i <= maxWorldPenetrations; i++) {
       const raycaster = new THREE.Raycaster(currentOrigin.clone(), direction.clone());
-
-      // World collision using Mesh.raycast (which uses BVH under the hood)
       const worldHits = raycaster.intersectObject(this.physicsController.collider, true);
       const worldIntersection = worldHits.length ? worldHits[0] : null;
-
-      // Player collision
       const playerHit = this.checkBulletHit(currentOrigin, direction);
 
-      // Choose closest hit
       let closestHit, hitType;
       if (worldIntersection && (!playerHit || worldIntersection.distance <= playerHit.distance)) {
         closestHit = worldIntersection;
@@ -840,9 +830,7 @@ update(inputState, delta, playerState) {
       } else if (playerHit) {
         closestHit = playerHit;
         hitType = 'player';
-      } else {
-        break;
-      }
+      } else break;
 
       if (hitType === 'player') {
         playerHitResult = {
@@ -854,7 +842,7 @@ update(inputState, delta, playerState) {
         break;
       }
 
-      // World hit
+      // world hit
       worldPenetrationCount++;
       const normal = (closestHit.face && closestHit.object)
         ? closestHit.face.normal.clone().transformDirection(closestHit.object.matrixWorld).normalize()
@@ -868,8 +856,6 @@ update(inputState, delta, playerState) {
       });
 
       if (worldPenetrationCount > maxWorldPenetrations) break;
-
-      // Advance origin past this hit
       currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
     }
 
@@ -881,93 +867,74 @@ update(inputState, delta, playerState) {
     };
   }
 
-fireBullet(spreadAngle) {
-    // Ensure worldBVH exists
+  fireBullet(spreadAngle) {
     if (!this.physicsController.worldBVH) {
-        console.error("World BVH not available to fire bullet.");
-        return;
+      console.error("World BVH not available to fire bullet.");
+      return;
     }
 
-    // 1) Compute origin & direction with spread
     this.camera.updateMatrixWorld();
     const origin = new THREE.Vector3().setFromMatrixPosition(this.camera.matrixWorld);
     const direction = getSpreadDirection(spreadAngle, this.camera);
 
-    // 2) First—check for a direct player hit
+    // 1) Try direct player hit
     const playerHit = this.checkBulletHit(origin, direction);
     if (playerHit) {
-        // Apply damage immediately
-        const mesh = (() => {
-            let m = playerHit.mesh;
-            while (m && m.userData.playerId == null) m = m.parent;
-            return m;
-        })();
-        if (mesh && mesh.userData.playerId != null) {
-            const isHead = playerHit.isHead;
-            const baseDamage = isHead ? this.stats.headshotDamage : this.stats.bodyDamage;
-            window.applyDamageToRemote?.(
-                mesh.userData.playerId,
-                baseDamage,
-                {
-                    id: this.localPlayerId,
-                    username: window.localPlayer?.username ?? "Unknown",
-                    weapon: this.currentKey,
-                    isHeadshot: isHead,
-                    isPenetrationShot: false
-                }
-            );
-            isHead ? playBodyHeadshot() : playBodyHit();
-        }
-
-        // Draw tracer directly to the player
-        this.createTracer(
-            origin,
-            playerHit.intersection,
-            this.currentKey,
-            this.stats.tracerLength
+      let mesh = playerHit.mesh;
+      while (mesh && mesh.userData.playerId == null) mesh = mesh.parent;
+      if (mesh && mesh.userData.playerId != null) {
+        const isHead = playerHit.isHead;
+        const dmg = isHead ? this.stats.headshotDamage : this.stats.bodyDamage;
+        window.applyDamageToRemote?.(
+          mesh.userData.playerId,
+          dmg,
+          {
+            id: this.localPlayerId,
+            username: window.localPlayer?.username ?? "Unknown",
+            weapon: this.currentKey,
+            isHeadshot: isHead,
+            isPenetrationShot: false
+          }
         );
-        sendTracer({
-            ox: origin.x, oy: origin.y, oz: origin.z,
-            tx: playerHit.intersection.x,
-            ty: playerHit.intersection.y,
-            tz: playerHit.intersection.z
-        });
-        return;
+        isHead ? playBodyHeadshot() : playBodyHit();
+      }
+      this.createTracer(origin, playerHit.intersection, this.currentKey, this.stats.tracerLength);
+      sendTracer({
+        ox: origin.x, oy: origin.y, oz: origin.z,
+        tx: playerHit.intersection.x, ty: playerHit.intersection.y, tz: playerHit.intersection.z
+      });
+      return;
     }
 
-    // 3) No player hit—check world hits (with optional penetration)
-    const trajectory = this.checkBulletPenetration(origin, direction, 1);
-
+    // 2) Else check world + penetration
+    const traj = this.checkBulletPenetration(origin, direction, 1);
     let tracerEnd;
-    if (trajectory.playerHitResult) {
-        // In the rare case player was behind a thin wall and penetrated
-        tracerEnd = trajectory.playerHitResult.intersection;
-    } else if (trajectory.allWorldHits.length) {
-        tracerEnd = trajectory.allWorldHits.slice(-1)[0].point;
+    if (traj.playerHitResult) {
+      tracerEnd = traj.playerHitResult.intersection;
+    } else if (traj.allWorldHits.length) {
+      tracerEnd = traj.allWorldHits.slice(-1)[0].point;
     } else {
-        tracerEnd = origin.clone().add(direction.clone().multiplyScalar(this.stats.tracerLength));
+      tracerEnd = origin.clone().add(direction.clone().multiplyScalar(this.stats.tracerLength));
     }
 
-    // 4) Send bullet‐hole decals for every world penetration
-    for (const wh of trajectory.allWorldHits) {
-        sendBulletHole({
-            x: wh.point.x, y: wh.point.y, z: wh.point.z,
-            nx: wh.normal.x, ny: wh.normal.y, nz: wh.normal.z,
-            timeCreated: firebase.database.ServerValue.TIMESTAMP
-        });
+    for (const wh of traj.allWorldHits) {
+      sendBulletHole({
+        x: wh.point.x, y: wh.point.y, z: wh.point.z,
+        nx: wh.normal.x, ny: wh.normal.y, nz: wh.normal.z,
+        timeCreated: firebase.database.ServerValue.TIMESTAMP
+      });
     }
 
-    // 5) Draw tracer from muzzle to tracerEnd
     const muzzlePos = this.parts.muzzle
-        ? this.parts.muzzle.getWorldPosition(new THREE.Vector3())
-        : origin;
+      ? this.parts.muzzle.getWorldPosition(new THREE.Vector3())
+      : origin;
     this.createTracer(muzzlePos, tracerEnd, this.currentKey, this.stats.tracerLength);
     sendTracer({
-        ox: muzzlePos.x, oy: muzzlePos.y, oz: muzzlePos.z,
-        tx: tracerEnd.x, ty: tracerEnd.y, tz: tracerEnd.z
+      ox: muzzlePos.x, oy: muzzlePos.y, oz: muzzlePos.z,
+      tx: tracerEnd.x, ty: tracerEnd.y, tz: tracerEnd.z
     });
+  }
 }
-
 
 
 checkMeleeHit(collidables) {
