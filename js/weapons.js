@@ -740,8 +740,8 @@ update(inputState, delta, playerState) {
   // Camera Recoil and Recovery
   // These are the corrected decay rates.
   // Values around 10-30 are typically stable and feel responsive.
-  const RECOIL_DECAY_RATE_TARGET = 20; // How fast targetOffsetX (the desired recoil amount) decays to 0
-  const RECOIL_DECAY_RATE_SMOOTH = 40; // How fast offsetX (the actual applied recoil) smoothly follows targetOffsetX
+  const RECOIL_DECAY_RATE_TARGET = 20*2; // How fast targetOffsetX (the desired recoil amount) decays to 0
+  const RECOIL_DECAY_RATE_SMOOTH = 40*2; // How fast offsetX (the actual applied recoil) smoothly follows targetOffsetX
 
   // Decay targetOffsetX
   this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * RECOIL_DECAY_RATE_TARGET;
