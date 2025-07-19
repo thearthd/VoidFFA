@@ -12,9 +12,8 @@ const PLAYER_CAPSULE_RADIUS = 0.5;
 const PLAYER_CAPSULE_SEGMENT_LENGTH = 1.0; // Length of the cylindrical part of the capsule
 const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + 2 * PLAYER_CAPSULE_RADIUS; // Total height of the standing player (2.0)
 
-const PLAYER_ACCEL_GROUND = 125; // Acceleration when on the ground
-const PLAYER_ACCEL_AIR = 8; // Acceleration when in the air
-const MAX_SPEED = 10; // Maximum horizontal speed
+// Removed PLAYER_ACCEL_GROUND and PLAYER_ACCEL_AIR as acceleration is no longer used for horizontal movement
+const MAX_SPEED = 10; // Maximum horizontal speed, now directly used for movement
 
 const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps stop
 
@@ -177,13 +176,10 @@ export class PhysicsController {
      * @param {object} input An object containing input states (e.g., forward, backward, jump, crouch, slow, aim).
      */
     controls(deltaTime, input) {
-        // Determine acceleration based on whether player is on ground or in air
-        const acceleration = this.isGrounded ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
+        // Calculate desired movement speed based on MAX_SPEED and modifiers
+        const baseSpeed = MAX_SPEED;
+        const currentMoveSpeed = baseSpeed * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
 
-        // Apply speed modifiers (crouch, slow, aim)
-        const effectiveAcceleration = acceleration * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
-
-        // Calculate desired movement direction based on input
         const moveDirection = new THREE.Vector3();
         if (input.forward) {
             moveDirection.add(this.getForwardVector());
@@ -198,11 +194,15 @@ export class PhysicsController {
             moveDirection.add(this.getSideVector());
         }
 
-        // Normalize movement direction to prevent faster diagonal movement
         if (moveDirection.lengthSq() > 0) {
             moveDirection.normalize();
-            // Add acceleration to player velocity
-            this.playerVelocity.add(moveDirection.multiplyScalar(effectiveAcceleration * deltaTime));
+            // Directly set horizontal velocity based on desired speed
+            this.playerVelocity.x = moveDirection.x * currentMoveSpeed;
+            this.playerVelocity.z = moveDirection.z * currentMoveSpeed;
+        } else {
+            // If no input, set horizontal velocity to zero for immediate stopping
+            this.playerVelocity.x = 0;
+            this.playerVelocity.z = 0;
         }
 
         // Handle jumping
@@ -229,11 +229,13 @@ export class PhysicsController {
         }
 
         // Apply damping to horizontal velocity
+        // This damping will now primarily affect horizontal velocity when input stops
+        // or if the velocity somehow exceeds MAX_SPEED (though it shouldn't if set directly).
         let damping = Math.exp(-4 * delta) - 1;
         this.playerVelocity.x += this.playerVelocity.x * damping;
         this.playerVelocity.z += this.playerVelocity.z * damping;
 
-        // Cap horizontal speed
+        // Cap horizontal speed (still relevant if other forces apply or for robustness)
         const horizontalSpeed = Math.sqrt(this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z);
         if (horizontalSpeed > MAX_SPEED) {
             const ratio = MAX_SPEED / horizontalSpeed;
