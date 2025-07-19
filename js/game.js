@@ -593,7 +593,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             let reachedThreshold = false;
             snapshot.forEach(childSnap => {
                 const player = childSnap.val();
-                if (player.kills >= 2) {
+                if (player.kills >= 40) {
                     reachedThreshold = true;
                 }
             });
