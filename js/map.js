@@ -272,7 +272,7 @@ export async function createSigmaCity(scene, physicsController) {
     scene.add(sunLight, sunLight.target);
 
     // URL of the GLB model for the map
-    const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/low-poly_fps_map.glb';
+    const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sandyards_standoff_2.glb';
 
     // 1) Load the GLB model into the scene and process it for collision detection
     let gltfGroup = null;
