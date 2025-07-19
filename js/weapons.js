@@ -673,7 +673,7 @@ update(inputState, delta, playerState) {
 
   // Recoil animation for view model (weapon on screen)
   if (this.state.recoiling && !this.stats.isMelee) {
-    const VIEWER_RECOIL_ANIM_DURATION = 0.15; // Consistent snappy animation duration
+    const VIEWER_RECOIL_ANIM_DURATION = 0.05; // Consistent snappy animation duration
     const tR = (now - this.state.recoilStart) / VIEWER_RECOIL_ANIM_DURATION;
     if (tR >= 1) {
       this.viewModel.position.copy(this._aiming
