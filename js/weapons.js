@@ -821,7 +821,7 @@ checkBulletHit(origin, direction, intersectionPointOut) {
     return null; // Return null if no hit is found
 }
 
----
+
 
 checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
     // Assuming this.worldBVH is pre-built on your static world geometry
@@ -912,7 +912,7 @@ checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
     };
 }
 
----
+
 
 fireBullet(spreadAngle) {
     // worldBVH should be available from physicsController
