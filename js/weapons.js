@@ -634,7 +634,7 @@ update(inputState, delta, playerState) {
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
           this._recoil.lastCameraX = this.camera.rotation.x;
-          this._recoil.targetOffsetX += recoilAngle*5;
+          this._recoil.targetOffsetX += recoilAngle*2.5;
           this.state.recoiling   = true;
           this.state.recoilStart = now;
           if (this.currentKey === "ak-47" && this.burstCount === 2 && !(velocity > 2 || !isGrounded || isCrouched)) {
@@ -735,10 +735,10 @@ update(inputState, delta, playerState) {
     return true;
   });
 
-this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * 25;
+this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * 15;
 
 // Smooth the recoil offset
-this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 50;
+this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 35;
 
 // Calculate the camera pitch delta from where it was when shot
 const currentX = this.camera.rotation.x;
