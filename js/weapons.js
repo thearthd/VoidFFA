@@ -217,6 +217,9 @@ export class WeaponController {
     this.lastShotTime = 0;
     this.burstCount = 0;
     this._reloadEndPlayed = false;
+    this.checkBulletHit = this.checkBulletHit.bind(this);
+    this.checkBulletPenetration = this.checkBulletPenetration.bind(this);
+    this.fireBullet = this.fireBullet.bind(this);
     this.checkMeleeHit = this.checkMeleeHit.bind(this);
     this.viewModel = new THREE.Group();
     this.parts = { slide: null, muzzle: null };
