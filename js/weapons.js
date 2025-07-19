@@ -749,7 +749,7 @@ update(inputState, delta, playerState) {
   this._recoil.targetX = THREE.MathUtils.lerp(this._recoil.targetX, 0, recoilDecayRate);
 
   // Smoothly move currentX towards targetX
-  const recoilSmoothness = 10; // Controls how quickly currentX catches up to targetX
+  const recoilSmoothness = 40; // Controls how quickly currentX catches up to targetX
   this._recoil.currentX += (this._recoil.targetX - this._recoil.currentX) * delta * recoilSmoothness;
 
   // Apply the currentX recoil to the camera's rotation
