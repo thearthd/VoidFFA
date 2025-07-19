@@ -11,17 +11,6 @@ import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/
 import Stats from 'stats.js';
 import { dbRefs, disposeGame, fullCleanup, activeGameId } from "./network.js";
 
-import {
-    dbRefs,
-    getFirebaseServerTime,
-    gameEndTime,
-    gameCurrentTime, // Import the new gameCurrentTime
-    activeGameId,
-    fullCleanup,
-    startHostTimeSync // Import the new function
-} from "./network.js";
-
-
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
     computeBoundsTree,
@@ -243,12 +232,8 @@ bloomPass = null;
 }
 }
 
-export async function determineWinnerAndEndGame() {
+async function determineWinnerAndEndGame() {
     console.log("Determining winner and ending game...");
-
-    // Access dbRefs from the imported module
-    const playersRef = dbRefs.playersRef;
-    const gameConfigRef = dbRefs.gameConfigRef; // Access gameConfigRef
 
     if (!playersRef) {
         console.error("determineWinnerAndEndGame: playersRef is NULL, cannot determine winner.");
@@ -257,30 +242,24 @@ export async function determineWinnerAndEndGame() {
 
     const playersSnapshot = await playersRef.once("value");
     let winner = { username: "No one", kills: -1 };
-    const playerIdsToDisconnect = []; // Collect IDs before processing
+    const playerIdsToDisconnect = [];
 
     playersSnapshot.forEach(childSnap => {
         const player = childSnap.val();
         if (player && typeof player.kills === 'number') {
-            playerIdsToDisconnect.push(childSnap.key); // Add to list for disconnection
+            playerIdsToDisconnect.push(childSnap.key);
             if (player.kills > winner.kills) {
                 winner = { username: player.username, kills: player.kills };
-            }
-            // Handle ties for winner message
-            else if (player.kills === winner.kills && winner.kills > -1 && player.username !== winner.username) {
-                if (!winner.username.includes(player.username)) { // Avoid adding the same name multiple times if already a tie
-                     winner.username += ` & ${player.username}`;
-                }
             }
         }
     });
 
-    // Store winner in localStorage (as per your existing code)
+    // Store winner in localStorage
     console.log(`PRE-DISCONNECT: The winner is ${winner.username} with ${winner.kills} kills!`);
     localStorage.setItem('gameWinner', JSON.stringify(winner));
     localStorage.setItem('gameEndedTimestamp', Date.now().toString());
 
-    // Show the banner (as per your existing UI logic)
+    // Show the banner
     const gameTimerElement = document.getElementById("game-timer");
     if (gameTimerElement) {
         gameTimerElement.textContent = `WINNER: ${winner.username}`;
@@ -294,36 +273,14 @@ export async function determineWinnerAndEndGame() {
         console.log("Detached players kill listener.");
     }
 
-    // NEW: Remove gameEndTime and gameCurrentTime from Firebase
-    if (gameConfigRef) {
-        await gameConfigRef.child("gameEndTime").remove().catch(err => console.error("Failed to remove gameEndTime:", err));
-        await gameConfigRef.child("gameCurrentTime").remove().catch(err => console.error("Failed to remove gameCurrentTime:", err));
-        console.log("gameEndTime and gameCurrentTime removed from Firebase.");
-    } else {
-        console.warn("gameConfigRef is not available, cannot remove gameEndTime/gameCurrentTime from Firebase.");
-    }
-
     // 1) Dispose game internals (loops, audio, etc.)
-    // This will now handle clearing gameInterval as well
     await disposeGame();
 
-    // 2) Full cleanup of Firebase data & Three.js scene (this also releases the game slot)
-    // Note: If fullCleanup already calls disconnectPlayer for the local player,
-    // the following loop might be redundant or cause issues if not handled carefully.
-    // Assuming fullCleanup doesn't disconnect *all* players, only the local one.
+    // 2) Full cleanup of Firebase data & Three.js scene
     await fullCleanup(activeGameId);
 
-
     // 3) Finally, disconnect everyone (this triggers their reload)
-    // Be cautious: If fullCleanup already causes a reload or handles disconnect for localPlayer,
-    // this might cause issues or be redundant for the local player.
-    // This loop will explicitly remove all player entries from Firebase.
-    playerIdsToDisconnect.forEach(id => {
-        // Only call disconnectPlayer if it's not the local player
-        // OR if your disconnectPlayer is robust enough to handle the local player being disconnected multiple times
-        // and doesn't rely on localPlayerId being set after fullCleanup.
-        disconnectPlayer(id);
-    });
+    playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
 }
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 
@@ -578,80 +535,48 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-    console.log("[game.js] startGame initiated.");
 
     const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
     if (!networkOk) {
-        console.warn("Network init failed. Cannot start game.");
+        console.warn("Network init failed.");
         return;
     }
 
-    let playersRef = dbRefs.playersRef;
-    let gameConfigRef = dbRefs.gameConfigRef;
+    playersRef    = dbRefs.playersRef;
+    gameConfigRef = dbRefs.gameConfigRef;
 
     const gameTimerElement = document.getElementById("game-timer");
-
-    // Determine if this player is the 'host' (first one in, or re-joining host)
-    let isHost = false;
-    const playersSnapshot = await playersRef.once('value');
-    if (!playersSnapshot.exists() || playersSnapshot.numChildren() === 0) {
-        isHost = true;
-    } else {
-        let existingHost = false;
-        playersSnapshot.forEach(playerSnap => {
-            if (playerSnap.val().isHost) {
-                existingHost = true;
-            }
-        });
-        if (!existingHost) {
-            isHost = true;
-        } else if (playersSnapshot.child(localPlayerId).val()?.isHost) {
-            isHost = true;
-        }
-    }
-
-    // Update local player's host status in the database
-    if (isHost) {
-        await playersRef.child(localPlayerId).update({ isHost: true });
-        console.log(`[game.js] Local player ${localPlayerId} is designated as host.`);
-        startHostTimeSync(gameConfigRef); // Start pushing current time to Firebase
-    } else {
-        await playersRef.child(localPlayerId).update({ isHost: false });
-        console.log(`[game.js] Local player ${localPlayerId} is a client.`);
-    }
-
     if (ffaEnabled) {
         gameTimerElement.style.display = "block";
 
-        // 1) Ensure gameEndTime is set in Firebase by the host
-        const snapshot = await gameConfigRef.child("gameEndTime").once('value');
-        let firestoreGameEndTime = snapshot.val();
-
-        if (isHost && typeof firestoreGameEndTime !== "number") {
-            const serverTime = Date.now() + currentServerTimeOffset; // Use offset to get current server time
-            firestoreGameEndTime = serverTime + 1 * 60 * 1000; // 10 minutes from server time
-            await gameConfigRef.child("gameEndTime").set(firestoreGameEndTime);
-            console.log(`[game.js] Host set new gameEndTime in Firebase: ${new Date(firestoreGameEndTime).toLocaleString()}`);
-        }
-        gameEndTime = firestoreGameEndTime;
+        // 1) Listen for (or set) the end timestamp in Firebase
+        gameConfigRef.child("gameEndTime").on("value", snapshot => {
+            const t = snapshot.val();
+            if (typeof t === "number") {
+                gameEndTime = t;
+            } else {
+                gameEndTime = Date.now() + 10 * 60 * 1000;  // 10 minutes
+                gameConfigRef.child("gameEndTime").set(gameEndTime);
+            }
+        });
 
         // 2) Clear any existing interval before starting a new one
         if (gameInterval) {
             clearInterval(gameInterval);
         }
 
-        // 3) Start a per-second countdown based on gameCurrentTime from Firebase
+        // 3) Start a per-second countdown based on the synced timestamp
         gameInterval = setInterval(() => {
-            if (gameEndTime === null || gameCurrentTime === null) {
+            if (gameEndTime === null) {
                 gameTimerElement.textContent = "Time: Syncing…";
                 return;
             }
-
-            const timeLeftMs = gameEndTime - gameCurrentTime; // Use gameCurrentTime from DB
+            const timeLeftMs = gameEndTime - Date.now();
             if (timeLeftMs <= 0) {
                 clearInterval(gameInterval);
                 gameTimerElement.textContent = "TIME UP!";
                 determineWinnerAndEndGame();
+                gameConfigRef.child("gameEndTime").remove();
                 return;
             }
             const totalSecs = Math.floor(timeLeftMs / 1000);
@@ -660,7 +585,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
         }, 1000);
 
-        // 4) First-to-X-kills listener
+        // 4) Optional: first-to-X-kills listener
         if (playersKillsListener) {
             playersRef.off("value", playersKillsListener);
         }
@@ -676,6 +601,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 playersRef.off("value", playersKillsListener);
                 clearInterval(gameInterval);
                 determineWinnerAndEndGame();
+                gameConfigRef.child("gameEndTime").remove();
             }
         });
 
@@ -684,16 +610,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         if (gameInterval) {
             clearInterval(gameInterval);
         }
-        if (gameCurrentTimeInterval) { // Stop host time sync if FFA is disabled
-            clearInterval(gameCurrentTimeInterval);
-            gameCurrentTimeInterval = null;
-        }
-        if (gameConfigRef) {
-            await gameConfigRef.child("gameEndTime").remove().catch(err => console.error("Failed to remove gameEndTime for non-FFA game:", err));
-            await gameConfigRef.child("gameCurrentTime").remove().catch(err => console.error("Failed to remove gameCurrentTime for non-FFA game:", err));
-        }
+        gameConfigRef.child("gameEndTime").remove();
     }
 
+    // 3) Common game start UI setup
     initGlobalFogAndShadowParams();
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
@@ -702,11 +622,13 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
 
+    // 4) Ensure we have a valid localPlayerId
     if (!localPlayerId) {
         console.error("No localPlayerId after initNetwork—cannot proceed.");
         return;
     }
 
+    // 5) Three.js, physics, weapons, scene setup…
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
 
@@ -714,7 +636,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         window.camera,
         dbRefs.playersRef,
         dbRefs.mapStateRef.child("bullets"),
-        (origin, target, key) => { /* createTracer function reference from game.js */ },
+        createTracer,
         localPlayerId,
         physicsController
     );
@@ -731,33 +653,34 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     initBulletHoles();
     initializeAudioManager(window.camera, scene);
     startSoundListener();
-
+    // 6) Spawn local player
     const spawn = findFurthestSpawn();
     window.localPlayer = {
-        id:        localPlayerId,
+        id:      localPlayerId,
         username,
-        x:         spawn.x,
-        y:         spawn.y,
-        z:         spawn.z,
-        rotY:      0,
-        health:    initialPlayerHealth,
-        shield:    initialPlayerShield,
-        weapon:    initialPlayerWeapon,
-        kills:     0,
-        deaths:    0,
-        ks:        0,
+        x:       spawn.x,
+        y:       spawn.y,
+        z:       spawn.z,
+        rotY:    0,
+        health:  initialPlayerHealth,
+        shield:  initialPlayerShield,
+        weapon:  initialPlayerWeapon,
+        kills:   0,
+        deaths:  0,
+        ks:      0,
         bodyColor: Math.floor(Math.random()*0xffffff),
-        isDead:    false,
-        isHost:    isHost // Set host status on local player object
+        isDead:  false
     };
     window.camera.position.copy(spawn).add(new THREE.Vector3(0,1.6,0));
 
+    // 7) Write initial state
     await dbRefs.playersRef.child(localPlayerId).set({
         ...window.localPlayer,
-        lastUpdate: firebase.database.ServerValue.TIMESTAMP
+        lastUpdate: Date.now()
     });
     updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
+    // 8) Ammo, inventory, UI overlays…
     weaponController.equipWeapon(window.localPlayer.weapon);
     initInventory(window.localPlayer.weapon);
     initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
@@ -768,8 +691,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     createFadeOverlay();
     createLeaderboardOverlay();
 
+    // 9) Start game loop
     animate();
 }
+
 
 
 
