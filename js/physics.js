@@ -19,9 +19,7 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
 
-// SKIN is a tiny buffer to prevent immediate re-penetration after correction.
-// A very small positive value is essential for stability.
-const SKIN = 0.005; // Can try 0.001 or 0.002 if still jittering.
+const SKIN = 0.005; // Keep this small, it's a buffer to prevent immediate re-penetration
 
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
@@ -170,16 +168,14 @@ export class PhysicsController {
                 this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
                 this.playerVelocity.set(0, 0, 0);
             }
-            return;
+            return; // Exit early as BVH is not ready for collision checks
         }
 
         // Physics calculations: Gravity
         if (!this.playerOnFloor || this.jumpTriggered) {
             this.playerVelocity.y += deltaTime * -GRAVITY;
         } else {
-            // If on floor and not jumping, apply a small, consistent downward velocity
-            // This "glues" the player to the ground without fighting collision resolution.
-            this.playerVelocity.y = -0.01; // A tiny downward nudge
+            this.playerVelocity.y = -GRAVITY * deltaTime;
         }
 
         // Create a *new* capsule for the current physics step's movement
@@ -201,17 +197,23 @@ export class PhysicsController {
         let collisionDepth = 0;
         let collisionDetected = false;
 
+        // Iterate through all BVH-enabled meshes for collisions
         for (const mesh of this.bvhMeshes) {
+            // Get the inverse world matrix for this mesh once per mesh
             _tmpInverseMat.copy(mesh.matrixWorld).invert();
 
+            // Transform the *current* capsule segment into the mesh's local space for shapecast
             _vector1.copy(currentCapsule.start).applyMatrix4(_tmpInverseMat);
             _vector2.copy(currentCapsule.end).applyMatrix4(_tmpInverseMat);
 
+            // Create a temporary local segment for the shapecast
             _tempSegment.set(_vector1, _vector2);
 
             mesh.geometry.boundsTree.shapecast({
                 intersectsBounds: box => {
+                    // Transform the BVH node's local bounding box to world space
                     _tmpLocalBox.copy(box).applyMatrix4(mesh.matrixWorld);
+                    // Then check if this world-space box intersects the player's world-space collision box
                     return _tmpLocalBox.intersectsBox(_tmpBox);
                 },
                 intersectsTriangle: tri => {
@@ -234,48 +236,49 @@ export class PhysicsController {
             });
         }
 
+        // Apply collision resolution if a collision was detected
         this.playerOnFloor = false;
         this.isGrounded = false;
         this.groundNormal.set(0, 1, 0);
 
         if (collisionDetected) {
-            if (this.bvhMeshes.length > 0) {
+            // Transform the bestCollisionNormal back into world space
+            // Assuming all bvhMeshes share the same matrixWorld for a unified terrain
+            if (this.bvhMeshes.length > 0) { // Safety check
                 bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
             }
 
+
             // Apply displacement to move out of penetration
             if (collisionDepth > 0) {
-                 const displacementAmount = collisionDepth - SKIN;
-                 if (displacementAmount > 0) { // Only push if penetrating more than SKIN
-                     const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(displacementAmount);
-                     this.playerCollider.start.add(displacement);
-                     this.playerCollider.end.add(displacement);
-                 }
+                // Add SKIN to push slightly out of the collision
+                const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(collisionDepth + SKIN);
+                this.playerCollider.start.add(displacement);
+                this.playerCollider.end.add(displacement);
             }
 
+            // Determine if on floor based on the dot product of collision normal and up vector
             if (bestCollisionNormal.dot(_upVector) > 0.75) {
                 this.playerOnFloor = true;
                 this.isGrounded = true;
                 this.groundNormal.copy(bestCollisionNormal);
+
                 this.playerVelocity.projectOnPlane(this.groundNormal);
-
-                // Stabilize vertical velocity when grounded
-                if (Math.abs(this.playerVelocity.y) < 0.1) {
-                    this.playerVelocity.y = -0.01; // Snap to tiny downward nudge
-                }
-
             } else {
+                // If it's a wall or ceiling, reflect/bounce velocity
                 const dot = this.playerVelocity.dot(bestCollisionNormal);
-                if (dot < 0) {
-                    this.playerVelocity.addScaledVector(bestCollisionNormal, -dot);
+                if (dot < 0) { // Only if moving towards the obstacle
+                    this.playerVelocity.addScaledVector(bestCollisionNormal, -dot); // Zero out velocity component in normal's direction
                 }
             }
         } else {
+            // If no collision, player is not on floor
             this.playerOnFloor = false;
             this.isGrounded = false;
             this.groundNormal.set(0, 1, 0);
         }
 
+        // Teleport if out of bounds (after all physics steps)
         if (this.playerCollider.end.y < -25) {
             this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
             this.playerVelocity.set(0, 0, 0);
@@ -307,6 +310,7 @@ export class PhysicsController {
         this.jumpPressed = input.jump;
         this.crouchPressed = input.crouch;
         this.slowPressed = input.slow;
+        // isAim should be set by your game logic, for example, when right-mouse button is down.
 
         let currentSpeedModifier = this.speedModifier;
 
@@ -323,6 +327,9 @@ export class PhysicsController {
 
         const angle = this.camera.rotation.y;
 
+        // Apply input-based acceleration to playerVelocity
+        // Consider applying acceleration based on current velocity direction for better "air control" or "ground friction"
+        // This current method adds velocity in world directions, which is okay for basic movement.
         if (this.fwdPressed) {
             _vector1.set(0, 0, -1).applyAxisAngle(_upVector, angle);
             this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
@@ -340,6 +347,7 @@ export class PhysicsController {
             this.playerVelocity.addScaledVector(_vector1, effectiveAccel * deltaTime);
         }
 
+        // Limit horizontal speed
         const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
         if (hSpeed > MAX_SPEED) {
             const ratio = MAX_SPEED / hSpeed;
@@ -347,6 +355,7 @@ export class PhysicsController {
             this.playerVelocity.z *= ratio;
         }
 
+        // Apply horizontal damping
         if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && this.playerOnFloor) {
             this.playerVelocity.x *= Math.exp(-6 * deltaTime);
             this.playerVelocity.z *= Math.exp(-6 * deltaTime);
@@ -356,6 +365,7 @@ export class PhysicsController {
             this.playerVelocity.z *= Math.exp(-0.5 * deltaTime);
         }
 
+        // Jump logic
         if (this.playerOnFloor && this.jumpPressed) {
             this.playerVelocity.y = JUMP_VELOCITY;
             this.playerOnFloor = false;
@@ -365,6 +375,7 @@ export class PhysicsController {
             this.jumpTriggered = false;
         }
 
+        // Crouch logic
         const wantCrouch = this.crouchPressed && this.isGrounded;
         this.targetHeight = wantCrouch ? CROUCH_HEIGHT : STAND_HEIGHT;
         this.currentHeight += (this.targetHeight - this.currentHeight) *
@@ -404,9 +415,10 @@ export class PhysicsController {
     }
 
     update(deltaTime, input) {
-        deltaTime = Math.min(0.05, deltaTime); // Cap delta time to prevent large steps leading to tunneling
+        deltaTime = Math.min(0.05, deltaTime);
         this.prevGround = this.isGrounded;
 
+        // Footstep audio logic
         const speedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
         if (speedXZ > FOOT_DISABLED_THRESHOLD && this.isGrounded && !input.slow && !input.crouch) {
             const interval = this.baseFootInterval / speedXZ;
@@ -423,13 +435,16 @@ export class PhysicsController {
             this.footAcc = 0;
         }
 
+        // Handle player input and update collider height
         this.controls(deltaTime, input);
 
+        // Apply physics steps
         const physicsSteps = 5;
         for (let i = 0; i < physicsSteps; i++) {
             this.updatePlayer(deltaTime / physicsSteps);
         }
 
+        // Landing audio logic
         if (!this.prevGround && this.isGrounded) {
             const fellFar = this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1;
             if (fellFar) {
@@ -449,7 +464,8 @@ export class PhysicsController {
                     this.fallStartTimer = null;
                 }, this.fallDelay);
             }
-            if (this.isGrounded) { // This handles cases where fallStartY might be set but player lands very quickly
+            // Reset fallStartY if player somehow gets on ground without a "landing"
+            if (this.isGrounded) {
                 this.fallStartY = null;
                 if (this.fallStartTimer) {
                     clearTimeout(this.fallStartTimer);
@@ -458,6 +474,7 @@ export class PhysicsController {
             }
         }
 
+        // Update camera position to follow the player collider's base
         if (!this.playerCollider || !this.playerCollider.start) {
             console.error("ERROR: playerCollider or its start point is undefined before camera position update!");
             return {
@@ -468,6 +485,7 @@ export class PhysicsController {
         this.camera.position.z = this.playerCollider.start.z;
         this.camera.position.y = this.playerCollider.start.y + this.currentHeight * 0.9;
 
+        // Player model rotation
         if (this.playerModel) {
             if (this.isGrounded) {
                 const forward = _vector1;
