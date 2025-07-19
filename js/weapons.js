@@ -633,18 +633,20 @@ update(inputState, delta, playerState) {
           this.lastShotTime = now;
           this.ammoInMagazine--;
           this.burstCount++;
-          const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          this._recoil.lastCameraX = this.camera.rotation.x;
-          // Apply recoil directly to the camera's rotation
-          this.camera.rotation.x += recoilAngle * 2.5; // Initial camera kick up
-          this.state.recoiling   = true;
-          this.state.recoilStart = now;
+
+          // Fire the bullet *before* affecting the camera's rotation
           if (this.currentKey === "ak-47" && this.burstCount === 2 && !(velocity > 2 || !isGrounded || isCrouched)) {
             spreadAngle = 0;
           }
-          this.playWeaponSound("shot");
           this.fireBullet(spreadAngle, playerState.collidables);
+          this.playWeaponSound("shot");
           updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
+
+          // Now, *after* the bullet is fired, apply the recoil to the target offset
+          const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
+          this._recoil.targetOffsetX += recoilAngle * 2.5; // Add to target offset
+          // No recoil recovery: targetOffsetX will stay at its new value
+
         } else {
           this.isReloadingFlag   = true;
           this.state.reloading   = true;
@@ -739,15 +741,26 @@ update(inputState, delta, playerState) {
     return true;
   });
 
-  // Camera Recoil - Removed Recovery
-  // Instead of decaying, recoil now remains until explicitly reset.
-  // The 'recoilAngle * 2.5' applied directly when firing will accumulate.
+  // Camera Recoil - Smooth Application, NO Recovery
+  // The 'targetOffsetX' now only accumulates recoil, it doesn't decay to zero.
+  // 'offsetX' still smoothly interpolates towards 'targetOffsetX'.
 
-  // Apply the recoil offset ADDITIVELY to the camera's pitch.
-  // We no longer have _recoil.offsetX to smooth or decay, so we just apply
-  // the 'recoilAngle' directly when the bullet is fired.
-  // If you want a consistent camera shake or kick, you would manage that
-  // directly at the moment of firing. The previous code for decay is gone.
+  // Define the smoothing rate for the recoil.
+  // Higher value = snappier recoil application. Lower value = slower, smoother application.
+  const RECOIL_SMOOTH_RATE = 40 * 1.25; // Adjusted for better feel, experiment with this value!
+
+  // The targetOffsetX is now only increased when firing. It does NOT decay.
+  // this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * RECOIL_DECAY_RATE_TARGET; // REMOVED THIS LINE
+
+  // Smooth the actual applied recoil (offsetX) towards the target (targetOffsetX)
+  // This is what makes the recoil feel "smooth" rather than an instant snap.
+  this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * RECOIL_SMOOTH_RATE;
+
+  // Apply the smoothed recoil offset ADDITIVELY to the camera's pitch.
+  // Note: If you want player mouse input to be added *after* recoil, you'll need to
+  // manage camera rotation more carefully. This assumes recoil is applied to the
+  // final camera rotation.
+  this.camera.rotation.x = this._recoil.lastCameraX + this._recoil.offsetX;
 }
 
 
