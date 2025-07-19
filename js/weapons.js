@@ -555,9 +555,10 @@ update(inputState, delta, playerState) {
       active:    true,
       fromFov:   this._baseFov,
       toFov:     targetFov,
-      fromScale: this._baseScale.clone(),
-      toScale:   this._baseScale.scale(targetFov / this._baseFov), // Simplified clone().multiplyScalar to .scale
-      fromPos:   this._fromPos.clone(),
+      fromScale: this._baseScale.clone(), // Correctly clones the starting scale
+      // FIX: Changed .scale back to .clone().multiplyScalar()
+      toScale:   this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
+      fromPos:   this._fromPos.clone(),   // Correctly clones the starting position
       toPos:     toPos,
       startTime: now,
       duration:  0.2
@@ -585,11 +586,13 @@ update(inputState, delta, playerState) {
     const newFov = THREE.MathUtils.lerp(this._fovTween.fromFov, this._fovTween.toFov, s);
     this.camera.fov = newFov;
     this.camera.updateProjectionMatrix();
+    // FIX: Re-added .clone() before .lerp() to prevent modifying fromScale
     this.viewModel.scale.copy(
-      this._fovTween.fromScale.lerp(this._fovTween.toScale, s) // No need to clone fromScale here
+      this._fovTween.fromScale.clone().lerp(this._fovTween.toScale, s)
     );
+    // FIX: Re-added .clone() before .lerp() to prevent modifying fromPos
     this.viewModel.position.copy(
-      this._fovTween.fromPos.lerp(this._fovTween.toPos, s) // No need to clone fromPos here
+      this._fovTween.fromPos.clone().lerp(this._fovTween.toPos, s)
     );
   }
 
@@ -633,7 +636,6 @@ update(inputState, delta, playerState) {
           this.ammoInMagazine--;
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          // lastCameraX is still stored, but not used for forced recovery
           this._recoil.lastCameraX = this.camera.rotation.x;
           this._recoil.targetOffsetX += recoilAngle * 2.5; // Initial camera kick up
           this.state.recoiling   = true;
@@ -740,8 +742,6 @@ update(inputState, delta, playerState) {
 
   // Camera Recoil and Recovery
   // INCREASE these multipliers to make recovery faster.
-  // Experiment with values like 50, 75, 100 for RECOIL_DECAY_RATE_TARGET
-  // and 90, 120, 150 for RECOIL_DECAY_RATE_SMOOTH.
   const RECOIL_DECAY_RATE_TARGET = 75; // How fast targetOffsetX (the desired recoil amount) decays to 0
   const RECOIL_DECAY_RATE_SMOOTH = 120; // How fast offsetX (the actual applied recoil) smoothly follows targetOffsetX
 
@@ -752,13 +752,7 @@ update(inputState, delta, playerState) {
   this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * RECOIL_DECAY_RATE_SMOOTH;
 
   // Apply the recoil offset ADDITIVELY to the camera's pitch.
-  // This means recoil pushes the camera up by this._recoil.offsetX amount,
-  // but player input still works on top of it.
   this.camera.rotation.x += this._recoil.offsetX;
-
-  // The "recovery" in this model is solely the decay of this._recoil.offsetX back to zero.
-  // As it approaches zero, the added recoil effect diminishes, allowing the camera
-  // to naturally settle back to the position dictated purely by player mouse input.
 }
 
 
