@@ -634,7 +634,7 @@ update(inputState, delta, playerState) {
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
           this._recoil.lastCameraX = this.camera.rotation.x;
-          this._recoil.targetOffsetX += recoilAngle*2.5;
+          this._recoil.targetOffsetX += recoilAngle * 2.5; // Initial camera kick up
           this.state.recoiling   = true;
           this.state.recoilStart = now;
           if (this.currentKey === "ak-47" && this.burstCount === 2 && !(velocity > 2 || !isGrounded || isCrouched)) {
@@ -654,8 +654,10 @@ update(inputState, delta, playerState) {
     }
   }
 
+  // Recoil animation for view model (weapon on screen)
   if (this.state.recoiling && !this.stats.isMelee) {
-    const tR = (now - this.state.recoilStart) / this.stats.recoilDuration;
+    const VIEWER_RECOIL_ANIM_DURATION = 0.15; // Consistent snappy animation duration (adjusted from your stats.recoilDuration)
+    const tR = (now - this.state.recoilStart) / VIEWER_RECOIL_ANIM_DURATION;
     if (tR >= 1) {
       this.viewModel.position.copy(this._aiming
         ? (this.currentKey === "marshal" ? new THREE.Vector3(0.1, -0.25, -0.45) : defaultAimPos)
@@ -663,7 +665,7 @@ update(inputState, delta, playerState) {
       this.state.recoiling = false;
     } else {
       const baseZ = this._aiming ? -0.5 : this.readyPos.z;
-      const kick  = this.stats.recoilDistance * Math.sin(Math.PI * tR);
+      const kick  = this.stats.recoilDistance * Math.sin(Math.PI * tR); // Magnitude still controlled by recoilDistance
       const x     = this._aiming ? (this.currentKey === "marshal" ? 0.1 : 0) : this.readyPos.x;
       const y     = this._aiming ? -0.3 : this.readyPos.y;
       this.viewModel.position.set(x, y, baseZ + kick);
@@ -735,26 +737,33 @@ update(inputState, delta, playerState) {
     return true;
   });
 
-this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * 15;
+  // Camera Recoil and Recovery
+  // Decay targetOffsetX faster for snappier recoil application
+  this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * 25;
 
-// Smooth the recoil offset
-this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 35;
+  // Smooth the recoil offset faster
+  this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 45;
 
-// Calculate the camera pitch delta from where it was when shot
-const currentX = this.camera.rotation.x;
-const targetReturn = this._recoil.lastCameraX;
-
-// Only apply recoil correction if player isn't resisting (not moving mouse much)
-const mouseStill = Math.abs(currentX - targetReturn) < 0.15;
-
-if (mouseStill) {
-  // Apply recoil offset only if camera is near original pre-shot angle
+  // Apply the recoil offset to the camera
   this.camera.rotation.x += this._recoil.offsetX;
-} else {
-  // Let the player aim freely
-  this._recoil.offsetX = 0;
-  this._recoil.targetOffsetX = 0;
-}
+
+  // Smoothly return camera to original pre-shot pitch for automatic recovery
+  const RECOVERY_SPEED = 8; // Adjust this value for faster/slower recovery
+  const currentCameraX = this.camera.rotation.x;
+  const recoilKickbackTarget = this._recoil.lastCameraX;
+
+  // Only start recovery once the initial recoil 'kick' (targetOffsetX) has largely subsided
+  // and if the camera is still above its pre-shot position (meaning it needs to come down)
+  if (Math.abs(this._recoil.targetOffsetX) < 0.005 && currentCameraX > recoilKickbackTarget) {
+    this.camera.rotation.x = THREE.MathUtils.lerp(
+      currentCameraX,
+      recoilKickbackTarget,
+      delta * RECOVERY_SPEED
+    );
+  } else if (currentCameraX < recoilKickbackTarget) {
+      // Prevent overshooting if the camera somehow went below target (e.g., player pulled down)
+      this.camera.rotation.x = recoilKickbackTarget;
+  }
 }
 
 
