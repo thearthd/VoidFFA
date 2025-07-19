@@ -48,6 +48,8 @@ const sensitivitySliderContainer = document.getElementById("sensitivity-slider-c
 const settingsBox = document.getElementById("settings-box");
 
 const menuBG = document.getElementById("animatedBG");
+  const hud = document.getElementById("hud");
+hud.style.display = "none";
 
 let canvasWidth = canvas.width;
 let canvasHeight = canvas.height;
@@ -1056,8 +1058,6 @@ function showMenuOverlay() {
   if (gameWrapper) {
     gameWrapper.style.display = "none";
   }
-  const hud = document.getElementById("hud");
-  if (hud) hud.style.display = "none";
   const crosshair = document.getElementById("crosshair");
   if (crosshair) crosshair.style.display = "none";
 }
