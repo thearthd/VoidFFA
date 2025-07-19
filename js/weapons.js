@@ -633,6 +633,8 @@ update(inputState, delta, playerState) {
           this.ammoInMagazine--;
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
+          // We are storing lastCameraX, but we will no longer force a return to it.
+          // It could still be useful for other effects or debugging.
           this._recoil.lastCameraX = this.camera.rotation.x;
           this._recoil.targetOffsetX += recoilAngle * 2.5; // Initial camera kick up
           this.state.recoiling   = true;
@@ -656,7 +658,7 @@ update(inputState, delta, playerState) {
 
   // Recoil animation for view model (weapon on screen)
   if (this.state.recoiling && !this.stats.isMelee) {
-    const VIEWER_RECOIL_ANIM_DURATION = 0.15; // Consistent snappy animation duration (adjusted from your stats.recoilDuration)
+    const VIEWER_RECOIL_ANIM_DURATION = 0.15; // Consistent snappy animation duration
     const tR = (now - this.state.recoilStart) / VIEWER_RECOIL_ANIM_DURATION;
     if (tR >= 1) {
       this.viewModel.position.copy(this._aiming
@@ -744,26 +746,16 @@ update(inputState, delta, playerState) {
   // Smooth the recoil offset faster
   this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 45;
 
-  // Apply the recoil offset to the camera
+  // Apply the recoil offset ADDITIVELY to the camera's pitch.
+  // This assumes the camera's pitch (this.camera.rotation.x) is controlled by player input
+  // and is updated *before* or at the very beginning of this update method.
+  // The recoil simply adds a temporary "kick" on top of the player's aiming.
   this.camera.rotation.x += this._recoil.offsetX;
 
-  // Smoothly return camera to original pre-shot pitch for automatic recovery
-  const RECOVERY_SPEED = 8; // Adjust this value for faster/slower recovery
-  const currentCameraX = this.camera.rotation.x;
-  const recoilKickbackTarget = this._recoil.lastCameraX;
-
-  // Only start recovery once the initial recoil 'kick' (targetOffsetX) has largely subsided
-  // and if the camera is still above its pre-shot position (meaning it needs to come down)
-  if (Math.abs(this._recoil.targetOffsetX) < 0.005 && currentCameraX > recoilKickbackTarget) {
-    this.camera.rotation.x = THREE.MathUtils.lerp(
-      currentCameraX,
-      recoilKickbackTarget,
-      delta * RECOVERY_SPEED
-    );
-  } else if (currentCameraX < recoilKickbackTarget) {
-      // Prevent overshooting if the camera somehow went below target (e.g., player pulled down)
-      this.camera.rotation.x = recoilKickbackTarget;
-  }
+  // IMPORTANT: The previous recovery logic that used `THREE.MathUtils.lerp` to
+  // return the camera to `_recoil.lastCameraX` has been REMOVED.
+  // The "recovery" is now simply the decay of `_recoil.offsetX` back to zero.
+  // This allows the player to freely move the camera while the recoil effect dissipates.
 }
 
 
