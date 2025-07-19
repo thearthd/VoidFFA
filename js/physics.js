@@ -9,7 +9,7 @@ const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 
 // Player capsule dimensions (matching the provided example's player setup)
 const PLAYER_CAPSULE_RADIUS = 0.5;
-const PLAYER_CAPSULE_SEGMENT_LENGTH = 2.2; // Length of the cylindrical part of the capsule
+const PLAYER_CAPSULE_SEGMENT_LENGTH = 2.2 - PLAYER_CAPSULE_RADIUS; // Length of the cylindrical part of the capsule
 const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + 2 * PLAYER_CAPSULE_RADIUS; // Total height of the standing player (2.0)
 // ff
 // NEW: Constants for controlled movement and crouching
