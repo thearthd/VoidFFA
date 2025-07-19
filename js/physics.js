@@ -297,7 +297,8 @@ export class PhysicsController {
 
         // Determine if the player is on the ground based on vertical adjustment
         // If the player was primarily adjusted vertically upwards (against gravity), they are on ground
-        this.playerIsOnGround = deltaVector.y > Math.abs(delta * this.playerVelocity.y * 0.25);
+        // Also, if player's y velocity is significantly positive (moving upwards), they are not grounded.
+        this.playerIsOnGround = (deltaVector.y > Math.abs(delta * this.playerVelocity.y * 0.25)) && (this.playerVelocity.y <= 0.05);
 
         // Apply the collision adjustment to the player's actual position
         const offset = Math.max(0.0, deltaVector.length() - 1e-5);
