@@ -633,9 +633,8 @@ update(inputState, delta, playerState) {
           this.ammoInMagazine--;
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          this._recoil.targetX = THREE.MathUtils.clamp(
-this._recoil.lastCameraX = this.camera.rotation.x;
-this._recoil.targetOffsetX += recoilAngle;
+          this._recoil.lastCameraX = this.camera.rotation.x;
+          this._recoil.targetOffsetX += recoilAngle;
           this.state.recoiling   = true;
           this.state.recoilStart = now;
           if (this.currentKey === "ak-47" && this.burstCount === 2 && !(velocity > 2 || !isGrounded || isCrouched)) {
