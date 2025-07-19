@@ -735,10 +735,10 @@ update(inputState, delta, playerState) {
     return true;
   });
 
-this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * 5;
+this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * 10;
 
 // Smooth the recoil offset
-this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 10;
+this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 20;
 
 // Calculate the camera pitch delta from where it was when shot
 const currentX = this.camera.rotation.x;
