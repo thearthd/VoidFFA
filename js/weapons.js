@@ -241,7 +241,10 @@ export class WeaponController {
     this.scene = window.scene;
     this.raycaster = new THREE.Raycaster();
 
-   
+   this._recoil = {
+  currentX: 0,  // current smoothed value (applied to camera.rotation.x)
+  targetX: 0    // target value set when a shot is fired
+};
   }
 
 equipWeapon(weaponKey) {
