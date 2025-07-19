@@ -1935,7 +1935,7 @@ export function animate(timestamp) {
     }
 
     // --- Frame Throttling (60fps) ---
-    const FRAME_INTERVAL = 1000 / 30; // ≈16.67ms
+    const FRAME_INTERVAL = 1000 / 60; // ≈16.67ms
     if (!animate.lastTime) {
         animate.lastTime = timestamp; // Initialize for the first frame
     }
