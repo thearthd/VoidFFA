@@ -1,5 +1,5 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'; // For player visual mesh
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { sendSoundEvent } from "./network.js";
 
 // Constants for player physics and dimensions
@@ -84,6 +84,7 @@ export class PhysicsController {
         this.player.castShadow = true;
         this.player.receiveShadow = true;
         this.player.material.shadowSide = 2; // Render shadows on both sides of the material
+        this.scene.add(this.player); // Add the player mesh to the scene
 
         // Physics state variables
         this.playerVelocity = new THREE.Vector3();
@@ -211,11 +212,6 @@ export class PhysicsController {
             this.playerIsOnGround = false; // Player is no longer on the ground
             this.jumpTriggered = true; // Set jump flag
         }
-
-        // Note: Crouching logic (changing player height) is not implemented here
-        // to strictly adhere to the provided example's fixed player hitbox.
-        // If crouching is desired, player.capsuleInfo.segment and player.geometry.translate
-        // would need to be dynamically adjusted based on currentHeight.
     }
 
     /**
@@ -224,12 +220,13 @@ export class PhysicsController {
      */
     updatePlayer(delta) {
         // Apply gravity
+        // When on ground, apply a small downward velocity to keep player "stuck" to it.
+        // This is crucial for reliable ground detection with shapecast.
         if (this.playerIsOnGround) {
-            // When on ground, gravity pushes down. This helps with slopes.
-            this.playerVelocity.y = -GRAVITY * delta;
+            this.playerVelocity.y = -GRAVITY * delta * 0.1; // Small downward push
         } else {
             // When in air, gravity continuously accelerates downwards
-            this.playerVelocity.y -= GRAVITY * delta;
+            this.playerVelocity.y -= GRAVITY * delta; // Full gravity in air
         }
 
         // Apply damping to horizontal velocity
@@ -266,7 +263,6 @@ export class PhysicsController {
         this.tempBox.min.addScalar(-capsuleInfo.radius);
         this.tempBox.max.addScalar(capsuleInfo.radius);
 
-        // Perform shapecast collision check if collider is available
         if (this.collider && this.collider.geometry && this.collider.geometry.boundsTree) {
             this.collider.geometry.boundsTree.shapecast({
                 intersectsBounds: box => box.intersectsBox(this.tempBox), // Optimize by checking AABB intersection first
@@ -321,9 +317,6 @@ export class PhysicsController {
 
         // Update camera position to follow the player
         this.camera.position.copy(this.player.position);
-        // The camera's eye level is typically at the player's origin (top of capsule)
-        // If you want the camera to be slightly above the player's head, add a small offset.
-        // For this setup, player.position is the top of the capsule.
     }
 
     /**
@@ -331,6 +324,7 @@ export class PhysicsController {
      */
     teleportIfOob() {
         // Check player's Y position relative to the bottom of the capsule
+        // The bottom of the capsule is player.position.y (top) + segment.end.y (bottom of segment) - radius (bottom cap)
         const bottomOfCapsuleY = this.player.position.y + this.player.capsuleInfo.segment.end.y - this.player.capsuleInfo.radius;
         if (bottomOfCapsuleY < -25) { // If player falls below a certain threshold
             console.warn("Player OOB detected! Teleporting...");
@@ -421,13 +415,16 @@ export class PhysicsController {
         }
 
         // Player model rotation to align with camera direction when grounded
+        // The player model is 'this.player'
         if (this.playerIsOnGround) {
             const smoothingFactor = 0.15;
             const playerWorldForward = new THREE.Vector3();
             this.camera.getWorldDirection(playerWorldForward);
-            playerWorldForward.y = 0;
+            playerWorldForward.y = 0; // Flatten to horizontal
             playerWorldForward.normalize();
 
+            // Create a target quaternion for the player mesh that aligns its forward with the camera's horizontal forward
+            // and its up vector with the world's up vector (0,1,0).
             const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(this.player.getWorldDirection(this.tempVector), playerWorldForward);
             this.player.quaternion.slerp(targetQuaternion, smoothingFactor);
         } else {
