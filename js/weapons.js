@@ -773,84 +773,86 @@ update(inputState, delta, playerState) {
 checkBulletHit(origin, direction, intersectionPointOut) {
     const ray = new THREE.Ray(origin.clone(), direction.clone());
 
-    // Ensure intersectionPointOut is a Vector3 if it's going to be used
-    // If it's not provided or not a Vector3, create a temporary one for intersectBox
+    // Ensure intersectionPointOut is a Vector3
     const tempIntersectionPoint = intersectionPointOut instanceof THREE.Vector3 ? intersectionPointOut : new THREE.Vector3();
 
+    let closestPlayerIntersection = null;
 
-    // Prioritize Octree-based collision detection for efficiency
-    const remotePlayersOctree = this.physicsController?.remotePlayersOctree;
-    if (remotePlayersOctree) {
-        const playerIntersection = remotePlayersOctree.rayIntersect(ray);
+    // --- Player Collision Detection using BVH ---
+    // Iterate through remote players and perform raycasting against their BVHs
+    for (const rp of Object.values(window.remotePlayers || {})) {
+        // Assuming rp.bodyMesh and rp.headMesh have BVHs built on their geometries
+        // This typically means you've patched THREE.Mesh.prototype.raycast
+        // or you're calling raycastBVH directly.
+        const playerMeshes = [];
+        if (rp.bodyMesh) playerMeshes.push(rp.bodyMesh);
+        if (rp.headMesh) playerMeshes.push(rp.headMesh);
 
-        if (playerIntersection) {
-            const hitMesh = playerIntersection.object;
-            const isHead = hitMesh.userData.isPlayerHead === true;
+        for (const mesh of playerMeshes) {
+            if (!mesh || !mesh.geometry.boundsTree) continue; // Check if BVH exists
 
-            // Update intersectionPointOut if provided and is a Vector3
-            if (intersectionPointOut instanceof THREE.Vector3) {
-                intersectionPointOut.copy(playerIntersection.position);
-            }
-
-            return {
-                mesh: hitMesh,
-                isHead: isHead,
-                intersection: playerIntersection.position.clone(),
-                distance: playerIntersection.distance
-            };
-        }
-    } else {
-        // Fallback to iterating through individual meshes if Octree is not available
-        for (const rp of Object.values(window.remotePlayers || {})) {
-            for (const mesh of [rp.bodyMesh, rp.headMesh]) {
-                if (!mesh) continue;
-                const box = new THREE.Box3().setFromObject(mesh);
-                // Use tempIntersectionPoint for intersectBox, which is guaranteed to be a Vector3
-                if (ray.intersectBox(box, tempIntersectionPoint)) {
-                    const isHead = (mesh === rp.headMesh);
-
-                    // If intersectionPointOut was originally provided and is a Vector3, copy the result to it
-                    if (intersectionPointOut instanceof THREE.Vector3) {
-                        intersectionPointOut.copy(tempIntersectionPoint);
-                    }
-
-                    return {
+            const intersects = ray.intersectObject(mesh); // This will use the BVH if patched
+            if (intersects.length > 0) {
+                const intersection = intersects[0];
+                if (!closestPlayerIntersection || intersection.distance < closestPlayerIntersection.distance) {
+                    closestPlayerIntersection = {
                         mesh: mesh,
-                        isHead: isHead,
-                        // Always return a cloned intersection point
-                        intersection: tempIntersectionPoint.clone(),
-                        distance: origin.distanceTo(tempIntersectionPoint)
+                        isHead: mesh.userData.isPlayerHead === true, // Assuming this userData is set
+                        intersection: intersection.point,
+                        distance: intersection.distance
                     };
                 }
             }
         }
     }
 
+    if (closestPlayerIntersection) {
+        if (intersectionPointOut instanceof THREE.Vector3) {
+            intersectionPointOut.copy(closestPlayerIntersection.intersection);
+        }
+        return {
+            mesh: closestPlayerIntersection.mesh,
+            isHead: closestPlayerIntersection.isHead,
+            intersection: closestPlayerIntersection.intersection.clone(),
+            distance: closestPlayerIntersection.distance
+        };
+    }
+
     return null; // Return null if no hit is found
 }
 
+---
 
 checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
-    const worldOctree = this.physicsController?.worldOctree;
-    if (!worldOctree) {
-        console.error("World Octree not available for bullet penetration detection.");
+    // Assuming this.worldBVH is pre-built on your static world geometry
+    const worldBVH = this.physicsController?.worldBVH;
+    if (!worldBVH) {
+        console.error("World BVH not available for bullet penetration detection.");
         return null;
     }
 
     let currentOrigin = origin.clone();
     let worldPenetrationCount = 0;
-    let allWorldHits = []; // NEW: Array to store all world hits
+    let allWorldHits = [];
     let playerHitResult = null;
 
     for (let i = 0; i <= maxWorldPenetrations; i++) {
         const ray = new THREE.Ray(currentOrigin, direction);
 
-        const worldIntersection = worldOctree.rayIntersect(ray);
+        // --- World Collision Detection using BVH ---
+        const worldIntersects = worldBVH.raycast(ray); // Direct BVH raycast
+        let worldIntersection = null;
+        if (worldIntersects.length > 0) {
+            worldIntersection = worldIntersects[0]; // Get the closest world intersection
+        }
+
+        // --- Player Collision Detection (re-using checkBulletHit) ---
         const currentPlayerHit = this.checkBulletHit(currentOrigin, direction);
 
         let closestHit = null;
         let hitType = null;
 
+        // Determine the closest hit (world or player)
         if (worldIntersection && (!currentPlayerHit || worldIntersection.distance <= currentPlayerHit.distance)) {
             closestHit = worldIntersection;
             hitType = 'world';
@@ -867,34 +869,36 @@ checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
                     intersection: closestHit.intersection.clone(),
                     distance: origin.distanceTo(closestHit.intersection)
                 };
-                break;
+                break; // Player hit, stop penetration checks
             } else if (hitType === 'world') {
                 worldPenetrationCount++;
 
                 let hitNormal;
-                if (closestHit.normal) {
-                    hitNormal = closestHit.normal.clone().transformDirection(closestHit.object.matrixWorld).normalize();
+                // For BVH intersections, the normal is usually available on the intersection object
+                if (closestHit.face && closestHit.face.normal) {
+                    // Transform the normal to world space
+                    hitNormal = closestHit.face.normal.clone().transformDirection(closestHit.object.matrixWorld).normalize();
                 } else {
-                    hitNormal = direction.clone().negate();
+                    hitNormal = direction.clone().negate(); // Fallback if normal is not directly available
                 }
 
-                // NEW: Add this world hit to the array
                 allWorldHits.push({
-                    point: closestHit.position.clone(),
+                    point: closestHit.point.clone(),
                     normal: hitNormal,
-                    distance: currentOrigin.distanceTo(closestHit.position),
+                    distance: currentOrigin.distanceTo(closestHit.point),
                     object: closestHit.object
                 });
 
                 if (worldPenetrationCount > maxWorldPenetrations) {
-                    playerHitResult = null;
+                    playerHitResult = null; // No player hit if max penetrations exceeded
                     break;
                 }
 
-                currentOrigin.copy(closestHit.position).add(direction.clone().multiplyScalar(0.01));
+                // Move the origin slightly past the hit point to continue the raycast
+                currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
             }
         } else {
-            break;
+            break; // No more hits
         }
     }
 
@@ -902,16 +906,19 @@ checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
 
     return {
         playerHitResult: playerHitResult,
-        allWorldHits: allWorldHits, // NEW: Return all world hits
+        allWorldHits: allWorldHits,
         penetrationCount: worldPenetrationCount,
         isPenetrationShot: isPenetrationShot
     };
 }
 
+---
 
 fireBullet(spreadAngle) {
-    const worldOctree = this.physicsController?.worldOctree;
-    if (!worldOctree) {
+    // worldBVH should be available from physicsController
+    const worldBVH = this.physicsController?.worldBVH;
+    if (!worldBVH) {
+        console.error("World BVH not available to fire bullet.");
         return;
     }
 
@@ -925,7 +932,6 @@ fireBullet(spreadAngle) {
 
     let finalTracerEndPoint = null;
     let damageToApply = 0;
-    // Removed worldObjectWasHitForBulletHole as we'll now iterate through allWorldHits
 
     const currentWeaponTracerLength = this.stats.tracerLength || 50;
 
@@ -971,16 +977,13 @@ fireBullet(spreadAngle) {
 
         finalTracerEndPoint = playerHitResult.intersection;
 
-    } else if (bulletTrajectory.allWorldHits.length > 0) { // Check if any world objects were hit
-        // If no player hit, the tracer ends at the last world object hit
+    } else if (bulletTrajectory.allWorldHits.length > 0) {
         finalTracerEndPoint = bulletTrajectory.allWorldHits[bulletTrajectory.allWorldHits.length - 1].point;
     } else {
-        // No hit at all
         finalTracerEndPoint = direction.clone().multiplyScalar(currentWeaponTracerLength).add(origin);
     }
 
     // --- CREATE BULLET HOLES FOR ALL APPLICABLE PENETRATIONS ---
-    // Iterate through all collected world hits and create a bullet hole for each
     for (const hitData of bulletTrajectory.allWorldHits) {
         sendBulletHole({
             x: hitData.point.x, y: hitData.point.y, z: hitData.point.z,
@@ -988,7 +991,6 @@ fireBullet(spreadAngle) {
             timeCreated: firebase.database.ServerValue.TIMESTAMP
         });
     }
-
 
     // Step 3: Finalize tracerEndPoint and create tracer
     const muzzleWorld = this.parts.muzzle
