@@ -7,6 +7,7 @@ import {
     computeBoundsTree,
     disposeBoundsTree,
     acceleratedRaycast,
+    MeshBVH, // <--- Added MeshBVH import
     MeshBVHHelper,
     StaticGeometryGenerator
 } from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
@@ -172,8 +173,8 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                 // Generate the merged geometry from the static generator
                 const mergedGeometry = staticGenerator.generate();
 
-                // Compute the BVH on the merged geometry using the prototype method
-                mergedGeometry.computeBoundsTree();
+                // Compute the BVH on the merged geometry using the MeshBVH constructor directly
+                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry); // <--- Changed here
 
                 // Create the collider mesh using the merged geometry and a basic material
                 const collider = new THREE.Mesh(mergedGeometry, new THREE.MeshBasicMaterial());
@@ -304,8 +305,8 @@ export async function createSigmaCity(scene, physicsController) {
                 // Generate the merged geometry from the static generator
                 const mergedGeometry = staticGenerator.generate();
 
-                // Compute the BVH on the merged geometry using the prototype method
-                mergedGeometry.computeBoundsTree();
+                // Compute the BVH on the merged geometry using the MeshBVH constructor directly
+                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry); // <--- Changed here
 
                 // Create the collider mesh using the merged geometry and a basic material
                 const collider = new THREE.Mesh(mergedGeometry, new THREE.MeshBasicMaterial());
