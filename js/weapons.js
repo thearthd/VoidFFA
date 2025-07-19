@@ -555,10 +555,9 @@ update(inputState, delta, playerState) {
       active:    true,
       fromFov:   this._baseFov,
       toFov:     targetFov,
-      fromScale: this._baseScale.clone(), // Correctly clones the starting scale
-      // FIX: Changed .scale back to .clone().multiplyScalar()
+      fromScale: this._baseScale.clone(),
       toScale:   this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
-      fromPos:   this._fromPos.clone(),   // Correctly clones the starting position
+      fromPos:   this._fromPos.clone(),
       toPos:     toPos,
       startTime: now,
       duration:  0.2
@@ -586,11 +585,9 @@ update(inputState, delta, playerState) {
     const newFov = THREE.MathUtils.lerp(this._fovTween.fromFov, this._fovTween.toFov, s);
     this.camera.fov = newFov;
     this.camera.updateProjectionMatrix();
-    // FIX: Re-added .clone() before .lerp() to prevent modifying fromScale
     this.viewModel.scale.copy(
       this._fovTween.fromScale.clone().lerp(this._fovTween.toScale, s)
     );
-    // FIX: Re-added .clone() before .lerp() to prevent modifying fromPos
     this.viewModel.position.copy(
       this._fovTween.fromPos.clone().lerp(this._fovTween.toPos, s)
     );
@@ -741,9 +738,10 @@ update(inputState, delta, playerState) {
   });
 
   // Camera Recoil and Recovery
-  // INCREASE these multipliers to make recovery faster.
-  const RECOIL_DECAY_RATE_TARGET = 75; // How fast targetOffsetX (the desired recoil amount) decays to 0
-  const RECOIL_DECAY_RATE_SMOOTH = 120; // How fast offsetX (the actual applied recoil) smoothly follows targetOffsetX
+  // These are the corrected decay rates.
+  // Values around 10-30 are typically stable and feel responsive.
+  const RECOIL_DECAY_RATE_TARGET = 20; // How fast targetOffsetX (the desired recoil amount) decays to 0
+  const RECOIL_DECAY_RATE_SMOOTH = 40; // How fast offsetX (the actual applied recoil) smoothly follows targetOffsetX
 
   // Decay targetOffsetX
   this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * RECOIL_DECAY_RATE_TARGET;
