@@ -1,22 +1,26 @@
-// js/map.js (Keep as is from the last update)
-
 import { Loader } from './Loader.js';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { BufferGeometryUtils } from 'https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/utils/BufferGeometryUtils.js';
 import {
     computeBoundsTree,
     disposeBoundsTree,
     acceleratedRaycast,
+    MeshBVHHelper,
+    StaticGeometryGenerator
 } from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.1/+esm';
 
 // ─── BVH Setup ────────────────────────────────────────────────────────────
+// Extend THREE.BufferGeometry and THREE.Mesh prototypes for BVH functionality
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 
 // ─── Helper: build sequential indices if none present ────────────────────────
+// This function ensures that geometries have an index buffer, which is often
+// required for BVH computations and other Three.js operations.
 function generateSequentialIndices(vertexCount) {
     const idx = [];
     for (let i = 0; i < vertexCount; i++) idx.push(i);
@@ -24,6 +28,7 @@ function generateSequentialIndices(vertexCount) {
 }
 
 // ─── Lantern class ─────────────────────────────────────────────────────────
+// This class handles loading and placing a 3D lantern model with an associated spotlight.
 export class Lantern {
     constructor(parent, position, scale = 1, lightOptions = {}) {
         this.container = new THREE.Object3D();
@@ -36,11 +41,13 @@ export class Lantern {
         loader.load(
             url,
             lanternGroup => {
+                // Scale and position the lantern model
                 lanternGroup.scale.set(scale, scale, scale);
                 lanternGroup.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(lanternGroup);
                 lanternGroup.position.y = -box.min.y;
 
+                // Apply material and shadow properties to all meshes in the lantern group
                 lanternGroup.traverse(child => {
                     if (!child.isMesh) return;
                     child.material = new THREE.MeshStandardMaterial({
@@ -54,6 +61,7 @@ export class Lantern {
 
                 this.container.add(lanternGroup);
 
+                // Configure and add a spotlight to the lantern
                 const {
                     color = 0xffffff,
                     intensity = 1,
@@ -72,24 +80,29 @@ export class Lantern {
                 spot.shadow.camera.far = distance;
                 this.container.add(spot, spot.target);
             },
-            null,
+            null, // Progress callback (not used here, but kept for signature)
             err => console.error('Error loading lantern model:', err)
         );
     }
 }
 
-
+/**
+ * Loads the CrocodilosConstruction map, sets up lighting, and creates a MeshBVH collider.
+ * @param {THREE.Scene} scene The Three.js scene to add the map to.
+ * @param {object} physicsController An object with a `setCollider` method to receive the collision mesh.
+ * @returns {Promise<THREE.Vector3[]>} A promise that resolves with an array of spawn points.
+ */
 export async function createCrocodilosConstruction(scene, physicsController) {
-    // track loaded meshes and readiness
+    // Track loaded meshes and readiness status
     window.envMeshes = [];
     window.mapReady = false;
 
-    // Initialize loader UI with two milestones: 70% for GLB, 30% for octree
+    // Initialize loader UI with a single milestone for GLB loading
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
-    loaderUI.show('Loading CrocodilosConstruction Map & Building Octree...', mapLoadPercentages);
+    const mapLoadPercentages = [1.0]; // GLB loading is 100% of the map load
+    loaderUI.show('Loading CrocodilosConstruction Map...', mapLoadPercentages);
 
-    // scaling and spawn points
+    // Define scaling and initial spawn points for the map
     const SCALE = 5;
     const rawSpawnPoints = [
         new THREE.Vector3(-14, 7, -36), // 1
@@ -103,8 +116,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 5));
 
-
-    // set up sunlight and shadows
+    // Set up sunlight and shadows for the scene
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
     sunLight.position.set(50, 100, 50);
     sunLight.target.position.set(0, 0, 0);
@@ -119,22 +131,24 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
-    // URL of the GLB model
+    // URL of the GLB model for the map
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb';
 
-    // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null; // Declare gltfGroup here
+    // 1) Load the GLB model into the scene and process it for collision detection
+    let gltfGroup = null;
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                gltfGroup = gltf.scene; // Assign to gltfGroup
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
                 gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+
+                // Add the visual GLTF group to the scene
                 scene.add(gltfGroup);
 
-                // enable shadows and anisotropy on all meshes
+                // Enable shadows and anisotropy on all meshes in the GLTF group
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -142,14 +156,48 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                         if (child.material.map) {
                             child.material.map.anisotropy = 4;
                         }
-                        window.envMeshes.push(child);
+                        window.envMeshes.push(child); // Store reference to environment meshes
+                        // Ensure geometries have indices for BVH computation if missing
+                        if (child.geometry && !child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
                     }
                 });
 
-                console.log('✔️ GLB mesh loaded into scene.');
-                resolve(gltfGroup); // Resolve with the group so octree can use it
+                // --- MeshBVH Collider Setup ---
+                // Create a StaticGeometryGenerator from the loaded GLTF scene to merge geometries
+                const staticGenerator = new StaticGeometryGenerator(gltfGroup);
+                staticGenerator.attributes = ['position']; // Only position is needed for collision
+
+                // Generate the merged geometry from the static generator
+                const mergedGeometry = staticGenerator.generate();
+
+                // Compute the BVH on the merged geometry using the prototype method
+                mergedGeometry.computeBoundsTree();
+
+                // Create the collider mesh using the merged geometry and a basic material
+                const collider = new THREE.Mesh(mergedGeometry, new THREE.MeshBasicMaterial());
+                collider.material.wireframe = true; // For visualization during development
+                collider.material.opacity = 0.5;
+                collider.material.transparent = true;
+                collider.visible = false; // Hide the collider by default in production
+
+                // Add the collider to the scene
+                scene.add(collider);
+
+                // Optional: Add MeshBVHHelper for visual debugging of the BVH structure
+                const visualizer = new MeshBVHHelper(collider, 10); // 10 is an example depth
+                visualizer.visible = false; // Hide by default
+                scene.add(visualizer);
+
+                // Pass the created collider mesh to the physics controller
+                // Assumes physicsController has a method like setCollider(mesh)
+                physicsController.setCollider(collider);
+
+                console.log('✔️ GLB mesh loaded and BVH collider built.');
+                resolve(gltfGroup); // Resolve the promise once loading and BVH setup are complete
             },
-            // progress callback
+            // Progress callback for GLB loading
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
@@ -160,57 +208,47 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         );
     });
 
-    // track GLB load at 70%, with live percent updates
+    // Track GLB load progress with the loader UI
     loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build the octree
-    let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        // physicsController.buildOctree now returns a promise and takes the progress callback
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
-        });
-    });
+    // Wait for the map loading to complete
+    await mapLoadPromise;
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
-    });
-
-    // wait for both loading steps
-    await Promise.all([mapLoadPromise, octreePromise]);
-
-    // when fully done
+    // When fully done, update readiness status and hide loader UI
     loaderUI.onComplete(() => {
         window.mapReady = true;
-        console.log('🗺️ Map + Octree fully ready!');
+        console.log('🗺️ Map + BVH Collider fully ready!');
     });
 
     return spawnPoints;
 }
 
-
+/**
+ * Loads the SigmaCity map, sets up lighting, and creates a MeshBVH collider.
+ * @param {THREE.Scene} scene The Three.js scene to add the map to.
+ * @param {object} physicsController An object with a `setCollider` method to receive the collision mesh.
+ * @returns {Promise<THREE.Vector3[]>} A promise that resolves with an array of spawn points.
+ */
 export async function createSigmaCity(scene, physicsController) {
-    // track loaded meshes and readiness
+    // Track loaded meshes and readiness status
     window.envMeshes = [];
     window.mapReady = false;
 
-    // initialize loader UI with two milestones: 70% for GLB, 30% for octree
+    // Initialize loader UI with a single milestone for GLB loading
     const loaderUI = new Loader();
-    const mapLoadPercentages = [0.9, 0.1]; // GLB is 70%, Octree is 30%
-    loaderUI.show('Loading SigmaCity Map & Building Octree...', mapLoadPercentages);
+    const mapLoadPercentages = [1.0]; // GLB loading is 100% of the map load
+    loaderUI.show('Loading SigmaCity Map...', mapLoadPercentages);
 
-    // scaling and spawn points
+    // Define scaling and initial spawn points for the map
     const SCALE = 2;
     const rawSpawnPoints = [
         new THREE.Vector3(0, 15, 0), // 1
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 2));
 
-
-    // set up sunlight and shadows
+    // Set up sunlight and shadows for the scene
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
     sunLight.position.set(50, 100, 50);
     sunLight.target.position.set(0, 0, 0);
@@ -225,22 +263,24 @@ export async function createSigmaCity(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
-    // URL of the GLB model
+    // URL of the GLB model for the map
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb';
 
-    // 1) Load the GLB into the scene, wiring up a progress callback
-    let gltfGroup = null; // Declare gltfGroup here
+    // 1) Load the GLB model into the scene and process it for collision detection
+    let gltfGroup = null;
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                gltfGroup = gltf.scene; // Assign to gltfGroup
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
                 gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+
+                // Add the visual GLTF group to the scene
                 scene.add(gltfGroup);
 
-                // enable shadows and anisotropy on all meshes
+                // Enable shadows and anisotropy on all meshes in the GLTF group
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -248,17 +288,48 @@ export async function createSigmaCity(scene, physicsController) {
                         if (child.material.map) {
                             child.material.map.anisotropy = 4;
                         }
-                        window.envMeshes.push(child);
-                    }
-                    if (child.isMesh && child.geometry && !child.geometry.index) {
-                        child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        window.envMeshes.push(child); // Store reference to environment meshes
+                        // Ensure geometries have indices for BVH computation if missing
+                        if (child.geometry && !child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
                     }
                 });
 
-                console.log('✔️ GLB mesh loaded into scene.');
-                resolve(gltfGroup); // Resolve with the group so octree can use it
+                // --- MeshBVH Collider Setup ---
+                // Create a StaticGeometryGenerator from the loaded GLTF scene to merge geometries
+                const staticGenerator = new StaticGeometryGenerator(gltfGroup);
+                staticGenerator.attributes = ['position']; // Only position is needed for collision
+
+                // Generate the merged geometry from the static generator
+                const mergedGeometry = staticGenerator.generate();
+
+                // Compute the BVH on the merged geometry using the prototype method
+                mergedGeometry.computeBoundsTree();
+
+                // Create the collider mesh using the merged geometry and a basic material
+                const collider = new THREE.Mesh(mergedGeometry, new THREE.MeshBasicMaterial());
+                collider.material.wireframe = true; // For visualization during development
+                collider.material.opacity = 0.5;
+                collider.material.transparent = true;
+                collider.visible = false; // Hide the collider by default in production
+
+                // Add the collider to the scene
+                scene.add(collider);
+
+                // Optional: Add MeshBVHHelper for visual debugging of the BVH structure
+                const visualizer = new MeshBVHHelper(collider, 10); // 10 is an example depth
+                visualizer.visible = false; // Hide by default
+                scene.add(visualizer);
+
+                // Pass the created collider mesh to the physics controller
+                // Assumes physicsController has a method like setCollider(mesh)
+                physicsController.setCollider(collider);
+
+                console.log('✔️ GLB mesh loaded and BVH collider built.');
+                resolve(gltfGroup); // Resolve the promise once loading and BVH setup are complete
             },
-            // progress callback
+            // Progress callback for GLB loading
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
@@ -269,31 +340,18 @@ export async function createSigmaCity(scene, physicsController) {
         );
     });
 
-    // track GLB load at 70%, with live percent updates
+    // Track GLB load progress with the loader UI
     loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
         onGLBProgress = cb;
     });
 
-    // 2) Once GLB is added, build the octree
-    let onOctreeProgress = () => {};
-    const octreePromise = mapLoadPromise.then(group => {
-        return physicsController.buildOctree(group, (evt) => {
-            onOctreeProgress(evt);
-        });
-    });
+    // Wait for the map loading to complete
+    await mapLoadPromise;
 
-    // track octree build at 30%, with live percent updates
-    loaderUI.track(mapLoadPercentages[1], octreePromise, cb => {
-        onOctreeProgress = cb;
-    });
-
-    // wait for both loading steps
-    await Promise.all([mapLoadPromise, octreePromise]);
-
-    // when fully done
+    // When fully done, update readiness status and hide loader UI
     loaderUI.onComplete(() => {
         window.mapReady = true;
-        console.log('🗺️ Map + Octree fully ready!');
+        console.log('🗺️ Map + BVH Collider fully ready!');
     });
 
     return spawnPoints;
