@@ -745,7 +745,7 @@ update(inputState, delta, playerState) {
 
   // --- Recoil Decay and Application ---
   // Reduce targetX over time to decay recoil
-  const recoilDecayRate = 0.05; // Adjust this value to control decay speed (e.g., 0.05 for slower, 0.2 for faster)
+  const recoilDecayRate = 0.2; // Adjust this value to control decay speed (e.g., 0.05 for slower, 0.2 for faster)
   this._recoil.targetX = THREE.MathUtils.lerp(this._recoil.targetX, 0, recoilDecayRate);
 
   // Smoothly move currentX towards targetX
@@ -753,7 +753,7 @@ update(inputState, delta, playerState) {
   this._recoil.currentX += (this._recoil.targetX - this._recoil.currentX) * delta * recoilSmoothness;
 
   // Apply the currentX recoil to the camera's rotation
-  this.camera.rotation.x = this._recoil.currentX; // Set the camera rotation directly to currentX
+  this.camera.rotation.x += this._recoil.currentX; // Set the camera rotation directly to currentX
 }
 
 
