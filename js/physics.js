@@ -129,7 +129,7 @@ export class PhysicsController {
         this.footAudios.forEach(audio => { audio.volume = 0.7; });
         this.footIndex = 0;
         this.footAcc = 0;
-        this.baseFootInterval = 2;
+        this.baseFootInterval = 4;
         this.landAudio = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
         this.landAudio.volume = 0.8;
         this.fallStartY = null;
