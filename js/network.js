@@ -737,6 +737,85 @@ export function setupPlayersListener(playersRef) { // <-- Defined here
     });
     console.log("Firebase players listener started.");
 }
+
+function setupChatListener(chatRef) {
+    if (chatListener) chatRef.off("child_added", chatListener); // Detach previous
+    const chatSeenKeys = new Set();
+    chatListener = chatRef.on("child_added", (snap) => {
+        const { username: u, text } = snap.val();
+        const key = snap.key;
+        if (chatSeenKeys.has(key)) return;
+        chatSeenKeys.add(key);
+        addChatMessage(u, text, key);
+    });
+}
+
+function setupKillsListener(killsRef) {
+    if (killsListener) killsRef.off("child_added", killsListener); // Detach previous
+    killsListener = killsRef.limitToLast(5).on("child_added", (snap) => {
+        const k = snap.val();
+        updateKillFeed(k.killer, k.victim, k.weapon, snap.key);
+        updateScoreboard(dbRefs.playersRef); // This will cause full scoreboard refresh
+    });
+
+    // Kills cleanup interval
+    // Clear any previous interval to prevent multiple from running
+    if (window.killsCleanupInterval) {
+        clearInterval(window.killsCleanupInterval);
+    }
+    window.killsCleanupInterval = setInterval(() => {
+        const cutoff = Date.now() - 60000; // 1 minute cutoff
+        killsRef.orderByChild("timestamp").endAt(cutoff).once("value", (snapshot) => {
+            snapshot.forEach(child => child.ref.remove());
+        });
+    }, 60000); // Run every minute
+}
+
+function setupMapStateListener(mapStateRef) {
+    if (!mapStateRef) {
+        console.warn("mapStateRef is not defined, bullet hole synchronization disabled.");
+        return;
+    }
+    // Detach previous listeners for bullets child
+    if (mapStateListener) {
+        mapStateRef.child("bullets").off("child_added", mapStateListener);
+        mapStateRef.child("bullets").off("child_removed");
+    }
+
+    mapStateListener = mapStateRef.child("bullets").on("child_added", (snap) => {
+        const hole = snap.val();
+        const holeKey = snap.key;
+
+        addBulletHole(hole, holeKey); // Call UI function to add locally
+
+        // Schedule removal from Firebase after its visual lifecycle (e.g., 5 seconds)
+        setTimeout(() => {
+            snap.ref.remove().catch(err => console.error("Failed to remove scheduled bullet hole from Firebase:", err));
+        }, Math.max(0, 5000 - (Date.now() - (hole.timeCreated || 0)))); // Ensure positive timeout
+    });
+
+    mapStateRef.child("bullets").on("child_removed", (snap) => {
+        removeBulletHole(snap.key); // Call UI function to remove locally
+    });
+}
+
+function setupTracerListener(tracersRef) {
+    if (tracersListener) tracersRef.off("child_added", tracersListener); // Detach previous
+    tracersListener = tracersRef.on("child_added", (snap) => {
+        const { ox, oy, oz, tx, ty, tz, shooter } = snap.val();
+        const tracerRef = snap.ref;
+        // Remove from Firebase after a short delay (e.g., 1 second)
+        setTimeout(() => tracerRef.remove().catch(err => console.error("Failed to remove tracer from Firebase:", err)), 1000);
+        // Always create tracer locally for all players, regardless of who shot it
+        createTracer(new THREE.Vector3(ox, oy, oz), new THREE.Vector3(tx, ty, tz), snap.key);
+    });
+
+    tracersRef.off("child_removed"); // Detach previous
+    tracersRef.on("child_removed", (snap) => {
+        removeTracer(snap.key);
+    });
+}
+
 // Function for a designated host to update gameCurrentTime in Firebase
 export function startHostTimeSync(gameConfigRef) {
     if (gameCurrentTimeInterval) {
