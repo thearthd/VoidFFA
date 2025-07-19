@@ -599,7 +599,7 @@ update(inputState, delta, playerState) {
     isCrouched,
     this._aiming,
     isGrounded,
-    shotIndex
+    this.burstCount
   );
   updateCrosshair(spreadAngle);
   playerState.isAirborne = !isGrounded;
