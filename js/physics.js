@@ -249,7 +249,7 @@ export class PhysicsController {
             // Before standing up, check if there's enough space above the player
             const standingCheckHeight = standingHeight - this.player.capsuleInfo.radius * 2; // Approximate standing segment
             const canStandUp = this.checkCeilingCollision(standingCheckHeight); // Implement this check
-            
+          /*  
             if (canStandUp) {
                 this.isCrouching = false;
                 this.targetPlayerHeight = standingHeight;
@@ -258,6 +258,7 @@ export class PhysicsController {
                 this.isCrouching = true;
                 this.targetPlayerHeight = currentCrouchHeight;
             }
+            */
         }
     }
 
