@@ -194,7 +194,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                 // Pass the created collider mesh to the physics controller
                 // Assumes physicsController has a method like setCollider(mesh)
                 physicsController.setCollider(collider);
-
+                physicsController.worldBVH = collider.geometry.boundsTree;
                 console.log('✔️ GLB mesh loaded and BVH collider built.');
                 resolve(gltfGroup); // Resolve the promise once loading and BVH setup are complete
             },
@@ -326,7 +326,7 @@ export async function createSigmaCity(scene, physicsController) {
                 // Pass the created collider mesh to the physics controller
                 // Assumes physicsController has a method like setCollider(mesh)
                 physicsController.setCollider(collider);
-
+                physicsController.worldBVH = collider.geometry.boundsTree;
                 console.log('✔️ GLB mesh loaded and BVH collider built.');
                 resolve(gltfGroup); // Resolve the promise once loading and BVH setup are complete
             },
