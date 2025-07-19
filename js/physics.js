@@ -19,15 +19,17 @@ const PLAYER_ACCEL_GROUND = 25;
 const PLAYER_ACCEL_AIR = 8;
 const MAX_SPEED = 10;
 
-const SKIN = 0.005;
+// SKIN is a tiny buffer to prevent immediate re-penetration after correction.
+// A very small positive value is essential for stability.
+const SKIN = 0.005; // Can try 0.001 or 0.002 if still jittering.
 
 const _vector1 = new THREE.Vector3();
 const _vector2 = new THREE.Vector3();
 const _vector3 = new THREE.Vector3();
-const _tmpBox = new THREE.Box3();
-const _tmpMat = new THREE.Matrix4();
-const _tmpInverseMat = new THREE.Matrix4();
-const _tmpLocalBox = new THREE.Box3();
+const _tmpBox = new THREE.Box3(); // Player's collision volume in World Space
+const _tmpMat = new THREE.Matrix4(); // General purpose temporary matrix
+const _tmpInverseMat = new THREE.Matrix4(); // Temporary matrix for inverse operations
+const _tmpLocalBox = new THREE.Box3(); // Temporary box for local BVH node bounds in World Space
 const _tempSegment = new THREE.Line3();
 const _upVector = new THREE.Vector3(0, 1, 0);
 
@@ -45,8 +47,8 @@ export class PhysicsController {
 
         this.playerVelocity = new THREE.Vector3();
         this.playerDirection = new THREE.Vector3();
-        this.playerOnFloor = false; // Internal flag, might be redundant with isGrounded
-        this.isGrounded = false; // Primary flag for character state
+        this.playerOnFloor = false;
+        this.isGrounded = false;
         this.groundNormal = new THREE.Vector3(0, 1, 0);
         this.bvhMeshes = [];
         this.mouseTime = 0;
@@ -121,12 +123,15 @@ export class PhysicsController {
     }
 
     updatePlayer(deltaTime) {
+        // Crucial check: only perform BVH collisions if meshes are loaded
         if (this.bvhMeshes.length === 0) {
+            // Apply gravity and basic movement without collision resolution
             this.playerVelocity.y += deltaTime * -GRAVITY;
             const deltaPosition = _vector3.copy(this.playerVelocity).multiplyScalar(deltaTime);
             this.playerCollider.start.add(deltaPosition);
             this.playerCollider.end.add(deltaPosition);
 
+            // Apply input-based movement to collider if BVH not ready
             const angle = this.camera.rotation.y;
             let currentSpeedModifier = this.speedModifier;
             if (this.crouchPressed) currentSpeedModifier *= 0.3;
@@ -155,10 +160,12 @@ export class PhysicsController {
                 this.playerCollider.end.addScaledVector(_vector1, effectiveAccel * deltaTime);
             }
 
+            // Apply horizontal damping if no input and not grounded
             if (! (this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && !this.playerOnFloor) {
                 this.playerVelocity.x *= Math.exp(-4 * deltaTime);
                 this.playerVelocity.z *= Math.exp(-4 * deltaTime);
             }
+            // If the player falls out of bounds while BVH is loading, teleport them.
             if (this.playerCollider.end.y < -25) {
                 this.setPlayerPosition(new THREE.Vector3(0, 5, 0));
                 this.playerVelocity.set(0, 0, 0);
@@ -167,11 +174,12 @@ export class PhysicsController {
         }
 
         // Physics calculations: Gravity
-        if (!this.isGrounded) { // Only apply full gravity if not grounded (i.e., truly airborne or falling)
+        if (!this.playerOnFloor || this.jumpTriggered) {
             this.playerVelocity.y += deltaTime * -GRAVITY;
         } else {
-            // When grounded, apply a slight downward force to ensure we stick.
-            this.playerVelocity.y = -0.01;
+            // If on floor and not jumping, apply a small, consistent downward velocity
+            // This "glues" the player to the ground without fighting collision resolution.
+            this.playerVelocity.y = -0.01; // A tiny downward nudge
         }
 
         // Create a *new* capsule for the current physics step's movement
@@ -182,7 +190,7 @@ export class PhysicsController {
         currentCapsule.start.add(deltaPosition);
         currentCapsule.end.add(deltaPosition);
 
-        // Prepare bounding box for broad-phase check
+        // Prepare bounding box for broad-phase check (this is critical!)
         _tmpBox.makeEmpty();
         _tmpBox.expandByPoint(currentCapsule.start);
         _tmpBox.expandByPoint(currentCapsule.end);
@@ -192,12 +200,6 @@ export class PhysicsController {
         let bestCollisionNormal = new THREE.Vector3();
         let collisionDepth = 0;
         let collisionDetected = false;
-
-        // Reset grounded state at the beginning of each physics step
-        this.playerOnFloor = false; // Can likely remove this in favor of isGrounded
-        this.isGrounded = false;
-        this.groundNormal.set(0, 1, 0);
-
 
         for (const mesh of this.bvhMeshes) {
             _tmpInverseMat.copy(mesh.matrixWorld).invert();
@@ -232,14 +234,19 @@ export class PhysicsController {
             });
         }
 
+        this.playerOnFloor = false;
+        this.isGrounded = false;
+        this.groundNormal.set(0, 1, 0);
+
         if (collisionDetected) {
             if (this.bvhMeshes.length > 0) {
                 bestCollisionNormal.transformDirection(this.bvhMeshes[0].matrixWorld);
             }
 
+            // Apply displacement to move out of penetration
             if (collisionDepth > 0) {
                  const displacementAmount = collisionDepth - SKIN;
-                 if (displacementAmount > 0) {
+                 if (displacementAmount > 0) { // Only push if penetrating more than SKIN
                      const displacement = _vector3.copy(bestCollisionNormal).multiplyScalar(displacementAmount);
                      this.playerCollider.start.add(displacement);
                      this.playerCollider.end.add(displacement);
@@ -247,15 +254,15 @@ export class PhysicsController {
             }
 
             if (bestCollisionNormal.dot(_upVector) > 0.75) {
-                this.playerOnFloor = true; // Still using this for internal logic
-                this.isGrounded = true;   // This is the main flag for external systems and gravity logic
+                this.playerOnFloor = true;
+                this.isGrounded = true;
                 this.groundNormal.copy(bestCollisionNormal);
-
-                // If any upward velocity while landing, kill it immediately
-                if (this.playerVelocity.y > 0) {
-                    this.playerVelocity.y = 0;
-                }
                 this.playerVelocity.projectOnPlane(this.groundNormal);
+
+                // Stabilize vertical velocity when grounded
+                if (Math.abs(this.playerVelocity.y) < 0.1) {
+                    this.playerVelocity.y = -0.01; // Snap to tiny downward nudge
+                }
 
             } else {
                 const dot = this.playerVelocity.dot(bestCollisionNormal);
@@ -263,6 +270,10 @@ export class PhysicsController {
                     this.playerVelocity.addScaledVector(bestCollisionNormal, -dot);
                 }
             }
+        } else {
+            this.playerOnFloor = false;
+            this.isGrounded = false;
+            this.groundNormal.set(0, 1, 0);
         }
 
         if (this.playerCollider.end.y < -25) {
@@ -307,7 +318,7 @@ export class PhysicsController {
             currentSpeedModifier *= 0.65;
         }
 
-        const accel = this.isGrounded ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR; // Use isGrounded here
+        const accel = this.playerOnFloor ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
         const effectiveAccel = accel * currentSpeedModifier;
 
         const angle = this.camera.rotation.y;
@@ -336,16 +347,16 @@ export class PhysicsController {
             this.playerVelocity.z *= ratio;
         }
 
-        if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && this.isGrounded) { // Use isGrounded
+        if (!(this.fwdPressed || this.bkdPressed || this.lftPressed || this.rgtPressed) && this.playerOnFloor) {
             this.playerVelocity.x *= Math.exp(-6 * deltaTime);
             this.playerVelocity.z *= Math.exp(-6 * deltaTime);
         }
-        else if (!this.isGrounded) { // Use isGrounded
+        else if (!this.playerOnFloor) {
             this.playerVelocity.x *= Math.exp(-0.5 * deltaTime);
             this.playerVelocity.z *= Math.exp(-0.5 * deltaTime);
         }
 
-        if (this.isGrounded && this.jumpPressed) { // Use isGrounded
+        if (this.playerOnFloor && this.jumpPressed) {
             this.playerVelocity.y = JUMP_VELOCITY;
             this.playerOnFloor = false;
             this.isGrounded = false;
@@ -354,7 +365,7 @@ export class PhysicsController {
             this.jumpTriggered = false;
         }
 
-        const wantCrouch = this.crouchPressed && this.isGrounded; // Use isGrounded
+        const wantCrouch = this.crouchPressed && this.isGrounded;
         this.targetHeight = wantCrouch ? CROUCH_HEIGHT : STAND_HEIGHT;
         this.currentHeight += (this.targetHeight - this.currentHeight) *
             Math.min(1, CROUCH_SPEED * deltaTime);
@@ -393,8 +404,8 @@ export class PhysicsController {
     }
 
     update(deltaTime, input) {
-        deltaTime = Math.min(0.05, deltaTime);
-        this.prevGround = this.isGrounded; // Capture previous grounded state before update
+        deltaTime = Math.min(0.05, deltaTime); // Cap delta time to prevent large steps leading to tunneling
+        this.prevGround = this.isGrounded;
 
         const speedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
         if (speedXZ > FOOT_DISABLED_THRESHOLD && this.isGrounded && !input.slow && !input.crouch) {
@@ -419,34 +430,33 @@ export class PhysicsController {
             this.updatePlayer(deltaTime / physicsSteps);
         }
 
-        // Landing audio logic
-        if (!this.prevGround && this.isGrounded) { // Check if just landed
+        if (!this.prevGround && this.isGrounded) {
             const fellFar = this.fallStartY !== null && (this.fallStartY - this.camera.position.y) > 1;
             if (fellFar) {
                 this.landAudio.currentTime = 0;
                 this.landAudio.play().catch(() => {});
                 sendSoundEvent("landingThud", "land", this._pos());
             }
-            this.fallStartY = null; // Reset fall start if landed
+            this.fallStartY = null;
             if (this.fallStartTimer) {
                 clearTimeout(this.fallStartTimer);
                 this.fallStartTimer = null;
             }
-        } else if (!this.isGrounded && this.fallStartY === null && this.playerVelocity.y < 0) { // If now airborne and falling
+        } else if (!this.isGrounded && this.fallStartY === null) {
             if (!this.fallStartTimer) {
                 this.fallStartTimer = setTimeout(() => {
                     this.fallStartY = this.camera.position.y;
                     this.fallStartTimer = null;
                 }, this.fallDelay);
             }
-        } else if (this.isGrounded && this.fallStartY !== null) { // If player became grounded before timer or without falling
-             this.fallStartY = null;
-             if (this.fallStartTimer) {
-                 clearTimeout(this.fallStartTimer);
-                 this.fallStartTimer = null;
-             }
+            if (this.isGrounded) { // This handles cases where fallStartY might be set but player lands very quickly
+                this.fallStartY = null;
+                if (this.fallStartTimer) {
+                    clearTimeout(this.fallStartTimer);
+                    this.fallStartTimer = null;
+                }
+            }
         }
-
 
         if (!this.playerCollider || !this.playerCollider.start) {
             console.error("ERROR: playerCollider or its start point is undefined before camera position update!");
