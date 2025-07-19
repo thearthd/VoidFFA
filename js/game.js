@@ -618,7 +618,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
         if (isHost && typeof firestoreGameEndTime !== "number") {
             const serverTime = Date.now() + currentServerTimeOffset; // Use offset to get current server time
-            firestoreGameEndTime = serverTime + 10 * 60 * 1000; // 10 minutes from server time
+            firestoreGameEndTime = serverTime + 1 * 60 * 1000; // 10 minutes from server time
             await gameConfigRef.child("gameEndTime").set(firestoreGameEndTime);
             console.log(`[game.js] Host set new gameEndTime in Firebase: ${new Date(firestoreGameEndTime).toLocaleString()}`);
         }
