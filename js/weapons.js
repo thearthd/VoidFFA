@@ -635,7 +635,8 @@ update(inputState, delta, playerState) {
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
           this._recoil.lastCameraX = this.camera.rotation.x;
-          this._recoil.targetOffsetX += recoilAngle * 2.5; // Initial camera kick up
+          // Apply recoil directly to the camera's rotation
+          this.camera.rotation.x += recoilAngle * 2.5; // Initial camera kick up
           this.state.recoiling   = true;
           this.state.recoilStart = now;
           if (this.currentKey === "ak-47" && this.burstCount === 2 && !(velocity > 2 || !isGrounded || isCrouched)) {
@@ -738,20 +739,15 @@ update(inputState, delta, playerState) {
     return true;
   });
 
-  // Camera Recoil and Recovery
-  // These are the corrected decay rates.
-  // Values around 10-30 are typically stable and feel responsive.
-  const RECOIL_DECAY_RATE_TARGET = 20*1.25; // How fast targetOffsetX (the desired recoil amount) decays to 0
-  const RECOIL_DECAY_RATE_SMOOTH = 40*1.25; // How fast offsetX (the actual applied recoil) smoothly follows targetOffsetX
-
-  // Decay targetOffsetX
-  this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * RECOIL_DECAY_RATE_TARGET;
-
-  // Smooth the recoil offset towards the decaying target
-  this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * RECOIL_DECAY_RATE_SMOOTH;
+  // Camera Recoil - Removed Recovery
+  // Instead of decaying, recoil now remains until explicitly reset.
+  // The 'recoilAngle * 2.5' applied directly when firing will accumulate.
 
   // Apply the recoil offset ADDITIVELY to the camera's pitch.
-  this.camera.rotation.x += this._recoil.offsetX;
+  // We no longer have _recoil.offsetX to smooth or decay, so we just apply
+  // the 'recoilAngle' directly when the bullet is fired.
+  // If you want a consistent camera shake or kick, you would manage that
+  // directly at the moment of firing. The previous code for decay is gone.
 }
 
 
