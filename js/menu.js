@@ -44,9 +44,10 @@ export const preload = src => {
 const canvas = document.getElementById('menuCanvas');
 const ctx = canvas.getContext('2d');
 
-         const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
-    const settingsBox = document.getElementById("settings-box");
+const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
+const settingsBox = document.getElementById("settings-box");
 
+const menuBG = document.getElementById("animatedBG");
 
 let canvasWidth = canvas.width;
 let canvasHeight = canvas.height;
@@ -1013,6 +1014,7 @@ function menu() {
 
    settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
 
+menuBG.style.display = "flex";
      
     add(logo);
 
@@ -1061,6 +1063,7 @@ function showMenuOverlay() {
 }
 
 async function initAndStartGame(username, mapName, gameId = null) {
+     
   // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === true;
   const ffaEnabled     = true; // ← or read from your HTML toggle if you have one
@@ -1086,6 +1089,7 @@ async function initAndStartGame(username, mapName, gameId = null) {
 
   // 2) Only once the network is live do we actually start the game loop
   startGame(username, mapName, detailsEnabled, ffaEnabled, gameId);
+     menuBG.style.display = "none";
   console.log(
     `Game started for map: ${mapName}, Username: ${username}, ` +
     `Details: ${detailsEnabled}, FFA: ${ffaEnabled}, Game ID: ${gameId}`
