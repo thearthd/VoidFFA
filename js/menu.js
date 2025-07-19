@@ -44,6 +44,10 @@ export const preload = src => {
 const canvas = document.getElementById('menuCanvas');
 const ctx = canvas.getContext('2d');
 
+         const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
+    const settingsBox = document.getElementById("settings-box");
+
+
 let canvasWidth = canvas.width;
 let canvasHeight = canvas.height;
 
@@ -1443,8 +1447,7 @@ export function initMenuUI() {
     const usernamePrompt = document.getElementById("username-prompt");
     const mapSelect = document.getElementById("map-menu");
     const controlsMenu = document.getElementById("menu-controls-menu"); // Corrected ID
-         const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
-    const settingsBox = document.getElementById("settings-box");
+
 
     // These elements are assumed to be part of the HTML structure,
     // distinct from the canvas-drawn buttons.
