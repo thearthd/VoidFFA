@@ -1358,8 +1358,7 @@ function settingsButtonHit() {
     add(logo);
 
     // Get the HTML elements for the sensitivity slider and settings box
-    const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
-    const settingsBox = document.getElementById("settings-box");
+
 
     // Show these elements
     if (sensitivitySliderContainer) {
@@ -1444,6 +1443,8 @@ export function initMenuUI() {
     const usernamePrompt = document.getElementById("username-prompt");
     const mapSelect = document.getElementById("map-menu");
     const controlsMenu = document.getElementById("menu-controls-menu"); // Corrected ID
+         const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
+    const settingsBox = document.getElementById("settings-box");
 
     // These elements are assumed to be part of the HTML structure,
     // distinct from the canvas-drawn buttons.
