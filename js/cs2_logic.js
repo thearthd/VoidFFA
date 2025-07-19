@@ -2,12 +2,12 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 export const RECOIL_PATTERN = {
   "ak-47": [
-    0.005, 0.005, 0.005, 0.017, 0.018, 0.019, 0.020, 0.020, 0.020,
+    0.002, 0.002, 0.005, 0.008, 0.011, 0.013, 0.016, 0.018, 0.020,
     0.020, 0.020, 0.020, 0.020, 0.020, 0.020, 0.020, 0.020, 0.020,
     0.020, 0.020, 0.020, 0.020, 0.020, 0.020, 0.020,
   ],
   deagle: [0.025],
-  marshal: [0.035],
+  marshal: [0.055],
 };
 
 export const ADS_FOV = {
