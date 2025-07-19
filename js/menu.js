@@ -1004,6 +1004,12 @@ let createGameBtn = createAnimatedButton(
 function menu() {
     clearMenuCanvas(); // Clear anything previously on canvas
     // add(background); // REMOVED BACKGROUND
+    sensitivitySliderContainer.style.display = "none"; // Or "block", depending on your CSS layout
+
+
+   settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
+
+     
     add(logo);
 
     // Add main menu buttons
