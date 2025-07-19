@@ -882,94 +882,89 @@ update(inputState, delta, playerState) {
   }
 
 fireBullet(spreadAngle) {
-    // worldBVH should be available from physicsController
-    const worldBVH = this.physicsController.worldBVH;
-    if (!worldBVH) {
-      console.error("World BVH not available to fire bullet.");
-      return;
+    // Ensure worldBVH exists
+    if (!this.physicsController.worldBVH) {
+        console.error("World BVH not available to fire bullet.");
+        return;
     }
 
-
+    // 1) Compute origin & direction with spread
     this.camera.updateMatrixWorld();
-    if (typeof scene !== 'undefined' && scene.updateMatrixWorld) {
-        scene.updateMatrixWorld(true);
-    }
-
     const origin = new THREE.Vector3().setFromMatrixPosition(this.camera.matrixWorld);
     const direction = getSpreadDirection(spreadAngle, this.camera);
 
-    let finalTracerEndPoint = null;
-    let damageToApply = 0;
-
-    const currentWeaponTracerLength = this.stats.tracerLength || 50;
-
-    const bulletTrajectory = this.checkBulletPenetration(origin, direction, 1);
-
-    if (bulletTrajectory.playerHitResult) {
-        const playerHitResult = bulletTrajectory.playerHitResult;
-        const isPenetrationShot = bulletTrajectory.isPenetrationShot;
-
-        let mesh = playerHitResult.mesh;
-        while (mesh && mesh.userData.playerId == null && mesh.parent) {
-            mesh = mesh.parent;
-        }
-
-        if (!mesh || mesh.userData.playerId == null) {
-            console.error("Error: Player mesh found but no parent with playerId in userData. Cannot apply damage.", playerHitResult.mesh);
-            return;
-        }
-
-        const pid = mesh.userData.playerId;
-        const isHead = playerHitResult.isHead;
-        const baseDamage = isHead
-            ? (this.stats.headshotDamage || this.stats.bodyDamage)
-            : this.stats.bodyDamage;
-
-        damageToApply = baseDamage * (isPenetrationShot ? 0.5 : 1.0);
-
-        if (damageToApply > 0) {
+    // 2) First—check for a direct player hit
+    const playerHit = this.checkBulletHit(origin, direction);
+    if (playerHit) {
+        // Apply damage immediately
+        const mesh = (() => {
+            let m = playerHit.mesh;
+            while (m && m.userData.playerId == null) m = m.parent;
+            return m;
+        })();
+        if (mesh && mesh.userData.playerId != null) {
+            const isHead = playerHit.isHead;
+            const baseDamage = isHead ? this.stats.headshotDamage : this.stats.bodyDamage;
             window.applyDamageToRemote?.(
-                pid,
-                damageToApply,
+                mesh.userData.playerId,
+                baseDamage,
                 {
                     id: this.localPlayerId,
                     username: window.localPlayer?.username ?? "Unknown",
                     weapon: this.currentKey,
                     isHeadshot: isHead,
-                    isPenetrationShot: isPenetrationShot
+                    isPenetrationShot: false
                 }
             );
-
             isHead ? playBodyHeadshot() : playBodyHit();
         }
 
-        finalTracerEndPoint = playerHitResult.intersection;
-
-    } else if (bulletTrajectory.allWorldHits.length > 0) {
-        finalTracerEndPoint = bulletTrajectory.allWorldHits[bulletTrajectory.allWorldHits.length - 1].point;
-    } else {
-        finalTracerEndPoint = direction.clone().multiplyScalar(currentWeaponTracerLength).add(origin);
+        // Draw tracer directly to the player
+        this.createTracer(
+            origin,
+            playerHit.intersection,
+            this.currentKey,
+            this.stats.tracerLength
+        );
+        sendTracer({
+            ox: origin.x, oy: origin.y, oz: origin.z,
+            tx: playerHit.intersection.x,
+            ty: playerHit.intersection.y,
+            tz: playerHit.intersection.z
+        });
+        return;
     }
 
-    // --- CREATE BULLET HOLES FOR ALL APPLICABLE PENETRATIONS ---
-    for (const hitData of bulletTrajectory.allWorldHits) {
+    // 3) No player hit—check world hits (with optional penetration)
+    const trajectory = this.checkBulletPenetration(origin, direction, 1);
+
+    let tracerEnd;
+    if (trajectory.playerHitResult) {
+        // In the rare case player was behind a thin wall and penetrated
+        tracerEnd = trajectory.playerHitResult.intersection;
+    } else if (trajectory.allWorldHits.length) {
+        tracerEnd = trajectory.allWorldHits.slice(-1)[0].point;
+    } else {
+        tracerEnd = origin.clone().add(direction.clone().multiplyScalar(this.stats.tracerLength));
+    }
+
+    // 4) Send bullet‐hole decals for every world penetration
+    for (const wh of trajectory.allWorldHits) {
         sendBulletHole({
-            x: hitData.point.x, y: hitData.point.y, z: hitData.point.z,
-            nx: hitData.normal.x, ny: hitData.normal.y, nz: hitData.normal.z,
+            x: wh.point.x, y: wh.point.y, z: wh.point.z,
+            nx: wh.normal.x, ny: wh.normal.y, nz: wh.normal.z,
             timeCreated: firebase.database.ServerValue.TIMESTAMP
         });
     }
 
-    // Step 3: Finalize tracerEndPoint and create tracer
-    const muzzleWorld = this.parts.muzzle
+    // 5) Draw tracer from muzzle to tracerEnd
+    const muzzlePos = this.parts.muzzle
         ? this.parts.muzzle.getWorldPosition(new THREE.Vector3())
         : origin;
-
-    this.createTracer(muzzleWorld, finalTracerEndPoint, this.currentKey, currentWeaponTracerLength);
-
+    this.createTracer(muzzlePos, tracerEnd, this.currentKey, this.stats.tracerLength);
     sendTracer({
-        ox: muzzleWorld.x, oy: muzzleWorld.y, oz: muzzleWorld.z,
-        tx: finalTracerEndPoint.x, ty: finalTracerEndPoint.y, tz: finalTracerEndPoint.z
+        ox: muzzlePos.x, oy: muzzlePos.y, oz: muzzlePos.z,
+        tx: tracerEnd.x, ty: tracerEnd.y, tz: tracerEnd.z
     });
 }
 
