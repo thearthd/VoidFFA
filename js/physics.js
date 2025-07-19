@@ -1,6 +1,6 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { sendSoundEvent } = "./network.js";
+import { sendSoundEvent } from "./network.js";
 
 // Constants for player physics and dimensions
 const PLAYER_MASS = 70;
