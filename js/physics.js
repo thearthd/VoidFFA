@@ -14,7 +14,7 @@ const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + 2 * PLAYER_CAPSULE_R
 
 const PLAYER_ACCEL_GROUND = 25; // Acceleration when on the ground
 const PLAYER_ACCEL_AIR = 8; // Acceleration when in the air
-const MAX_SPEED = 90; // Maximum horizontal speed
+const MAX_SPEED = 10; // Maximum horizontal speed
 
 const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps stop
 
@@ -87,7 +87,7 @@ export class PhysicsController {
 
         // Physics state variables
         this.playerVelocity = new THREE.Vector3();
-        this.playerIsOnGround = false; // Tracks if the player is currently on the ground
+        this.isGrounded = false; // Tracks if the player is currently on the ground
 
         // Helper vectors and objects to avoid re-allocations during calculations
         this.upVector = new THREE.Vector3(0, 1, 0);
@@ -178,7 +178,7 @@ export class PhysicsController {
      */
     controls(deltaTime, input) {
         // Determine acceleration based on whether player is on ground or in air
-        const acceleration = this.playerIsOnGround ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
+        const acceleration = this.isGrounded ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
 
         // Apply speed modifiers (crouch, slow, aim)
         const effectiveAcceleration = acceleration * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
@@ -206,9 +206,9 @@ export class PhysicsController {
         }
 
         // Handle jumping
-        if (this.playerIsOnGround && input.jump) {
+        if (this.isGrounded && input.jump) {
             this.playerVelocity.y = JUMP_VELOCITY; // Apply upward jump velocity
-            this.playerIsOnGround = false; // Player is no longer on the ground
+            this.isGrounded = false; // Player is no longer on the ground
             this.jumpTriggered = true; // Set jump flag
         }
     }
@@ -221,7 +221,7 @@ export class PhysicsController {
         // Apply gravity
         // When on ground, apply a small downward velocity to keep player "stuck" to it.
         // This is crucial for reliable ground detection with shapecast.
-        if (this.playerIsOnGround) {
+        if (this.isGrounded) {
             this.playerVelocity.y = -GRAVITY * delta * 0.1; // Small downward push
         } else {
             // When in air, gravity continuously accelerates downwards
@@ -298,10 +298,10 @@ export class PhysicsController {
         // Determine if the player is on the ground based on vertical adjustment
         // If the player was primarily adjusted vertically upwards (against gravity), they are on ground
         // Also, if player's y velocity is significantly positive (moving upwards), they are not grounded.
-        this.playerIsOnGround = (deltaVector.y > Math.abs(delta * this.playerVelocity.y * 0.25)) && (this.playerVelocity.y <= 0.05);
+        this.isGrounded = (deltaVector.y > Math.abs(delta * this.playerVelocity.y * 0.25)) && (this.playerVelocity.y <= 0.05);
 
         // Log the grounded state to the console
-        console.log("Player Grounded State:", this.playerIsOnGround);
+        console.log("Player Grounded State:", this.isGrounded);
 
         // Apply the collision adjustment to the player's actual position
         const offset = Math.max(0.0, deltaVector.length() - 1e-5);
@@ -309,7 +309,7 @@ export class PhysicsController {
         this.player.position.add(deltaVector);
 
         // Adjust player velocity based on collision response
-        if (!this.playerIsOnGround) {
+        if (!this.isGrounded) {
             // If not on ground, project velocity onto the collision normal to slide
             deltaVector.normalize();
             this.playerVelocity.addScaledVector(deltaVector, -deltaVector.dot(this.playerVelocity));
@@ -333,7 +333,7 @@ export class PhysicsController {
             console.warn("Player OOB detected! Teleporting...");
             this.setPlayerPosition(new THREE.Vector3(0, 5, 0)); // Teleport to a safe, elevated position
             this.playerVelocity.set(0, 0, 0); // Clear velocity
-            this.playerIsOnGround = false;
+            this.isGrounded = false;
             this.jumpTriggered = false; // Reset jump flag on teleport
             this.fallStartY = null; // Reset fall start Y on teleport
         }
@@ -349,7 +349,7 @@ export class PhysicsController {
 
         // Reset velocities and flags
         this.playerVelocity.set(0, 0, 0);
-        this.playerIsOnGround = false;
+        this.isGrounded = false;
         this.jumpTriggered = false;
         this.fallStartY = null;
 
@@ -368,13 +368,13 @@ export class PhysicsController {
     update(deltaTime, input) {
         deltaTime = Math.min(0.05, deltaTime); // Cap deltaTime to prevent "explosions"
 
-        this.prevPlayerIsOnGround = this.playerIsOnGround; // Store previous ground state for landing sound
+        this.prevPlayerIsOnGround = this.isGrounded; // Store previous ground state for landing sound
 
         // Calculate horizontal speed for footstep sounds
         const currentSpeedXZ = Math.sqrt(this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z);
 
         // Footstep sound logic
-        if (currentSpeedXZ > FOOT_DISABLED_THRESHOLD && this.playerIsOnGround && !input.slow && !input.crouch) {
+        if (currentSpeedXZ > FOOT_DISABLED_THRESHOLD && this.isGrounded && !input.slow && !input.crouch) {
             const interval = this.baseFootInterval / currentSpeedXZ;
             this.footAcc += deltaTime;
             if (this.footAcc >= interval) {
@@ -385,7 +385,7 @@ export class PhysicsController {
                 sendSoundEvent("footstep", "run", this._pos());
                 this.footIndex = 1 - this.footIndex;
             }
-        } else if (this.playerIsOnGround && currentSpeedXZ <= FOOT_DISABLED_THRESHOLD) {
+        } else if (this.isGrounded && currentSpeedXZ <= FOOT_DISABLED_THRESHOLD) {
             this.footAcc = 0; // Reset footstep accumulator when stopped
         }
 
@@ -395,7 +395,7 @@ export class PhysicsController {
         this.teleportIfOob();
 
         // Landing sound logic
-        if (!this.prevPlayerIsOnGround && this.playerIsOnGround) {
+        if (!this.prevPlayerIsOnGround && this.isGrounded) {
             // Play landing sound if falling distance was significant or it was a jump
             if ((this.fallStartY !== null && (this.fallStartY - this.player.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.player.position.y) > 1)) {
                 this.landAudio.currentTime = 0;
@@ -407,7 +407,7 @@ export class PhysicsController {
                 clearTimeout(this.fallStartTimer);
                 this.fallStartTimer = null;
             }
-        } else if (!this.playerIsOnGround && this.fallStartY === null) {
+        } else if (!this.isGrounded && this.fallStartY === null) {
             // If not grounded and fallStartY hasn't been set yet, start a timer
             if (!this.fallStartTimer) {
                 this.fallStartTimer = setTimeout(() => {
@@ -419,7 +419,7 @@ export class PhysicsController {
 
         // Player model rotation to align with camera direction when grounded
         // The player model is 'this.player'
-        if (this.playerIsOnGround) {
+        if (this.isGrounded) {
             const smoothingFactor = 0.15;
             const playerWorldForward = new THREE.Vector3();
             this.camera.getWorldDirection(playerWorldForward);
@@ -444,7 +444,7 @@ export class PhysicsController {
             y: this.player.position.y,
             z: this.player.position.z,
             rotY: this.camera.rotation.y, // Camera rotation is still the primary rotation for view
-            isGrounded: this.playerIsOnGround,
+            isGrounded: this.isGrounded,
             velocity: this.playerVelocity.clone(),
             velocityY: this.playerVelocity.y
         };
