@@ -1064,7 +1064,7 @@ function showMenuOverlay() {
 }
 
 async function initAndStartGame(username, mapName, gameId = null) {
-     
+     hud.style.display = "block";
   // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === true;
   const ffaEnabled     = true; // ← or read from your HTML toggle if you have one
