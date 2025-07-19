@@ -49,7 +49,7 @@ const settingsBox = document.getElementById("settings-box");
 
 const menuBG = document.getElementById("animatedBG");
   const hud = document.getElementById("hud");
-hud.style.display = "none";
+
 
 let canvasWidth = canvas.width;
 let canvasHeight = canvas.height;
@@ -1015,8 +1015,9 @@ function menu() {
 
 
    settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
-
+hud.style.display = "none";
 menuBG.style.display = "flex";
+
      
     add(logo);
 
