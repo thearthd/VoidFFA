@@ -654,7 +654,7 @@ update(inputState, delta, playerState) {
 
           // --- RECOIL APPLICATION ---
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          this._recoil.peakOffset += recoilAngle * 2.5; // Accumulate recoil to the peak
+          this._recoil.peakOffset += recoilAngle; // Accumulate recoil to the peak
           this._recoil.recoilStartTime = now;           // Start recovery from now
 
         } else {
