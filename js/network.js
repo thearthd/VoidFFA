@@ -610,7 +610,73 @@ function setupGameConfigListener(gameConfigRef) {
         }
     });
 }
+export async function fullCleanup(gameIdToCleanup) { // <-- Defined here
+    console.log("[network.js] Initiating fullCleanup for gameId:", gameIdToCleanup);
 
+    // 1. Detach all Firebase listeners
+    if (playersListener && dbRefs.playersRef) {
+        dbRefs.playersRef.off("value", playersListener);
+        playersListener = null;
+        console.log("Players listener detached.");
+    }
+    // ... (other listeners: chatListener, killsListener, mapStateListener, tracersListener, soundsListener, gameConfigListener) ...
+    if (gameConfigListener && dbRefs.gameConfigRef) { // This is key for the time sync logic
+        dbRefs.gameConfigRef.off("value", gameConfigListener);
+        gameConfigListener = null;
+        console.log("GameConfig listener detached.");
+    }
+
+    // 2. Clear any intervals (like the host time sync)
+    if (gameCurrentTimeInterval) {
+        clearInterval(gameCurrentTimeInterval);
+        gameCurrentTimeInterval = null;
+        console.log("Game current time push interval cleared.");
+    }
+    // ... (other intervals like gameInterval in game.js would be cleared by disposeGame which fullCleanup calls) ...
+
+    // 3. Audio cleanup
+    if (audioManagerInstance) {
+        audioManagerInstance.stopAll();
+    }
+
+    // 4. Remove local player data and cancel onDisconnect
+    if (dbRefs.playersRef && localPlayerId) {
+        try {
+            await dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel();
+            console.log(`onDisconnect cancelled for player '${localPlayerId}'.`);
+            await dbRefs.playersRef.child(localPlayerId).remove();
+            console.log(`Local player '${localPlayerId}' explicitly removed from Firebase.`);
+        } catch (error) {
+            console.error(`Error removing local player '${localPlayerId}' from Firebase during cleanup:`, error);
+        }
+    }
+
+    // 5. Release the game slot
+    if (activeGameSlotName) {
+        await releaseGameSlot(activeGameSlotName);
+        console.log(`Game slot '${activeGameSlotName}' released AND lobby entry removed.`);
+        localStorage.removeItem(`playerId-${activeGameSlotName}`);
+        activeGameSlotName = null;
+    }
+
+    // 6. Reset local state variables
+    localPlayerId = null;
+    dbRefs = {};
+    for (const id in remotePlayers) {
+        removeRemotePlayerModel(id); // Remove Three.js models
+    }
+    for (const key in remotePlayers) { // Clear remotePlayers object
+        delete remotePlayers[key];
+    }
+    permanentlyRemoved.clear();
+    latestValidIds = [];
+
+    console.log("[network.js] Game cleanup complete. All listeners detached and data cleared. Reloading page...");
+
+    // 7. Trigger a page reload to ensure a clean state
+    // This is a common practice for complex game resets in client-side applications
+    window.location.reload();
+}
 // Function for a designated host to update gameCurrentTime in Firebase
 export function startHostTimeSync(gameConfigRef) {
     if (gameCurrentTimeInterval) {
