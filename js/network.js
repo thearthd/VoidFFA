@@ -12,7 +12,7 @@ import {
     removeRemotePlayer as removeRemotePlayerModel,
     updateRemotePlayer,
     handleLocalDeath,
-    determineWinnerAndEndGame
+    determineWinnerAndEndGame // Still needed as it triggers cleanup and logic
 } from "./game.js";
 
 import {
@@ -22,11 +22,11 @@ import {
     createTracer,
     removeTracer,
     updateHealthShieldUI,
-    setUIDbRefs,
+    setUIDbRefs, // Still needed to pass DB refs to UI module
     addBulletHole,
     removeBulletHole,
-    // Removed updateGameClockUI as it's no longer needed for a direct display
-} from "./ui.js";
+    // updateGameClockUI REMOVED
+} from "./ui.js"; // ui.js import modified
 
 import { WeaponController } from "./weapons.js";
 import { AudioManager } from "./AudioManager.js";
