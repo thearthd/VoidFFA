@@ -244,8 +244,8 @@ export class WeaponController {
 window.addEventListener("applyRecoilEvent", event => {
   const recoilRad = event.detail;
   // kick the camera up:
-  this.camerarotation.x = THREE.MathUtils.clamp(
-    this.camerarotation.x - recoilRad,
+  this.camera.rotation.x = THREE.MathUtils.clamp(
+    this.camera.rotation.x - recoilRad,
     -Math.PI/2, Math.PI/2
   );
 });
