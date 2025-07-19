@@ -556,7 +556,7 @@ update(inputState, delta, playerState) {
       fromFov:   this._baseFov,
       toFov:     targetFov,
       fromScale: this._baseScale.clone(),
-      toScale:   this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
+      toScale:   this._baseScale.scale(targetFov / this._baseFov), // Simplified clone().multiplyScalar to .scale
       fromPos:   this._fromPos.clone(),
       toPos:     toPos,
       startTime: now,
@@ -586,10 +586,10 @@ update(inputState, delta, playerState) {
     this.camera.fov = newFov;
     this.camera.updateProjectionMatrix();
     this.viewModel.scale.copy(
-      this._fovTween.fromScale.clone().lerp(this._fovTween.toScale, s)
+      this._fovTween.fromScale.lerp(this._fovTween.toScale, s) // No need to clone fromScale here
     );
     this.viewModel.position.copy(
-      this._fovTween.fromPos.clone().lerp(this._fovTween.toPos, s)
+      this._fovTween.fromPos.lerp(this._fovTween.toPos, s) // No need to clone fromPos here
     );
   }
 
@@ -633,8 +633,7 @@ update(inputState, delta, playerState) {
           this.ammoInMagazine--;
           this.burstCount++;
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          // We are storing lastCameraX, but we will no longer force a return to it.
-          // It could still be useful for other effects or debugging.
+          // lastCameraX is still stored, but not used for forced recovery
           this._recoil.lastCameraX = this.camera.rotation.x;
           this._recoil.targetOffsetX += recoilAngle * 2.5; // Initial camera kick up
           this.state.recoiling   = true;
@@ -740,24 +739,27 @@ update(inputState, delta, playerState) {
   });
 
   // Camera Recoil and Recovery
-  // Decay targetOffsetX faster for snappier recoil application
-  this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * 25;
+  // INCREASE these multipliers to make recovery faster.
+  // Experiment with values like 50, 75, 100 for RECOIL_DECAY_RATE_TARGET
+  // and 90, 120, 150 for RECOIL_DECAY_RATE_SMOOTH.
+  const RECOIL_DECAY_RATE_TARGET = 75; // How fast targetOffsetX (the desired recoil amount) decays to 0
+  const RECOIL_DECAY_RATE_SMOOTH = 120; // How fast offsetX (the actual applied recoil) smoothly follows targetOffsetX
 
-  // Smooth the recoil offset faster
-  this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * 45;
+  // Decay targetOffsetX
+  this._recoil.targetOffsetX += (0 - this._recoil.targetOffsetX) * delta * RECOIL_DECAY_RATE_TARGET;
+
+  // Smooth the recoil offset towards the decaying target
+  this._recoil.offsetX += (this._recoil.targetOffsetX - this._recoil.offsetX) * delta * RECOIL_DECAY_RATE_SMOOTH;
 
   // Apply the recoil offset ADDITIVELY to the camera's pitch.
-  // This assumes the camera's pitch (this.camera.rotation.x) is controlled by player input
-  // and is updated *before* or at the very beginning of this update method.
-  // The recoil simply adds a temporary "kick" on top of the player's aiming.
+  // This means recoil pushes the camera up by this._recoil.offsetX amount,
+  // but player input still works on top of it.
   this.camera.rotation.x += this._recoil.offsetX;
 
-  // IMPORTANT: The previous recovery logic that used `THREE.MathUtils.lerp` to
-  // return the camera to `_recoil.lastCameraX` has been REMOVED.
-  // The "recovery" is now simply the decay of `_recoil.offsetX` back to zero.
-  // This allows the player to freely move the camera while the recoil effect dissipates.
+  // The "recovery" in this model is solely the decay of this._recoil.offsetX back to zero.
+  // As it approaches zero, the added recoil effect diminishes, allowing the camera
+  // to naturally settle back to the position dictated purely by player mouse input.
 }
-
 
 
   getCurrentAmmo() {
