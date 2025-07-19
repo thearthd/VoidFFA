@@ -240,6 +240,17 @@ export class WeaponController {
 
     this.scene = window.scene;
     this.raycaster = new THREE.Raycaster();
+
+window.addEventListener("applyRecoilEvent", event => {
+  const recoilRad = event.detail;
+  // kick the camera up:
+  controller.camera.rotation.x = THREE.MathUtils.clamp(
+    controller.camera.rotation.x - recoilRad,
+    -Math.PI/2, Math.PI/2
+  );
+});
+
+   
   }
 
 equipWeapon(weaponKey) {
@@ -1215,16 +1226,6 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
         return { promise, register: cb => prog = cb };
     }
 }
-
-window.addEventListener("applyRecoilEvent", event => {
-  const recoilRad = event.detail;
-  // kick the camera up:
-  controller.camera.rotation.x = THREE.MathUtils.clamp(
-    controller.camera.rotation.x - recoilRad,
-    -Math.PI/2, Math.PI/2
-  );
-});
-
 
 
 
