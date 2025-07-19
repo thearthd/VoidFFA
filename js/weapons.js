@@ -479,12 +479,12 @@ update(inputState, delta, playerState) {
   const justClicked = inputState.fireJustPressed;
   const defaultAimPos = new THREE.Vector3(0, -0.3, -0.5);
 
-  // Initialize _recoil properties if they don't exist
-  if (!this._recoil) {
-    this._recoil = {
-      offset: 0,       // The actual recoil offset applied to the camera
-      targetOffset: 0  // The target recoil offset (accumulates, does not recover)
-    };
+  // Initialize recoil state if not present (assuming this is done in constructor or similar)
+  // If not, you might need:
+  if (!this._recoil.currentOffset) {
+      this._recoil.currentOffset = 0;
+      this._recoil.recoilStartTime = 0;
+      this._recoil.recoilDuration = 0.5; // Default animation duration for recoil recovery
   }
 
 
@@ -651,10 +651,14 @@ update(inputState, delta, playerState) {
           this.playWeaponSound("shot");
           updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
 
-          // Now, *after* the bullet is fired, add the recoil to the target offset
+          // Now, *after* the bullet is fired, apply the recoil to the target offset
           const recoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          this._recoil.targetOffset += recoilAngle * 2.5; // Accumulate recoil
-          // No recovery for targetOffset
+
+          // *** NEW RECOIL APPLICATION LOGIC ***
+          // Add the recoil amount to the current offset and start the recovery animation
+          this._recoil.currentOffset += recoilAngle * 2.5; // Accumulate recoil
+          this._recoil.recoilStartTime = now; // Mark the start of this recoil event
+          // No need to reset targetOffsetX or offsetX, as we are animating currentOffset directly.
 
         } else {
           this.isReloadingFlag   = true;
@@ -750,17 +754,54 @@ update(inputState, delta, playerState) {
     return true;
   });
 
-  // --- Camera Recoil: Smooth Application, NO Recovery, combined with player input ---
-  const RECOIL_SMOOTH_RATE = 40 * 1.25; // Controls how quickly the recoil takes effect (higher = snappier)
+  // *** UPDATED CAMERA RECOIL ANIMATION ***
+  // Animate _recoil.currentOffset back to 0
+  if (this._recoil.currentOffset !== 0) {
+    const elapsedRecoil = now - this._recoil.recoilStartTime;
+    if (elapsedRecoil >= this._recoil.recoilDuration) {
+      this._recoil.currentOffset = 0; // Fully recovered
+    } else {
+      // Use a smoothstep-like function for falloff
+      // Recoil should be at its peak immediately and then decay
+      const t = elapsedRecoil / this._recoil.recoilDuration;
+      // This will make it smoothly go from 1 to 0 (recovery)
+      const easedT = 1 - (t * t * (3 - 2 * t)); // Inverse smoothstep for decay
+      
+      // Calculate the recoil based on its peak (when it was added) and the eased progress.
+      // We need to store the 'peak' recoil when it's added.
+      // Let's refine this: when recoil is applied, we store the *value to recover from*.
+      // We'll add a `_recoil.peakOffset` to hold the amount to decay from.
 
-  // Smoothly interpolate the current recoil offset towards the accumulated target offset
-  this._recoil.offset += (this._recoil.targetOffset - this._recoil.offset) * delta * RECOIL_SMOOTH_RATE;
+      // If you want the recoil to "jump" up and then smoothly fall,
+      // the `_recoil.currentOffset` should represent the *peak* recoil,
+      // and then it smoothly interpolates from that peak to 0.
+      // However, the earlier logic for `targetOffsetX` was accumulating.
 
-  // Apply the player's camera pitch AND the recoil offset
-  // Assuming playerState.cameraPitch is the pitch from mouse input
-  this.camera.rotation.x = playerState.cameraPitch + this._recoil.offset;
+      // Let's assume `_recoil.currentOffset` is the *desired* final offset,
+      // and we are simply animating it towards 0.
+      // When a shot fires, we add to `_recoil.currentOffset`.
+      // Then, in this block, `_recoil.currentOffset` itself decays.
+
+      // Option 1: Each shot adds a new "kick", which then decays.
+      // If a new shot fires before decay completes, the new kick is added to current.
+      // The recovery starts from the *new* current offset.
+      const initialPeak = this._recoil.currentOffset; // Value when recoil started decaying
+      this._recoil.currentOffset = initialPeak * (1 - t); // Simple linear decay
+      // Or for an eased decay:
+      // this._recoil.currentOffset = initialPeak * easedT;
+    }
+  }
+
+  // Apply the current, animating recoil offset to the camera's rotation.
+  // Assumes this.camera.rotation.x is being updated by player input elsewhere.
+  // If your player input directly modifies `this.camera.rotation.x`, then:
+  this.camera.rotation.x += this._recoil.currentOffset;
+
+  // If your player input sets a `playerState.cameraPitch` and you then apply it:
+  // this.camera.rotation.x = playerState.cameraPitch + this._recoil.currentOffset;
+  // Make sure to choose the correct approach based on how your input is handled.
+  // For `+=`, it implies `this.camera.rotation.x` is already up-to-date with player input.
 }
-
 
   getCurrentAmmo() {
     return this.ammoInMagazine;
