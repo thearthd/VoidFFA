@@ -601,14 +601,6 @@ gameInterval = setInterval(() => {
             }
         });
 
-    } else {
-        gameTimerElement.style.display = "none";
-        if (gameInterval) {
-            clearInterval(gameInterval);
-        }
-        gameConfigRef.child("gameDuration").remove(); // Ensure duration is cleared if FFA is off
-    }
-
     // 3) Common game start UI setup (unchanged)
     initGlobalFogAndShadowParams();
     window.isGamePaused = false;
