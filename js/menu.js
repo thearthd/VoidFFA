@@ -1492,6 +1492,7 @@ export function initMenuUI() {
             menu(); // Show canvas-drawn main menu
             document.getElementById("game-logo").classList.add("hidden"); // Hide the HTML game logo
             const menuOverlayElement = document.getElementById('menu-overlay');
+            menuOverlayElement.style.display = 'none';
 
             canvas.style.display = 'block'; // Ensure canvas is visible
         } else {
