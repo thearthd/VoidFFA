@@ -1019,10 +1019,16 @@ function updateBoardHit() {
 
          const style = document.createElement('style');
     style.textContent = `
-        .swal2-popup-gradient {
-         background: linear-gradient(to right, #C58DE3 0%, #7616D1 100%) !important;
-         color: #ffffff;
-        }
+          .swal2-popup-gradient {
+              background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%) !important;
+          }
+          .swal2-confirm-button-gradient {
+              background: linear-gradient(to right, #555555 0%, #555555 100%) 
+              border: none !important;
+          }
+          .swal2-confirm-button-gradient:hover {
+              opacity: 0.9; 
+          }
     `;
     document.head.appendChild(style);
 
@@ -1034,7 +1040,8 @@ function updateBoardHit() {
       //  timer: 3000, // Automatically close after 3 seconds
      //   timerProgressBar: true,
         customClass: {
-            popup: 'swal2-popup-gradient'
+            popup: 'swal2-popup-gradient',
+             confirmButton: 'swal2-confirm-button-gradient'
         }
     }).then((result) => {
         // You can add additional logic here after the alert closes
