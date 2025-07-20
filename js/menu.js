@@ -38,7 +38,7 @@ let currentGameEndTime = null; // Stores the definitive end time for the active 
 let globalGameTimerInterval = null; // The setInterval for the timer display
 
 
-function setupGlobalGameTimerListener() {
+export function setupGlobalGameTimerListener() {
     // Detach any existing gameEndTime listener first
     if (window.currentActiveGameRefListener) {
         window.currentActiveGameRefListener.off('value');
