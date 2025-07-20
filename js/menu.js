@@ -744,7 +744,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     buttonText.setColor("#ffffff");
     buttonText.setLayer(4); // Layer above the image
     buttonText.originalFontSize = 20; // Store original font size for scaling
-    buttonText.setFont(`${buttonText.originalFontSize}pt Arial`); // Ensure font is set for initial measurement
+    buttonText.setText(`${buttonText.originalFontSize}pt Arial`); // Ensure font is set for initial measurement
 
     // --- CRITICAL CHANGE FOR INITIAL TEXT POSITIONING ---
     // Calculate the center of the button image
@@ -802,7 +802,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
 
             // Update text font size and position to stay centered (if text is present)
             if (buttonText.text) {
-                buttonText.setFont(`${buttonText.originalFontSize * currentScale}pt Arial`);
+                buttonText.setText(`${buttonText.originalFontSize * currentScale}pt Arial`);
                 // Calculate text position to center it over the scaled image
                 const scaledTextWidth = buttonText.getWidth();
                 const scaledTextHeight = buttonText.getHeight();
@@ -849,7 +849,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
 
             // Update text font size and position (if text is present)
             if (buttonText.text) {
-                buttonText.setFont(`${buttonText.originalFontSize * currentScale}pt Arial`);
+                buttonText.setText(`${buttonText.originalFontSize * currentScale}pt Arial`);
                 // Calculate text position to center it over the scaled image
                 const scaledTextWidth = buttonText.getWidth();
                 const scaledTextHeight = buttonText.getHeight();
@@ -865,7 +865,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
                 buttonImage.setSize(buttonImage.originalWidth, buttonImage.originalHeight);
                 buttonImage.setPosition(buttonImage.originalX, buttonImage.originalY);
                 if (buttonText.text) {
-                    buttonText.setFont(`${buttonText.originalFontSize}pt Arial`);
+                    buttonText.setText(`${buttonText.originalFontSize}pt Arial`);
                     // Reset text to its exact original calculated centered position
                     buttonText.setPosition(buttonText.originalX, buttonText.originalY);
                 }
