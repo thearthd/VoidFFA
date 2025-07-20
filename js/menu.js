@@ -1014,34 +1014,37 @@ let updateBoard = createAnimatedButton(
         updateBoardHit();
     }
 );
-
 function updateBoardHit() {
-
-         const style = document.createElement('style');
+    // 1) Inject popup‑wide styles (gradient & icon color)
+    const style = document.createElement('style');
     style.textContent = `
-          .swal2-popup-gradient {
-              background: linear-gradient(to right, #C58DE3 0%, #7616D1 100%);
-              color: #ffffff;
-          }
+      /* popup gradient & text */
+      .swal2-popup-gradient {
+        background: linear-gradient(to right, #C58DE3 0%, #7616D1 100%);
+        color: #ffffff;
+      }
+      /* icon color (info icon in this case) */
+      .swal2-icon.swal2-info {
+        border-color: #ffffff;              /* outline */
+        color: #ffffff;                     /* the “i” itself */
+      }
+      /* if you ever use other icons, e.g. .swal2-icon.swal2-success, you can style them here too */
     `;
     document.head.appendChild(style);
 
+    // 2) Fire the alert, specifying confirmButtonColor
     Swal.fire({
         title: 'Void.FFA v1.00',
         text: 'The release of Void.FFA.',
-        icon: 'info', // Can be 'success', 'error', 'warning', 'info', or 'question'
+        icon: 'info',
         confirmButtonText: 'wowzery!',
-      //  timer: 3000, // Automatically close after 3 seconds
-     //   timerProgressBar: true,
+        confirmButtonColor: '#b7adff',      // <-- button background
         customClass: {
-            popup: 'swal2-popup-gradient',
+            popup: 'swal2-popup-gradient',  // your gradient class
         }
     }).then((result) => {
-        // You can add additional logic here after the alert closes
-        // For example, if you want to perform an action only after the user clicks "Great!"
         if (result.isConfirmed) {
             console.log("User acknowledged board update.");
-            // Potentially trigger another function or update game state
         }
     });
 }
