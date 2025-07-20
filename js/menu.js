@@ -1012,12 +1012,28 @@ let updateBoard = createAnimatedButton(
     "https://codehs.com/uploads/9323bdb40e74869eebd229ddd37ba098", // Provided games button image
     1080/3, 1440/3,
     getWidth() - (1080/3), getHeight()/2 - ((1440/3)/2), // Position below Play
-    1920 / 6 - 25, 1080 / 8,
+    1080/3, 1440/3,
     () => {
         console.log("updateBoard button hit");
         updateBoardHit();
     }
 );
+
+
+let playerCard = createAnimatedButton(
+    "https://codehs.com/uploads/44ac54e5efa47170da279caa22d6e7cc", // Provided games button image
+    1080/2, 1440/2,
+    getWidth()/2 - (1080/2), getHeight()/2 - ((1440/2)/2), // Position below Play
+    1080/2, 1440/2,
+    () => {
+        console.log("updateBoard button hit");
+        updateBoardHit();
+    }
+);
+
+
+
+
 function updateBoardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
     const style = document.createElement('style');
