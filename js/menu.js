@@ -729,7 +729,7 @@ function easeOutQuint(t) {
  * @param {Function} onClickCallback - The function to call when the button is clicked.
  * @returns {object} An object containing the image shape and its hitbox rectangle.
  */
-function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPos, hitboxWidth, hitboxHeight, onClickCallback) {
+function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPos, hitboxWidth, hitboxHeight, onClickCallback, buttonTextX, buttonTextY) {
     let buttonImage = new ImageShape(imageUrl);
     buttonImage.originalWidth = originalWidth;
     buttonImage.originalHeight = originalHeight;
@@ -743,7 +743,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     let buttonText = new Text("", "20pt Arial"); // Text overlay for the button
     buttonText.setColor("#ffffff");
     buttonText.setLayer(4); // Layer above the image
-    buttonText.setPosition(xPos + originalWidth / 2, yPos + originalHeight / 2); // Center text on button
+    buttonText.setPosition(buttonTextX, buttonTextY); // Center text on button
     buttonText.originalFontSize = 20; // Store original font size for scaling
     buttonText.originalX = buttonText.x; // Store original text position
     buttonText.originalY = buttonText.y;
@@ -1024,12 +1024,17 @@ let playerCard = createAnimatedButton(
     "https://codehs.com/uploads/44ac54e5efa47170da279caa22d6e7cc", // Provided games button image
     1080/3, 1440/3,
     getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2), // Position below Play
-    1080/2, 1440/2,
+    1080/3, 1440/3,
+    getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2) - 200,
     () => {
         console.log("updateBoard button hit");
         playerCardHit();
     }
 );
+
+ playerCard.setText(localStorage.getItem("username")); // REMOVED TEXT
+
+
 
 function playerCardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
