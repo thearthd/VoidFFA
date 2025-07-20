@@ -964,6 +964,7 @@ let playButton = createAnimatedButton(
     () => {
         console.log("Play button hit");
         playButtonHit(); // Call function to change menu state
+         playButtonClick();
     }
 );
 // playButton.setText("Play"); // REMOVED TEXT
@@ -976,6 +977,7 @@ let settingsButton = createAnimatedButton(
     () => {
         console.log("Settings button hit");
         settingsButtonHit(); // Call new function for settings screen
+         playButtonClick();
     }
 );
 // settingsButton.setText("Settings"); // REMOVED TEXT
@@ -988,6 +990,7 @@ let careerButton = createAnimatedButton(
     () => {
         console.log("Career button hit");
         careerButtonHit(); // Call new function for career screen
+         playButtonClick();
     }
 );
 // careerButton.setText("Career"); // REMOVED TEXT
