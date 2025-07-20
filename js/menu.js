@@ -1018,7 +1018,7 @@ function menu() {
    settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
 hud.style.display = "none";
 menuBG.style.display = "flex";
-loading-menu.style.display = "none";
+loadMenu.style.display = "none";
      
     add(logo);
 
