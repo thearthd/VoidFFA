@@ -1651,7 +1651,7 @@ export function initMenuUI() {
             if (val.length > 0) {
                 localStorage.setItem("username", val);
                 username = val;
-
+                playerCard.setText(username); // REMOVED TEXT
                 // Hide the HTML username prompt
                 showPanel(null);
 
