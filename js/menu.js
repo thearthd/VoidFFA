@@ -27,8 +27,8 @@ horse power
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
-import { initNetwork, setActiveGameId } from "./network.js";
-import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, dbRefs } from './firebase-config.js';
+import { initNetwork, setActiveGameId, dbRefs } from "./network.js";
+import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef  } from './firebase-config.js';
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
 // <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
