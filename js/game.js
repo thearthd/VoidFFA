@@ -535,110 +535,76 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-
+    // Initialize network & refs
     const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
     if (!networkOk) {
         console.warn("Network init failed.");
         return;
     }
-
-    playersRef = dbRefs.playersRef;
-    gameConfigRef = dbRefs.gameConfigRef;
+    playersRef    = dbRefs.playersRef;
+    gameConfigRef = dbRefs.gameConfigRef;  // points at /games/{gameId}/gameConfig
 
     const gameTimerElement = document.getElementById("game-timer");
 
     if (ffaEnabled) {
         gameTimerElement.style.display = "block";
 
-        // Set an initial game duration in seconds if it doesn't exist.
-        // For example, 10 minutes (600 seconds).
-        const initialGameDurationSeconds = 1 * 60; // 10 minutes
-        let currentRemainingSeconds = initialGameDurationSeconds; // Local variable to track remaining time
+        // 1) Read the pre‑created config
+        const cfgSnap = await gameConfigRef.once("value");
+        const cfg = cfgSnap.val() || {};
+        // Compute remaining seconds from endTime
+        const now = Date.now();
+        let currentRemainingSeconds = cfg.endTime
+          ? Math.ceil((cfg.endTime - now) / 1000)
+          : (cfg.gameDuration || 0);
 
-        // 1) Listen for (or set) the game duration in Firebase.
-        // We'll primarily rely on the local countdown, but this ensures initial sync.
-        gameConfigRef.child("gameDuration").on("value", snapshot => {
-            const duration = snapshot.val();
-            if (typeof duration === "number") {
-                currentRemainingSeconds = duration;
-            } else {
-                // Only set if it doesn't exist, to avoid resetting on every client join
-                gameConfigRef.child("gameDuration").transaction(currentData => {
-                    if (currentData === null) {
-                        return initialGameDurationSeconds;
-                    }
-                    return undefined; // Abort the transaction if data already exists
-                });
-            }
-        });
+        // 2) Clear any existing interval
+        if (gameInterval) clearInterval(gameInterval);
 
-        // 2) Clear any existing interval before starting a new one
-        if (gameInterval) {
-            clearInterval(gameInterval);
-        }
-
-        // 3) Start a per-second countdown based on the synced duration
+        // 3) Per‑second countdown
         gameInterval = setInterval(() => {
-            if (currentRemainingSeconds === null) {
-                gameTimerElement.textContent = "Time: Syncing…";
-                return;
-            }
-
-            // --- IMPORTANT CHANGE HERE ---
-            // Check if time is already up or about to be up BEFORE decrementing
             if (currentRemainingSeconds <= 0) {
                 clearInterval(gameInterval);
                 gameTimerElement.textContent = "TIME UP!";
-                // Ensure removal happens only once and is the last step for this condition
-                gameConfigRef.child("gameDuration").remove();
+                // Clean up
+                gameConfigRef.remove();
                 determineWinnerAndEndGame();
-                return; // Exit the interval callback
+                return;
             }
 
-            currentRemainingSeconds--; // Decrement every second
-
+            // Decrement & display
+            currentRemainingSeconds--;
             const mins = Math.floor(currentRemainingSeconds / 60);
             const secs = currentRemainingSeconds % 60;
-
             gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
 
-            // Update Firebase *after* decrementing, but only if not yet zero or negative
-            if (currentRemainingSeconds > 0) {
-                gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
-            }
+            // Sync remaining time back to DB
+            gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
+        }, 1000);
 
-        }, 1000); // Update every 1 second
-
-        // 4) Optional: first-to-X-kills listener (unchanged)
-        if (playersKillsListener) {
-            playersRef.off("value", playersKillsListener);
-        }
+        // 4) Kill‑threshold listener (unchanged)
+        if (playersKillsListener) playersRef.off("value", playersKillsListener);
         playersKillsListener = playersRef.on("value", snapshot => {
-            let reachedThreshold = false;
-            snapshot.forEach(childSnap => {
-                const player = childSnap.val();
-                if (player.kills >= 40) {
-                    reachedThreshold = true;
-                }
+            let reached = false;
+            snapshot.forEach(child => {
+                if (child.val().kills >= 40) reached = true;
             });
-            if (reachedThreshold) {
+            if (reached) {
                 playersRef.off("value", playersKillsListener);
                 clearInterval(gameInterval);
-                // When kill threshold is reached, immediately remove and end game
-                gameConfigRef.child("gameDuration").remove();
+                gameConfigRef.remove();
                 determineWinnerAndEndGame();
             }
         });
 
     } else {
+        // FFA off: hide & clear
         gameTimerElement.style.display = "none";
-        if (gameInterval) {
-            clearInterval(gameInterval);
-        }
-        gameConfigRef.child("gameDuration").remove(); // Ensure duration is cleared if FFA is off
+        if (gameInterval) clearInterval(gameInterval);
+        gameConfigRef.remove();
     }
 
-    // ... (rest of your code remains unchanged)
+    // — rest of your startup logic unchanged —
     initGlobalFogAndShadowParams();
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
@@ -652,9 +618,9 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         return;
     }
 
+    // Physics, weapons, scene, input, UI, spawn, player, etc.
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
-
     weaponController = new WeaponController(
         window.camera,
         dbRefs.playersRef,
@@ -676,6 +642,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     initBulletHoles();
     initializeAudioManager(window.camera, scene);
     startSoundListener();
+
     const spawn = findFurthestSpawn();
     window.localPlayer = {
         id: localPlayerId,
