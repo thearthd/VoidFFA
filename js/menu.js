@@ -1209,6 +1209,7 @@ function playButtonHit() {
     add(logo);
 
      add(playerCard.image);
+     add(playerCard.text)
     makeButton(playerCard.hitbox, playerCard.hitbox.onClick);
 
     add(gamesButton.image);
