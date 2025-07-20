@@ -535,15 +535,20 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-
     const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
     if (!networkOk) {
         console.warn("Network init failed.");
         return;
     }
 
-    playersRef    = dbRefs.playersRef;
+    playersRef = dbRefs.playersRef;
     gameConfigRef = dbRefs.gameConfigRef;
+
+    // Set the game start time in the database
+    const gameStartTime = Date.now();
+    await gameConfigRef.child("gameStartTime").set(gameStartTime);
+    console.log("Game started at:", new Date(gameStartTime).toLocaleString());
+
 
     const gameTimerElement = document.getElementById("game-timer");
     if (ffaEnabled) {
@@ -555,7 +560,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             if (typeof t === "number") {
                 gameEndTime = t;
             } else {
-                gameEndTime = Date.now() + 10 * 60 * 1000;  // 10 minutes
+                gameEndTime = Date.now() + 10 * 60 * 1000; // 10 minutes
                 gameConfigRef.child("gameEndTime").set(gameEndTime);
             }
         });
@@ -656,22 +661,22 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     // 6) Spawn local player
     const spawn = findFurthestSpawn();
     window.localPlayer = {
-        id:      localPlayerId,
+        id: localPlayerId,
         username,
-        x:       spawn.x,
-        y:       spawn.y,
-        z:       spawn.z,
-        rotY:    0,
-        health:  initialPlayerHealth,
-        shield:  initialPlayerShield,
-        weapon:  initialPlayerWeapon,
-        kills:   0,
-        deaths:  0,
-        ks:      0,
-        bodyColor: Math.floor(Math.random()*0xffffff),
-        isDead:  false
+        x: spawn.x,
+        y: spawn.y,
+        z: spawn.z,
+        rotY: 0,
+        health: initialPlayerHealth,
+        shield: initialPlayerShield,
+        weapon: initialPlayerWeapon,
+        kills: 0,
+        deaths: 0,
+        ks: 0,
+        bodyColor: Math.floor(Math.random() * 0xffffff),
+        isDead: false
     };
-    window.camera.position.copy(spawn).add(new THREE.Vector3(0,1.6,0));
+    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
 
     // 7) Write initial state
     await dbRefs.playersRef.child(localPlayerId).set({
@@ -694,7 +699,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     // 9) Start game loop
     animate();
 }
-
 
 
 
