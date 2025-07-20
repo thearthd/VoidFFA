@@ -729,7 +729,7 @@ function easeOutQuint(t) {
  * @param {Function} onClickCallback - The function to call when the button is clicked.
  * @returns {object} An object containing the image shape and its hitbox rectangle.
  */
-function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPos, hitboxWidth, hitboxHeight, onClickCallback, buttonTextX, buttonTextY) {
+function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPos, hitboxWidth, hitboxHeight, onClickCallback, buttonTextContent) {
     let buttonImage = new ImageShape(imageUrl);
     buttonImage.originalWidth = originalWidth;
     buttonImage.originalHeight = originalHeight;
@@ -740,13 +740,28 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     buttonImage.originalY = yPos;
     buttonImage.currentAnimationStep = 0; // Tracks the current step in the animation
 
-    let buttonText = new Text("", "20pt Arial"); // Text overlay for the button
+    let buttonText = new Text(buttonTextContent || "", "20pt Arial"); // Text overlay for the button
     buttonText.setColor("#ffffff");
     buttonText.setLayer(4); // Layer above the image
-    buttonText.setPosition(buttonTextX + buttonImage.originalX/2, buttonTextY + buttonImage.originalY/2); // Center text on button
     buttonText.originalFontSize = 20; // Store original font size for scaling
-    buttonText.originalX = buttonText.x; // Store original text position
-    buttonText.originalY = buttonText.y;
+    buttonText.setFont(`${buttonText.originalFontSize}pt Arial`); // Ensure font is set for initial measurement
+
+    // --- CRITICAL CHANGE FOR INITIAL TEXT POSITIONING ---
+    // Calculate the center of the button image
+    const buttonCenterX = xPos + originalWidth / 2;
+    const buttonCenterY = yPos + originalHeight / 2;
+
+    // Position the text initially so its center aligns with the button's center
+    // This assumes buttonText.getWidth() and buttonText.getHeight() are available
+    // and that buttonText.setPosition sets the top-left corner.
+    const initialTextX = buttonCenterX - buttonText.getWidth() / 2;
+    const initialTextY = buttonCenterY - buttonText.getHeight() / 2;
+
+    buttonText.setPosition(initialTextX, initialTextY);
+    buttonText.originalX = initialTextX; // Store this calculated original top-left position
+    buttonText.originalY = initialTextY;
+    // --- END CRITICAL CHANGE ---
+
 
     let buttonHitbox = new Rectangle(hitboxWidth, hitboxHeight);
     // Position the hitbox relative to the button's actual position, centering vertically
@@ -778,24 +793,24 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
             const newWidth = buttonImage.originalWidth * currentScale;
             const newHeight = buttonImage.originalHeight * currentScale;
 
-            // Adjust position to keep the image centered during scaling
-            // To center, shift by half the difference between the new size and original size
-            const newX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
-            const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
-
-            const newXX = buttonText.originalX - (newWidth - buttonImage.originalWidth) / 2;
-            const newYY = buttonText.originalY - (newHeight - buttonImage.originalHeight) / 2;
+            // Adjust image position to keep the image centered during scaling
+            const newImageX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
+            const newImageY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
 
             buttonImage.setSize(newWidth, newHeight);
-            buttonImage.setPosition(newX, newY);
+            buttonImage.setPosition(newImageX, newImageY);
 
             // Update text font size and position to stay centered (if text is present)
             if (buttonText.text) {
-                buttonText.font = `${buttonText.originalFontSize * currentScale}pt Arial`;
-                // Text position should be relative to the new image position and size
-                buttonText.setPosition(newXX + newWidth / 2, newYY + newHeight / 2);
-            }
+                buttonText.setFont(`${buttonText.originalFontSize * currentScale}pt Arial`);
+                // Calculate text position to center it over the scaled image
+                const scaledTextWidth = buttonText.getWidth();
+                const scaledTextHeight = buttonText.getHeight();
+                const newTextX = newImageX + (newWidth / 2) - (scaledTextWidth / 2);
+                const newTextY = newImageY + (newHeight / 2) - (scaledTextHeight / 2);
 
+                buttonText.setPosition(newTextX, newTextY);
+            }
 
             if (t === 1) {
                 clearInterval(animationInterval); // Stop animation when complete
@@ -825,22 +840,23 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
             const newWidth = buttonImage.originalWidth * currentScale;
             const newHeight = buttonImage.originalHeight * currentScale;
 
-            // Adjust position to keep the image centered during scaling
-            // To center, shift by half the difference between the new size and original size
-            const newX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
-            const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
+            // Adjust image position to keep the image centered during scaling
+            const newImageX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
+            const newImageY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
 
-            const newXX = buttonText.originalX - (newWidth - buttonImage.originalWidth) / 2;
-            const newYY = buttonText.originalY - (newHeight - buttonImage.originalHeight) / 2;
-             
             buttonImage.setSize(newWidth, newHeight);
-            buttonImage.setPosition(newX, newY);
+            buttonImage.setPosition(newImageX, newImageY);
 
             // Update text font size and position (if text is present)
             if (buttonText.text) {
-                buttonText.font = `${buttonText.originalFontSize * currentScale}pt Arial`;
-                // Text position should be relative to the new image position and size
-                buttonText.setPosition(newXX + newWidth / 2, newYY + newHeight / 2);
+                buttonText.setFont(`${buttonText.originalFontSize * currentScale}pt Arial`);
+                // Calculate text position to center it over the scaled image
+                const scaledTextWidth = buttonText.getWidth();
+                const scaledTextHeight = buttonText.getHeight();
+                const newTextX = newImageX + (newWidth / 2) - (scaledTextWidth / 2);
+                const newTextY = newImageY + (newHeight / 2) - (scaledTextHeight / 2);
+
+                buttonText.setPosition(newTextX, newTextY);
             }
 
             if (t === 1) {
@@ -849,7 +865,8 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
                 buttonImage.setSize(buttonImage.originalWidth, buttonImage.originalHeight);
                 buttonImage.setPosition(buttonImage.originalX, buttonImage.originalY);
                 if (buttonText.text) {
-                    buttonText.font = `${buttonText.originalFontSize}pt Arial`;
+                    buttonText.setFont(`${buttonText.originalFontSize}pt Arial`);
+                    // Reset text to its exact original calculated centered position
                     buttonText.setPosition(buttonText.originalX, buttonText.originalY);
                 }
             }
@@ -861,6 +878,17 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     const buttonObject = { image: buttonImage, hitbox: buttonHitbox, text: buttonText };
     buttonObject.setText = function (newText) {
         this.text.setText(newText);
+        // When text changes, you might need to re-center it if its width/height changes
+        // For simplicity, we'll assume it doesn't drastically change after initial setup
+        // or that it's handled by subsequent hover/unhover, but for robust apps,
+        // you'd re-calculate buttonText.originalX/Y here based on the new text's dimensions.
+        const buttonCenterX = buttonImage.originalX + buttonImage.originalWidth / 2;
+        const buttonCenterY = buttonImage.originalY + buttonImage.originalHeight / 2;
+        const newOriginalTextX = buttonCenterX - this.text.getWidth() / 2;
+        const newOriginalTextY = buttonCenterY - this.text.getHeight() / 2;
+        this.text.setPosition(newOriginalTextX, newOriginalTextY);
+        this.text.originalX = newOriginalTextX;
+        this.text.originalY = newOriginalTextY;
     };
     return buttonObject;
 }
