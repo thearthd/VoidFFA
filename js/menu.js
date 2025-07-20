@@ -1257,7 +1257,7 @@ function playButtonHit() {
  * Uses SweetAlert2 for input and pushes game data to Firebase.
  */
 async function createGameButtonHit() {
-    username = localStorage.getItem("username");
+    username = localStorage.getItem("username"); // Re-fetch username to be safe
     if (!username || !username.trim()) {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
@@ -1288,10 +1288,10 @@ async function createGameButtonHit() {
     });
 
     if (!formValues) {
-        return menu();
+        return menu(); // Assuming menu() navigates back to the main menu
     }
 
-    // --- Lobby gameData (NO gameConfig/gameEndTime here) ---
+    // --- Lobby gameData (NO gameConfig/gameEndTime here - it goes into the slot DB) ---
     const gameData = {
         gameName: formValues.gameName,
         map: formValues.map,
@@ -1299,36 +1299,74 @@ async function createGameButtonHit() {
         host: username,
         createdAt: firebase.database.ServerValue.TIMESTAMP, // Timestamp when the lobby record was created
         status: "waiting",
-        // The game slot ID will be added after claimGameSlot
+        // The game slot ID will be added after claimGameSlot returns its result
     };
     // --- END Lobby gameData ---
 
     try {
+        console.log("createGameButtonHit: Attempting to create lobby entry...");
         const newGameRef = gamesRef.push(); // This is in the menuApp database
         await newGameRef.set(gameData);
-        const lobbyGameId = newGameRef.key; // This is the ID in the lobby DB
+        const lobbyGameId = newGameRef.key; // This is the ID of the game in the lobby DB
+        console.log("createGameButtonHit: Lobby entry created with ID:", lobbyGameId);
 
         let ffaEnabled = (formValues.gamemode === "FFA");
 
         // 2) try to claim a slot (this function will now set the gameConfig in the slot's DB)
+        console.log("createGameButtonHit: Attempting to claim game slot...");
         const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
+
         if (!slotResult) {
+            console.warn("createGameButtonHit: No free slots available. Removing lobby entry.");
             await newGameRef.remove(); // Remove lobby entry if no slot
             Swal.fire('Error', 'No free slots available. Game discarded.', 'error');
             return menu();
         }
 
+        console.log("createGameButtonHit: Slot claimed:", slotResult.slotName);
+
         // Store the claimed slot name in the lobby game data
         await gamesRef.child(lobbyGameId).child('slot').set(slotResult.slotName);
         await gamesRef.child(lobbyGameId).child('status').set("starting"); // Update lobby status
+        console.log("createGameButtonHit: Lobby entry updated with slot and status.");
 
         // --- IMPORTANT: Set the global activeGameSlotName and dbRefs here ---
-        activeGameSlotName = slotResult.slotName; // e.g., "gameSlot1"
-        currentGameSlotDbRefs = slotResult.dbRefs; // The dbRefs for this specific slot
-        setupGlobalGameTimerListener(); // Re-run setup to pick up the new active slot
-        // --- END IMPORTANT ---
+        // This is what makes the global timer backbone start watching THIS game slot.
+        // Using setters if you defined them in firebase-config.js, otherwise direct assignment.
+        if (typeof setActiveGameSlotName === 'function') {
+            setActiveGameSlotName(slotResult.slotName);
+        } else {
+            // Fallback if setter not used/exported, assumes direct global assignment
+            activeGameSlotName = slotResult.slotName;
+        }
 
-        // 4) notify & join
+        if (typeof setCurrentGameSlotDbRefs === 'function') {
+            setCurrentGameSlotDbRefs(slotResult.dbRefs);
+        } else {
+            // Fallback if setter not used/exported, assumes direct global assignment
+            currentGameSlotDbRefs = slotResult.dbRefs;
+        }
+
+        console.log("createGameButtonHit: Global activeGameSlotName and currentGameSlotDbRefs set.");
+
+        // Now, call the setup function to activate the global listener for this new game.
+        // This should trigger the timer display if the UI element is visible.
+        setupGlobalGameTimerListener();
+        console.log("createGameButtonHit: setupGlobalGameTimerListener called for new game slot.");
+
+        // --- Ensure the game timer element is visible while in the menu ---
+        // Assuming #game-timer is present in your menu HTML
+        const gameTimerElement = document.getElementById("game-timer");
+        if (gameTimerElement) {
+            gameTimerElement.style.display = "block";
+            console.log("createGameButtonHit: #game-timer element set to display: block.");
+        } else {
+            console.warn("createGameButtonHit: #game-timer element not found in DOM.");
+        }
+        // --- END UI visibility control ---
+
+
+        // 4) notify & join - This Swal will appear while the timer should be running in the background
         Swal.fire({
             title: 'Game Created!',
             html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${lobbyGameId}</b><br>Slot: <b>${slotResult.slotName}</b>`,
@@ -1336,15 +1374,25 @@ async function createGameButtonHit() {
             confirmButtonText: 'Join Game'
         }).then(res => {
             if (res.isConfirmed) {
-                // Pass both lobbyGameId and slotName (as gameId)
+                console.log("createGameButtonHit: User confirmed to join game. Calling initAndStartGame...");
+                // Pass both lobbyGameId and slotName (as gameId for initAndStartGame)
+                // Note: initAndStartGame will re-set activeGameSlotName and currentGameSlotDbRefs,
+                // which is fine, as it's just confirming the active game state.
                 initAndStartGame(username, formValues.map, slotResult.slotName, ffaEnabled, lobbyGameId);
             } else {
+                console.log("createGameButtonHit: User chose NOT to join game. Returning to menu.");
+                // User chose not to join, but the game is still created and timer is running in the background
+                // The menu() function should be responsible for its own display logic.
                 menu();
             }
         });
 
     } catch (error) {
         console.error("Error creating game:", error);
+        // Clean up lobby entry if something failed after creation but before slot claim confirmation
+        if (lobbyGameId) {
+             await gamesRef.child(lobbyGameId).remove();
+        }
         Swal.fire('Error', 'Could not create game: ' + error.message, 'error');
         menu();
     }
