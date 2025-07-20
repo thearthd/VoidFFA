@@ -1245,14 +1245,14 @@ async function createGameButtonHit() {
         title: 'Create New Game',
         html:
             `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
-            '<select id="swal-input2" class="swal2-select">' +
-              '<option value="">Select Map</option>' +
-              '<option value="SigmaCity">SigmaCity</option>' +
-              '<option value="CrocodilosConstruction">CrocodilosConstruction</option>' +
-            '</select>' +
-            '<select id="swal-input3" class="swal2-select">' +
-              '<option value="FFA">FFA</option>' +
-            '</select>',
+            `<select id="swal-input2" class="swal2-select">
+               <option value="">Select Map</option>
+               <option value="SigmaCity">SigmaCity</option>
+               <option value="CrocodilosConstruction">CrocodilosConstruction</option>
+             </select>` +
+            `<select id="swal-input3" class="swal2-select">
+               <option value="FFA">FFA</option>
+             </select>`,
         focusConfirm: false,
         preConfirm: () => {
             const gameName = document.getElementById('swal-input1').value;
@@ -1265,24 +1265,36 @@ async function createGameButtonHit() {
             return { gameName, map, gamemode: mode };
         }
     });
-    if (!formValues) return menu();
+    if (!formValues) {
+        return menu();
+    }
 
-    // 1️⃣ push to /games
+    // 1) Push the new game into /games
     const newGameRef = gamesRef.push();
     await newGameRef.set({
-        gameName:  formValues.gameName,
-        map:       formValues.map,
-        gamemode:  formValues.gamemode,
-        host:      username,
-        ffaEnabled:true,
-        createdAt: firebase.database.ServerValue.TIMESTAMP,
-        status:    "waiting"
+        gameName:   formValues.gameName,
+        map:        formValues.map,
+        gamemode:   formValues.gamemode,
+        host:       username,
+        ffaEnabled: true,
+        createdAt:  firebase.database.ServerValue.TIMESTAMP,
+        status:     "waiting"
     });
     const gameId = newGameRef.key;
 
-    // ▼ right here, create your gameConfig under the same node ▼
-    const configRef = newGameRef.child('gameConfig');
-    const initialDuration = 10 * 60;       // e.g. 10 minutes in seconds
+    // 2) Claim a slot
+    const slotResult = await claimGameSlot(username, formValues.map, /* ffaEnabled */ true);
+    if (!slotResult) {
+        await newGameRef.remove();
+        return Swal.fire('Error', 'No free slots available. Game discarded.', 'error').then(menu);
+    }
+    const slotName = slotResult.slotName;
+    await newGameRef.child('slot').set(slotName);
+    await newGameRef.child('status').set("starting");
+
+    // 3) Write gameConfig under the slot in /gameSlots/{slotName}/gameConfig
+    const configRef = dbRefs.gameSlotsRef.child(slotName).child('gameConfig');
+    const initialDuration = 10 * 60;           // seconds
     const nowMs = Date.now();
     await configRef.set({
         gameDuration: initialDuration,
@@ -1290,30 +1302,23 @@ async function createGameButtonHit() {
         endTime:      nowMs + initialDuration * 1000
     });
 
-    // 2️⃣ claim a slot
-    const slotResult = await claimGameSlot(username, formValues.map, true);
-    if (!slotResult) {
-        await newGameRef.remove();
-        return Swal.fire('Error', 'No free slots available. Game discarded.', 'error').then(menu);
-    }
-    await newGameRef.child('slot').set(slotResult.slotName);
-    await newGameRef.child('status').set("starting");
-
-    // 3️⃣ notify & join
+    // 4) Notify & join
     Swal.fire({
         title: 'Game Created!',
-        html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>`,
+        html:  `Game: <b>${formValues.gameName}</b><br>` +
+               `Map: <b>${formValues.map}</b><br>` +
+               `Slot: <b>${slotName}</b>`,
         icon: 'success',
         confirmButtonText: 'Join Game'
     }).then(res => {
         if (res.isConfirmed) {
-            startGame(username, formValues.map, true, true, gameId);
+            // pass slotName into startGame so it reads from /gameSlots/{slotName}/gameConfig
+            startGame(username, formValues.map, /*initialDetailsEnabled=*/true, /*ffaEnabled=*/true, slotName);
         } else {
             menu();
         }
     });
 }
-
 
 async function gamesButtonHit() {
     clearMenuCanvas();
