@@ -594,8 +594,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             if (currentRemainingSeconds <= 0) {
                 clearInterval(gameInterval);
                 gameTimerElement.textContent = "TIME UP!";
-                determineWinnerAndEndGame();
                 gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
+                determineWinnerAndEndGame();
                 return;
             }
 
@@ -618,8 +618,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             if (reachedThreshold) {
                 playersRef.off("value", playersKillsListener);
                 clearInterval(gameInterval);
-                determineWinnerAndEndGame();
                 gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
+                determineWinnerAndEndGame();
             }
         });
 
