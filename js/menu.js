@@ -930,7 +930,7 @@ function clearMenuCanvas() {
 }
 
 // Player username
-let username = localStorage.getItem("username") || null; // Default if not set
+let username = localStorage.getItem("username") || '';
 
 
 let playButton = createAnimatedButton(
