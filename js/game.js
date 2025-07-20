@@ -599,9 +599,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 return;
             }
 
-            // Optional: Update the database with remaining duration.
-            // CAUTION: This will cause frequent writes. Consider if truly necessary.
-            // gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
+            gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
 
         }, 1000); // Update every 1 second
 
