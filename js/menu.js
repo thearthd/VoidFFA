@@ -1032,7 +1032,7 @@ let playerCard = createAnimatedButton(
         console.log("updateBoard button hit");
         playerCardHit();
     },
-         getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2) - 200
+         getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2) + 200
 );
 
  playerCard.setText(localStorage.getItem("username")); // REMOVED TEXT
