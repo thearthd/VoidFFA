@@ -1651,6 +1651,7 @@ export function initMenuUI() {
             if (val.length > 0) {
                 localStorage.setItem("username", val);
                 username = val;
+                    username = localStorage.getItem("username") || '';
 
                 // Hide the HTML username prompt
                 showPanel(null);
