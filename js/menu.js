@@ -1292,7 +1292,7 @@ async function createGameButtonHit() {
   await newGameRef.child("status").set("starting");
 
   // 3️⃣ Immediately write gameConfig under /gameSlots/{slotName}/gameConfig
-  const configRef = dbRefs.gameSlotsRef.child(slotName).child("gameConfig");
+ // const configRef = dbRefs.gameSlotsRef.child(slotName).child("gameConfig");
   const initialDuration = 10 * 60;       // seconds
   const nowMs = Date.now();
   await configRef.set({
