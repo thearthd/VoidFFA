@@ -545,65 +545,41 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     playersRef = dbRefs.playersRef;
     gameConfigRef = dbRefs.gameConfigRef;
 
-    const gameTimerElement = document.getElementById("game-timer");
+const gameTimerElement = document.getElementById("game-timer");
+let endTime = null;
 
-    if (ffaEnabled) {
-        gameTimerElement.style.display = "block";
+// subscribe once to config
+gameConfigRef.on("value", snap => {
+  const cfg = snap.val() || {};
+  if (typeof cfg.endTime === "number") {
+    endTime = cfg.endTime;
+    gameTimerElement.style.display = "block";
+  }
+});
 
-        // Set an initial game duration in seconds if it doesn't exist.
-        // For example, 10 minutes (600 seconds).
-        const initialGameDurationSeconds = 10 * 60; // 10 minutes
-        let currentRemainingSeconds = initialGameDurationSeconds; // Local variable to track remaining time
+// cancel old tick
+if (gameInterval) clearInterval(gameInterval);
 
-        // 1) Listen for (or set) the game duration in Firebase.
-        // We'll primarily rely on the local countdown, but this ensures initial sync.
-        gameConfigRef.child("gameDuration").on("value", snapshot => {
-            const duration = snapshot.val();
-            if (typeof duration === "number") {
-                currentRemainingSeconds = duration;
-            } else {
-                // Only set if it doesn't exist, to avoid resetting on every client join
-                gameConfigRef.child("gameDuration").transaction(currentData => {
-                    if (currentData === null) {
-                        return initialGameDurationSeconds;
-                    }
-                    return undefined; // Abort the transaction if data already exists
-                });
-            }
-        });
-
-        // 2) Clear any existing interval before starting a new one
-        if (gameInterval) {
-            clearInterval(gameInterval);
-        }
-
-        // 3) Start a per-second countdown based on the synced duration
-        gameInterval = setInterval(() => {
-            if (currentRemainingSeconds === null) {
-                gameTimerElement.textContent = "Time: Syncing…";
-                return;
-            }
-
-            currentRemainingSeconds--; // Decrement every second
-
-            const mins = Math.floor(currentRemainingSeconds / 60);
-            const secs = currentRemainingSeconds % 60;
-
-            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
-
-            if (currentRemainingSeconds <= 0) {
-                clearInterval(gameInterval);
-                gameTimerElement.textContent = "TIME UP!";
-                determineWinnerAndEndGame();
-                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
-                return;
-            }
-
-            // Optional: Update the database with remaining duration.
-            // CAUTION: This will cause frequent writes. Consider if truly necessary.
-            // gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
-
-        }, 1000); // Update every 1 second
+// start ticking
+gameInterval = setInterval(() => {
+  if (endTime === null) {
+    gameTimerElement.textContent = "Time: Syncing…";
+    return;
+  }
+  const nowMs = Date.now();
+  let remMs = endTime - nowMs;
+  if (remMs <= 0) {
+    clearInterval(gameInterval);
+    gameTimerElement.textContent = "TIME UP!";
+    determineWinnerAndEndGame();
+    gameConfigRef.remove();
+    return;
+  }
+  const remSec = Math.ceil(remMs / 1000);
+  const mins = Math.floor(remSec / 60);
+  const secs = remSec % 60;
+  gameTimerElement.textContent = `Time: ${mins}:${secs<10?"0":""}${secs}`;
+}, 1000);
 
         // 4) Optional: first-to-X-kills listener (unchanged)
         if (playersKillsListener) {
