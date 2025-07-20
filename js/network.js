@@ -585,13 +585,6 @@ activeGameId = gameId;
     setupTracerListener(dbRefs.tracersRef);
     // Note: gameConfig listener is typically set up in game.js for timer management
 
-    // Initialize audio manager if not already. Ensure window.camera and window.scene are available.
-    if (window.camera && window.scene) {
-        initializeAudioManager(window.camera, window.scene);
-    } else {
-        console.warn("[network.js] window.camera or window.scene not available. Audio Manager may not initialize correctly.");
-    }
-
     console.log("[network.js] Network initialization complete.");
     return true; // Indicate success
 }
