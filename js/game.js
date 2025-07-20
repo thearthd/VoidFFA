@@ -534,152 +534,161 @@ delete pendingRestore[victimId];
 
 
 // Game Start
-export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, slotName) {
-    // — network & refs —
-    const networkOk = await initNetwork(username, mapName, slotName, ffaEnabled);
-    if (!networkOk) {
-        console.warn("Network init failed.");
-        return;
-    }
-    playersRef    = dbRefs.playersRef;
-    gameConfigRef = dbRefs.gameSlotsRef.child(slotName).child("gameConfig");
+export async function startGame(
+  username,
+  mapName,
+  initialDetailsEnabled,
+  ffaEnabled,
+  slotName
+) {
+  // — network & refs —
+  const networkOk = await initNetwork(username, mapName, slotName, ffaEnabled);
+  if (!networkOk) {
+    console.warn("Network init failed.");
+    return;
+  }
+  playersRef    = dbRefs.playersRef;
+  // now pointing at /gameSlots/{slotName}/gameConfig
+  gameConfigRef = dbRefs.gameSlotsRef.child(slotName).child("gameConfig");
 
-    const gameTimerElement = document.getElementById("game-timer");
+  const gameTimerElement = document.getElementById("game-timer");
 
-    if (ffaEnabled) {
-        gameTimerElement.style.display = "block";
+  if (ffaEnabled) {
+    gameTimerElement.style.display = "block";
 
-        // 📖 read pre‐written config
-        const cfgSnap = await gameConfigRef.once("value");
-        const cfg = cfgSnap.val() || {};
-        const now = Date.now();
-        let currentRemainingSeconds = cfg.endTime
-            ? Math.ceil((cfg.endTime - now) / 1000)
-            : (cfg.gameDuration || 0);
+    // 📖 read pre‑written config from the slot node
+    const cfgSnap = await gameConfigRef.once("value");
+    const cfg     = cfgSnap.val() || {};
+    const now     = Date.now();
+    let currentRemainingSeconds = cfg.endTime
+      ? Math.ceil((cfg.endTime - now) / 1000)
+      : (cfg.gameDuration || 0);
 
-        // clear old interval
-        if (gameInterval) clearInterval(gameInterval);
+    // clear any old interval
+    if (gameInterval) clearInterval(gameInterval);
 
-        // per‑second countdown
-        gameInterval = setInterval(() => {
-            if (currentRemainingSeconds <= 0) {
-                clearInterval(gameInterval);
-                gameTimerElement.textContent = "TIME UP!";
-                gameConfigRef.remove();
-                determineWinnerAndEndGame();
-                return;
-            }
-
-            currentRemainingSeconds--;
-            const mins = Math.floor(currentRemainingSeconds / 60);
-            const secs = currentRemainingSeconds % 60;
-            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
-
-            // sync back to DB
-            gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
-        }, 1000);
-
-        // first‑to‑X kills listener (unchanged)
-        if (playersKillsListener) {
-            playersRef.off("value", playersKillsListener);
-        }
-        playersKillsListener = playersRef.on("value", snapshot => {
-            let reachedThreshold = false;
-            snapshot.forEach(childSnap => {
-                const player = childSnap.val();
-                if (player.kills >= 40) reachedThreshold = true;
-            });
-            if (reachedThreshold) {
-                playersRef.off("value", playersKillsListener);
-                clearInterval(gameInterval);
-                gameConfigRef.remove();
-                determineWinnerAndEndGame();
-            }
-        });
-
-    } else {
-        gameTimerElement.style.display = "none";
-        if (gameInterval) clearInterval(gameInterval);
+    // per‑second countdown
+    gameInterval = setInterval(() => {
+      if (currentRemainingSeconds <= 0) {
+        clearInterval(gameInterval);
+        gameTimerElement.textContent = "TIME UP!";
         gameConfigRef.remove();
-    }
-
-    // — everything else exactly as you had it —
-    initGlobalFogAndShadowParams();
-    window.isGamePaused = false;
-    document.getElementById("menu-overlay").style.display = "none";
-    document.body.classList.add("game-active");
-    document.getElementById("game-container").style.display = "block";
-    document.getElementById("hud").style.display = "block";
-    document.getElementById("crosshair").style.display = "block";
-
-    if (!localPlayerId) {
-        console.error("No localPlayerId after initNetwork—cannot proceed.");
+        determineWinnerAndEndGame();
         return;
+      }
+
+      currentRemainingSeconds--;
+      const mins = Math.floor(currentRemainingSeconds / 60);
+      const secs = currentRemainingSeconds % 60;
+      gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
+
+      // sync remaining time back to DB
+      gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
+    }, 1000);
+
+    // first‑to‑X kills listener (unchanged)
+    if (playersKillsListener) {
+      playersRef.off("value", playersKillsListener);
     }
-
-    window.physicsController = new PhysicsController(window.camera, scene);
-    physicsController = window.physicsController;
-
-    weaponController = new WeaponController(
-        window.camera,
-        dbRefs.playersRef,
-        dbRefs.mapStateRef.child("bullets"),
-        createTracer,
-        localPlayerId,
-        physicsController
-    );
-    window.weaponController = weaponController;
-
-    if (mapName === "CrocodilosConstruction") {
-        await initSceneCrocodilosConstruction();
-    } else if (mapName === "SigmaCity") {
-        await initSceneSigmaCity();
-    }
-
-    initInput();
-    initChatUI();
-    initBulletHoles();
-    initializeAudioManager(window.camera, scene);
-    startSoundListener();
-
-    const spawn = findFurthestSpawn();
-    window.localPlayer = {
-        id: localPlayerId,
-        username,
-        x: spawn.x,
-        y: spawn.y,
-        z: spawn.z,
-        rotY: 0,
-        health: initialPlayerHealth,
-        shield: initialPlayerShield,
-        weapon: initialPlayerWeapon,
-        kills: 0,
-        deaths: 0,
-        ks: 0,
-        bodyColor: Math.floor(Math.random() * 0xffffff),
-        isDead: false
-    };
-    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-
-    await dbRefs.playersRef.child(localPlayerId).set({
-        ...window.localPlayer,
-        lastUpdate: Date.now()
+    playersKillsListener = playersRef.on("value", snapshot => {
+      let reachedThreshold = false;
+      snapshot.forEach(childSnap => {
+        const player = childSnap.val();
+        if (player.kills >= 40) reachedThreshold = true;
+      });
+      if (reachedThreshold) {
+        playersRef.off("value", playersKillsListener);
+        clearInterval(gameInterval);
+        gameConfigRef.remove();
+        determineWinnerAndEndGame();
+      }
     });
-    updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
-    weaponController.equipWeapon(window.localPlayer.weapon);
-    initInventory(window.localPlayer.weapon);
-    initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
-    updateInventory(window.localPlayer.weapon);
-    updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
+  } else {
+    gameTimerElement.style.display = "none";
+    if (gameInterval) clearInterval(gameInterval);
+    gameConfigRef.remove();
+  }
 
-    createRespawnOverlay();
-    createFadeOverlay();
-    createLeaderboardOverlay();
+  // — everything else exactly as before —
+  initGlobalFogAndShadowParams();
+  window.isGamePaused = false;
+  document.getElementById("menu-overlay").style.display = "none";
+  document.body.classList.add("game-active");
+  document.getElementById("game-container").style.display = "block";
+  document.getElementById("hud").style.display = "block";
+  document.getElementById("crosshair").style.display = "block";
 
-    animate();
+  if (!localPlayerId) {
+    console.error("No localPlayerId after initNetwork—cannot proceed.");
+    return;
+  }
+
+  window.physicsController = new PhysicsController(window.camera, scene);
+  physicsController = window.physicsController;
+
+  weaponController = new WeaponController(
+    window.camera,
+    dbRefs.playersRef,
+    dbRefs.mapStateRef.child("bullets"),
+    createTracer,
+    localPlayerId,
+    physicsController
+  );
+  window.weaponController = weaponController;
+
+  if (mapName === "CrocodilosConstruction") {
+    await initSceneCrocodilosConstruction();
+  } else if (mapName === "SigmaCity") {
+    await initSceneSigmaCity();
+  }
+
+  initInput();
+  initChatUI();
+  initBulletHoles();
+  initializeAudioManager(window.camera, scene);
+  startSoundListener();
+
+  const spawn = findFurthestSpawn();
+  window.localPlayer = {
+    id:       localPlayerId,
+    username,
+    x:        spawn.x,
+    y:        spawn.y,
+    z:        spawn.z,
+    rotY:     0,
+    health:   initialPlayerHealth,
+    shield:   initialPlayerShield,
+    weapon:   initialPlayerWeapon,
+    kills:    0,
+    deaths:   0,
+    ks:       0,
+    bodyColor: Math.floor(Math.random() * 0xffffff),
+    isDead:   false
+  };
+  window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
+
+  await dbRefs.playersRef.child(localPlayerId).set({
+    ...window.localPlayer,
+    lastUpdate: Date.now()
+  });
+  updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+
+  weaponController.equipWeapon(window.localPlayer.weapon);
+  initInventory(window.localPlayer.weapon);
+  initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
+  updateInventory(window.localPlayer.weapon);
+  updateAmmoDisplay(
+    weaponController.ammoInMagazine,
+    weaponController.stats.magazineSize
+  );
+
+  createRespawnOverlay();
+  createFadeOverlay();
+  createLeaderboardOverlay();
+
+  animate();
 }
-
 
 
 export function hideGameUI() {
