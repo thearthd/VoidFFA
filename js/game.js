@@ -535,6 +535,7 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
+
     const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
     if (!networkOk) {
         console.warn("Network init failed.");
@@ -544,24 +545,30 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     playersRef = dbRefs.playersRef;
     gameConfigRef = dbRefs.gameConfigRef;
 
-    // Set the game start time in the database
-    const gameStartTime = Date.now();
-    await gameConfigRef.child("gameStartTime").set(gameStartTime);
-    console.log("Game started at:", new Date(gameStartTime).toLocaleString());
-
-
     const gameTimerElement = document.getElementById("game-timer");
+
     if (ffaEnabled) {
         gameTimerElement.style.display = "block";
 
-        // 1) Listen for (or set) the end timestamp in Firebase
-        gameConfigRef.child("gameEndTime").on("value", snapshot => {
-            const t = snapshot.val();
-            if (typeof t === "number") {
-                gameEndTime = t;
+        // Set an initial game duration in seconds if it doesn't exist.
+        // For example, 10 minutes (600 seconds).
+        const initialGameDurationSeconds = 10 * 60; // 10 minutes
+        let currentRemainingSeconds = initialGameDurationSeconds; // Local variable to track remaining time
+
+        // 1) Listen for (or set) the game duration in Firebase.
+        // We'll primarily rely on the local countdown, but this ensures initial sync.
+        gameConfigRef.child("gameDuration").on("value", snapshot => {
+            const duration = snapshot.val();
+            if (typeof duration === "number") {
+                currentRemainingSeconds = duration;
             } else {
-                gameEndTime = Date.now() + 10 * 60 * 1000; // 10 minutes
-                gameConfigRef.child("gameEndTime").set(gameEndTime);
+                // Only set if it doesn't exist, to avoid resetting on every client join
+                gameConfigRef.child("gameDuration").transaction(currentData => {
+                    if (currentData === null) {
+                        return initialGameDurationSeconds;
+                    }
+                    return undefined; // Abort the transaction if data already exists
+                });
             }
         });
 
@@ -570,27 +577,35 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             clearInterval(gameInterval);
         }
 
-        // 3) Start a per-second countdown based on the synced timestamp
+        // 3) Start a per-second countdown based on the synced duration
         gameInterval = setInterval(() => {
-            if (gameEndTime === null) {
+            if (currentRemainingSeconds === null) {
                 gameTimerElement.textContent = "Time: Syncing…";
                 return;
             }
-            const timeLeftMs = gameEndTime - Date.now();
-            if (timeLeftMs <= 0) {
+
+            currentRemainingSeconds--; // Decrement every second
+
+            const mins = Math.floor(currentRemainingSeconds / 60);
+            const secs = currentRemainingSeconds % 60;
+
+            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
+
+            if (currentRemainingSeconds <= 0) {
                 clearInterval(gameInterval);
                 gameTimerElement.textContent = "TIME UP!";
                 determineWinnerAndEndGame();
-                gameConfigRef.child("gameEndTime").remove();
+                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
                 return;
             }
-            const totalSecs = Math.floor(timeLeftMs / 1000);
-            const mins = Math.floor(totalSecs / 60);
-            const secs = totalSecs % 60;
-            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
-        }, 1000);
 
-        // 4) Optional: first-to-X-kills listener
+            // Optional: Update the database with remaining duration.
+            // CAUTION: This will cause frequent writes. Consider if truly necessary.
+            // gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
+
+        }, 1000); // Update every 1 second
+
+        // 4) Optional: first-to-X-kills listener (unchanged)
         if (playersKillsListener) {
             playersRef.off("value", playersKillsListener);
         }
@@ -606,7 +621,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 playersRef.off("value", playersKillsListener);
                 clearInterval(gameInterval);
                 determineWinnerAndEndGame();
-                gameConfigRef.child("gameEndTime").remove();
+                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
             }
         });
 
@@ -615,10 +630,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         if (gameInterval) {
             clearInterval(gameInterval);
         }
-        gameConfigRef.child("gameEndTime").remove();
+        gameConfigRef.child("gameDuration").remove(); // Ensure duration is cleared if FFA is off
     }
 
-    // 3) Common game start UI setup
+    // 3) Common game start UI setup (unchanged)
     initGlobalFogAndShadowParams();
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
@@ -627,13 +642,13 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
 
-    // 4) Ensure we have a valid localPlayerId
+    // 4) Ensure we have a valid localPlayerId (unchanged)
     if (!localPlayerId) {
         console.error("No localPlayerId after initNetwork—cannot proceed.");
         return;
     }
 
-    // 5) Three.js, physics, weapons, scene setup…
+    // 5) Three.js, physics, weapons, scene setup… (unchanged)
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
 
@@ -658,7 +673,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     initBulletHoles();
     initializeAudioManager(window.camera, scene);
     startSoundListener();
-    // 6) Spawn local player
+    // 6) Spawn local player (unchanged)
     const spawn = findFurthestSpawn();
     window.localPlayer = {
         id: localPlayerId,
@@ -678,14 +693,14 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     };
     window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
 
-    // 7) Write initial state
+    // 7) Write initial state (unchanged)
     await dbRefs.playersRef.child(localPlayerId).set({
         ...window.localPlayer,
         lastUpdate: Date.now()
     });
     updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
-    // 8) Ammo, inventory, UI overlays…
+    // 8) Ammo, inventory, UI overlays… (unchanged)
     weaponController.equipWeapon(window.localPlayer.weapon);
     initInventory(window.localPlayer.weapon);
     initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
@@ -696,7 +711,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     createFadeOverlay();
     createLeaderboardOverlay();
 
-    // 9) Start game loop
+    // 9) Start game loop (unchanged)
     animate();
 }
 
