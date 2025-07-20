@@ -1237,77 +1237,85 @@ function playButtonHit() {
  */
 async function createGameButtonHit() {
     username = localStorage.getItem("username");
-    if (!username?.trim()) {
+    if (!username || !username.trim()) {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
 
     const { value: formValues } = await Swal.fire({
         title: 'Create New Game',
         html:
-          `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
-          `<select id="swal-input2" class="swal2-select">
-             <option value="">Select Map</option>
-             <option value="SigmaCity">SigmaCity</option>
-             <option value="CrocodilosConstruction">CrocodilosConstruction</option>
-           </select>`,
+            `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
+            '<select id="swal-input2" class="swal2-select">' +
+              '<option value="">Select Map</option>' +
+              '<option value="SigmaCity">SigmaCity</option>' +
+              '<option value="CrocodilosConstruction">CrocodilosConstruction</option>' +
+            '</select>' +
+            '<select id="swal-input3" class="swal2-select">' +
+              '<option value="FFA">FFA</option>' +
+            '</select>',
         focusConfirm: false,
         preConfirm: () => {
-          const gameName = document.getElementById('swal-input1').value;
-          const map      = document.getElementById('swal-input2').value;
-          if (!gameName || !map) {
-            Swal.showValidationMessage(`Please fill all fields`);
-            return false;
-          }
-          return { gameName, map };
+            const gameName = document.getElementById('swal-input1').value;
+            const map      = document.getElementById('swal-input2').value;
+            const mode     = document.getElementById('swal-input3').value;
+            if (!gameName || !map || !mode) {
+                Swal.showValidationMessage(`Please fill all fields`);
+                return false;
+            }
+            return { gameName, map, gamemode: mode };
         }
     });
     if (!formValues) return menu();
 
-    // 1) push to /games
+    // 1️⃣ push to /games
     const newGameRef = gamesRef.push();
     await newGameRef.set({
-      gameName:  formValues.gameName,
-      map:       formValues.map,
-      host:      username,
-      createdAt: firebase.database.ServerValue.TIMESTAMP,
-      status:    "waiting"
+        gameName:  formValues.gameName,
+        map:       formValues.map,
+        gamemode:  formValues.gamemode,
+        host:      username,
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        status:    "waiting"
     });
     const gameId = newGameRef.key;
 
-    // 2) claim a slot
-    const slotResult = await claimGameSlot(username, formValues.map, true);
+    // 2️⃣ claim a slot
+    const slotResult = await claimGameSlot(username, formValues.map, /*ffaEnabled=*/true);
     if (!slotResult) {
-      await newGameRef.remove();
-      return Swal.fire('Error','No free slots.','error').then(menu);
+        await newGameRef.remove();
+        return Swal.fire('Error', 'No free slots available. Game discarded.', 'error').then(menu);
     }
     const slotName = slotResult.slotName;
     await newGameRef.child('slot').set(slotName);
     await newGameRef.child('status').set("starting");
 
-    // 3) write config under /gameSlots/{slotName}/gameConfig
+    // 3️⃣ write config under /gameSlots/{slotName}/gameConfig
     const configRef = dbRefs.gameSlotsRef.child(slotName).child("gameConfig");
-    const initialSec = 10 * 60;
+    const initialDuration = 10 * 60;         // seconds
     const nowMs = Date.now();
     await configRef.set({
-      gameDuration: initialSec,
-      startTime:    nowMs,
-      endTime:      nowMs + initialSec * 1000
+        gameDuration: initialDuration,
+        startTime:    nowMs,
+        endTime:      nowMs + initialDuration * 1000
     });
 
-    // 4) join
+    // 4️⃣ notify & join
     Swal.fire({
-      title: 'Game Created!',
-      html: `Game: <b>${formValues.gameName}</b><br>Slot: <b>${slotName}</b>`,
-      icon: 'success',
-      confirmButtonText: 'Join'
+        title: 'Game Created!',
+        html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>Slot: <b>${slotName}</b>`,
+        icon: 'success',
+        confirmButtonText: 'Join Game'
     }).then(res => {
-      if (res.isConfirmed) {
-        initAndStartGame(username, formValues.map, slotName);
-      } else {
-        menu();
-      }
+        if (res.isConfirmed) {
+            // pass slotName (not gameId) into startGame
+            startGame(username, formValues.map, /*initialDetails=*/true, /*ffaEnabled=*/true, slotName);
+        } else {
+            menu();
+        }
     });
 }
+
+
 
 async function gamesButtonHit() {
     clearMenuCanvas();
