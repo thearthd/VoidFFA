@@ -1035,7 +1035,6 @@ function updateBoardHit() {
      //   timerProgressBar: true,
         customClass: {
             popup: 'swal2-popup-gradient',
-             confirmButton: 'swal2-confirm-button-gradient'
         }
     }).then((result) => {
         // You can add additional logic here after the alert closes
