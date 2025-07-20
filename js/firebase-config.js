@@ -106,7 +106,7 @@ export async function claimGameSlot(username, map, ffaEnabled) {
     tracersRef:    rootRef.child("tracers"),
     soundsRef:     rootRef.child("sounds"),
     gameConfigRef: rootRef.child("gameConfig"),
-    gameSlotsRef: db.ref("gameSlots")
+    gameSlotsRef: rootRef.child("gameSlots")
   };
 
   return { slotName: chosenKey, dbRefs };
