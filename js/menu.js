@@ -729,170 +729,127 @@ function easeOutQuint(t) {
  * @param {Function} onClickCallback - The function to call when the button is clicked.
  * @returns {object} An object containing the image shape and its hitbox rectangle.
  */
-function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPos, hitboxWidth, hitboxHeight, onClickCallback, buttonTextContent) {
+function createAnimatedButton(
+  imageUrl,
+  originalWidth,
+  originalHeight,
+  xPos,
+  yPos,
+  hitboxWidth,
+  hitboxHeight,
+  onClickCallback,
+  buttonTextX,
+  buttonTextY
+) {
     let buttonImage = new ImageShape(imageUrl);
     buttonImage.originalWidth = originalWidth;
     buttonImage.originalHeight = originalHeight;
-    buttonImage.setPosition(xPos, yPos);
-    buttonImage.setSize(originalWidth, originalHeight);
-    buttonImage.setLayer(3); // Layer for the image
     buttonImage.originalX = xPos;
     buttonImage.originalY = yPos;
-    buttonImage.currentAnimationStep = 0; // Tracks the current step in the animation
+    buttonImage.setPosition(xPos, yPos);
+    buttonImage.setSize(originalWidth, originalHeight);
+    buttonImage.setLayer(3);
 
-    let buttonText = new Text(buttonTextContent || "", "20pt Arial"); // Text overlay for the button
+    let buttonText = new Text("", "20pt Arial");
     buttonText.setColor("#ffffff");
-    buttonText.setLayer(4); // Layer above the image
-    buttonText.originalFontSize = 20; // Store original font size for scaling
-    buttonText.setText(`${buttonText.originalFontSize}pt Arial`); // Ensure font is set for initial measurement
-
-    // --- CRITICAL CHANGE FOR INITIAL TEXT POSITIONING ---
-    // Calculate the center of the button image
-    const buttonCenterX = xPos + originalWidth / 2;
-    const buttonCenterY = yPos + originalHeight / 2;
-
-    // Position the text initially so its center aligns with the button's center
-    // This assumes buttonText.getWidth() and buttonText.getHeight() are available
-    // and that buttonText.setPosition sets the top-left corner.
-    const initialTextX = buttonCenterX - buttonText.getWidth() / 2;
-    const initialTextY = buttonCenterY - buttonText.getHeight() / 2;
-
-    buttonText.setPosition(initialTextX, initialTextY);
-    buttonText.originalX = initialTextX; // Store this calculated original top-left position
-    buttonText.originalY = initialTextY;
-    // --- END CRITICAL CHANGE ---
-
+    buttonText.setLayer(4);
+    // place at the intended coords...
+    buttonText.setPosition(buttonTextX, buttonTextY);
+    // ...and record those exact coords
+    buttonText.originalFontSize = 20;
+    buttonText.originalX = buttonTextX;
+    buttonText.originalY = buttonTextY;
 
     let buttonHitbox = new Rectangle(hitboxWidth, hitboxHeight);
-    // Position the hitbox relative to the button's actual position, centering vertically
-    buttonHitbox.setPosition(xPos, yPos + (originalHeight - hitboxHeight) / 2);
-    buttonHitbox.setColor("rgba(255, 0, 0, 0.0)"); // Transparent hitbox (can be made visible for debugging)
-    buttonHitbox.setLayer(15); // Layer for the hitbox (should be on top to capture events)
+    buttonHitbox.setPosition(
+        xPos + (originalHeight - hitboxHeight) * 0.5,
+        yPos + (originalHeight - hitboxHeight) * 0.5
+    );
+    buttonHitbox.setColor("rgba(255,0,0,0)");
+    buttonHitbox.setLayer(15);
+    buttonHitbox.onClick = onClickCallback;
 
-    // Store the onClickCallback directly on the hitbox for later use with makeButton
-    buttonHitbox.onClick = onClickCallback; // <--- Store onClick on the hitbox
+    let animationInterval = null;
 
-    // --- Hover animations are still handled here, setting callbacks on the hitbox ---
-    let animationInterval = null; // Variable to hold the interval ID for animation
-
-    // Callback for when the mouse hovers over the button's hitbox
     buttonHitbox.onHover = () => {
-        if (animationInterval) {
-            clearInterval(animationInterval); // Clear any existing animation
-        }
-        buttonImage.currentAnimationStep = 0; // Reset animation step
+        clearInterval(animationInterval);
+        buttonImage.currentAnimationStep = 0;
 
         animationInterval = setInterval(() => {
-            buttonImage.currentAnimationStep++;
-            let t = buttonImage.currentAnimationStep / NUM_ANIMATION_STEPS;
-            if (t > 1) t = 1; // Clamp t to 1
+            const step = ++buttonImage.currentAnimationStep;
+            let t = step / NUM_ANIMATION_STEPS;
+            if (t > 1) t = 1;
+            const easedT = easeOutQuint(t);
+            const scale = 1 + (TARGET_SCALE_FACTOR - 1) * easedT;
 
-            let easedT = easeOutQuint(t); // Apply easing function
-            let currentScale = 1.0 + (TARGET_SCALE_FACTOR - 1.0) * easedT; // Calculate current scale
+            const newW = originalWidth  * scale;
+            const newH = originalHeight * scale;
+            const dx = (newW - originalWidth)  / 2;
+            const dy = (newH - originalHeight) / 2;
 
-            const newWidth = buttonImage.originalWidth * currentScale;
-            const newHeight = buttonImage.originalHeight * currentScale;
+            buttonImage.setSize(newW, newH);
+            buttonImage.setPosition(xPos - dx, yPos - dy);
 
-            // Adjust image position to keep the image centered during scaling
-            const newImageX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
-            const newImageY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
-
-            buttonImage.setSize(newWidth, newHeight);
-            buttonImage.setPosition(newImageX, newImageY);
-
-            // Update text font size and position to stay centered (if text is present)
             if (buttonText.text) {
-                buttonText.setText(`${buttonText.originalFontSize * currentScale}pt Arial`);
-                // Calculate text position to center it over the scaled image
-                const scaledTextWidth = buttonText.getWidth();
-                const scaledTextHeight = buttonText.getHeight();
-                const newTextX = newImageX + (newWidth / 2) - (scaledTextWidth / 2);
-                const newTextY = newImageY + (newHeight / 2) - (scaledTextHeight / 2);
-
-                buttonText.setPosition(newTextX, newTextY);
+                buttonText.font = `${buttonText.originalFontSize * scale}pt Arial`;
+                // keep relative to originalX/Y
+                buttonText.setPosition(
+                  buttonText.originalX - dx + newW/2,
+                  buttonText.originalY - dy + newH/2
+                );
             }
 
-            if (t === 1) {
-                clearInterval(animationInterval); // Stop animation when complete
-            }
+            if (t === 1) clearInterval(animationInterval);
         }, FRAME_RATE);
     };
 
-    // Callback for when the mouse leaves the button's hitbox
     buttonHitbox.onUnhover = () => {
-        if (animationInterval) {
-            clearInterval(animationInterval); // Clear any existing animation
-        }
-        buttonImage.currentAnimationStep = 0; // Reset animation step
-        const initialScaleForUnhover = buttonImage.width / buttonImage.originalWidth;
-        const scaleDifference = initialScaleForUnhover - 1.0;
+        clearInterval(animationInterval);
+        buttonImage.currentAnimationStep = 0;
+        const startScale = buttonImage.width / originalWidth;
 
         animationInterval = setInterval(() => {
-            buttonImage.currentAnimationStep++;
-            let t = buttonImage.currentAnimationStep / NUM_ANIMATION_STEPS;
-            if (t > 1) t = 1; // Clamp t to 1
+            const step = ++buttonImage.currentAnimationStep;
+            let t = step / NUM_ANIMATION_STEPS;
+            if (t > 1) t = 1;
+            const easedT = easeOutQuint(t);
+            const scale = startScale - (startScale - 1) * easedT;
 
-            let easedT = easeOutQuint(t); // Apply easing function
-            let currentScale = initialScaleForUnhover - (scaleDifference * easedT);
+            const newW = originalWidth  * scale;
+            const newH = originalHeight * scale;
+            const dx = (newW - originalWidth)  / 2;
+            const dy = (newH - originalHeight) / 2;
 
-            if (currentScale < 1.0) currentScale = 1.0; // Ensure scale doesn't go below original
+            buttonImage.setSize(newW, newH);
+            buttonImage.setPosition(xPos - dx, yPos - dy);
 
-            const newWidth = buttonImage.originalWidth * currentScale;
-            const newHeight = buttonImage.originalHeight * currentScale;
-
-            // Adjust image position to keep the image centered during scaling
-            const newImageX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
-            const newImageY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
-
-            buttonImage.setSize(newWidth, newHeight);
-            buttonImage.setPosition(newImageX, newImageY);
-
-            // Update text font size and position (if text is present)
             if (buttonText.text) {
-                buttonText.setText(`${buttonText.originalFontSize * currentScale}pt Arial`);
-                // Calculate text position to center it over the scaled image
-                const scaledTextWidth = buttonText.getWidth();
-                const scaledTextHeight = buttonText.getHeight();
-                const newTextX = newImageX + (newWidth / 2) - (scaledTextWidth / 2);
-                const newTextY = newImageY + (newHeight / 2) - (scaledTextHeight / 2);
-
-                buttonText.setPosition(newTextX, newTextY);
+                buttonText.font = `${buttonText.originalFontSize * scale}pt Arial`;
+                buttonText.setPosition(
+                  buttonText.originalX - dx + newW/2,
+                  buttonText.originalY - dy + newH/2
+                );
             }
 
             if (t === 1) {
-                clearInterval(animationInterval); // Stop animation when complete
-                // Reset to original size and position precisely
-                buttonImage.setSize(buttonImage.originalWidth, buttonImage.originalHeight);
-                buttonImage.setPosition(buttonImage.originalX, buttonImage.originalY);
+                clearInterval(animationInterval);
+                // snap back exactly
+                buttonImage.setSize(originalWidth, originalHeight);
+                buttonImage.setPosition(xPos, yPos);
                 if (buttonText.text) {
-                    buttonText.setText(`${buttonText.originalFontSize}pt Arial`);
-                    // Reset text to its exact original calculated centered position
+                    buttonText.font = `${buttonText.originalFontSize}pt Arial`;
                     buttonText.setPosition(buttonText.originalX, buttonText.originalY);
                 }
             }
         }, FRAME_RATE);
     };
-    // --- End of hover animations ---
 
-    // Add a setText method to the returned object for convenience
     const buttonObject = { image: buttonImage, hitbox: buttonHitbox, text: buttonText };
     buttonObject.setText = function (newText) {
         this.text.setText(newText);
-        // When text changes, you might need to re-center it if its width/height changes
-        // For simplicity, we'll assume it doesn't drastically change after initial setup
-        // or that it's handled by subsequent hover/unhover, but for robust apps,
-        // you'd re-calculate buttonText.originalX/Y here based on the new text's dimensions.
-        const buttonCenterX = buttonImage.originalX + buttonImage.originalWidth / 2;
-        const buttonCenterY = buttonImage.originalY + buttonImage.originalHeight / 2;
-        const newOriginalTextX = buttonCenterX - this.text.getWidth() / 2;
-        const newOriginalTextY = buttonCenterY - this.text.getHeight() / 2;
-        this.text.setPosition(newOriginalTextX, newOriginalTextY);
-        this.text.originalX = newOriginalTextX;
-        this.text.originalY = newOriginalTextY;
     };
     return buttonObject;
 }
-
 /**
  * Creates and sets up a clickable rectangle.
  * @param {number} xPos - The x-position (top-left) of the rectangle.
