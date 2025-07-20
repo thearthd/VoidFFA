@@ -1330,20 +1330,20 @@ async function gamesButtonHit() {
     currentMenuObjects.push(loadingText);
 
     try {
-        // Fetch the slots index rather than gamesRef
-const snapshot = await gamesRef.once('value');
-const gamesObj = snapshot.val() || {};
+        const snapshot = await gamesRef.once('value');
+        const gamesObj = snapshot.val() || {};
 
-const activeSlots = Object.entries(gamesObj)
-    .filter(([id, game]) => game.status === "waiting" || game.status === "starting")
-    .map(([id, game]) => ({
-        id,
-        host: game.host,
-        map: game.map,
-        createdAt: game.createdAt,
-        slot: game.slot
-    }))
-    .sort((a, b) => b.createdAt - a.createdAt);
+        const activeSlots = Object.entries(gamesObj)
+            .filter(([id, game]) => game.status === "waiting" || game.status === "starting")
+            .map(([id, game]) => ({
+                id,
+                gameName: game.gameName,    // ← include gameName
+                host:     game.host,
+                map:      game.map,
+                createdAt: game.createdAt,
+                slot:     game.slot
+            }))
+            .sort((a, b) => b.createdAt - a.createdAt);
 
         remove(loadingText);
 
@@ -1357,7 +1357,6 @@ const activeSlots = Object.entries(gamesObj)
             return;
         }
 
-        // Display each slot as a clickable entry
         const GAMES_PER_PAGE = 4;
         const startIndex = currentPage * GAMES_PER_PAGE;
         const pageSlots = activeSlots.slice(startIndex, startIndex + GAMES_PER_PAGE);
@@ -1366,10 +1365,9 @@ const activeSlots = Object.entries(gamesObj)
         const entryHeight = 150;
 
         for (let i = 0; i < pageSlots.length; i++) {
-    const slotInfo = pageSlots[i];
-    const gameId   = slotInfo.id;    // <-- this is the Firebase key, not slotInfo.slot
-    const slotName = slotInfo.slot;  // e.g. "gameSlot1"
-    const mapName  = slotInfo.map;
+            const slotInfo = pageSlots[i];
+            const gameId   = slotInfo.id;
+            const mapName  = slotInfo.map;
             const y = yStart + i * entryHeight;
 
             // Background hitbox
@@ -1379,17 +1377,17 @@ const activeSlots = Object.entries(gamesObj)
                 getWidth() * 0.8,
                 100,
                 "rgba(50,50,50,0.7)",
-               () => {
-                 console.log(`Joining slot ${slotInfo.slot} on map ${slotInfo.map}`);
-                 setActiveGameId(gameId);            // ← stash it
-                 initAndStartGame(username, mapName, gameId);
-               }
+                () => {
+                    console.log(`Joining game ${slotInfo.gameName} on map ${mapName}`);
+                    setActiveGameId(gameId);
+                    initAndStartGame(username, mapName, gameId);
+                }
             );
             add(gameBg);
             currentMenuObjects.push(gameBg);
 
-            // Host/Game name
-            let titleText = new Text(`${slotInfo.host}'s Game`, "25pt Arial");
+            // Game name
+            let titleText = new Text(`${slotInfo.gameName}`, "25pt Arial");
             titleText.setColor("#55eeff");
             titleText.setPosition(getWidth() * 0.5, y);
             add(titleText);
@@ -1403,7 +1401,6 @@ const activeSlots = Object.entries(gamesObj)
             currentMenuObjects.push(detailsText);
         }
 
-        // Pagination
         const maxPages = Math.ceil(activeSlots.length / GAMES_PER_PAGE);
         const paginationY = getHeight() - 100;
 
