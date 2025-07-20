@@ -1020,12 +1020,12 @@ function updateBoardHit() {
     style.textContent = `
       /* popup gradient & text */
       .swal2-popup-gradient {
-        background: linear-gradient(to right, #C58DE3 0%, #7616D1 100%);
+        background: linear-gradient(to right, #C58DE3 0%, #8459ff 100%);
         color: #ffffff;
       }
       /* icon color (info icon in this case) */
       .swal2-icon.swal2-info {
-        border-color: #ffffff;              /* outline */
+        border-color: none;              /* outline */
         color: #ffffff;                     /* the “i” itself */
       }
       /* if you ever use other icons, e.g. .swal2-icon.swal2-success, you can style them here too */
