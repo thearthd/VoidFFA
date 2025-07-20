@@ -582,13 +582,12 @@ export class PhysicsController {
                 this.fallStartTimer = null;
             }
             this.jumpTriggered = false; // Reset jump trigger
-        } else if (!this.isGrounded && this.fallStartY === null && !this.jumpTriggered) {
+        } else if (!this.isGrounded && this.fallStartY === null) {
             // If not grounded and fallStartY hasn't been set yet, and not due to a jump, start a timer
             if (!this.fallStartTimer) {
                 
                 this.fallStartTimer = setTimeout(() => {
                     this.fallStartY = this.player.position.y; // Set fallStartY after delay
-                    console.log(this.fallStartY);
                     this.fallStartTimer = null;
                 }, this.fallDelay);
             }
