@@ -1203,6 +1203,9 @@ function playButtonHit() {
 
     add(logo);
 
+     add(playerCard.image);
+    makeButton(playerCard.hitbox, playerCard.hitbox.onClick);
+
     add(gamesButton.image);
     // add(gamesButton.text); // REMOVED TEXT
     makeButton(gamesButton.hitbox, gamesButton.hitbox.onClick);
