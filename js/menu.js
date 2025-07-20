@@ -783,6 +783,9 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
             const newX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
             const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
 
+            const newXX = buttonText.originalX - (newWidth - buttonImage.originalWidth) / 2;
+            const newYY = buttonText.originalY - (newHeight - buttonImage.originalHeight) / 2;
+
             buttonImage.setSize(newWidth, newHeight);
             buttonImage.setPosition(newX, newY);
 
@@ -790,7 +793,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
             if (buttonText.text) {
                 buttonText.font = `${buttonText.originalFontSize * currentScale}pt Arial`;
                 // Text position should be relative to the new image position and size
-                buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
+                buttonText.setPosition(newXX + newWidth / 2, newYY + newHeight / 2);
             }
 
 
