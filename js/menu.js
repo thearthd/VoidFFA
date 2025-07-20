@@ -1003,9 +1003,9 @@ let gamesButton = createAnimatedButton(
     }
 );
 
-let updateBoard = new ImageShape("https://codehs.com/uploads/4c280c4158df6cd9adb388055e7ad6b9");
+let updateBoard = new ImageShape("https://codehs.com/uploads/9323bdb40e74869eebd229ddd37ba098");
 updateBoard.setSize(1080/3, 1440/3);
-updateBoard.setPosition(getWidth() - 1080/3, getHeight()/2);
+updateBoard.setPosition(getWidth() - ((1080/3)/2), getHeight()/2 - (1080/3)/2);
 
 /**
  * Initializes the main menu by adding all primary menu elements to the canvas.
