@@ -1017,6 +1017,14 @@ let updateBoard = createAnimatedButton(
 
 function updateBoardHit() {
 
+         const style = document.createElement('style');
+    style.textContent = `
+        .swal2-popup-gradient {
+            background: linear-gradient(to right, #C58DE3 0%, #7616D1 100%) !important;
+        }
+    `;
+    document.head.appendChild(style);
+
     Swal.fire({
         title: 'Void.FFA v1.00',
         text: 'The release of Void.FFA.',
@@ -1024,6 +1032,9 @@ function updateBoardHit() {
         confirmButtonText: 'wowzery!',
       //  timer: 3000, // Automatically close after 3 seconds
      //   timerProgressBar: true,
+        customClass: {
+            popup: 'swal2-popup-gradient'
+        }
     }).then((result) => {
         // You can add additional logic here after the alert closes
         // For example, if you want to perform an action only after the user clicks "Great!"
