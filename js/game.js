@@ -679,6 +679,12 @@ gameInterval = setInterval(() => {
     createFadeOverlay();
     createLeaderboardOverlay();
 
+if (sceneNum == 1) {
+windSound.play().catch(err => console.warn(err));
+} else if (sceneNum == 2) {
+forestNoise.play().catch(err => console.warn(err));
+}
+    
     // 9) Start game loop (unchanged)
     animate();
 }
@@ -784,14 +790,6 @@ window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual a
 const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
 physicsController.setPlayerPosition(initialSpawnPoint);
 
-// --- Audio Initialization ---
-if (typeof windSound !== 'undefined') {
-windSound.play().catch(err => console.warn("Failed to play wind sound:", err));
-window.windSound = windSound;
-} else {
-console.warn("windSound is not defined. Audio might not play for CrocodilosConstruction.");
-}
-
 // --- Window Resize Handling ---
 function onWindowResize() {
 const container = document.getElementById("game-container");
@@ -896,15 +894,6 @@ window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual a
 
 const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
 physicsController.setPlayerPosition(initialSpawnPoint);
-
-// --- Audio Initialization ---
-if (typeof forestNoise !== 'undefined') {
-forestNoise.volume = 0.05;
-forestNoise.play().catch(err => console.warn("Failed to play forest noise:", err));
-window.windSound = forestNoise; // Renamed to windSound for consistency if only one wind sound
-} else {
-console.warn("forestNoise is not defined. Audio might not play for SigmaCity.");
-}
 
 // --- Window Resize Handling ---
 function onWindowResize() {
