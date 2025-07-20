@@ -700,7 +700,7 @@ let background = new Rectangle(getWidth(), getHeight());
 background.setLayer(1); // Drawn behind other elements
 background.setColor("#222222");
 
-const TARGET_SCALE_FACTOR = 1.0; // Scale up to 110% on hover for text (was 1.1)
+const TARGET_SCALE_FACTOR = 1.1; // Scale up to 110% on hover for text (was 1.1)
 const ANIMATION_DURATION = 200; // milliseconds for hover animation
 const FRAME_RATE = 20; // milliseconds per frame (50 frames per second)
 const NUM_ANIMATION_STEPS = ANIMATION_DURATION / FRAME_RATE;
