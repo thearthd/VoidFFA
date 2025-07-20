@@ -1052,7 +1052,7 @@ function playerCardHit() {
     // 2) Fire the alert, specifying confirmButtonColor
     Swal.fire({
         title: localStorage.getItem("username"),
-        text: 'ur trash';
+        text: 'ur trash',
         icon: 'info',
         confirmButtonText: 'Okay',
         confirmButtonColor: '#b7adff',      // <-- button background
