@@ -1020,14 +1020,8 @@ function updateBoardHit() {
          const style = document.createElement('style');
     style.textContent = `
           .swal2-popup-gradient {
-              background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%) !important;
-          }
-          .swal2-confirm-button-gradient {
-              background: linear-gradient(to right, #555555 0%, #555555 100%) 
-              border: none !important;
-          }
-          .swal2-confirm-button-gradient:hover {
-              opacity: 0.9; 
+              background: linear-gradient(to right, #C58DE3 0%, #7616D1 100%);
+              color: #ffffff;
           }
     `;
     document.head.appendChild(style);
