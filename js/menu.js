@@ -1270,24 +1270,35 @@ async function createGameButtonHit() {
         return menu();
     }
 
-const gameData = {
-  gameName:  formValues.gameName,
-  map:       formValues.map,
-  gamemode:  formValues.gamemode,
-  host:      username,
-  createdAt: firebase.database.ServerValue.TIMESTAMP,
-  status:    "waiting"          // ← add this
-};
+    const gameData = {
+        gameName:  formValues.gameName,
+        map:       formValues.map,
+        gamemode:  formValues.gamemode,
+        host:      username,
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        status:    "waiting"
+    };
 
     try {
         // 1) push to games list
         const newGameRef = gamesRef.push();
         await newGameRef.set(gameData);
         const gameId = newGameRef.key;
-          let ffaEnabled = true;
+
+        // 1a) immediately create the gameConfig node
+        const configRef = gamesRef.child(gameId).child('gameConfig');
+        const initialDuration = 10 * 60; // e.g. 10 minutes in seconds
+        const now = Date.now();
+        await configRef.set({
+            gameDuration: initialDuration,
+            startTime:    now,
+            endTime:      now + initialDuration * 1000
+        });
+
         // 2) try to claim a slot
+        let ffaEnabled = true;
         const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
-         await gamesRef.child(gameId).child('status').set("starting");
+        await gamesRef.child(gameId).child('status').set("starting");
         if (!slotResult) {
             // 🔥 Dispose of the just-created game
             await newGameRef.remove();
@@ -1306,7 +1317,7 @@ const gameData = {
             confirmButtonText: 'Join Game'
         }).then(res => {
             if (res.isConfirmed) {
-               // nice
+                initAndStartGame(username, formValues.map, gameId);
             } else {
                 menu();
             }
@@ -1318,7 +1329,6 @@ const gameData = {
         menu();
     }
 }
-
 
 async function gamesButtonHit() {
     clearMenuCanvas();
