@@ -1022,8 +1022,8 @@ let updateBoard = createAnimatedButton(
 
 let playerCard = createAnimatedButton(
     "https://codehs.com/uploads/44ac54e5efa47170da279caa22d6e7cc", // Provided games button image
-    1080/2, 1440/2,
-    getWidth()/2 - (1080/2), getHeight()/2 - ((1440/2)/2), // Position below Play
+    1080/3, 1440/3,
+    getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2), // Position below Play
     1080/2, 1440/2,
     () => {
         console.log("updateBoard button hit");
