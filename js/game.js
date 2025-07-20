@@ -536,16 +536,16 @@ delete pendingRestore[victimId];
 
 
 // Game Start
-export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
+export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) { // gameId here is actually slotName
+    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled); // gameId here is slotName
     if (!networkOk) {
         console.warn("Network init failed.");
         return;
     }
 
-    playersRef = dbRefs.playersRef;
-    // gameConfigRef is no longer directly used for timer logic in startGame
-    // but might be needed for other game-specific config.
+    playersRef = dbRefs.playersRef; // This dbRefs is from initNetwork, points to the slot's DB
+    // gameConfigRef is now correctly accessed via currentGameSlotDbRefs in the global timer backbone
+
     const gameTimerElement = document.getElementById("game-timer");
 
     // --- Timer UI Visibility (ONLY) ---
@@ -553,17 +553,15 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         gameTimerElement.style.display = "block";
     } else {
         gameTimerElement.style.display = "none";
-        // If FFA is disabled, ensure the global timer is stopped for this game
-        // and its database entry is cleaned. This part is a bit tricky
-        // as the global timer might still be running.
-        // A better approach might be to set activeGameId = null here
-        // if the game is somehow ending or not FFA.
-        // For simplicity, we'll assume FFA is the only mode with a visible timer.
-        if (activeGameId === gameId) { // Only clear if this is the active game
-            activeGameId = null; // Signal no active game
+        // If FFA is disabled, ensure the global timer is stopped for this game slot
+        if (activeGameSlotName === gameId) { // gameId here is slotName
+            activeGameSlotName = null; // Signal no active game slot
             setupGlobalGameTimerListener(); // Stop the global timer
-            dbRefs.gamesRef.child(gameId).child('gameEndTime').remove(); // Clean up DB
-            dbRefs.gamesRef.child(gameId).child('status').set("ended"); // Mark game ended
+            // Clean up DB for this specific game slot
+            if (currentGameSlotDbRefs) {
+                currentGameSlotDbRefs.gameConfigRef.child('gameEndTime').remove();
+                // You might also update the status in the lobby DB if you have the lobbyGameId here
+            }
         }
     }
     // --- END Timer UI Visibility ---
@@ -589,10 +587,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 determineWinnerAndEndGame();
             }
             // Clean up database entries on game end by kills
-            if (activeGameId === gameId) { // Ensure we're cleaning up the correct game
-                dbRefs.gamesRef.child(gameId).child('gameEndTime').remove();
-                dbRefs.gamesRef.child(gameId).child('status').set("ended");
-                activeGameId = null; // Signal no active game
+            if (activeGameSlotName === gameId && currentGameSlotDbRefs) { // Ensure correct slot
+                currentGameSlotDbRefs.gameConfigRef.child('gameEndTime').remove();
+                // You might also update the status in the lobby DB if you have the lobbyGameId here
+                activeGameSlotName = null; // Signal no active game slot
                 setupGlobalGameTimerListener(); // Stop the global timer
             }
             return;
@@ -618,7 +616,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     weaponController = new WeaponController(
         window.camera,
-        dbRefs.playersRef,
+        dbRefs.playersRef, // These dbRefs are from initNetwork, pointing to the slot's DB
         dbRefs.mapStateRef.child("bullets"),
         createTracer,
         localPlayerId,
@@ -675,46 +673,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     animate();
 }
-
-
-
-
-export function hideGameUI() {
-  document.getElementById("menu-overlay").style.display = "flex";
-  document.body.classList.remove("game-active");
-}
-
-function setupDetailToggle() {
-  const btn = document.getElementById("toggle-details-btn");
-  if (!btn) return;
-
-  btn.addEventListener("click", () => {
-    detailsEnabled = !detailsEnabled;
-
-    if (detailsEnabled) {
-      const fp = window.originalFogParams;
-      if (fp.type === "exp2") {
-        scene.fog = new THREE.FogExp2(fp.color, fp.density);
-      } else {
-        scene.fog = new THREE.Fog(fp.color, fp.near, fp.far);
-      }
-      renderer.shadowMap.enabled = true;
-      dirLight.castShadow      = true;
-      window.bloomPass.strength = window.originalBloomStrength;
-      btn.textContent           = "Details: On";
-    } else {
-      scene.fog                = null;
-      renderer.shadowMap.enabled = false;
-      dirLight.castShadow        = false;
-      window.bloomPass.strength   = 0;
-      btn.textContent             = "Details: Off";
-    }
-  });
-
-  btn.textContent = detailsEnabled ? "Details: On" : "Details: Off";
-  
-}
-
 
 export async function initSceneCrocodilosConstruction() { // Make initSceneCrocodilosConstruction async
 sceneNum = 1;
