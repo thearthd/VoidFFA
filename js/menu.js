@@ -1003,9 +1003,37 @@ let gamesButton = createAnimatedButton(
     }
 );
 
-let updateBoard = new ImageShape("https://codehs.com/uploads/9323bdb40e74869eebd229ddd37ba098");
-updateBoard.setSize(1080/3, 1440/3);
-updateBoard.setPosition(getWidth() - (1080/3), getHeight()/2 - (1080/3)/2);
+
+let updateBoard = createAnimatedButton(
+    "https://codehs.com/uploads/9323bdb40e74869eebd229ddd37ba098", // Provided games button image
+    1080/3, 1440/3,
+    getWidth() - (1080/3), getHeight()/2, // Position below Play
+    1920 / 6 - 25, 1080 / 8,
+    () => {
+        console.log("updateBoard button hit");
+        updateBoardHit();
+    }
+);
+
+function updateBoardHit() {
+
+    Swal.fire({
+        title: 'Void.FFA v1.00',
+        text: 'The release of Void.FFA.',
+        icon: 'success', // Can be 'success', 'error', 'warning', 'info', or 'question'
+        confirmButtonText: 'wowzery!',
+      //  timer: 3000, // Automatically close after 3 seconds
+     //   timerProgressBar: true,
+    }).then((result) => {
+        // You can add additional logic here after the alert closes
+        // For example, if you want to perform an action only after the user clicks "Great!"
+        if (result.isConfirmed) {
+            console.log("User acknowledged board update.");
+            // Potentially trigger another function or update game state
+        }
+    });
+}
+
 
 /**
  * Initializes the main menu by adding all primary menu elements to the canvas.
