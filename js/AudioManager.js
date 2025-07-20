@@ -122,7 +122,7 @@ export function initializeAudioManager(camera, scene) {
     }
     if (audioManagerInstance) {
         console.warn("AudioManager already initialized. Stopping existing sounds and reinitializing.");
-        audioManagerInstance.stopAll();
+      //  audioManagerInstance.stopAll();
     }
     audioManagerInstance = new AudioManager(camera, scene);
     window.audioManager = audioManagerInstance;
