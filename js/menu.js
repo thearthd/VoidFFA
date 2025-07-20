@@ -1025,7 +1025,7 @@ function updateBoardHit() {
       }
       /* icon color (info icon in this case) */
       .swal2-icon.swal2-info {
-        border-color: none;              /* outline */
+        border-color: #ffffff;              /* outline */
         color: #ffffff;                     /* the “i” itself */
       }
       /* if you ever use other icons, e.g. .swal2-icon.swal2-success, you can style them here too */
