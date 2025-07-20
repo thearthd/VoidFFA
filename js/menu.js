@@ -1192,7 +1192,7 @@ const gameData = {
             confirmButtonText: 'Join Game'
         }).then(res => {
             if (res.isConfirmed) {
-                initAndStartGame(username, formValues.map, gameId);
+               // nice
             } else {
                 menu();
             }
@@ -1492,9 +1492,7 @@ export function initMenuUI() {
             menu(); // Show canvas-drawn main menu
             document.getElementById("game-logo").classList.add("hidden"); // Hide the HTML game logo
             const menuOverlayElement = document.getElementById('menu-overlay');
-            if (menuOverlayElement) { // Hide the entire HTML overlay if canvas menu is active
-                menuOverlayElement.style.display = 'none';
-            }
+
             canvas.style.display = 'block'; // Ensure canvas is visible
         } else {
             // If no username, show the prompt
