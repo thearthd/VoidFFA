@@ -90,12 +90,22 @@ export async function claimGameSlot(username, map, ffaEnabled) {
 
   // --- ONLY write in the slot's own DB, not in lobby ---
   const rootRef = chosenApp.database().ref();
-  await rootRef.child("game").set({
-    host:      username,
-    map,
-    ffaEnabled,
-    createdAt: firebase.database.ServerValue.TIMESTAMP
-  });
+
+await rootRef.child("game").set({
+  host, map, ffaEnabled,
+  createdAt: firebase.database.ServerValue.TIMESTAMP
+});
+
+// immediately seed your timer
+const initialGameDuration = 10 * 60; // 600s
+await rootRef.child("gameConfig").set({
+  gameDuration: initialGameDuration,
+  startTime:    firebase.database.ServerValue.TIMESTAMP,
+  endTime:      firebase.database.ServerValue.TIMESTAMP + (initialGameDuration * 1000)
+});
+
+
+  
 
   // Build your per-slot refs
   const dbRefs = {
