@@ -534,62 +534,62 @@ delete pendingRestore[victimId];
 
 
 // Game Start
-export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-    // Initialize network & refs
-    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
+export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, slotName) {
+    // — network & refs —
+    const networkOk = await initNetwork(username, mapName, slotName, ffaEnabled);
     if (!networkOk) {
         console.warn("Network init failed.");
         return;
     }
     playersRef    = dbRefs.playersRef;
-    gameConfigRef = dbRefs.gameConfigRef;  // points at /games/{gameId}/gameConfig
+    gameConfigRef = dbRefs.gameSlotsRef.child(slotName).child("gameConfig");
 
     const gameTimerElement = document.getElementById("game-timer");
 
     if (ffaEnabled) {
         gameTimerElement.style.display = "block";
 
-        // 1) Read the pre‑created config
+        // 📖 read pre‐written config
         const cfgSnap = await gameConfigRef.once("value");
         const cfg = cfgSnap.val() || {};
-        // Compute remaining seconds from endTime
         const now = Date.now();
         let currentRemainingSeconds = cfg.endTime
-          ? Math.ceil((cfg.endTime - now) / 1000)
-          : (cfg.gameDuration || 0);
+            ? Math.ceil((cfg.endTime - now) / 1000)
+            : (cfg.gameDuration || 0);
 
-        // 2) Clear any existing interval
+        // clear old interval
         if (gameInterval) clearInterval(gameInterval);
 
-        // 3) Per‑second countdown
+        // per‑second countdown
         gameInterval = setInterval(() => {
             if (currentRemainingSeconds <= 0) {
                 clearInterval(gameInterval);
                 gameTimerElement.textContent = "TIME UP!";
-                // Clean up
                 gameConfigRef.remove();
                 determineWinnerAndEndGame();
                 return;
             }
 
-            // Decrement & display
             currentRemainingSeconds--;
             const mins = Math.floor(currentRemainingSeconds / 60);
             const secs = currentRemainingSeconds % 60;
             gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
 
-            // Sync remaining time back to DB
+            // sync back to DB
             gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
         }, 1000);
 
-        // 4) Kill‑threshold listener (unchanged)
-        if (playersKillsListener) playersRef.off("value", playersKillsListener);
+        // first‑to‑X kills listener (unchanged)
+        if (playersKillsListener) {
+            playersRef.off("value", playersKillsListener);
+        }
         playersKillsListener = playersRef.on("value", snapshot => {
-            let reached = false;
-            snapshot.forEach(child => {
-                if (child.val().kills >= 40) reached = true;
+            let reachedThreshold = false;
+            snapshot.forEach(childSnap => {
+                const player = childSnap.val();
+                if (player.kills >= 40) reachedThreshold = true;
             });
-            if (reached) {
+            if (reachedThreshold) {
                 playersRef.off("value", playersKillsListener);
                 clearInterval(gameInterval);
                 gameConfigRef.remove();
@@ -598,13 +598,12 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         });
 
     } else {
-        // FFA off: hide & clear
         gameTimerElement.style.display = "none";
         if (gameInterval) clearInterval(gameInterval);
         gameConfigRef.remove();
     }
 
-    // — rest of your startup logic unchanged —
+    // — everything else exactly as you had it —
     initGlobalFogAndShadowParams();
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
@@ -618,9 +617,9 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         return;
     }
 
-    // Physics, weapons, scene, input, UI, spawn, player, etc.
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
+
     weaponController = new WeaponController(
         window.camera,
         dbRefs.playersRef,
@@ -680,7 +679,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     animate();
 }
-
 
 
 
