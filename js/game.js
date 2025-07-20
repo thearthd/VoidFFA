@@ -584,6 +584,17 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
                 return;
             }
 
+            // --- IMPORTANT CHANGE HERE ---
+            // Check if time is already up or about to be up BEFORE decrementing
+            if (currentRemainingSeconds <= 0) {
+                clearInterval(gameInterval);
+                gameTimerElement.textContent = "TIME UP!";
+                // Ensure removal happens only once and is the last step for this condition
+                gameConfigRef.child("gameDuration").remove();
+                determineWinnerAndEndGame();
+                return; // Exit the interval callback
+            }
+
             currentRemainingSeconds--; // Decrement every second
 
             const mins = Math.floor(currentRemainingSeconds / 60);
@@ -591,15 +602,10 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
             gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
 
-            if (currentRemainingSeconds <= 0) {
-                clearInterval(gameInterval);
-                gameTimerElement.textContent = "TIME UP!";
-                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
-                determineWinnerAndEndGame();
-                return;
+            // Update Firebase *after* decrementing, but only if not yet zero or negative
+            if (currentRemainingSeconds > 0) {
+                gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
             }
-
-            gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
 
         }, 1000); // Update every 1 second
 
@@ -618,7 +624,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             if (reachedThreshold) {
                 playersRef.off("value", playersKillsListener);
                 clearInterval(gameInterval);
-                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
+                // When kill threshold is reached, immediately remove and end game
+                gameConfigRef.child("gameDuration").remove();
                 determineWinnerAndEndGame();
             }
         });
@@ -631,7 +638,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         gameConfigRef.child("gameDuration").remove(); // Ensure duration is cleared if FFA is off
     }
 
-    // 3) Common game start UI setup (unchanged)
+    // ... (rest of your code remains unchanged)
     initGlobalFogAndShadowParams();
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
@@ -640,13 +647,11 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
 
-    // 4) Ensure we have a valid localPlayerId (unchanged)
     if (!localPlayerId) {
         console.error("No localPlayerId after initNetwork—cannot proceed.");
         return;
     }
 
-    // 5) Three.js, physics, weapons, scene setup… (unchanged)
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
 
@@ -671,7 +676,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     initBulletHoles();
     initializeAudioManager(window.camera, scene);
     startSoundListener();
-    // 6) Spawn local player (unchanged)
     const spawn = findFurthestSpawn();
     window.localPlayer = {
         id: localPlayerId,
@@ -691,14 +695,12 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     };
     window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
 
-    // 7) Write initial state (unchanged)
     await dbRefs.playersRef.child(localPlayerId).set({
         ...window.localPlayer,
         lastUpdate: Date.now()
     });
     updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
-    // 8) Ammo, inventory, UI overlays… (unchanged)
     weaponController.equipWeapon(window.localPlayer.weapon);
     initInventory(window.localPlayer.weapon);
     initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
@@ -709,7 +711,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     createFadeOverlay();
     createLeaderboardOverlay();
 
-    // 9) Start game loop (unchanged)
     animate();
 }
 
