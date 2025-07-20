@@ -936,7 +936,7 @@ let username = localStorage.getItem("username") || '';
 let playButton = createAnimatedButton(
     "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
     1920 / 6, 1080 / 6, // Original width and height
-    25 - 4, getHeight() / 2 - leftbuttonSpacing * 2, // Adjusted position
+    25 - 15, getHeight() / 2 - leftbuttonSpacing * 2, // Adjusted position
     1920 / 6 - 25, 1080 / 8, // Hitbox dimensions (slightly smaller than image)
     () => {
         console.log("Play button hit");
@@ -948,7 +948,7 @@ let playButton = createAnimatedButton(
 let settingsButton = createAnimatedButton(
     "https://codehs.com/uploads/b3e2a8dfe6107e2af96ce74f9799b0f8",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 - leftbuttonSpacing, // Position below Games
+    25, getHeight() / 2 - leftbuttonSpacing * 1.5, // Position below Games
     1920 / 8, 1080 / 10,
     () => {
         console.log("Settings button hit");
@@ -960,7 +960,7 @@ let settingsButton = createAnimatedButton(
 let careerButton = createAnimatedButton(
     "https://codehs.com/uploads/afd818ac19ff0bbd919c766a1625071e",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 + leftbuttonSpacing, // Position below Settings
+    25, getHeight() / 2 + leftbuttonSpacing * 0.5, // Position below Settings
     1920 / 8, 1080 / 10,
     () => {
         console.log("Career button hit");
@@ -972,7 +972,7 @@ let careerButton = createAnimatedButton(
 let loadoutButton = createAnimatedButton(
     "https://codehs.com/uploads/765a0c87dc6d5d571ff25f139003227f",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 + leftbuttonSpacing * 2, // Position below Career
+    25, getHeight() / 2 + leftbuttonSpacing * 1.5, // Position below Career
     1920 / 8, 1080 / 10,
     () => {
         console.log("Loadout button hit");
