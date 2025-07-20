@@ -960,7 +960,7 @@ let gamesButton = createAnimatedButton(
 let settingsButton = createAnimatedButton(
     "https://codehs.com/uploads/b3e2a8dfe6107e2af96ce74f9799b0f8",
     1920 / 8, 1080 / 8,
-    (1920 / 8) / 2, getHeight() / 2 + leftbuttonSpacing / 2, // Position below Games
+    (1920 / 8) / 2, getHeight() / 2 - leftbuttonSpacing / 2, // Position below Games
     1920 / 8, 1080 / 10,
     () => {
         console.log("Settings button hit");
