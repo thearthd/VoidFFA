@@ -1396,7 +1396,7 @@ function addBackButton() {
     let backButton = createAndAddButton(
         "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d", // Left arrow image
         1920/32, 1080/32, // Top-left corner
-        70, 70, // Size for back button
+        1920/32, 1080/32, // Size for back button
         () => {
             currentPage = 0; // Reset page when going back to main menu
             menu(); // Go back to main menu
