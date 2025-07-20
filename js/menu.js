@@ -944,7 +944,6 @@ let playButton = createAnimatedButton(
     }
 );
 // playButton.setText("Play"); // REMOVED TEXT
-// gamesButton.setText("Games"); // REMOVED TEXT
 
 let settingsButton = createAnimatedButton(
     "https://codehs.com/uploads/b3e2a8dfe6107e2af96ce74f9799b0f8",
@@ -996,7 +995,7 @@ let createGameBtn = createAnimatedButton(
 let gamesButton = createAnimatedButton(
     "https://codehs.com/uploads/2fe6d45e0875e166cfe5f0e5343fc3b5", // Provided games button image
     1920 / 6, 1080 / 6,
-    getWidth() / 2, getHeight() / 2 - 250, // Position below Play
+    getWidth() / 2, getHeight() - 250, // Position below Play
     1920 / 6 - 25, 1080 / 8,
     () => {
         console.log("Games button hit");
