@@ -1172,7 +1172,7 @@ function showMenuOverlay() {
   if (crosshair) crosshair.style.display = "none";
 }
 
-async function initAndStartGame(username, mapName, gameId = null) {
+async function initAndStartGame(username, mapName, gameId = null, slotName) {
      hud.style.display = "block";
   // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === true;
@@ -1367,6 +1367,7 @@ async function gamesButtonHit() {
         for (let i = 0; i < pageSlots.length; i++) {
             const slotInfo = pageSlots[i];
             const gameId   = slotInfo.id;
+            const slotName = slotInfo.slotName;
             const mapName  = slotInfo.map;
             const y = yStart + i * entryHeight;
 
@@ -1380,7 +1381,7 @@ async function gamesButtonHit() {
                 () => {
                     console.log(`Joining game ${slotInfo.gameName} on map ${mapName}`);
                     setActiveGameId(gameId);
-                    initAndStartGame(username, mapName, gameId);
+                    initAndStartGame(username, mapName, gameId, slotName);
                 }
             );
             add(gameBg);
