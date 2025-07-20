@@ -34,15 +34,18 @@ import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef } from './firebase-c
 
 // --- Start of engine.js content (included here as per your provided code) ---
 
+let activeGameSlotName = null; // Stores the key of the active game slot (e.g., "gameSlot1")
 let currentGameEndTime = null; // Stores the definitive end time for the active game
 let globalGameTimerInterval = null; // The setInterval for the timer display
+let currentGameSlotDbRefs = null; // Stores the dbRefs object for the current active game slot
+
 
 
 export function setupGlobalGameTimerListener() {
     // Detach any existing gameEndTime listener first
-    if (window.currentActiveGameRefListener) {
-        window.currentActiveGameRefListener.off('value');
-        window.currentActiveGameRefListener = null;
+    if (window.currentActiveGameSlotRefListener) {
+        window.currentActiveGameSlotRefListener.off('value');
+        window.currentActiveGameSlotRefListener = null;
     }
     // Clear any existing display interval
     if (globalGameTimerInterval) {
@@ -50,14 +53,15 @@ export function setupGlobalGameTimerListener() {
         globalGameTimerInterval = null;
     }
 
-    if (activeGameId) {
-        // Attach listener to the specific game's gameEndTime
-        const gameEndTimeRef = dbRefs.gamesRef.child(activeGameId).child('gameEndTime');
-        window.currentActiveGameRefListener = gameEndTimeRef; // Store ref to detach later
+    if (activeGameSlotName && currentGameSlotDbRefs) {
+        // Attach listener to the specific game slot's gameConfig/gameEndTime
+        // This uses the game slot's specific database reference
+        const gameEndTimeRef = currentGameSlotDbRefs.gameConfigRef.child('gameEndTime');
+        window.currentActiveGameSlotRefListener = gameEndTimeRef; // Store ref to detach later
 
         gameEndTimeRef.on('value', snapshot => {
             currentGameEndTime = snapshot.val();
-            console.log(`Game ${activeGameId} end time updated:`, currentGameEndTime ? new Date(currentGameEndTime).toLocaleString() : 'N/A');
+            console.log(`Game slot ${activeGameSlotName} end time updated:`, currentGameEndTime ? new Date(currentGameEndTime).toLocaleString() : 'N/A');
 
             // If gameEndTime becomes null, it means the game has ended or was removed
             if (currentGameEndTime === null) {
@@ -79,7 +83,7 @@ export function setupGlobalGameTimerListener() {
         });
 
     } else {
-        // No active game, ensure timer is stopped and display is reset
+        // No active game slot, ensure timer is stopped and display is reset
         const gameTimerElement = document.getElementById("game-timer");
         if (gameTimerElement) {
             gameTimerElement.textContent = "Time: --:--"; // Or hide it
