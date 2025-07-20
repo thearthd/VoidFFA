@@ -552,7 +552,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
         // Set an initial game duration in seconds if it doesn't exist.
         // For example, 10 minutes (600 seconds).
-        const initialGameDurationSeconds = 10 * 60; // 10 minutes
+        const initialGameDurationSeconds = 1 * 60; // 10 minutes
         let currentRemainingSeconds = initialGameDurationSeconds; // Local variable to track remaining time
 
         // 1) Listen for (or set) the game duration in Firebase.
