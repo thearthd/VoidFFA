@@ -1007,7 +1007,7 @@ let gamesButton = createAnimatedButton(
 let updateBoard = createAnimatedButton(
     "https://codehs.com/uploads/9323bdb40e74869eebd229ddd37ba098", // Provided games button image
     1080/3, 1440/3,
-    getWidth() - (1080/3), getHeight()/2, // Position below Play
+    getWidth() - (1080/3), getHeight()/2 - ((1440/3)/2), // Position below Play
     1920 / 6 - 25, 1080 / 8,
     () => {
         console.log("updateBoard button hit");
@@ -1020,7 +1020,8 @@ function updateBoardHit() {
          const style = document.createElement('style');
     style.textContent = `
         .swal2-popup-gradient {
-            background: linear-gradient(to right, #C58DE3 0%, #7616D1 100%) !important;
+         background: linear-gradient(to right, #C58DE3 0%, #7616D1 100%) !important;
+         color: #ffffff;
         }
     `;
     document.head.appendChild(style);
