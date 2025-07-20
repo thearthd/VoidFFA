@@ -39,6 +39,7 @@ export const gameDatabaseConfigs = {
 
 let menuApp = null;
 export let gamesRef = null;
+export let slotsRef; // Declared here, initialized in initializeMenuFirebase
 
 export function initializeMenuFirebase() {
     if (menuApp) return;
@@ -56,7 +57,7 @@ export function initializeMenuFirebase() {
 initializeMenuFirebase(); // Call this to ensure menuApp and gamesRef are initialized
 
 // Metadata of slots in the lobby DB (moved here for clarity, assumes menuApp is ready)
-export let slotsRef; // Declared here, initialized in initializeMenuFirebase
+
 
 export let activeGameSlotName = null; // Global variable for the active slot name
 export let currentGameEndTime = null; // Global variable for the game's end time
