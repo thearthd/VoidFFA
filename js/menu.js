@@ -1003,6 +1003,10 @@ let gamesButton = createAnimatedButton(
     }
 );
 
+let updateBoard = new ImageShape("https://codehs.com/uploads/4c280c4158df6cd9adb388055e7ad6b9");
+updateBoard.setSize(1080/3, 1440/3);
+updateBoard.setPosition(getWidth() - 1080/3, getHeight()/2);
+
 /**
  * Initializes the main menu by adding all primary menu elements to the canvas.
  * Now explicitly calls makeButton for initial clickable elements.
@@ -1019,7 +1023,7 @@ menuBG.style.display = "flex";
 loadMenu.style.display = "none";
      
     add(logo);
-
+     add(updateBoard);
     // Add main menu buttons
     add(playButton.image);
     // add(playButton.text); // REMOVED TEXT
