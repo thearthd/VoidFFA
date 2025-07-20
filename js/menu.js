@@ -1007,7 +1007,7 @@ let gamesButton = createAnimatedButton(
 let updateBoard = createAnimatedButton(
     "https://codehs.com/uploads/9323bdb40e74869eebd229ddd37ba098", // Provided games button image
     1080/3, 1440/3,
-    getWidth() - (1080/3)*2, getHeight()/2, // Position below Play
+    getWidth() - (1080/3), getHeight()/2, // Position below Play
     1920 / 6 - 25, 1080 / 8,
     () => {
         console.log("updateBoard button hit");
@@ -1051,7 +1051,9 @@ menuBG.style.display = "flex";
 loadMenu.style.display = "none";
      
     add(logo);
-     add(updateBoard);
+     
+     add(updateBoard.image);
+     makeButton(updateBoard.hitbox, updateBoard.hitbox.onClick);
     // Add main menu buttons
     add(playButton.image);
     // add(playButton.text); // REMOVED TEXT
