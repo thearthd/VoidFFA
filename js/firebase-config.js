@@ -67,48 +67,58 @@ const gameApps = {};
  * Claim the first free slot by inspecting its own /game node.
  */
 export async function claimGameSlot(username, map, ffaEnabled) {
-  let chosenKey = null, chosenApp = null;
+    let chosenKey = null, chosenApp = null;
 
-  // Find the first free slot by checking its own /game node
-  for (let slotName in gameDatabaseConfigs) {
-    if (!gameApps[slotName]) {
-      gameApps[slotName] = firebase.initializeApp(
-        gameDatabaseConfigs[slotName],
-        slotName + "App"
-      );
+    // Find the first free slot by checking its own /game node
+    for (let slotName in gameDatabaseConfigs) {
+        if (!gameApps[slotName]) {
+            gameApps[slotName] = firebase.initializeApp(
+                gameDatabaseConfigs[slotName],
+                slotName + "App"
+            );
+        }
+        const app = gameApps[slotName];
+        const gameSnap = await app.database().ref("game").once("value");
+        if (!gameSnap.exists() || Object.keys(gameSnap.val() || {}).length === 0) {
+            chosenKey = slotName;
+            chosenApp = app;
+            break;
+        }
     }
-    const app = gameApps[slotName];
-    const gameSnap = await app.database().ref("game").once("value");
-    if (!gameSnap.exists() || Object.keys(gameSnap.val() || {}).length === 0) {
-      chosenKey = slotName;
-      chosenApp = app;
-      break;
-    }
-  }
 
-  if (!chosenKey) return null;
+    if (!chosenKey) return null;
 
-  // --- ONLY write in the slot's own DB, not in lobby ---
-  const rootRef = chosenApp.database().ref();
-  await rootRef.child("game").set({
-    host:      username,
-    map,
-    ffaEnabled,
-    createdAt: firebase.database.ServerValue.TIMESTAMP
-  });
+    // --- ONLY write in the slot's own DB, not in lobby ---
+    const rootRef = chosenApp.database().ref();
+    await rootRef.child("game").set({
+        host: username,
+        map,
+        ffaEnabled,
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+    });
 
-  // Build your per-slot refs
-  const dbRefs = {
-    playersRef:    rootRef.child("players"),
-    chatRef:       rootRef.child("chat"),
-    killsRef:      rootRef.child("kills"),
-    mapStateRef:   rootRef.child("mapState"),
-    tracersRef:    rootRef.child("tracers"),
-    soundsRef:     rootRef.child("sounds"),
-    gameConfigRef: rootRef.child("gameConfig"),
-  };
+    // --- ADDED: Initialize gameConfig in the chosen slot's database ---
+    const defaultGameDurationSeconds = 10 * 60; // 10 minutes
+    await rootRef.child("gameConfig").set({
+        gameStartTime: firebase.database.ServerValue.TIMESTAMP, // Official server-time start for this game slot
+        gameLengthSeconds: defaultGameDurationSeconds, // Total duration of the match
+        gameEndTime: Date.now() + (defaultGameDurationSeconds * 1000) // Calculated from creating client's Date.now()
+    });
+    // --- END ADDED ---
 
-  return { slotName: chosenKey, dbRefs };
+    // Build your per-slot refs
+    const dbRefs = {
+        rootRef: rootRef, // Added rootRef for convenience
+        playersRef: rootRef.child("players"),
+        chatRef: rootRef.child("chat"),
+        killsRef: rootRef.child("kills"),
+        mapStateRef: rootRef.child("mapState"),
+        tracersRef: rootRef.child("tracers"),
+        soundsRef: rootRef.child("sounds"),
+        gameConfigRef: rootRef.child("gameConfig"), // Reference to this slot's gameConfig
+    };
+
+    return { slotName: chosenKey, dbRefs };
 }
 /**
  * Release the slot by clearing /game in its own DB and marking it free in lobby.
