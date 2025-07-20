@@ -50,6 +50,7 @@ const settingsBox = document.getElementById("settings-box");
 const menuBG = document.getElementById("animatedBG");
   const hud = document.getElementById("hud");
 
+const loadMenu = document.getElementById("loading-menu");
 
 let canvasWidth = canvas.width;
 let canvasHeight = canvas.height;
@@ -1017,7 +1018,7 @@ function menu() {
    settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
 hud.style.display = "none";
 menuBG.style.display = "flex";
-
+loading-menu.style.display = "none";
      
     add(logo);
 
