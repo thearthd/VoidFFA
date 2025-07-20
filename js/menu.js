@@ -741,7 +741,7 @@ function createAnimatedButton(
   buttonTextX,
   buttonTextY
 ) {
-    // Image
+    // — image setup —
     const buttonImage = new ImageShape(imageUrl);
     buttonImage.originalWidth  = originalWidth;
     buttonImage.originalHeight = originalHeight;
@@ -751,32 +751,39 @@ function createAnimatedButton(
     buttonImage.setSize(originalWidth, originalHeight);
     buttonImage.setLayer(3);
 
-    // Text
+    // — compute text offset relative to the button —
+    const textOffsetX = buttonTextX - xPos;
+    const textOffsetY = buttonTextY - yPos;
+
+    // — text setup —
     const buttonText = new Text("", "20pt Arial");
     buttonText.setColor("#ffffff");
     buttonText.setLayer(4);
-    buttonText.setPosition(buttonTextX, buttonTextY);
     buttonText.originalFontSize = 20;
-    // Use getX()/getY() to read back the actual coordinates
-    buttonText.originalX = buttonText.getX();
-    buttonText.originalY = buttonText.getY();
+    // place at initial spot
+    buttonText.setPosition(buttonTextX, buttonTextY);
 
-    // Hitbox (centered under the image)
+    // — hitbox setup (centered under image) —
     const buttonHitbox = new Rectangle(hitboxWidth, hitboxHeight);
     buttonHitbox.setPosition(
         xPos + (originalWidth  - hitboxWidth ) / 2,
         yPos + (originalHeight - hitboxHeight) / 2
     );
-    buttonHitbox.setColor("rgba(255,0,0,0)");
+    buttonHitbox.setColor("rgba(0,0,0,0)");
     buttonHitbox.setLayer(15);
     buttonHitbox.onClick = onClickCallback;
 
-    let animationInterval = null;
+    // animation constants
+    const FRAME_RATE           = 1000 / 60;
+    const NUM_ANIMATION_STEPS  = 10;
+    const TARGET_SCALE_FACTOR  = 1.1;
+    let animationInterval;
 
-    // Hover
+    // — hover animation —
     buttonHitbox.onHover = () => {
         clearInterval(animationInterval);
         buttonImage.currentAnimationStep = 0;
+
         animationInterval = setInterval(() => {
             const step = ++buttonImage.currentAnimationStep;
             let t = step / NUM_ANIMATION_STEPS;
@@ -784,19 +791,23 @@ function createAnimatedButton(
             const easedT = easeOutQuint(t);
             const scale = 1 + (TARGET_SCALE_FACTOR - 1) * easedT;
 
+            // new image size & position
             const newW = originalWidth  * scale;
             const newH = originalHeight * scale;
-            const dx = (newW - originalWidth)  / 2;
-            const dy = (newH - originalHeight) / 2;
+            const dx   = (newW - originalWidth)  / 2;
+            const dy   = (newH - originalHeight) / 2;
+            const newX = xPos - dx;
+            const newY = yPos - dy;
 
             buttonImage.setSize(newW, newH);
-            buttonImage.setPosition(xPos - dx, yPos - dy);
+            buttonImage.setPosition(newX, newY);
 
+            // mirror text offset + scale
             if (buttonText.text) {
                 buttonText.font = `${buttonText.originalFontSize * scale}pt Arial`;
                 buttonText.setPosition(
-                  buttonText.originalX - dx + newW / 2,
-                  buttonText.originalY - dy + newH / 2
+                    newX + textOffsetX * scale,
+                    newY + textOffsetY * scale
                 );
             }
 
@@ -804,7 +815,7 @@ function createAnimatedButton(
         }, FRAME_RATE);
     };
 
-    // Unhover
+    // — unhover animation —
     buttonHitbox.onUnhover = () => {
         clearInterval(animationInterval);
         buttonImage.currentAnimationStep = 0;
@@ -819,34 +830,36 @@ function createAnimatedButton(
 
             const newW = originalWidth  * scale;
             const newH = originalHeight * scale;
-            const dx = (newW - originalWidth)  / 2;
-            const dy = (newH - originalHeight) / 2;
+            const dx   = (newW - originalWidth)  / 2;
+            const dy   = (newH - originalHeight) / 2;
+            const newX = xPos - dx;
+            const newY = yPos - dy;
 
             buttonImage.setSize(newW, newH);
-            buttonImage.setPosition(xPos - dx, yPos - dy);
+            buttonImage.setPosition(newX, newY);
 
             if (buttonText.text) {
                 buttonText.font = `${buttonText.originalFontSize * scale}pt Arial`;
                 buttonText.setPosition(
-                  buttonText.originalX - dx + newW / 2,
-                  buttonText.originalY - dy + newH / 2
+                    newX + textOffsetX * scale,
+                    newY + textOffsetY * scale
                 );
             }
 
             if (t === 1) {
                 clearInterval(animationInterval);
-                // Snap back
+                // snap back exactly
                 buttonImage.setSize(originalWidth, originalHeight);
                 buttonImage.setPosition(xPos, yPos);
                 if (buttonText.text) {
                     buttonText.font = `${buttonText.originalFontSize}pt Arial`;
-                    buttonText.setPosition(buttonText.originalX, buttonText.originalY);
+                    buttonText.setPosition(xPos + textOffsetX, yPos + textOffsetY);
                 }
             }
         }, FRAME_RATE);
     };
 
-    // Return
+    // — return button object —
     const buttonObject = { image: buttonImage, hitbox: buttonHitbox, text: buttonText };
     buttonObject.setText = function (newText) {
         this.text.setText(newText);
