@@ -11,8 +11,6 @@ import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/
 import Stats from 'stats.js';
 import { dbRefs, disposeGame, fullCleanup, activeGameId } from "./network.js";
 
-import { setupGlobalGameTimerListener } from "./menu.js";
-
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
     computeBoundsTree,
@@ -536,68 +534,106 @@ delete pendingRestore[victimId];
 
 
 // Game Start
-export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) { // gameId here is actually slotName
-    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled); // gameId here is slotName
+export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
+
+    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
     if (!networkOk) {
         console.warn("Network init failed.");
         return;
     }
 
-    playersRef = dbRefs.playersRef; // This dbRefs is from initNetwork, points to the slot's DB
-    // gameConfigRef is now correctly accessed via currentGameSlotDbRefs in the global timer backbone
+    playersRef = dbRefs.playersRef;
+    gameConfigRef = dbRefs.gameConfigRef;
 
     const gameTimerElement = document.getElementById("game-timer");
 
-    // --- Timer UI Visibility (ONLY) ---
     if (ffaEnabled) {
         gameTimerElement.style.display = "block";
-    } else {
-        gameTimerElement.style.display = "none";
-        // If FFA is disabled, ensure the global timer is stopped for this game slot
-        if (activeGameSlotName === gameId) { // gameId here is slotName
-            activeGameSlotName = null; // Signal no active game slot
-            setupGlobalGameTimerListener(); // Stop the global timer
-            // Clean up DB for this specific game slot
-            if (currentGameSlotDbRefs) {
-                currentGameSlotDbRefs.gameConfigRef.child('gameEndTime').remove();
-                // You might also update the status in the lobby DB if you have the lobbyGameId here
-            }
-        }
-    }
-    // --- END Timer UI Visibility ---
 
-    // 4) Optional: first-to-X-kills listener (STILL RESPONSIBLE FOR CLEANUP)
-    // This listener is specific to the game being played and needs to clean up
-    // the gameEndTime in the database if the kill limit is reached.
-    if (playersKillsListener) {
-        playersRef.off("value", playersKillsListener);
-    }
-    playersKillsListener = playersRef.on("value", snapshot => {
-        let reachedThreshold = false;
-        snapshot.forEach(childSnap => {
-            const player = childSnap.val();
-            if (player.kills >= 40) { // Assuming 40 kills
-                reachedThreshold = true;
+        // Set an initial game duration in seconds if it doesn't exist.
+        // For example, 10 minutes (600 seconds).
+        const initialGameDurationSeconds = 10 * 60; // 10 minutes
+        let currentRemainingSeconds = initialGameDurationSeconds; // Local variable to track remaining time
+
+        // 1) Listen for (or set) the game duration in Firebase.
+        // We'll primarily rely on the local countdown, but this ensures initial sync.
+        gameConfigRef.child("gameDuration").on("value", snapshot => {
+            const duration = snapshot.val();
+            if (typeof duration === "number") {
+                currentRemainingSeconds = duration;
+            } else {
+                // Only set if it doesn't exist, to avoid resetting on every client join
+                gameConfigRef.child("gameDuration").transaction(currentData => {
+                    if (currentData === null) {
+                        return initialGameDurationSeconds;
+                    }
+                    return undefined; // Abort the transaction if data already exists
+                });
             }
         });
-        if (reachedThreshold) {
-            playersRef.off("value", playersKillsListener);
-            // Trigger game end logic
-            if (typeof determineWinnerAndEndGame === 'function') {
-                determineWinnerAndEndGame();
-            }
-            // Clean up database entries on game end by kills
-            if (activeGameSlotName === gameId && currentGameSlotDbRefs) { // Ensure correct slot
-                currentGameSlotDbRefs.gameConfigRef.child('gameEndTime').remove();
-                // You might also update the status in the lobby DB if you have the lobbyGameId here
-                activeGameSlotName = null; // Signal no active game slot
-                setupGlobalGameTimerListener(); // Stop the global timer
-            }
-            return;
-        }
-    });
 
-    // ... (rest of your startGame function remains unchanged)
+        // 2) Clear any existing interval before starting a new one
+        if (gameInterval) {
+            clearInterval(gameInterval);
+        }
+
+        // 3) Start a per-second countdown based on the synced duration
+        gameInterval = setInterval(() => {
+            if (currentRemainingSeconds === null) {
+                gameTimerElement.textContent = "Time: Syncing…";
+                return;
+            }
+
+            currentRemainingSeconds--; // Decrement every second
+
+            const mins = Math.floor(currentRemainingSeconds / 60);
+            const secs = currentRemainingSeconds % 60;
+
+            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
+
+            if (currentRemainingSeconds <= 0) {
+                clearInterval(gameInterval);
+                gameTimerElement.textContent = "TIME UP!";
+                determineWinnerAndEndGame();
+                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
+                return;
+            }
+
+            // Optional: Update the database with remaining duration.
+            // CAUTION: This will cause frequent writes. Consider if truly necessary.
+            // gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
+
+        }, 1000); // Update every 1 second
+
+        // 4) Optional: first-to-X-kills listener (unchanged)
+        if (playersKillsListener) {
+            playersRef.off("value", playersKillsListener);
+        }
+        playersKillsListener = playersRef.on("value", snapshot => {
+            let reachedThreshold = false;
+            snapshot.forEach(childSnap => {
+                const player = childSnap.val();
+                if (player.kills >= 40) {
+                    reachedThreshold = true;
+                }
+            });
+            if (reachedThreshold) {
+                playersRef.off("value", playersKillsListener);
+                clearInterval(gameInterval);
+                determineWinnerAndEndGame();
+                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
+            }
+        });
+
+    } else {
+        gameTimerElement.style.display = "none";
+        if (gameInterval) {
+            clearInterval(gameInterval);
+        }
+        gameConfigRef.child("gameDuration").remove(); // Ensure duration is cleared if FFA is off
+    }
+
+    // 3) Common game start UI setup (unchanged)
     initGlobalFogAndShadowParams();
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
@@ -606,17 +642,19 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
 
+    // 4) Ensure we have a valid localPlayerId (unchanged)
     if (!localPlayerId) {
         console.error("No localPlayerId after initNetwork—cannot proceed.");
         return;
     }
 
+    // 5) Three.js, physics, weapons, scene setup… (unchanged)
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
 
     weaponController = new WeaponController(
         window.camera,
-        dbRefs.playersRef, // These dbRefs are from initNetwork, pointing to the slot's DB
+        dbRefs.playersRef,
         dbRefs.mapStateRef.child("bullets"),
         createTracer,
         localPlayerId,
@@ -635,7 +673,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     initBulletHoles();
     initializeAudioManager(window.camera, scene);
     startSoundListener();
-
+    // 6) Spawn local player (unchanged)
     const spawn = findFurthestSpawn();
     window.localPlayer = {
         id: localPlayerId,
@@ -655,12 +693,14 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     };
     window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
 
+    // 7) Write initial state (unchanged)
     await dbRefs.playersRef.child(localPlayerId).set({
         ...window.localPlayer,
         lastUpdate: Date.now()
     });
     updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
+    // 8) Ammo, inventory, UI overlays… (unchanged)
     weaponController.equipWeapon(window.localPlayer.weapon);
     initInventory(window.localPlayer.weapon);
     initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
@@ -671,8 +711,49 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     createFadeOverlay();
     createLeaderboardOverlay();
 
+    // 9) Start game loop (unchanged)
     animate();
 }
+
+
+
+
+export function hideGameUI() {
+  document.getElementById("menu-overlay").style.display = "flex";
+  document.body.classList.remove("game-active");
+}
+
+function setupDetailToggle() {
+  const btn = document.getElementById("toggle-details-btn");
+  if (!btn) return;
+
+  btn.addEventListener("click", () => {
+    detailsEnabled = !detailsEnabled;
+
+    if (detailsEnabled) {
+      const fp = window.originalFogParams;
+      if (fp.type === "exp2") {
+        scene.fog = new THREE.FogExp2(fp.color, fp.density);
+      } else {
+        scene.fog = new THREE.Fog(fp.color, fp.near, fp.far);
+      }
+      renderer.shadowMap.enabled = true;
+      dirLight.castShadow      = true;
+      window.bloomPass.strength = window.originalBloomStrength;
+      btn.textContent           = "Details: On";
+    } else {
+      scene.fog                = null;
+      renderer.shadowMap.enabled = false;
+      dirLight.castShadow        = false;
+      window.bloomPass.strength   = 0;
+      btn.textContent             = "Details: Off";
+    }
+  });
+
+  btn.textContent = detailsEnabled ? "Details: On" : "Details: Off";
+  
+}
+
 
 export async function initSceneCrocodilosConstruction() { // Make initSceneCrocodilosConstruction async
 sceneNum = 1;
