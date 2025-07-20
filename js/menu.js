@@ -1198,7 +1198,7 @@ async function initAndStartGame(username, mapName, gameId = null) {
   initBulletHoles(gameWrapper);
 
   // 2) Only once the network is live do we actually start the game loop
-  startGame(username, mapName, detailsEnabled, ffaEnabled, gameId);
+  startGame(username, mapName, detailsEnabled, ffaEnabled, slotName);
      menuBG.style.display = "none";
   console.log(
     `Game started for map: ${mapName}, Username: ${username}, ` +
