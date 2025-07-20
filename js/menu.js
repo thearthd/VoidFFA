@@ -743,7 +743,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
     let buttonText = new Text("", "20pt Arial"); // Text overlay for the button
     buttonText.setColor("#ffffff");
     buttonText.setLayer(4); // Layer above the image
-    buttonText.setPosition(buttonTextX, buttonTextY); // Center text on button
+    buttonText.setPosition(buttonTextX - buttonImage.originalX/2, buttonTextY - buttonImage.originalY/2); // Center text on button
     buttonText.originalFontSize = 20; // Store original font size for scaling
     buttonText.originalX = buttonText.x; // Store original text position
     buttonText.originalY = buttonText.y;
