@@ -1207,6 +1207,23 @@ async function initAndStartGame(username, mapName, gameId = null) {
   createGameUI(gameWrapper);
   initBulletHoles(gameWrapper);
 
+    const chosenApp = gameApps[slotName] || firebase.initializeApp(gameDatabaseConfigs[slotName], slotName + "App");
+    const rootRef = chosenApp.database().ref();
+    currentGameSlotDbRefs = {
+        rootRef: rootRef,
+        playersRef: rootRef.child("players"),
+        chatRef: rootRef.child("chat"),
+        killsRef: rootRef.child("kills"),
+        mapStateRef: rootRef.child("mapState"),
+        tracersRef: rootRef.child("tracers"),
+        soundsRef: rootRef.child("sounds"),
+        gameConfigRef: rootRef.child("gameConfig"),
+    };
+
+    // --- IMPORTANT: Set the global activeGameSlotName and currentGameSlotDbRefs here ---
+    activeGameSlotName = slotName;
+    setupGlobalGameTimerListener(); // Re-run setup to pick up the new active slot
+     
   // 2) Only once the network is live do we actually start the game loop
   startGame(username, mapName, detailsEnabled, ffaEnabled, gameId);
      menuBG.style.display = "none";
@@ -1394,8 +1411,6 @@ const activeSlots = Object.entries(gamesObj)
                 "rgba(50,50,50,0.7)",
                () => {
                  console.log(`Joining slot ${slotInfo.slot} on map ${slotInfo.map}`);
-                 setActiveGameId(gameId);            // ← stash it
-                        setupGlobalGameTimerListener();
                  initAndStartGame(username, mapName, gameId);
                }
             );
