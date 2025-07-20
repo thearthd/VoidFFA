@@ -11,6 +11,8 @@ import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/
 import Stats from 'stats.js';
 import { dbRefs, disposeGame, fullCleanup, activeGameId } from "./network.js";
 
+import { setupGlobalGameTimerListener } from "./menu.js";
+
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
     computeBoundsTree,
@@ -535,7 +537,6 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-
     const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
     if (!networkOk) {
         console.warn("Network init failed.");
@@ -543,97 +544,62 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     }
 
     playersRef = dbRefs.playersRef;
-    gameConfigRef = dbRefs.gameConfigRef;
-
+    // gameConfigRef is no longer directly used for timer logic in startGame
+    // but might be needed for other game-specific config.
     const gameTimerElement = document.getElementById("game-timer");
 
+    // --- Timer UI Visibility (ONLY) ---
     if (ffaEnabled) {
         gameTimerElement.style.display = "block";
-
-        // Set an initial game duration in seconds if it doesn't exist.
-        // For example, 10 minutes (600 seconds).
-        const initialGameDurationSeconds = 10 * 60; // 10 minutes
-        let currentRemainingSeconds = initialGameDurationSeconds; // Local variable to track remaining time
-
-        // 1) Listen for (or set) the game duration in Firebase.
-        // We'll primarily rely on the local countdown, but this ensures initial sync.
-        gameConfigRef.child("gameDuration").on("value", snapshot => {
-            const duration = snapshot.val();
-            if (typeof duration === "number") {
-                currentRemainingSeconds = duration;
-            } else {
-                // Only set if it doesn't exist, to avoid resetting on every client join
-                gameConfigRef.child("gameDuration").transaction(currentData => {
-                    if (currentData === null) {
-                        return initialGameDurationSeconds;
-                    }
-                    return undefined; // Abort the transaction if data already exists
-                });
-            }
-        });
-
-        // 2) Clear any existing interval before starting a new one
-        if (gameInterval) {
-            clearInterval(gameInterval);
-        }
-
-        // 3) Start a per-second countdown based on the synced duration
-        gameInterval = setInterval(() => {
-            if (currentRemainingSeconds === null) {
-                gameTimerElement.textContent = "Time: Syncing…";
-                return;
-            }
-
-            currentRemainingSeconds--; // Decrement every second
-
-            const mins = Math.floor(currentRemainingSeconds / 60);
-            const secs = currentRemainingSeconds % 60;
-
-            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
-
-            if (currentRemainingSeconds <= 0) {
-                clearInterval(gameInterval);
-                gameTimerElement.textContent = "TIME UP!";
-                determineWinnerAndEndGame();
-                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
-                return;
-            }
-
-            // Optional: Update the database with remaining duration.
-            // CAUTION: This will cause frequent writes. Consider if truly necessary.
-            // gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
-
-        }, 1000); // Update every 1 second
-
-        // 4) Optional: first-to-X-kills listener (unchanged)
-        if (playersKillsListener) {
-            playersRef.off("value", playersKillsListener);
-        }
-        playersKillsListener = playersRef.on("value", snapshot => {
-            let reachedThreshold = false;
-            snapshot.forEach(childSnap => {
-                const player = childSnap.val();
-                if (player.kills >= 40) {
-                    reachedThreshold = true;
-                }
-            });
-            if (reachedThreshold) {
-                playersRef.off("value", playersKillsListener);
-                clearInterval(gameInterval);
-                determineWinnerAndEndGame();
-                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
-            }
-        });
-
     } else {
         gameTimerElement.style.display = "none";
-        if (gameInterval) {
-            clearInterval(gameInterval);
+        // If FFA is disabled, ensure the global timer is stopped for this game
+        // and its database entry is cleaned. This part is a bit tricky
+        // as the global timer might still be running.
+        // A better approach might be to set activeGameId = null here
+        // if the game is somehow ending or not FFA.
+        // For simplicity, we'll assume FFA is the only mode with a visible timer.
+        if (activeGameId === gameId) { // Only clear if this is the active game
+            activeGameId = null; // Signal no active game
+            setupGlobalGameTimerListener(); // Stop the global timer
+            dbRefs.gamesRef.child(gameId).child('gameEndTime').remove(); // Clean up DB
+            dbRefs.gamesRef.child(gameId).child('status').set("ended"); // Mark game ended
         }
-        gameConfigRef.child("gameDuration").remove(); // Ensure duration is cleared if FFA is off
     }
+    // --- END Timer UI Visibility ---
 
-    // 3) Common game start UI setup (unchanged)
+    // 4) Optional: first-to-X-kills listener (STILL RESPONSIBLE FOR CLEANUP)
+    // This listener is specific to the game being played and needs to clean up
+    // the gameEndTime in the database if the kill limit is reached.
+    if (playersKillsListener) {
+        playersRef.off("value", playersKillsListener);
+    }
+    playersKillsListener = playersRef.on("value", snapshot => {
+        let reachedThreshold = false;
+        snapshot.forEach(childSnap => {
+            const player = childSnap.val();
+            if (player.kills >= 40) { // Assuming 40 kills
+                reachedThreshold = true;
+            }
+        });
+        if (reachedThreshold) {
+            playersRef.off("value", playersKillsListener);
+            // Trigger game end logic
+            if (typeof determineWinnerAndEndGame === 'function') {
+                determineWinnerAndEndGame();
+            }
+            // Clean up database entries on game end by kills
+            if (activeGameId === gameId) { // Ensure we're cleaning up the correct game
+                dbRefs.gamesRef.child(gameId).child('gameEndTime').remove();
+                dbRefs.gamesRef.child(gameId).child('status').set("ended");
+                activeGameId = null; // Signal no active game
+                setupGlobalGameTimerListener(); // Stop the global timer
+            }
+            return;
+        }
+    });
+
+    // ... (rest of your startGame function remains unchanged)
     initGlobalFogAndShadowParams();
     window.isGamePaused = false;
     document.getElementById("menu-overlay").style.display = "none";
@@ -642,13 +608,11 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     document.getElementById("hud").style.display = "block";
     document.getElementById("crosshair").style.display = "block";
 
-    // 4) Ensure we have a valid localPlayerId (unchanged)
     if (!localPlayerId) {
         console.error("No localPlayerId after initNetwork—cannot proceed.");
         return;
     }
 
-    // 5) Three.js, physics, weapons, scene setup… (unchanged)
     window.physicsController = new PhysicsController(window.camera, scene);
     physicsController = window.physicsController;
 
@@ -673,7 +637,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     initBulletHoles();
     initializeAudioManager(window.camera, scene);
     startSoundListener();
-    // 6) Spawn local player (unchanged)
+
     const spawn = findFurthestSpawn();
     window.localPlayer = {
         id: localPlayerId,
@@ -693,14 +657,12 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     };
     window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
 
-    // 7) Write initial state (unchanged)
     await dbRefs.playersRef.child(localPlayerId).set({
         ...window.localPlayer,
         lastUpdate: Date.now()
     });
     updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
-    // 8) Ammo, inventory, UI overlays… (unchanged)
     weaponController.equipWeapon(window.localPlayer.weapon);
     initInventory(window.localPlayer.weapon);
     initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
@@ -711,7 +673,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     createFadeOverlay();
     createLeaderboardOverlay();
 
-    // 9) Start game loop (unchanged)
     animate();
 }
 
