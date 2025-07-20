@@ -1025,11 +1025,11 @@ let playerCard = createAnimatedButton(
     1080/3, 1440/3,
     getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2), // Position below Play
     1080/3, 1440/3,
-    getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2) - 200,
     () => {
         console.log("updateBoard button hit");
         playerCardHit();
-    }
+    },
+         getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2) - 200
 );
 
  playerCard.setText(localStorage.getItem("username")); // REMOVED TEXT
@@ -1209,7 +1209,7 @@ function playButtonHit() {
     add(logo);
 
      add(playerCard.image);
-     add(playerCard.text)
+     add(playerCard.text);
     makeButton(playerCard.hitbox, playerCard.hitbox.onClick);
 
     add(gamesButton.image);
