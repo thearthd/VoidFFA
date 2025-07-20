@@ -1020,7 +1020,7 @@ function updateBoardHit() {
     Swal.fire({
         title: 'Void.FFA v1.00',
         text: 'The release of Void.FFA.',
-        icon: 'success', // Can be 'success', 'error', 'warning', 'info', or 'question'
+        icon: 'info', // Can be 'success', 'error', 'warning', 'info', or 'question'
         confirmButtonText: 'wowzery!',
       //  timer: 3000, // Automatically close after 3 seconds
      //   timerProgressBar: true,
