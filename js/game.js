@@ -541,14 +541,13 @@ export async function startGame(
   ffaEnabled,
   slotName
 ) {
-  // — network & refs —
   const networkOk = await initNetwork(username, mapName, slotName, ffaEnabled);
   if (!networkOk) {
     console.warn("Network init failed.");
     return;
   }
-  playersRef    = dbRefs.playersRef;
-  // now pointing at /gameSlots/{slotName}/gameConfig
+
+  playersRef = dbRefs.playersRef;
   gameConfigRef = dbRefs.gameSlotsRef.child(slotName).child("gameConfig");
 
   const gameTimerElement = document.getElementById("game-timer");
@@ -556,18 +555,26 @@ export async function startGame(
   if (ffaEnabled) {
     gameTimerElement.style.display = "block";
 
-    // 📖 read pre‑written config from the slot node
+    // ⚠️ Ensure gameConfig exists
+    const now = Date.now();
+    const defaultDuration = 600000; // 10 minutes
     const cfgSnap = await gameConfigRef.once("value");
-    const cfg     = cfgSnap.val() || {};
-    const now     = Date.now();
+
+    if (!cfgSnap.exists()) {
+      await gameConfigRef.set({
+        startTime: now,
+        endTime: now + defaultDuration,
+        gameDuration: defaultDuration / 1000
+      });
+    }
+
+    const cfg = (await gameConfigRef.once("value")).val();
     let currentRemainingSeconds = cfg.endTime
       ? Math.ceil((cfg.endTime - now) / 1000)
       : (cfg.gameDuration || 0);
 
-    // clear any old interval
     if (gameInterval) clearInterval(gameInterval);
 
-    // per‑second countdown
     gameInterval = setInterval(() => {
       if (currentRemainingSeconds <= 0) {
         clearInterval(gameInterval);
@@ -582,11 +589,9 @@ export async function startGame(
       const secs = currentRemainingSeconds % 60;
       gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
 
-      // sync remaining time back to DB
       gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
     }, 1000);
 
-    // first‑to‑X kills listener (unchanged)
     if (playersKillsListener) {
       playersRef.off("value", playersKillsListener);
     }
@@ -610,7 +615,6 @@ export async function startGame(
     gameConfigRef.remove();
   }
 
-  // — everything else exactly as before —
   initGlobalFogAndShadowParams();
   window.isGamePaused = false;
   document.getElementById("menu-overlay").style.display = "none";
@@ -672,6 +676,7 @@ export async function startGame(
     ...window.localPlayer,
     lastUpdate: Date.now()
   });
+
   updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
   weaponController.equipWeapon(window.localPlayer.weapon);
