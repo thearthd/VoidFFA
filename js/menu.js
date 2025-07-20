@@ -91,6 +91,8 @@ export function setupGlobalGameTimerListener() {
     }
 }
 
+
+
 // --- Function to start the actual timer display interval ---
 function startGlobalGameTimerDisplay() {
     // Clear any existing interval before starting a new one
@@ -129,14 +131,15 @@ function updateTimerDisplay() {
         globalGameTimerInterval = null;
         gameTimerElement.textContent = "TIME UP!";
         // Trigger game end logic here (e.g., determineWinnerAndEndGame())
-        // This is the authoritative client-side trigger for time-based end.
         if (typeof determineWinnerAndEndGame === 'function') {
             determineWinnerAndEndGame();
         }
         // Also, clean up the gameEndTime from the database to signal global end
-        if (activeGameId) {
-            dbRefs.gamesRef.child(activeGameId).child('gameEndTime').remove();
-            dbRefs.gamesRef.child(activeGameId).child('status').set("ended");
+        if (activeGameSlotName && currentGameSlotDbRefs) {
+            currentGameSlotDbRefs.gameConfigRef.child('gameEndTime').remove();
+            // You might also update a 'status' on the main game object in the lobby DB
+            // dbRefs.gamesRef.child(lobbyGameId).child('status').set("ended");
+            // (Need to pass lobbyGameId or derive it if needed here)
         }
         return;
     }
@@ -1271,57 +1274,53 @@ async function createGameButtonHit() {
         return menu();
     }
 
-    const defaultGameDurationSeconds = 10 * 60; // 10 minutes
-
+    // --- Lobby gameData (NO gameConfig/gameEndTime here) ---
     const gameData = {
         gameName: formValues.gameName,
         map: formValues.map,
         gamemode: formValues.gamemode,
         host: username,
-        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        createdAt: firebase.database.ServerValue.TIMESTAMP, // Timestamp when the lobby record was created
         status: "waiting",
-        // --- Initialize gameEndTime here, based on the creating client's time ---
-        gameEndTime: Date.now() + (defaultGameDurationSeconds * 1000)
-        // --- END MODIFIED ---
+        // The game slot ID will be added after claimGameSlot
     };
+    // --- END Lobby gameData ---
 
     try {
-        const newGameRef = gamesRef.push();
+        const newGameRef = gamesRef.push(); // This is in the menuApp database
         await newGameRef.set(gameData);
-        const gameId = newGameRef.key;
+        const lobbyGameId = newGameRef.key; // This is the ID in the lobby DB
 
         let ffaEnabled = (formValues.gamemode === "FFA");
 
-        // Set game status to starting (optional)
-        await gamesRef.child(gameId).child('status').set("starting");
-
-        // 2) try to claim a slot
+        // 2) try to claim a slot (this function will now set the gameConfig in the slot's DB)
         const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
         if (!slotResult) {
-            await newGameRef.remove();
+            await newGameRef.remove(); // Remove lobby entry if no slot
             Swal.fire('Error', 'No free slots available. Game discarded.', 'error');
             return menu();
         }
 
-        // 3) store claimed slot
-        await gamesRef.child(gameId).child('slot').set(slotResult.slotName);
+        // Store the claimed slot name in the lobby game data
+        await gamesRef.child(lobbyGameId).child('slot').set(slotResult.slotName);
+        await gamesRef.child(lobbyGameId).child('status').set("starting"); // Update lobby status
 
-        // --- IMPORTANT: Set the global activeGameId here ---
-        // This will trigger the global timer listener to start watching this game.
-        activeGameId = gameId;
-        setupGlobalGameTimerListener(); // Re-run setup to pick up the new activeGameId
+        // --- IMPORTANT: Set the global activeGameSlotName and dbRefs here ---
+        activeGameSlotName = slotResult.slotName; // e.g., "gameSlot1"
+        currentGameSlotDbRefs = slotResult.dbRefs; // The dbRefs for this specific slot
+        setupGlobalGameTimerListener(); // Re-run setup to pick up the new active slot
         // --- END IMPORTANT ---
-
 
         // 4) notify & join
         Swal.fire({
             title: 'Game Created!',
-            html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>`,
+            html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${lobbyGameId}</b><br>Slot: <b>${slotResult.slotName}</b>`,
             icon: 'success',
             confirmButtonText: 'Join Game'
         }).then(res => {
             if (res.isConfirmed) {
-                initAndStartGame(username, formValues.map, gameId, ffaEnabled);
+                // Pass both lobbyGameId and slotName (as gameId)
+                initAndStartGame(username, formValues.map, slotResult.slotName, ffaEnabled, lobbyGameId);
             } else {
                 menu();
             }
@@ -1333,7 +1332,6 @@ async function createGameButtonHit() {
         menu();
     }
 }
-
 
 async function gamesButtonHit() {
     clearMenuCanvas();
