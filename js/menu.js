@@ -35,7 +35,7 @@ import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef } from './firebase-c
 // --- Start of engine.js content (included here as per your provided code) ---
 function playButtonHover() {
      let buttonHover = new Audio("https://codehs.com/uploads/773375a846afc175b34b2eff70e8d947");
-     buttonHover.volume = 1;
+     buttonHover.volume = 0.5;
      buttonHover.play();
 }
 
