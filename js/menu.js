@@ -1027,11 +1027,44 @@ let playerCard = createAnimatedButton(
     1080/2, 1440/2,
     () => {
         console.log("updateBoard button hit");
-        updateBoardHit();
+        playerCardHit();
     }
 );
 
+function playerCardHit() {
+    // 1) Inject popup‑wide styles (gradient & icon color)
+    const style = document.createElement('style');
+    style.textContent = `
+      /* popup gradient & text */
+      .swal2-popup-gradient {
+        background: linear-gradient(to right, #C58DE3 0%, #8459ff 100%);
+        color: #ffffff;
+      }
+      /* icon color (info icon in this case) */
+      .swal2-icon.swal2-info {
+        border-color: #ffffff;              /* outline */
+        color: #ffffff;                     /* the “i” itself */
+      }
+      /* if you ever use other icons, e.g. .swal2-icon.swal2-success, you can style them here too */
+    `;
+    document.head.appendChild(style);
 
+    // 2) Fire the alert, specifying confirmButtonColor
+    Swal.fire({
+        title: localStorage.getItem("username"),
+        text: 'ur trash';
+        icon: 'info',
+        confirmButtonText: 'Okay',
+        confirmButtonColor: '#b7adff',      // <-- button background
+        customClass: {
+            popup: 'swal2-popup-gradient',  // your gradient class
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            console.log("User acknowledged board update.");
+        }
+    });
+}
 
 
 function updateBoardHit() {
