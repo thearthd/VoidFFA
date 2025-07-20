@@ -780,8 +780,7 @@ function createAnimatedButton(
     );
     buttonHitbox.setColor("rgba(0,0,0,0)");
     buttonHitbox.setLayer(15);
-    buttonHitbox.onClick = onClickCallback;
-    buttonHitbox.onClick = playButtonClick;
+    buttonHitbox.onClick = onClickCallback, playButtonClick();
      
     // animation constants
     const FRAME_RATE           = 1000 / 60;
