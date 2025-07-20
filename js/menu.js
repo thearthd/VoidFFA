@@ -779,7 +779,8 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
             const newHeight = buttonImage.originalHeight * currentScale;
 
             // Adjust position to keep the image centered during scaling
-            const newX = buttonImage.originalX;
+            // To center, shift by half the difference between the new size and original size
+            const newX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
             const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
 
             buttonImage.setSize(newWidth, newHeight);
@@ -788,6 +789,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
             // Update text font size and position to stay centered (if text is present)
             if (buttonText.text) {
                 buttonText.font = `${buttonText.originalFontSize * currentScale}pt Arial`;
+                // Text position should be relative to the new image position and size
                 buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
             }
 
@@ -821,7 +823,8 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
             const newHeight = buttonImage.originalHeight * currentScale;
 
             // Adjust position to keep the image centered during scaling
-            const newX = buttonImage.originalX;
+            // To center, shift by half the difference between the new size and original size
+            const newX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
             const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
 
             buttonImage.setSize(newWidth, newHeight);
@@ -830,6 +833,7 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
             // Update text font size and position (if text is present)
             if (buttonText.text) {
                 buttonText.font = `${buttonText.originalFontSize * currentScale}pt Arial`;
+                // Text position should be relative to the new image position and size
                 buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
             }
 
