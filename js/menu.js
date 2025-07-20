@@ -930,7 +930,7 @@ function clearMenuCanvas() {
 }
 
 // Player username
-let username = localStorage.getItem("username") || "Player" + Math.floor(Math.random() * 1000); // Default if not set
+let username = localStorage.getItem("username") || null; // Default if not set
 
 
 let playButton = createAnimatedButton(
