@@ -803,6 +803,57 @@ function createAnimatedButton(imageUrl, originalWidth, originalHeight, xPos, yPo
         }, FRAME_RATE);
     };
 
+    // Callback for when the mouse leaves the button's hitbox
+    buttonHitbox.onUnhover = () => {
+        if (animationInterval) {
+            clearInterval(animationInterval); // Clear any existing animation
+        }
+        buttonImage.currentAnimationStep = 0; // Reset animation step
+        const initialScaleForUnhover = buttonImage.width / buttonImage.originalWidth;
+        const scaleDifference = initialScaleForUnhover - 1.0;
+
+        animationInterval = setInterval(() => {
+            buttonImage.currentAnimationStep++;
+            let t = buttonImage.currentAnimationStep / NUM_ANIMATION_STEPS;
+            if (t > 1) t = 1; // Clamp t to 1
+
+            let easedT = easeOutQuint(t); // Apply easing function
+            let currentScale = initialScaleForUnhover - (scaleDifference * easedT);
+
+            if (currentScale < 1.0) currentScale = 1.0; // Ensure scale doesn't go below original
+
+            const newWidth = buttonImage.originalWidth * currentScale;
+            const newHeight = buttonImage.originalHeight * currentScale;
+
+            // Adjust position to keep the image centered during scaling
+            // To center, shift by half the difference between the new size and original size
+            const newX = buttonImage.originalX - (newWidth - buttonImage.originalWidth) / 2;
+            const newY = buttonImage.originalY - (newHeight - buttonImage.originalHeight) / 2;
+
+            buttonImage.setSize(newWidth, newHeight);
+            buttonImage.setPosition(newX, newY);
+
+            // Update text font size and position (if text is present)
+            if (buttonText.text) {
+                buttonText.font = `${buttonText.originalFontSize * currentScale}pt Arial`;
+                // Text position should be relative to the new image position and size
+                buttonText.setPosition(newX + newWidth / 2, newY + newHeight / 2);
+            }
+
+            if (t === 1) {
+                clearInterval(animationInterval); // Stop animation when complete
+                // Reset to original size and position precisely
+                buttonImage.setSize(buttonImage.originalWidth, buttonImage.originalHeight);
+                buttonImage.setPosition(buttonImage.originalX, buttonImage.originalY);
+                if (buttonText.text) {
+                    buttonText.font = `${buttonText.originalFontSize}pt Arial`;
+                    buttonText.setPosition(buttonImage.originalX + buttonImage.originalWidth / 2, buttonImage.originalY + buttonImage.originalHeight / 2);
+                }
+            }
+        }, FRAME_RATE);
+    };
+    // --- End of hover animations ---
+
     // Add a setText method to the returned object for convenience
     const buttonObject = { image: buttonImage, hitbox: buttonHitbox, text: buttonText };
     buttonObject.setText = function (newText) {
@@ -973,7 +1024,7 @@ let updateBoard = createAnimatedButton(
 
 
 let playerCard = createAnimatedButton(
-    "https://codehs.com/uploads/661908d8a660f740280ee10b350ae18b", // Provided games button image
+    "https://codehs.com/uploads/44ac54e5efa47170da279caa22d6e7cc", // Provided games button image
     1080/3, 1440/3,
     getWidth()/2 - ((1080/3)/2), getHeight()/2 - ((1440/3)/2), // Position below Play
     1080/3, 1440/3,
