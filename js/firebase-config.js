@@ -92,7 +92,7 @@ export async function claimGameSlot(username, map, ffaEnabled) {
   const rootRef = chosenApp.database().ref();
 
 await rootRef.child("game").set({
-  host, map, ffaEnabled,
+  host: username, map, ffaEnabled,
   createdAt: firebase.database.ServerValue.TIMESTAMP
 });
 
