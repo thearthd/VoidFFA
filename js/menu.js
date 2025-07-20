@@ -34,6 +34,117 @@ import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef } from './firebase-c
 
 // --- Start of engine.js content (included here as per your provided code) ---
 
+let currentGameEndTime = null; // Stores the definitive end time for the active game
+let globalGameTimerInterval = null; // The setInterval for the timer display
+
+
+function setupGlobalGameTimerListener() {
+    // Detach any existing gameEndTime listener first
+    if (window.currentActiveGameRefListener) {
+        window.currentActiveGameRefListener.off('value');
+        window.currentActiveGameRefListener = null;
+    }
+    // Clear any existing display interval
+    if (globalGameTimerInterval) {
+        clearInterval(globalGameTimerInterval);
+        globalGameTimerInterval = null;
+    }
+
+    if (activeGameId) {
+        // Attach listener to the specific game's gameEndTime
+        const gameEndTimeRef = dbRefs.gamesRef.child(activeGameId).child('gameEndTime');
+        window.currentActiveGameRefListener = gameEndTimeRef; // Store ref to detach later
+
+        gameEndTimeRef.on('value', snapshot => {
+            currentGameEndTime = snapshot.val();
+            console.log(`Game ${activeGameId} end time updated:`, currentGameEndTime ? new Date(currentGameEndTime).toLocaleString() : 'N/A');
+
+            // If gameEndTime becomes null, it means the game has ended or was removed
+            if (currentGameEndTime === null) {
+                if (globalGameTimerInterval) {
+                    clearInterval(globalGameTimerInterval);
+                    globalGameTimerInterval = null;
+                }
+                const gameTimerElement = document.getElementById("game-timer");
+                if (gameTimerElement) {
+                    gameTimerElement.textContent = "Game Ended!";
+                    // You might want to hide the timer or show a "Game Over" message
+                }
+            } else {
+                // If gameEndTime is valid, ensure the interval is running
+                if (!globalGameTimerInterval) {
+                    startGlobalGameTimerDisplay();
+                }
+            }
+        });
+
+    } else {
+        // No active game, ensure timer is stopped and display is reset
+        const gameTimerElement = document.getElementById("game-timer");
+        if (gameTimerElement) {
+            gameTimerElement.textContent = "Time: --:--"; // Or hide it
+        }
+    }
+}
+
+// --- Function to start the actual timer display interval ---
+function startGlobalGameTimerDisplay() {
+    // Clear any existing interval before starting a new one
+    if (globalGameTimerInterval) {
+        clearInterval(globalGameTimerInterval);
+    }
+
+    // Align the first tick to the start of a whole second for smoother display
+    let now = Date.now();
+    let delayToNextSecond = 1000 - (now % 1000);
+
+    globalGameTimerInterval = setTimeout(() => {
+        // This runs at the start of the next whole second
+        updateTimerDisplay(); // Initial update
+
+        // Now, run the main interval every 1 second
+        globalGameTimerInterval = setInterval(updateTimerDisplay, 1000);
+
+    }, delayToNextSecond);
+}
+
+// --- Function to update the timer UI ---
+function updateTimerDisplay() {
+    const gameTimerElement = document.getElementById("game-timer");
+    if (!gameTimerElement) return; // Ensure element exists
+
+    if (currentGameEndTime === null) {
+        gameTimerElement.textContent = "Time: Syncing…";
+        return;
+    }
+
+    const timeLeftMs = currentGameEndTime - Date.now();
+
+    if (timeLeftMs <= 0) {
+        clearInterval(globalGameTimerInterval);
+        globalGameTimerInterval = null;
+        gameTimerElement.textContent = "TIME UP!";
+        // Trigger game end logic here (e.g., determineWinnerAndEndGame())
+        // This is the authoritative client-side trigger for time-based end.
+        if (typeof determineWinnerAndEndGame === 'function') {
+            determineWinnerAndEndGame();
+        }
+        // Also, clean up the gameEndTime from the database to signal global end
+        if (activeGameId) {
+            dbRefs.gamesRef.child(activeGameId).child('gameEndTime').remove();
+            dbRefs.gamesRef.child(activeGameId).child('status').set("ended");
+        }
+        return;
+    }
+
+    const totalSecsRemaining = Math.max(0, Math.floor(timeLeftMs / 1000));
+    const mins = Math.floor(totalSecsRemaining / 60);
+    const secs = totalSecsRemaining % 60;
+
+    gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
+}
+
+
 // Export utility functions and classes
 export const preload = src => {
     const img = new Image();
@@ -1142,8 +1253,8 @@ async function createGameButtonHit() {
         focusConfirm: false,
         preConfirm: () => {
             const gameName = document.getElementById('swal-input1').value;
-            const map      = document.getElementById('swal-input2').value;
-            const mode     = document.getElementById('swal-input3').value;
+            const map = document.getElementById('swal-input2').value;
+            const mode = document.getElementById('swal-input3').value;
             if (!gameName || !map || !mode) {
                 Swal.showValidationMessage(`Please fill all fields`);
                 return false;
@@ -1156,26 +1267,33 @@ async function createGameButtonHit() {
         return menu();
     }
 
-const gameData = {
-  gameName:  formValues.gameName,
-  map:       formValues.map,
-  gamemode:  formValues.gamemode,
-  host:      username,
-  createdAt: firebase.database.ServerValue.TIMESTAMP,
-  status:    "waiting"          // ← add this
-};
+    const defaultGameDurationSeconds = 10 * 60; // 10 minutes
+
+    const gameData = {
+        gameName: formValues.gameName,
+        map: formValues.map,
+        gamemode: formValues.gamemode,
+        host: username,
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        status: "waiting",
+        // --- Initialize gameEndTime here, based on the creating client's time ---
+        gameEndTime: Date.now() + (defaultGameDurationSeconds * 1000)
+        // --- END MODIFIED ---
+    };
 
     try {
-        // 1) push to games list
         const newGameRef = gamesRef.push();
         await newGameRef.set(gameData);
         const gameId = newGameRef.key;
-          let ffaEnabled = true;
+
+        let ffaEnabled = (formValues.gamemode === "FFA");
+
+        // Set game status to starting (optional)
+        await gamesRef.child(gameId).child('status').set("starting");
+
         // 2) try to claim a slot
         const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
-         await gamesRef.child(gameId).child('status').set("starting");
         if (!slotResult) {
-            // 🔥 Dispose of the just-created game
             await newGameRef.remove();
             Swal.fire('Error', 'No free slots available. Game discarded.', 'error');
             return menu();
@@ -1183,6 +1301,13 @@ const gameData = {
 
         // 3) store claimed slot
         await gamesRef.child(gameId).child('slot').set(slotResult.slotName);
+
+        // --- IMPORTANT: Set the global activeGameId here ---
+        // This will trigger the global timer listener to start watching this game.
+        activeGameId = gameId;
+        setupGlobalGameTimerListener(); // Re-run setup to pick up the new activeGameId
+        // --- END IMPORTANT ---
+
 
         // 4) notify & join
         Swal.fire({
@@ -1192,7 +1317,7 @@ const gameData = {
             confirmButtonText: 'Join Game'
         }).then(res => {
             if (res.isConfirmed) {
-                initAndStartGame(username, formValues.map, gameId);
+                initAndStartGame(username, formValues.map, gameId, ffaEnabled);
             } else {
                 menu();
             }
@@ -1200,7 +1325,7 @@ const gameData = {
 
     } catch (error) {
         console.error("Error creating game:", error);
-        Swal.fire('Error','Could not create game: ' + error.message,'error');
+        Swal.fire('Error', 'Could not create game: ' + error.message, 'error');
         menu();
     }
 }
@@ -1268,6 +1393,7 @@ const activeSlots = Object.entries(gamesObj)
                () => {
                  console.log(`Joining slot ${slotInfo.slot} on map ${slotInfo.map}`);
                  setActiveGameId(gameId);            // ← stash it
+                        setupGlobalGameTimerListener();
                  initAndStartGame(username, mapName, gameId);
                }
             );
