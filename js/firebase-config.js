@@ -88,25 +88,37 @@ export async function claimGameSlot(username, map, ffaEnabled) {
 
   if (!chosenKey) return null;
 
-  // --- ONLY write in the slot's own DB, not in lobby ---
   const rootRef = chosenApp.database().ref();
-  await rootRef.child("game").set({
-    host:      username,
+
+  // Create game entry
+  const gameRef = rootRef.child("game");
+  await gameRef.set({
+    host: username,
     map,
     ffaEnabled,
     createdAt: firebase.database.ServerValue.TIMESTAMP
   });
 
-  // Build your per-slot refs
+  // Create gameConfig inside the /game node
+  const startTime = Date.now();
+  const gameDuration = 600; // seconds
+  const endTime = startTime + gameDuration * 1000;
+
+  await gameRef.child("gameConfig").set({
+    startTime,
+    gameDuration,
+    endTime
+  });
+
+  // Return useful database references
   const dbRefs = {
-    playersRef:    rootRef.child("players"),
-    chatRef:       rootRef.child("chat"),
-    killsRef:      rootRef.child("kills"),
-    mapStateRef:   rootRef.child("mapState"),
-    tracersRef:    rootRef.child("tracers"),
-    soundsRef:     rootRef.child("sounds"),
-    gameConfigRef: rootRef.child("gameConfig"),
-    gameSlotsRef: rootRef.child("gameSlots")
+    playersRef: gameRef.child("players"),
+    chatRef: gameRef.child("chat"),
+    killsRef: gameRef.child("kills"),
+    mapStateRef: gameRef.child("mapState"),
+    tracersRef: gameRef.child("tracers"),
+    soundsRef: gameRef.child("sounds"),
+    gameConfigRef: gameRef.child("gameConfig")
   };
 
   return { slotName: chosenKey, dbRefs };
