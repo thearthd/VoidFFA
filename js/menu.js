@@ -782,7 +782,7 @@ function createAnimatedButton(
     );
     buttonHitbox.setColor("rgba(0,0,0,0)");
     buttonHitbox.setLayer(15);
-    buttonHitbox.onClick = onClickCallback, playButtonClick();
+    buttonHitbox.onClick = onClickCallback;
      
     // animation constants
     const FRAME_RATE           = 1000 / 60;
@@ -1000,6 +1000,7 @@ let loadoutButton = createAnimatedButton(
     () => {
         console.log("Loadout button hit");
         loadoutButtonHit(); // Call new function for loadout screen
+         playButtonClick();
     }
 );
 
@@ -1012,6 +1013,7 @@ let createGameBtn = createAnimatedButton(
     () => {
         console.log("createGameBtn hit");
         createGameButtonHit();
+         playButtonClick();
     }
 );
 
@@ -1023,6 +1025,7 @@ let gamesButton = createAnimatedButton(
     () => {
         console.log("Games button hit");
         gamesButtonHit();
+         playButtonClick();
     }
 );
 
@@ -1035,6 +1038,7 @@ let updateBoard = createAnimatedButton(
     () => {
         console.log("updateBoard button hit");
         updateBoardHit();
+         playButtonClick();
     }
 );
 
@@ -1047,6 +1051,7 @@ let playerCard = createAnimatedButton(
     () => {
         console.log("updateBoard button hit");
         playerCardHit();
+         playButtonClick();
     },
          getWidth()/2, getHeight()/2 + 170
 );
