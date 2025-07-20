@@ -545,41 +545,65 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     playersRef = dbRefs.playersRef;
     gameConfigRef = dbRefs.gameConfigRef;
 
-const gameTimerElement = document.getElementById("game-timer");
-let endTime = null;
+    const gameTimerElement = document.getElementById("game-timer");
 
-// subscribe once to config
-gameConfigRef.on("value", snap => {
-  const cfg = snap.val() || {};
-  if (typeof cfg.endTime === "number") {
-    endTime = cfg.endTime;
-    gameTimerElement.style.display = "block";
-  }
-});
+    if (ffaEnabled) {
+        gameTimerElement.style.display = "block";
 
-// cancel old tick
-if (gameInterval) clearInterval(gameInterval);
+        // Set an initial game duration in seconds if it doesn't exist.
+        // For example, 10 minutes (600 seconds).
+        const initialGameDurationSeconds = 10 * 60; // 10 minutes
+        let currentRemainingSeconds = initialGameDurationSeconds; // Local variable to track remaining time
 
-// start ticking
-gameInterval = setInterval(() => {
-  if (endTime === null) {
-    gameTimerElement.textContent = "Time: Syncing…";
-    return;
-  }
-  const nowMs = Date.now();
-  let remMs = endTime - nowMs;
-  if (remMs <= 0) {
-    clearInterval(gameInterval);
-    gameTimerElement.textContent = "TIME UP!";
-    determineWinnerAndEndGame();
-    gameConfigRef.remove();
-    return;
-  }
-  const remSec = Math.ceil(remMs / 1000);
-  const mins = Math.floor(remSec / 60);
-  const secs = remSec % 60;
-  gameTimerElement.textContent = `Time: ${mins}:${secs<10?"0":""}${secs}`;
-}, 1000);
+        // 1) Listen for (or set) the game duration in Firebase.
+        // We'll primarily rely on the local countdown, but this ensures initial sync.
+        gameConfigRef.child("gameDuration").on("value", snapshot => {
+            const duration = snapshot.val();
+            if (typeof duration === "number") {
+                currentRemainingSeconds = duration;
+            } else {
+                // Only set if it doesn't exist, to avoid resetting on every client join
+                gameConfigRef.child("gameDuration").transaction(currentData => {
+                    if (currentData === null) {
+                        return initialGameDurationSeconds;
+                    }
+                    return undefined; // Abort the transaction if data already exists
+                });
+            }
+        });
+
+        // 2) Clear any existing interval before starting a new one
+        if (gameInterval) {
+            clearInterval(gameInterval);
+        }
+
+        // 3) Start a per-second countdown based on the synced duration
+        gameInterval = setInterval(() => {
+            if (currentRemainingSeconds === null) {
+                gameTimerElement.textContent = "Time: Syncing…";
+                return;
+            }
+
+            currentRemainingSeconds--; // Decrement every second
+
+            const mins = Math.floor(currentRemainingSeconds / 60);
+            const secs = currentRemainingSeconds % 60;
+
+            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
+
+            if (currentRemainingSeconds <= 0) {
+                clearInterval(gameInterval);
+                gameTimerElement.textContent = "TIME UP!";
+                determineWinnerAndEndGame();
+                gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
+                return;
+            }
+
+            // Optional: Update the database with remaining duration.
+            // CAUTION: This will cause frequent writes. Consider if truly necessary.
+            // gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
+
+        }, 1000); // Update every 1 second
 
         // 4) Optional: first-to-X-kills listener (unchanged)
         if (playersKillsListener) {
@@ -600,6 +624,14 @@ gameInterval = setInterval(() => {
                 gameConfigRef.child("gameDuration").remove(); // Remove duration when game ends
             }
         });
+
+    } else {
+        gameTimerElement.style.display = "none";
+        if (gameInterval) {
+            clearInterval(gameInterval);
+        }
+        gameConfigRef.child("gameDuration").remove(); // Ensure duration is cleared if FFA is off
+    }
 
     // 3) Common game start UI setup (unchanged)
     initGlobalFogAndShadowParams();
@@ -679,12 +711,6 @@ gameInterval = setInterval(() => {
     createFadeOverlay();
     createLeaderboardOverlay();
 
-if (sceneNum == 1) {
-windSound.play().catch(err => console.warn(err));
-} else if (sceneNum == 2) {
-forestNoise.play().catch(err => console.warn(err));
-}
-    
     // 9) Start game loop (unchanged)
     animate();
 }
@@ -790,6 +816,14 @@ window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual a
 const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
 physicsController.setPlayerPosition(initialSpawnPoint);
 
+// --- Audio Initialization ---
+if (typeof windSound !== 'undefined') {
+windSound.play().catch(err => console.warn("Failed to play wind sound:", err));
+window.windSound = windSound;
+} else {
+console.warn("windSound is not defined. Audio might not play for CrocodilosConstruction.");
+}
+
 // --- Window Resize Handling ---
 function onWindowResize() {
 const container = document.getElementById("game-container");
@@ -894,6 +928,15 @@ window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual a
 
 const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
 physicsController.setPlayerPosition(initialSpawnPoint);
+
+// --- Audio Initialization ---
+if (typeof forestNoise !== 'undefined') {
+forestNoise.volume = 0.05;
+forestNoise.play().catch(err => console.warn("Failed to play forest noise:", err));
+window.windSound = forestNoise; // Renamed to windSound for consistency if only one wind sound
+} else {
+console.warn("forestNoise is not defined. Audio might not play for SigmaCity.");
+}
 
 // --- Window Resize Handling ---
 function onWindowResize() {
