@@ -984,7 +984,7 @@ let loadoutButton = createAnimatedButton(
 let createGameBtn = createAnimatedButton(
     "https://codehs.com/uploads/31eb8424a7b74d1266c4e1e210845583", // Example image
     1920 / 6, 1080 / 6, // Original width and height
-    getWidth() / 4 - (1920 / 6) / 2, getHeight() - 250, // Position it below map options
+    getWidth() / 4, getHeight() - 250, // Position it below map options
     1920 / 6 - 25, 1080 / 8, // Hitbox dimensions
     () => {
         console.log("createGameBtn hit");
