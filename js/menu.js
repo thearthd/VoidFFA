@@ -34,14 +34,14 @@ import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef } from './firebase-c
 
 // --- Start of engine.js content (included here as per your provided code) ---
 function playButtonHover() {
-     let buttonHover = new Audio("https://codehs.com/uploads/2d0d48f3c6611a82530e96fcf1b0af31");
-     buttonHover.volume = 0.4;
+     let buttonHover = new Audio("https://codehs.com/uploads/773375a846afc175b34b2eff70e8d947");
+     buttonHover.volume = 1;
      buttonHover.play();
 }
 
 function playButtonClick() {
      let buttonClick = new Audio("https://codehs.com/uploads/0e6b3db8eba47ff22199d98eda64cdac");
-     buttonClick.volume = 0.4;
+     buttonClick.volume = 1;
      buttonClick.play();
 }
      
