@@ -138,7 +138,7 @@ export class WeaponController {
       recoilDistance: 0.08,
       recoilDuration: 0.08,
       tracerLength: 100,
-      speedModifier: 0.8 + 0.0,
+      speedModifier: 0.7 + 0.0,
       tracerLength: 30,
     },
     "ak-47": {
@@ -184,7 +184,7 @@ export class WeaponController {
       recoilDistance: 0.08,
       recoilDuration: 0.08,
       tracerLength: 100,
-      speedModifier: 0.8 + 0.0,
+      speedModifier: 0.85 + 0.0,
       tracerLength: 20,
     },
   };
