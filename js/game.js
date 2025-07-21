@@ -572,66 +572,77 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
+  // Initialize network and Firebase refs
   const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
   if (!networkOk) {
     console.warn("Network init failed.");
     return;
   }
-
   playersRef    = dbRefs.playersRef;
   gameConfigRef = dbRefs.gameConfigRef;
-  const gameTimerElement = document.getElementById("game-timer");
+  const gameTimerElement = document.getElementById('game-timer');
 
   if (ffaEnabled) {
-    gameTimerElement.style.display = "block";
+    gameTimerElement.style.display = 'block';
 
-    // 1) Initialize duration, end flag, and owner
-    const INITIAL_DURATION = 10 * 60; // 10 minutes in seconds
+    // Timer settings
+    const INITIAL_DURATION = 10 * 60; // 10 minutes
     let currentRemainingSeconds = null;
     let gameEnded = false;
-    let isOwner = false;
-    let ownerId = null;
     let localInterval = null;
 
-    // 2) Elect a timer-owner via transaction if none exists
+    // Elect a timer-owner
     const ownerRef = gameConfigRef.child('owner');
-    ownerRef.transaction(current => {
-      return current === null ? localPlayerId : undefined;
-    });
-
-    // 3) Ensure that when the owner disconnects, 'owner' is cleared
+    function tryElectSelf() {
+      ownerRef.transaction(current => {
+        return current === null ? localPlayerId : undefined;
+      });
+    }
+    tryElectSelf();
     ownerRef.onDisconnect().remove();
 
-    // 4) Listen for changes to the owner field
+    // Listen for owner changes
     ownerRef.on('value', snap => {
-      ownerId = snap.val();
-      isOwner = (ownerId === localPlayerId);
+      const ownerId = snap.val();
 
-      // If I just became owner, start the local countdown interval
-      if (isOwner && localInterval === null) {
-        startOwnerInterval();
+      // If I'm now the owner, start counting down
+      if (ownerId === localPlayerId && localInterval === null) {
+        localInterval = setInterval(() => {
+          if (gameEnded || currentRemainingSeconds == null) return;
+          if (currentRemainingSeconds <= 0) {
+            gameConfigRef.child('ended').set(true);
+            return;
+          }
+          currentRemainingSeconds--;
+          gameConfigRef.child('gameDuration').set(currentRemainingSeconds);
+        }, 1000);
       }
-      // If I'm no longer owner, clear any existing interval
-      if (!isOwner && localInterval !== null) {
+
+      // If someone else took over, stop my interval
+      if (ownerId !== localPlayerId && localInterval !== null) {
         clearInterval(localInterval);
         localInterval = null;
       }
+
+      // If owner node was removed entirely, try to re-elect
+      if (ownerId === null) {
+        tryElectSelf();
+      }
     });
 
-    // 5) Sync gameDuration from Firebase
+    // Sync the remaining time from Firebase
     gameConfigRef.child('gameDuration').on('value', snap => {
       const val = snap.val();
       if (typeof val === 'number') {
         currentRemainingSeconds = val;
       } else if (val === null) {
-        // first join (or after reset) sets initial duration
         gameConfigRef.child('gameDuration').transaction(curr =>
           curr === null ? INITIAL_DURATION : undefined
         );
       }
     });
 
-    // 6) Listen for explicit end flag
+    // Listen for explicit end flag
     gameConfigRef.child('ended').on('value', snap => {
       if (snap.val() === true && !gameEnded) {
         gameEnded = true;
@@ -641,22 +652,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
       }
     });
 
-    // 7) Function to start the interval on the owner client
-    function startOwnerInterval() {
-      localInterval = setInterval(() => {
-        if (gameEnded || currentRemainingSeconds == null) return;
-        if (currentRemainingSeconds <= 0) {
-          // Owner flips the end flag for everyone
-          gameConfigRef.child('ended').set(true);
-          return;
-        }
-        // Decrement and broadcast
-        currentRemainingSeconds--;
-        gameConfigRef.child('gameDuration').set(currentRemainingSeconds);
-      }, 1000);
-    }
-
-    // 8) UI updater runs on every client
+    // UI refresher for the timer
     setInterval(() => {
       if (currentRemainingSeconds == null) {
         gameTimerElement.textContent = 'Time: Syncing…';
@@ -667,12 +663,14 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
       }
     }, 250);
 
-    // 9) First-to-X-kills listener (only flips end flag)
-    if (playersKillsListener) playersRef.off('value', playersKillsListener);
+    // First-to-40-kills listener
+    if (playersKillsListener) {
+      playersRef.off('value', playersKillsListener);
+    }
     playersKillsListener = playersRef.on('value', snap => {
       let reached = false;
-      snap.forEach(child => {
-        if (child.val().kills >= 40) reached = true;
+      snap.forEach(childSnap => {
+        if (childSnap.val().kills >= 40) reached = true;
       });
       if (reached && !gameEnded) {
         gameConfigRef.child('ended').set(true);
@@ -680,7 +678,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     });
 
   } else {
-    // Non-FFA cleanup
     gameTimerElement.style.display = 'none';
     if (gameInterval) clearInterval(gameInterval);
     gameConfigRef.child('gameDuration').remove();
@@ -688,7 +685,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     gameConfigRef.child('owner').remove();
   }
 
-  // … rest of initialization unchanged …
+  // Final game setup
   initGlobalFogAndShadowParams();
   window.isGamePaused = false;
   document.getElementById('menu-overlay').style.display = 'none';
@@ -759,9 +756,9 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
   createRespawnOverlay();
   createFadeOverlay();
   createLeaderboardOverlay();
+
   animate();
 }
-
 
 export function hideGameUI() {
   document.getElementById("menu-overlay").style.display = "flex";
