@@ -1302,7 +1302,7 @@ function playButtonHit() {
     makeButton(createGameBtn.hitbox, createGameBtn.hitbox.onClick);
     currentMenuObjects.push(createGameBtn.image, createGameBtn.text, createGameBtn.hitbox);
 
-    addBackButton(); // Add back button to this screen
+    addBackButton(menu); // Add back button to this screen
 }
 
 /**
@@ -1427,7 +1427,7 @@ async function gamesButtonHit() {
             none.setPosition(getWidth() / 2, getHeight() / 2);
             add(none);
             currentMenuObjects.push(none);
-            addBackButton();
+            addBackButton(menu);
             return;
         }
 
@@ -1512,7 +1512,7 @@ async function gamesButtonHit() {
             currentMenuObjects.push(pageText);
         }
 
-        addBackButton();
+        addBackButton(menu);
 
     } catch (error) {
         console.error("Error fetching slots:", error);
@@ -1522,20 +1522,21 @@ async function gamesButtonHit() {
         errorText.setPosition(getWidth() / 2, getHeight() / 2);
         add(errorText);
         currentMenuObjects.push(errorText);
-        addBackButton();
+        addBackButton(menu);
     }
 }
 /**
  * Adds a "Back to Menu" button to the current screen.
  */
-function addBackButton() {
+function addBackButton(destination, func) {
     let backButton = createAndAddButton(
         "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d", // Left arrow image
         1080/16, 1080/16, // Top-left corner
         1920/16, 1080/16, // Size for back button
         () => {
             currentPage = 0; // Reset page when going back to main menu
-            menu(); // Go back to main menu
+            destination(); // Go back to main menu
+            func();
         },
     );
     // Adjust text position relative to its button for 'Back'
@@ -1564,7 +1565,7 @@ function settingsButtonHit() {
     }
 
 
-    addBackButton(); // Keep the back button to return to the main menu
+    addBackButton(menu); // Keep the back button to return to the main menu
 
     // When going back from settings, hide the HTML settings elements again
     const backButton = currentMenuObjects.find(obj => obj instanceof ImageShape && obj.x === 50 && obj.y === 50); // Assuming this is your back button image
@@ -1590,7 +1591,7 @@ function settingsButtonHit() {
 function careerButtonHit() {
   clearMenuCanvas();
   add(logo);
-  addBackButton();
+  addBackButton(menu);
 
   const username = localStorage.getItem('username') || 'Guest';
   const lineHeight = 60;
@@ -1676,11 +1677,7 @@ function loadoutButtonHit() {
   // add a “Back” hookup to return to the canvas menu
   // (you already have addBackButton() logic that maybe wants to go back—
   //  just hook it to hide the loadout screen)
-  addBackButton(() => {
-    hideLoadoutScreen();
-    // rebuild your canvas menu if needed, e.g.:
-    menu();
-  });
+  addBackButton(menu, hideLoadoutScreen);
 }
 
 
