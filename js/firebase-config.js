@@ -104,7 +104,7 @@ export async function claimGameSlot(username, map, ffaEnabled) {
 
   // Create gameConfig inside the /game node
   const startTime = Date.now();
-  const gameDuration = 600; // seconds
+  const gameDuration = 60; // seconds
   const endTime = startTime + gameDuration * 1000;
 
   await gameRef.child("gameConfig").set({
