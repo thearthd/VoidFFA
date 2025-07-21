@@ -698,7 +698,7 @@ if (this._aiming) {
 }
 
 
-this._recoil.peakOffset      = appliedRecoilAngle;
+this._recoil.peakOffset      = appliedRecoilAngle*2;
 this._recoil.recoilStartTime  = now;
           
           // View‑model kickback
