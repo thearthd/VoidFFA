@@ -11,24 +11,27 @@ const SECONDARIES = [
 ];
 
 function initLoadout() {
-  // Populate buttons
   populateWeaponGrid('primary-container',   PRIMARIES,   'primary');
   populateWeaponGrid('secondary-container', SECONDARIES, 'secondary');
 
-  // Load saved choices (or defaults) and select them in the UI
   const saved = loadLoadout();
   selectButton(saved.primary,   'primary');
   selectButton(saved.secondary, 'secondary');
 
-  // Confirm click
   document.getElementById('loadout-confirm')
     .addEventListener('click', () => {
       saveLoadout();
-      hideLoadoutScreen();
+      const { primary, secondary } = loadLoadout();
+
+      swal(
+        'Success!',
+        `Primary: ${primary}\nSecondary: ${secondary}`,
+        'success'
+      );
+
       updateHUD();
     });
-  
-  // On startup, immediately update HUD from storage (or defaults)
+
   updateHUD();
 }
 
