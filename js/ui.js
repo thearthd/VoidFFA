@@ -519,151 +519,58 @@ export function hideRespawn() {
 /* —————————————————————————————————————————————————————————————————————
    INVENTORY + HEALTH & SHIELD BARS (HTML version)
    ————————————————————————————————————————————————————————————————————— */
+function getSavedLoadout() {
+  return {
+    primary:   localStorage.getItem('loadout_primary'),
+    secondary: localStorage.getItem('loadout_secondary'),
+  };
+}
+
 export function initInventory(currentWeaponKey) {
-    const inv = document.getElementById("inventory");
-    if (!inv) {
-        console.error("Inventory container not found! ID: 'inventory'");
-        return;
+  const inv = document.getElementById("inventory");
+  if (!inv) return;
+  inv.innerHTML = "";
+
+  const parent = inv.parentNode;
+  if (getComputedStyle(parent).position === 'static') {
+    parent.style.position = 'relative';
+  }
+
+  const { primary, secondary } = getSavedLoadout();
+  const weaponKeys = ['knife'];
+  if (primary)   weaponKeys.push(primary);
+  if (secondary) weaponKeys.push(secondary);
+
+  for (const key of weaponKeys) {
+    const slot = document.createElement("div");
+    slot.classList.add("inventory-slot");
+    slot.id = `inv-${key}`;
+    Object.assign(slot.style, {
+      backgroundColor: '#333',
+      color: '#fff',
+      padding: '8px 12px',
+      border: '1px solid #555',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s, border-color 0.2s',
+      pointerEvents: 'auto',
+    });
+    const nameAbbrev = document.createElement("span");
+    switch (key) {
+      case "knife":   nameAbbrev.textContent = "KNIFE"; break;
+      case "deagle":  nameAbbrev.textContent = "DEAG";  break;
+      case "ak-47":   nameAbbrev.textContent = "AK47";  break;
+      case "marshal": nameAbbrev.textContent = "MARL";  break;
+      case "m79":     nameAbbrev.textContent = "M79";   break;
     }
-
-    // Clear existing content and prepare parent for absolute positioning if needed
-    inv.innerHTML = "";
-    const parent = inv.parentNode;
-    if (getComputedStyle(parent).position === 'static') {
-        parent.style.position = 'relative';
+    slot.appendChild(nameAbbrev);
+    if (key === currentWeaponKey) {
+      slot.classList.add("selected");
+      slot.style.borderColor = '#0f0';
+      slot.style.backgroundColor = '#444';
     }
-
-    const oldHS = document.getElementById("health-shield-container");
-    if (oldHS) oldHS.remove();
-
-    const hsContainer = document.createElement("div");
-    hsContainer.id = "health-shield-container";
-    Object.assign(hsContainer.style, {
-        position: "absolute",
-        display: "flex",
-        flexDirection: "column",
-        zIndex: "10"
-    });
-    parent.appendChild(hsContainer);
-
-    // ── Build Health Bar ──
-    const healthBarBg = document.createElement("div");
-    Object.assign(healthBarBg.style, {
-        position: "relative",
-        backgroundColor: "#222",
-        width: "150px", // Increased for better visibility
-        height: "20px",
-        marginBottom: "4px"
-    });
-    const healthBarFill = document.createElement("div");
-    healthBarFill.id = "health-bar-fill";
-    Object.assign(healthBarFill.style, {
-        backgroundColor: "#0f0",
-        width: "100%", // Start full
-        height: "100%",
-        transition: 'width 0.1s linear' // Smooth transition for fill
-    });
-    const healthText = document.createElement("div");
-    healthText.id = "health-text";
-    Object.assign(healthText.style, {
-        position: "absolute",
-        color: "#fff",
-        width: "100%",
-        textAlign: "center",
-        top: "0",
-        fontWeight: "bold",
-        color: "#000" // Text color
-    });
-    healthText.textContent = "100 / 100";
-    healthBarBg.append(healthBarFill, healthText);
-    hsContainer.appendChild(healthBarBg);
-
-    // ── Build Shield Bar ──
-    const shieldBarBg = document.createElement("div");
-    Object.assign(shieldBarBg.style, {
-        position: "relative",
-        backgroundColor: "#222",
-        width: "150px", // Increased for better visibility
-        height: "20px",
-        marginBottom: "8px"
-    });
-    const shieldBarFill = document.createElement("div");
-    shieldBarFill.id = "shield-bar-fill";
-    Object.assign(shieldBarFill.style, {
-        backgroundColor: "#26f",
-        width: "100%", // Start full
-        height: "100%",
-        transition: 'width 0.1s linear' // Smooth transition for fill
-    });
-    const shieldText = document.createElement("div");
-    shieldText.id = "shield-text";
-    Object.assign(shieldText.style, {
-        position: "absolute",
-        width: "100%",
-        textAlign: "center",
-        top: "0",
-        fontWeight: "bold",
-        color: "#000" // Text color
-    });
-    shieldText.textContent = "50 / 50";
-    shieldBarBg.append(shieldBarFill, shieldText);
-    hsContainer.appendChild(shieldBarBg);
-
-    // 5) INVENTORY SLOTS
-    const weaponKeys = ["knife", "deagle", "ak-47", "marshal", "m79"];
-    for (const key of weaponKeys) {
-        const slot = document.createElement("div");
-        slot.classList.add("inventory-slot");
-        slot.id = `inv-${key}`;
-        Object.assign(slot.style, {
-            backgroundColor: '#333',
-            color: '#fff',
-            padding: '8px 12px',
-            border: '1px solid #555',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            transition: 'background-color 0.2s, border-color 0.2s',
-            pointerEvents: 'auto', // Inventory slots should be interactive
-        });
-        const nameAbbrev = document.createElement("span");
-        switch (key) {
-            case "knife": nameAbbrev.textContent = "KNIFE"; break;
-            case "deagle": nameAbbrev.textContent = "DEAG"; break;
-            case "ak-47": nameAbbrev.textContent = "AK47"; break;
-            case "marshal": nameAbbrev.textContent = "MARL"; break;
-            case "m79": nameAbbrev.textContent = "M79"; break;
-        }
-        slot.appendChild(nameAbbrev);
-        if (key === currentWeaponKey) {
-            slot.classList.add("selected");
-            slot.style.borderColor = '#0f0'; // Highlight selected
-            slot.style.backgroundColor = '#444';
-        }
-        inv.appendChild(slot);
-    }
-
-    // 6) Positioning function for Health/Shield relative to Inventory
-    function updateHSPosition() {
-        // Recalculate based on inventory's final position after its contents are built
-        const invRect = inv.getBoundingClientRect();
-        const parentRect = parent.getBoundingClientRect();
-
-        // Position health/shield container relative to its parent
-        const top = invRect.top - parentRect.top;
-        // Position to the right of the inventory, plus a small gap
-        const left = (invRect.left - parentRect.left) + inv.offsetWidth + 8;
-        hsContainer.style.top = `${top}px`;
-        hsContainer.style.left = `${left}px`;
-        // Match width to inventory for alignment or set fixed width
-        hsContainer.style.width = `${healthBarBg.style.width}`; // Or inv.offsetWidth, whichever fits design
-    }
-
-    // Call once to set initial position
-    updateHSPosition();
-
-    // Re-position on resize or scroll
-    window.addEventListener("resize", updateHSPosition);
-    window.addEventListener("scroll", updateHSPosition);
+    inv.appendChild(slot);
+  }
 }
 
 
