@@ -1539,7 +1539,7 @@ function careerButtonHit() {
   addBackButton();
 
   const username = localStorage.getItem('username') || 'Guest';
-  console.log("careerButtonHit for user:", username);
+  console.log("Career stats for:", username);
 
   const startX = 100;
   let y = 150;
@@ -1554,34 +1554,22 @@ function careerButtonHit() {
     return text;
   }
 
-  usersRef.child(username).once('value')
-    .then(snap => {
-      if (snap.exists()) {
-        return [{ key: username, ...snap.val() }];
-      } else {
-        return usersRef
-          .orderByChild('username')
-          .equalTo(username)
-          .once('value')
-          .then(qsnap => {
-            const results = [];
-            qsnap.forEach(child => {
-              results.push({ key: child.key, ...child.val() });
-            });
-            return results;
-          });
-      }
-    })
-    .then(records => {
-      if (records.length === 0) {
-        throw new Error("No user record found");
-      }
+  usersRef
+    .orderByChild("username")
+    .equalTo(username)
+    .once("value")
+    .then(snapshot => {
+      let userData = null;
+      snapshot.forEach(child => {
+        userData = child.val();
+      });
 
-      const stats = records[0];
-      const wins   = stats.wins   || 0;
-      const losses = stats.losses || 0;
-      const kills  = stats.kills  || 0;
-      const deaths = stats.deaths || 0;
+      if (!userData) throw new Error("User not found in database.");
+
+      const wins   = userData.wins   || 0;
+      const losses = userData.losses || 0;
+      const kills  = userData.kills  || 0;
+      const deaths = userData.deaths || 0;
       const kd     = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
 
       const lines = [
@@ -1597,14 +1585,11 @@ function careerButtonHit() {
         const line = createStatText(lines[i], startX, y + i * lineHeight);
         add(line);
       }
-
-      if (typeof draw === 'function') draw();
     })
     .catch(err => {
-      console.error("Failed to load or render career stats:", err);
-      const errorText = createStatText('Unable to load career stats.', startX, y);
+      console.error("Error loading career stats:", err);
+      const errorText = createStatText("Unable to load stats.", startX, y);
       add(errorText);
-      if (typeof draw === 'function') draw();
     });
 }
 
