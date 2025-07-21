@@ -1328,6 +1328,7 @@ async function createGameButtonHit() {
             `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
             '<select id="swal-input2" class="swal2-select">' +
             '<option value="">Select Map</option>' +
+            '<option value="DiddyDunes">DiddyDunes</option>' +
             '<option value="SigmaCity">SigmaCity</option>' +
             '<option value="CrocodilosConstruction">CrocodilosConstruction</option>' +
             '</select>' +
