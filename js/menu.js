@@ -1250,6 +1250,7 @@ function showMenuOverlay() {
 }
 
 async function initAndStartGame(username, mapName, gameId = null) {
+     dontyetpls = 0;
      hud.style.display = "block";
   // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === true;
