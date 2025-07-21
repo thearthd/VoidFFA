@@ -99,12 +99,6 @@ let deathTheme = new Audio("https://codehs.com/uploads/720078943b931e7eb258b01fb
 deathTheme.loop = true;
 deathTheme.volume = 0.5;
 
-const windSound = new Audio(
-"https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa"
-);
-windSound.loop   = true;
-windSound.volume = 0.1;
-
 const forestNoise = new Audio(
 "https://codehs.com/uploads/e26ad4fc80829f48ecd9b470fe84987d"
 );
@@ -825,11 +819,18 @@ const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a sp
 physicsController.setPlayerPosition(initialSpawnPoint);
 
 // --- Audio Initialization ---
-if (typeof windSound !== 'undefined') {
-windSound.play().catch(err => console.warn("Failed to play wind sound:", err));
-window.windSound = windSound;
+if (window.audioManager) {
+    const windSoundUrl = 'https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa'; // Replace with the actual URL string
+    // Store the returned sound object if you want to stop it later
+    const currentlyPlayingWindSound = window.audioManager.playBackgroundSound(windSoundUrl, {
+        loop: true,
+        volume: 0.1
+    });
+    // You can store 'currentlyPlayingWindSound' in a global or accessible variable
+    // if you need to stop it later, as discussed in the previous answer.
+    // e.g., window.currentBackgroundSound = currentlyPlayingWindSound;
 } else {
-console.warn("windSound is not defined. Audio might not play for CrocodilosConstruction.");
+    console.warn("AudioManager is not initialized. Cannot play background sound.");
 }
 
 // --- Window Resize Handling ---
