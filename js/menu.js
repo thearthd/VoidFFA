@@ -515,60 +515,42 @@ export class ImageShape extends Shape {
         this.y = 0;
         this.width = 100;
         this.height = 100;
-        this.anchorX = 0;    // Default: top-left (0 for horizontal)
+        this.opacity = 1.0;  // Add default opacity
+        this.anchorX = 0;
         this.anchorY = 0;
     }
 
-    /**
-     * Sets the anchor point for positioning (not fully implemented for image drawing).
-     * @param {object} anchor - An object with horizontal and vertical properties.
-     */
     setAnchor({ horizontal, vertical }) {
         this.anchorX = horizontal;
         this.anchorY = vertical;
     }
 
-    /**
-     * Sets the width and height of the image.
-     * @param {number} width - The new width.
-     * @param {number} height - The new height.
-     */
     setSize(width, height) {
         this.width = width;
         this.height = height;
     }
 
-    /**
-     * Moves the image by a specified delta.
-     * @param {number} dx - The change in x-coordinate.
-     * @param {number} dy - The change in y-coordinate.
-     */
     move(dx, dy) {
         this.x += dx;
         this.y += dy;
     }
 
-    /**
-     * Sets the position of the image's top-left corner.
-     * @param {number} x - The x-coordinate.
-     * @param {number} y - The y-coordinate.
-     */
     setPosition(x, y) {
         this.x = x;
         this.y = y;
     }
 
-    /** @returns {number} The width of the image. */
-    getWidth() { return this.width; }
-    /** @returns {number} The height of the image. */
-    getHeight() { return this.height; }
+    setOpacity(opacity) {
+        this.opacity = opacity;
+    }
 
-    /**
-     * Draws the image on the canvas context.
-     * @param {CanvasRenderingContext2D} ctx - The canvas rendering context.
-     */
+    getWidth() { return this.width; }
+    getHeight() { return this.height; }
+    getY() { return this.y; }             // <- NEW
+    getOpacity() { return this.opacity; } // <- NEW
+
     draw(ctx) {
-        if (!this.loaded) return; // Skip drawing until image is loaded
+        if (!this.loaded) return;
         ctx.save();
         ctx.globalAlpha = this.opacity;
         ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
