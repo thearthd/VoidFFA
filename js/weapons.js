@@ -688,7 +688,7 @@ update(inputState, delta, playerState) {
 const shotIndex = this.burstCount - 1;               // zero‑based index
 let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
 let appliedRecoilAngle = rawRecoil;
-
+console.log(shotIndex);
 // if AK‑47 and we've already fired 10 or more bullets in this string, clamp it
 if (this.currentKey === "ak-47" && shotIndex >= 10) {
   appliedRecoilAngle = 0.003;
