@@ -89,10 +89,10 @@ function updateHUD() {
 }
 
 // simple show/hide helpers
-function showLoadoutScreen() {
+export function showLoadoutScreen() {
   document.getElementById('loadout-screen').style.display = 'block';
 }
-function hideLoadoutScreen() {
+export function hideLoadoutScreen() {
   document.getElementById('loadout-screen').style.display = 'none';
 }
 
