@@ -20,6 +20,21 @@ export class AudioManager {
         console.log("AudioManager initialized. Listener attached to camera:", camera.uuid);
     }
 
+    playBackgroundSound(url, volume = 0.5, loop = true) {
+    const sound = new THREE.Audio(this.listener);
+    this.loader.load(url, (buffer) => {
+        sound.setBuffer(buffer);
+        sound.setLoop(loop);
+        sound.setVolume(volume);
+        sound.play();
+    },
+    undefined,
+    (err) => {
+        console.error(`Error loading background sound "${url}":`, err);
+    });
+    return sound;
+}
+
     playSpatial(url, worldPosition, { loop = false, volume = 1, hearingRange = 100, rolloffFactor = 2, distanceModel = 'linear' } = {}) {
         const pa = new THREE.PositionalAudio(this.listener);
         pa.position.copy(worldPosition);
