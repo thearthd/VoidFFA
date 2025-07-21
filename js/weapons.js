@@ -172,6 +172,21 @@ export class WeaponController {
       speedModifier: 0.4 + 0.0,
       tracerLength: 40,
     },
+    m79: {
+      name: "M-79",
+      isMelee: false,
+      headshotDamage: 54,
+      bodyDamage: 20,
+      fireRateRPM: 405,
+      magazineSize: 12,
+      reloadDuration: 1.8,
+      pullDuration: 125/600*1.5,
+      recoilDistance: 0.08,
+      recoilDuration: 0.08,
+      tracerLength: 100,
+      speedModifier: 0.8 + 0.0,
+      tracerLength: 20,
+    },
   };
 
   static SOUNDS = {
@@ -198,6 +213,12 @@ export class WeaponController {
       pull: 'https://codehs.com/uploads/c5684202c108d053ba61561a62e4c1ca',
       reloadStart: 'https://codehs.com/uploads/80601ac1055d110402b6a87d3520b025',
       reloadEnd: 'https://codehs.com/uploads/171d3fdd7af759a85fd178bb706ff0ad',
+    },
+    m79: {
+      shot: 'https://codehs.com/uploads/8b81838df3b08b56fac7f26a2ca9e7c3',
+      pull: 'https://codehs.com/uploads/aff98052ce443af0016300655d234189',
+      reloadStart: 'https://codehs.com/uploads/c037824e7ad86dcf55ca2e89b0b893af',
+      reloadEnd: 'https://codehs.com/uploads/bb78ded10db4f1f4a9092d5744bda11a',
     },
   };
 
@@ -407,6 +428,19 @@ equipWeapon(weaponKey) {
           -0.1  * (window.innerWidth  / 1920)
         );
         break;
+              case "m79":
+        clone.scale.set(0.3, 0.3, 0.3);
+        clone.rotation.set(
+          THREE.MathUtils.degToRad(7),
+          THREE.MathUtils.degToRad(180),
+          0
+        );
+        clone.position.set(
+          0.15 * (window.innerWidth  / 1920),
+          0.10 * (window.innerHeight / 1080),
+          -0.1 * (window.innerWidth  / 1920)
+        );
+        break;
       default:
         console.warn(`[WeaponController] No transform logic for "${key}"`);
     }
@@ -434,6 +468,10 @@ equipWeapon(weaponKey) {
         break;
       case "marshal":
         this.buildMarshal();
+        onModelReady(this.weaponModel);
+        break;
+      case "m79":
+        this.buildM79();
         onModelReady(this.weaponModel);
         break;
       default:
@@ -503,9 +541,13 @@ update(inputState, delta, playerState) {
         this.currentKey === "deagle" ?
         ADS_FOV.deagle :
         ADS_FOV.default;
+        this.currentKey === "m79" ?
+        ADS_FOV.m79 :
+        ADS_FOV.default;
       const toPos = this.currentKey === "marshal" ?
         new THREE.Vector3(-0.025, -0.035, -0.2) :
         defaultAimPos.clone();
+      
       const scaleFactor = targetFov / this._baseFov;
       this.camera.fov = targetFov;
       this.camera.updateProjectionMatrix();
@@ -546,6 +588,10 @@ update(inputState, delta, playerState) {
         ADS_FOV.ak47 :
         this.currentKey === "deagle" ?
         ADS_FOV.deagle :
+        ADS_FOV.default) :
+      ADS_FOV.default;
+        this.currentKey === "m79" ?
+        ADS_FOV.m79 :
         ADS_FOV.default) :
       ADS_FOV.default;
 
@@ -633,7 +679,7 @@ update(inputState, delta, playerState) {
         this.lastShotTime = now;
       }
     } else {
-      const isSemi = (this.currentKey === "deagle" || this.currentKey === "marshal");
+      const isSemi = (this.currentKey === "deagle" || this.currentKey === "marshal" || this.currentKey === "m79");
       const canFire = isSemi ?
         (justClicked && sinceLast > secsPerShot) :
         (sinceLast > secsPerShot);
@@ -1269,12 +1315,62 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
         });
         return { promise, register: cb => prog = cb };
     }
+    buildM79(onProgressRegistrar) {
+        const loader = new GLTFLoader();
+        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/M-79.glb';
+        let prog = () => {};
+        const promise = new Promise((res, rej) => {
+            loader.load(
+                url,
+                gltf => {
+                    this.weaponModel = new THREE.Group();
+                    this.parts = {};
+                    if (this.viewModel) this.viewModel.add(this.weaponModel);
+                    const model = gltf.scene;
+                    const box = new THREE.Box3().setFromObject(model);
+                    const center = box.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+                    this.weaponModel.add(model);
+                    this.weaponModel.scale.set(5, 5, 5);
+                    this.weaponModel.rotation.set(
+                        THREE.MathUtils.degToRad(7),
+                        THREE.MathUtils.degToRad(180),
+                        0
+                    );
+                    const sw = window.innerWidth, sh = window.innerHeight;
+                    this.weaponModel.position.set(
+                        0.15 * (sw/1920),
+                        0.1 * (sh/1080),
+                        -0.1 * (sw/1920)
+                    );
+                    const box2 = new THREE.Box3().setFromObject(model);
+                    const muzzle = new THREE.Object3D();
+                    muzzle.name = 'Muzzle';
+                    // These coordinates are relative to the 'model's' local space after centering
+                    // You'll likely need to adjust these values (`-box2.max.x, box2.max.y, 1`)
+                    // until the debug dot appears at the very tip of your gun's muzzle.
+                    muzzle.position.set(-box2.max.x, box2.max.y, 1); 
+                    this.weaponModel.add(muzzle);
+                    this.parts.muzzle = muzzle;
+
+                    // --- ADD THE DEBUG DOT HERE ---
+
+
+                    res(this.weaponModel);
+                },
+                evt => { if (evt.lengthComputable) prog(evt); },
+                err => rej(err)
+            );
+        });
+        return { promise, register: cb => prog = cb };
+    }
+  
 }
 
 
 
 export async function preloadWeaponPrototypes(onComplete) {
-  const names = ['knife','deagle','ak47','marshal'];
+  const names = ['knife','deagle','ak47','marshal','m79',];
   const dummyCam = new THREE.Group();
   const loaderUI = new Loader();
   const itemPercentages = names.map(() => 1 / names.length);
