@@ -1782,16 +1782,16 @@ if (saveUsernameBtn) {
   saveUsernameBtn.addEventListener("click", async () => {
     const raw = usernameInput.value.trim();
     const val = raw; // we already trimmed spaces
-const alphaNumRegex = /^[A-Za-z0-9_]+$/;
+    const alphaNumRegex = /^[A-Za-z0-9_]+$/;
 
     // 1) Basic format validation
-if (!alphaNumRegex.test(val)) {
-  return Swal.fire(
-    'Invalid Username',
-    'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_), with no spaces or other symbols.',
-    'error'
-  );
-}
+    if (!alphaNumRegex.test(val)) {
+      return Swal.fire(
+        'Invalid Username',
+        'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_), with no spaces or other symbols.',
+        'error'
+      );
+    }
 
     // 2) Uniqueness check (case‑insensitive)
     try {
@@ -1800,7 +1800,11 @@ if (!alphaNumRegex.test(val)) {
       const lower = val.toLowerCase();
 
       for (let key in users) {
-        if (users[key].username.toLowerCase() === lower) {
+        const existing = users[key].username;
+        // skip over any entries that don't have a valid username string
+        if (typeof existing !== 'string') continue;
+
+        if (existing.toLowerCase() === lower) {
           return Swal.fire(
             'Name Taken',
             `“${val}” is already in use. Please choose another.`,
@@ -1825,7 +1829,7 @@ if (!alphaNumRegex.test(val)) {
     // 4) Store in menu DB
     usersRef.push({
       username: val,
-      savedAt:  firebase.database.ServerValue.TIMESTAMP
+      savedAt: firebase.database.ServerValue.TIMESTAMP
     });
 
     // 5) Hide prompt and show game
