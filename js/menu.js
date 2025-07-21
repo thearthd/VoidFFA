@@ -1594,24 +1594,6 @@ function careerButtonHit() {
   let y = 150;
   const lineHeight = 30;
 
-  // IMPORTANT: Get your canvas context here.
-  // Replace 'getCanvasContext()' with the actual way to get your canvas's 2D context.
-  // For example, if you have a global 'canvas' variable:
-  // const ctx = canvas.getContext('2d');
-  // Or if you pass it around:
-  const canvasElement = document.getElementById('yourGameCanvasId'); // Replace with your actual canvas ID
-  const ctx = canvasElement ? canvasElement.getContext('2d') : null;
-
-  if (!ctx) {
-    console.error("Could not get canvas 2D context. Text measurement and drawing may fail.");
-    // Handle this error appropriately, e.g., display a simpler message or exit.
-    const errorText = new Text("Error: Canvas not found.", "20pt Arial");
-    errorText.setColor("#ffffff");
-    errorText.setPosition(getWidth() / 2, y); // Center roughly
-    add(errorText);
-    return; // Exit if context is not available
-  }
-
 
   function createStatText(content, x, y) {
     const text = new Text(content, "20pt Arial");
