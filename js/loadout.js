@@ -11,11 +11,11 @@ const SECONDARIES = [
 ];
 
 function initLoadout() {
-  populateWeaponGrid('primary-container',   PRIMARIES,   'primary');
+  populateWeaponGrid('primary-container', PRIMARIES, 'primary');
   populateWeaponGrid('secondary-container', SECONDARIES, 'secondary');
 
   const saved = loadLoadout();
-  selectButton(saved.primary,   'primary');
+  selectButton(saved.primary, 'primary');
   selectButton(saved.secondary, 'secondary');
 
   document.getElementById('loadout-confirm')
@@ -23,11 +23,11 @@ function initLoadout() {
       saveLoadout();
       const { primary, secondary } = loadLoadout();
 
-      swal(
-        'Success!',
-        `Primary: ${primary}\nSecondary: ${secondary}`,
-        'success'
-      );
+      Swal.fire({
+        title: 'Success!',
+        html: `<strong>Primary:</strong> ${primary}<br><strong>Secondary:</strong> ${secondary}`,
+        icon: 'success'
+      });
 
       updateHUD();
     });
@@ -35,6 +35,7 @@ function initLoadout() {
   updateHUD();
 }
 
+initLoadout();
 function populateWeaponGrid(containerId, list, slotType) {
   const container = document.getElementById(containerId);
   list.forEach(w => {
