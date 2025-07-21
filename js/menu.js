@@ -1607,7 +1607,7 @@ function careerButtonHit() {
     // Measure width and center
     const textWidth = measureCtx.measureText(content).width;
     const centerX = canvasWidth / 2;
-    text.setPosition(centerX - textWidth / 2, y);
+    text.setPosition(centerX, y);
 
     return text;
   }
