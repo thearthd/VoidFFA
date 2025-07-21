@@ -574,7 +574,6 @@ delete pendingRestore[victimId];
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
   const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
   if (!networkOk) return;
-
   playersRef    = dbRefs.playersRef;
   gameConfigRef = dbRefs.gameConfigRef;
   const gameTimerElement = document.getElementById('game-timer');
@@ -585,7 +584,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     const INITIAL_DURATION = 1 * 60;
     let currentRemainingSeconds = null;
     let gameEnded = false;
-    let localInterval = null;
+    let ownerInterval = null;
+    let uiInterval = null;
     let ownerId = null;
 
     const ownerRef = gameConfigRef.child('owner');
@@ -597,9 +597,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
     ownerRef.on('value', snap => {
       ownerId = snap.val();
-
-      if (ownerId === localPlayerId && localInterval === null) {
-        localInterval = setInterval(() => {
+      if (ownerId === localPlayerId && ownerInterval === null) {
+        ownerInterval = setInterval(() => {
           if (gameEnded || currentRemainingSeconds == null) return;
           if (currentRemainingSeconds <= 0) {
             gameConfigRef.child('ended').set(true);
@@ -609,41 +608,40 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
           gameConfigRef.child('gameDuration').set(currentRemainingSeconds);
         }, 1000);
       }
-
-      if (ownerId !== localPlayerId && localInterval !== null) {
-        clearInterval(localInterval);
-        localInterval = null;
+      if (ownerId !== localPlayerId && ownerInterval !== null) {
+        clearInterval(ownerInterval);
+        ownerInterval = null;
       }
-
       if (ownerId === null) {
         tryElectSelf();
       }
     });
 
-    gameConfigRef.child('gameDuration').on('value', snap => {
+    const durationRef = gameConfigRef.child('gameDuration');
+    durationRef.on('value', snap => {
       const val = snap.val();
-      gameConfigRef.child('ended').once('value').then(endSnap => {
-        const hasEnded = endSnap.val() === true;
-        if (val === null && ownerId === localPlayerId && !hasEnded) {
-          gameConfigRef.child('gameDuration').set(INITIAL_DURATION);
-          return;
-        }
-        if (typeof val === 'number') {
-          currentRemainingSeconds = val;
-        }
-      });
+      if (typeof val === 'number') {
+        currentRemainingSeconds = val;
+      } else if (val === null && ownerId === localPlayerId && !gameEnded) {
+        durationRef.set(INITIAL_DURATION);
+      }
     });
 
-    gameConfigRef.child('ended').on('value', snap => {
+    const endedRef = gameConfigRef.child('ended');
+    endedRef.on('value', snap => {
       if (snap.val() === true && !gameEnded) {
         gameEnded = true;
-        if (localInterval) clearInterval(localInterval);
+        if (ownerInterval) clearInterval(ownerInterval);
+        if (uiInterval) clearInterval(uiInterval);
+        ownerRef.off('value');
+        durationRef.off('value');
+        endedRef.off('value');
         gameTimerElement.textContent = 'TIME UP!';
         determineWinnerAndEndGame();
       }
     });
 
-    setInterval(() => {
+    uiInterval = setInterval(() => {
       if (currentRemainingSeconds == null) {
         gameTimerElement.textContent = 'Time: Syncing…';
       } else {
@@ -662,16 +660,14 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         if (childSnap.val().kills >= 40) reached = true;
       });
       if (reached && !gameEnded) {
-        gameConfigRef.child('ended').set(true);
+        endedRef.set(true);
       }
     });
 
   } else {
     gameTimerElement.style.display = 'none';
     if (gameInterval) clearInterval(gameInterval);
-    gameConfigRef.child('gameDuration').remove();
-    gameConfigRef.child('ended').remove();
-    gameConfigRef.child('owner').remove();
+    gameConfigRef.remove();
   }
 
   initGlobalFogAndShadowParams();
@@ -682,10 +678,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
   document.getElementById('hud').style.display = 'block';
   document.getElementById('crosshair').style.display = 'block';
 
-  if (!localPlayerId) {
-    console.error('No localPlayerId after initNetwork—cannot proceed.');
-    return;
-  }
+  if (!localPlayerId) return;
 
   window.physicsController = new PhysicsController(window.camera, scene);
   physicsController        = window.physicsController;
