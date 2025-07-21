@@ -685,10 +685,13 @@ update(inputState, delta, playerState) {
           updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
 
           // Camera recoil
-          let appliedRecoilAngle = getRecoilAngle(this.currentKey, this.burstCount - 1);
-          if (this._aiming) appliedRecoilAngle /= 2;
-          this._recoil.peakOffset      += appliedRecoilAngle;
-          this._recoil.recoilStartTime  = now;
+let rawRecoil = getRecoilAngle(this.currentKey, this.burstCount - 1);
+let appliedRecoilAngle = (this.currentKey === "ak-47" && this.burstCount > 10)
+    ? 0.003
+    : rawRecoil;
+if (this._aiming) appliedRecoilAngle /= 2;
+this._recoil.peakOffset += appliedRecoilAngle;
+this._recoil.recoilStartTime = now;
 
           // View‑model kickback
           this.state.recoiling   = true;
