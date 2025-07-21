@@ -1516,7 +1516,7 @@ async function gamesButtonHit() {
             currentMenuObjects.push(pageText);
         }
 
-        addBackButton(menu);
+        addBackButton(playButtonHit);
 
     } catch (error) {
         console.error("Error fetching slots:", error);
