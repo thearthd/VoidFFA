@@ -237,17 +237,13 @@ bloomPass = null;
 
 async function determineWinnerAndEndGame() {
   console.log("Determining winner and ending game...");
-
   if (!playersRef) {
     console.error("determineWinnerAndEndGame: playersRef is NULL");
     return;
   }
 
-  // 1) Pull all players’ final stats
   const playersSnapshot = await playersRef.once("value");
-  let winner = { username: "No one", kills: -1, deaths: 0 };
   const statsByUser = {};
-
   playersSnapshot.forEach(childSnap => {
     const p = childSnap.val();
     if (!p || typeof p.kills !== 'number') return;
@@ -257,97 +253,87 @@ async function determineWinnerAndEndGame() {
       win: 0,
       loss: 0
     };
-    if (p.kills > winner.kills) {
-      winner = { username: p.username, kills: p.kills, deaths: p.deaths || 0 };
-    }
   });
 
-  // 2) Mark wins/losses
-  Object.entries(statsByUser).forEach(([username, stats]) => {
-    if (username === winner.username) {
-      stats.win = 1;
+  const allStats = Object.values(statsByUser);
+  if (allStats.length === 0) {
+    console.log("No players found");
+  } else {
+    const maxKills = Math.max(...allStats.map(s => s.kills));
+    if (maxKills > 0) {
+      const winners = Object.entries(statsByUser)
+        .filter(([_, s]) => s.kills === maxKills)
+        .map(([u]) => u);
+      for (const username of winners) {
+        statsByUser[username].win = 1;
+      }
+      for (const [username, s] of Object.entries(statsByUser)) {
+        if (!winners.includes(username)) {
+          s.loss = 1;
+        }
+      }
+      const display = winners.length > 1 ? winners.join(", ") : winners[0];
+      console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
+      localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
+      localStorage.setItem('gameEndedTimestamp', Date.now().toString());
+      const gameTimerEl = document.getElementById("game-timer");
+      if (gameTimerEl) {
+        gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
+        gameTimerEl.style.display = "block";
+      }
     } else {
-      stats.loss = 1;
+      console.log("No kills recorded, no winners or losers");
+      localStorage.removeItem('gameWinner');
+      localStorage.removeItem('gameEndedTimestamp');
     }
-  });
-
-  // 3) Store winner in localStorage & UI
-  console.log(`WINNER: ${winner.username} (${winner.kills} kills, ${winner.deaths} deaths)`);
-  localStorage.setItem('gameWinner', JSON.stringify(winner));
-  localStorage.setItem('gameEndedTimestamp', Date.now().toString());
-  const gameTimerEl = document.getElementById("game-timer");
-  if (gameTimerEl) {
-    gameTimerEl.textContent = `WINNER: ${winner.username}`;
-    gameTimerEl.style.display = "block";
   }
 
-  // 4) Update user stats: wins and losses
   const statUpdates = [];
   for (const [username, { win, loss }] of Object.entries(statsByUser)) {
-    if (win === 1) {
-      statUpdates.push(incrementUserStat(username, 'wins', 1));
-    }
-    if (loss === 1) {
-      statUpdates.push(incrementUserStat(username, 'losses', 1));
-    }
+    if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
+    if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
   }
   await Promise.all(statUpdates);
 
   try {
-    // remove the entire gameConfig node
     await gameConfigRef.remove();
     console.log("Game config fully removed.");
   } catch (e) {
     console.error("Failed to remove gameConfig:", e);
   }
-    
-  // 5) Detach realtime listener
+
   if (playersKillsListener) {
     playersRef.off("value", playersKillsListener);
     playersKillsListener = null;
     console.log("Detached players kill listener.");
   }
 
-
-
-    
-  // 7) Finally, clean up game resources
   await disposeGame();
   await fullCleanup(activeGameId);
 
-    playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
+  playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
 }
-
 
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 
 document.addEventListener('DOMContentLoaded', () => {
-    const storedWinner = localStorage.getItem('gameWinner');
-    const storedTimestamp = localStorage.getItem('gameEndedTimestamp');
-
-    if (storedWinner) {
-        try {
-            const winner = JSON.parse(storedWinner);
-            console.log("GAME OVER! Winner found from previous session:");
-            console.log(`Username: ${winner.username}, Kills: ${winner.kills}`);
-
-            // You can also display this on your UI now, e.g.:
-            const gameOverMessageElement = document.getElementById('game-over-message'); // You'd need to create this element in your HTML
-            if (gameOverMessageElement) {
-                gameOverMessageElement.textContent = `Game Over! Winner: ${winner.username} with ${winner.kills} kills!`;
-                gameOverMessageElement.style.display = 'block'; // Make sure it's visible
-            }
-
-            // Clean up localStorage so the message doesn't reappear on subsequent normal loads
-            localStorage.removeItem('gameWinner');
-            localStorage.removeItem('gameEndedTimestamp');
-
-        } catch (e) {
-            console.error("Error parsing stored winner data from localStorage:", e);
-            localStorage.removeItem('gameWinner'); // Clear corrupted data
-            localStorage.removeItem('gameEndedTimestamp');
-        }
+  const stored = localStorage.getItem('gameWinner');
+  if (stored) {
+    try {
+      const { winners, kills } = JSON.parse(stored);
+      const msgEl = document.getElementById('game-over-message');
+      if (msgEl) {
+        const label = winners.length > 1 ? "Winners" : "Winner";
+        msgEl.textContent = `Game Over! ${label}: ${winners.join(", ")} with ${kills} kills!`;
+        msgEl.style.display = 'block';
+      }
+      localStorage.removeItem('gameWinner');
+      localStorage.removeItem('gameEndedTimestamp');
+    } catch {
+      localStorage.removeItem('gameWinner');
+      localStorage.removeItem('gameEndedTimestamp');
     }
+  }
 });
 
 
