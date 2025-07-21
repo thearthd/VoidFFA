@@ -1600,7 +1600,7 @@ function careerButtonHit() {
     })
     .catch(err => {
       console.error("Failed to load or render career stats:", err);
-      add(new TextShape('Unable to load career stats.', 100, 150));
+      add(new Text('Unable to load career stats.', 100, 150));
       if (typeof draw === 'function') {
         draw();
       }
