@@ -1672,6 +1672,11 @@ export function initMenuUI() {
                 // Hide the HTML username prompt
                 showPanel(null);
 
+              usersRef.push({
+                username: val,
+                savedAt: firebase.database.ServerValue.TIMESTAMP
+              });
+                 
                 // Show the canvas and draw the main menu
                 canvas.style.display = 'block';
                 menu();
