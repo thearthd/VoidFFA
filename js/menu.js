@@ -1011,59 +1011,6 @@ function clearMenuCanvas() {
 let username = localStorage.getItem("username") || '';
 
 
-
-
-let gameMenuVisible = false;
-let gameMenu = null;
-let gameMenuTween = null;
-
-
-function setupGameMenu() {
-  gameMenu = new ImageShape("https://codehs.com/uploads/2455c9b2b9cbdc692c6a11e39a736cf5");
-  gameMenu.setSize(1920, 1080);
-  gameMenu.setPosition(getWidth() / 2 - 1920 / 2, -1080); // Off-screen at top
-  gameMenu.setOpacity(0); // Start invisible
-  gameMenu.setLayer(10);
-  add(gameMenu);
-}
-
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    toggleGameMenu();
-  }
-});
-
-function toggleGameMenu() {
-  if (!gameMenu) return;
-
-  if (!gameMenuVisible) {
-    // Show menu
-    gameMenuVisible = true;
-
-    // Unhide menu canvas
-    const menuOverlay = document.getElementById("menu-overlay");
-    if (menuOverlay) menuOverlay.classList.remove("hidden");
-
-    // Slide down and fade in
-    const targetY = getHeight() / 2 - 1080 / 2;
-    animate(gameMenu, { y: targetY, opacity: 1 }, 600, "easeOutCubic");
-
-  } else {
-    // Hide menu
-    gameMenuVisible = false;
-
-    // Slide up and fade out
-    animate(gameMenu, { y: -1080, opacity: 0 }, 600, "easeInCubic", () => {
-      const menuOverlay = document.getElementById("menu-overlay");
-      if (menuOverlay) menuOverlay.classList.add("hidden");
-    });
-  }
-}
-
-
-
-
 let playButton = createAnimatedButton(
     "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
     1920 / 6, 1080 / 6, // Original width and height
