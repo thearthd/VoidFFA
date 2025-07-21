@@ -111,16 +111,10 @@ export function initInput() {
         inputState.weaponSwitch = "knife";
         break;
       case "Digit2":
-        if (primary === "deagle") inputState.weaponSwitch = "deagle";
+        if (primary) inputState.weaponSwitch = primary;
         break;
       case "Digit3":
-        if (primary === "ak-47") inputState.weaponSwitch = "ak-47";
-        break;
-      case "Digit4":
-        if (primary === "marshal") inputState.weaponSwitch = "marshal";
-        break;
-      case "Digit5":
-        if (secondary === "m79") inputState.weaponSwitch = "m79";
+        if (secondary) inputState.weaponSwitch = secondary;
         break;
       case "KeyX":
         inputState.fire = true;
@@ -171,8 +165,6 @@ export function initInput() {
       case "Digit1":
       case "Digit2":
       case "Digit3":
-      case "Digit4":
-      case "Digit5":
         inputState.weaponSwitch = null;
         break;
       case "KeyX":
