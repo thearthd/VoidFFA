@@ -588,8 +588,6 @@ update(inputState, delta, playerState) {
         ADS_FOV.ak47 :
         this.currentKey === "deagle" ?
         ADS_FOV.deagle :
-        ADS_FOV.default) :
-      ADS_FOV.default;
         this.currentKey === "m79" ?
         ADS_FOV.m79 :
         ADS_FOV.default) :
