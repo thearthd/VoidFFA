@@ -1,4 +1,5 @@
-// loadout.js
+const DEFAULT_PRIMARY   = 'ak-47';
+const DEFAULT_SECONDARY = 'm79';
 
 const PRIMARIES = [
   { key: 'ak-47',   img: 'https://codehs.com/uploads/7aab0473bfe25a8df97fee546120aa5d' },
@@ -11,13 +12,13 @@ const SECONDARIES = [
 
 function initLoadout() {
   // Populate buttons
-  populateWeaponGrid('primary-container', PRIMARIES, 'primary');
+  populateWeaponGrid('primary-container',   PRIMARIES,   'primary');
   populateWeaponGrid('secondary-container', SECONDARIES, 'secondary');
 
-  // Load saved choices
+  // Load saved choices (or defaults) and select them in the UI
   const saved = loadLoadout();
-  if (saved.primary)   selectButton(saved.primary,   'primary');
-  if (saved.secondary) selectButton(saved.secondary, 'secondary');
+  selectButton(saved.primary,   'primary');
+  selectButton(saved.secondary, 'secondary');
 
   // Confirm click
   document.getElementById('loadout-confirm')
@@ -27,7 +28,7 @@ function initLoadout() {
       updateHUD();
     });
   
-  // On startup, immediately update HUD from storage
+  // On startup, immediately update HUD from storage (or defaults)
   updateHUD();
 }
 
@@ -39,9 +40,7 @@ function populateWeaponGrid(containerId, list, slotType) {
     btn.style.backgroundImage = `url(${w.img})`;
     btn.dataset.key = w.key;
     btn.dataset.slot = slotType;
-    btn.onclick = () => {
-      selectButton(w.key, slotType);
-    };
+    btn.onclick = () => selectButton(w.key, slotType);
     container.appendChild(btn);
   });
 }
@@ -51,15 +50,17 @@ function selectButton(key, slotType) {
   document.querySelectorAll(`.weapon-button[data-slot="${slotType}"]`)
     .forEach(b => b.classList.remove('selected'));
   // select this one
-  const btn = document.querySelector(`.weapon-button[data-slot="${slotType}"][data-key="${key}"]`);
+  const btn = document.querySelector(
+    `.weapon-button[data-slot="${slotType}"][data-key="${key}"]`
+  );
   if (btn) btn.classList.add('selected');
 }
 
 function loadLoadout() {
-  return {
-    primary:   localStorage.getItem('loadout_primary'),
-    secondary: localStorage.getItem('loadout_secondary'),
-  };
+  // Pull from localStorage, or fall back to defaults if nothing stored
+  const primary = localStorage.getItem('loadout_primary')   || DEFAULT_PRIMARY;
+  const secondary = localStorage.getItem('loadout_secondary') || DEFAULT_SECONDARY;
+  return { primary, secondary };
 }
 
 function saveLoadout() {
@@ -74,9 +75,9 @@ function updateHUD() {
   hud.innerHTML = ''; // clear old
   const { primary, secondary } = loadLoadout();
   [primary, secondary].forEach((key, idx) => {
-    if (!key) return;
-    // find the image URL
-    const data = (idx === 0 ? PRIMARIES : SECONDARIES).find(w => w.key === key);
+    // find the data in the right slot array
+    const data = (idx === 0 ? PRIMARIES : SECONDARIES)
+                   .find(w => w.key === key);
     if (data) {
       const img = document.createElement('img');
       img.src = data.img;
