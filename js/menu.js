@@ -1594,12 +1594,14 @@ function careerButtonHit() {
   let y = 150;
   const lineHeight = 30;
 
+  const ctx = document.createElement("canvas").getContext("2d");
+  ctx.font = "20pt Arial"; // Use the same font to measure
 
   function createStatText(content, x, y) {
     const text = new Text(content, "20pt Arial");
     text.setColor("#ffffff");
     text.setLayer(4);
-    text.originalFontSize = 20; // This property was in your original Text creation
+    text.originalFontSize = 20;
     text.setPosition(x, y);
     return text;
   }
@@ -1620,15 +1622,11 @@ function careerButtonHit() {
       `K/D Ratio: ${kd}`
     ];
 
-    const canvasWidth = getWidth(); // This should return the total width of your drawing area/canvas
+    const canvasWidth = getWidth();
 
     for (let i = 0; i < lines.length; i++) {
       const lineContent = lines[i];
-      // Create a temporary text object to measure its width using the new getWidth method
-      const tempText = new Text(lineContent, "20pt Arial");
-      const textWidth = tempText.getWidth(ctx); // Pass the context to getWidth()
-
-      // Calculate x to center the text
+      const textWidth = ctx.measureText(lineContent).width;
       const x = (canvasWidth - textWidth) / 2;
 
       const line = createStatText(lineContent, x, y + i * lineHeight);
@@ -1662,20 +1660,14 @@ function careerButtonHit() {
     .catch(err => {
       console.error("Error loading career stats:", err);
       const errorLineContent = "Unable to load stats.";
-
-      const canvasWidth = getWidth(); // Make sure to get canvas width here too
-
-      // Use the new getWidth method for the error text as well
-      const tempErrorText = new Text(errorLineContent, "20pt Arial");
-      const errorTextWidth = tempErrorText.getWidth(ctx); // Pass the context
-
+      const canvasWidth = getWidth();
+      const errorTextWidth = ctx.measureText(errorLineContent).width;
       const errorX = (canvasWidth - errorTextWidth) / 2;
 
       const errorText = createStatText(errorLineContent, errorX, y);
       add(errorText);
     });
 }
-
 /**
  * Handles the "Loadout" button click.
  * Clears the current menu and displays a placeholder loadout screen.
