@@ -1011,6 +1011,112 @@ function clearMenuCanvas() {
 let username = localStorage.getItem("username") || '';
 
 
+
+
+
+let gameMenuShape = null;
+let isMenuVisible = false;
+
+/**
+ * Call this once after your canvas & menu-overlay exist.
+ * @param {string} containerId  The ID of your CodeHS canvas parent (e.g. "game-container")
+ * @param {string} imageUrl     The URL of the slide-in image
+ */
+export function initGameMenu(containerId, imageUrl) {
+  // Create the ImageShape off-screen and invisible
+  gameMenuShape = new ImageShape(imageUrl);
+  gameMenuShape.setSize(1920, 1080);
+  gameMenuShape.setPosition(getWidth()/2 - 960, -1080);
+  gameMenuShape.setOpacity(0);
+  gameMenuShape.setLayer(999);      // on top of everything
+  add(gameMenuShape);
+
+  // Ensure the DOM overlay exists & is hidden
+  const overlay = document.getElementById("menu-overlay");
+  if (overlay) overlay.classList.add("hidden");
+}
+
+/**
+ * Attaches the Escape key listener to toggle the menu.
+ */
+export function bindEscapeToggle() {
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") toggleGameMenu();
+  });
+}
+
+/**
+ * Slides the menu in/out and toggles the DOM overlay.
+ */
+export function toggleGameMenu() {
+  if (!gameMenuShape) return;
+
+  const overlay = document.getElementById("menu-overlay");
+  if (!overlay) return;
+
+  if (!isMenuVisible) {
+    // show
+    overlay.classList.remove("hidden");
+    slideAndFade(
+      gameMenuShape,
+      { toY: getHeight()/2 - 540, toOpacity: 1, duration: 600, easing: "easeOutCubic" }
+    );
+  } else {
+    // hide
+    slideAndFade(
+      gameMenuShape,
+      {
+        toY: -1080,
+        toOpacity: 0,
+        duration: 600,
+        easing: "easeInCubic",
+        onComplete: () => overlay.classList.add("hidden")
+      }
+    );
+  }
+  isMenuVisible = !isMenuVisible;
+}
+
+
+/** 
+ * Simple tween helper. Can be moved to its own utils file if you want.
+ */
+function slideAndFade(target, { toY, toOpacity, duration, easing, onComplete } = {}) {
+  const startY = target.getY();
+  const startOp = target.getOpacity();
+  const dy = toY - startY, dOp = toOpacity - startOp;
+  const t0 = performance.now();
+
+  function ease(t) {
+    if (easing === "easeOutCubic") return 1 - Math.pow(1 - t, 3);
+    if (easing === "easeInCubic")  return t * t * t;
+    return t;
+  }
+
+  function step() {
+    const now = performance.now();
+    let t = Math.min(1, (now - t0) / duration);
+    t = ease(t);
+    target.setPosition(target.getX(), startY + dy * t);
+    target.setOpacity(startOp + dOp * t);
+    if (t < 1) requestAnimationFrame(step);
+    else if (onComplete) onComplete();
+  }
+  requestAnimationFrame(step);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 let playButton = createAnimatedButton(
     "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
     1920 / 6, 1080 / 6, // Original width and height
@@ -1255,6 +1361,8 @@ function showMenuOverlay() {
 async function initAndStartGame(username, mapName, gameId = null) {
      dontyetpls = 0;
      hud.style.display = "block";
+  initGameMenu("game-container", "https://codehs.com/uploads/2455c9b2b9cbdc692c6a11e39a736cf5");
+  bindEscapeToggle();
   // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === true;
   const ffaEnabled     = true; // ← or read from your HTML toggle if you have one
