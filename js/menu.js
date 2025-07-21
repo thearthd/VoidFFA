@@ -360,6 +360,7 @@ export class Text {
         this.opacity = 1.0;
         this.anchorX = 0;    // Default: top-left (0 for horizontal)
         this.anchorY = 0;
+        this.originalFontSize = 0; // Added this property as it was in the original code
     }
 
     /**
@@ -427,6 +428,56 @@ export class Text {
     setLayer(l) { this.layer = l; }
 
     /**
+     * Calculates and returns the width of the text.
+     * This method requires a CanvasRenderingContext2D to accurately measure text.
+     * @param {CanvasRenderingContext2D} ctx - The canvas rendering context.
+     * @returns {number} The width of the text in pixels.
+     */
+    getWidth(ctx) {
+        if (!ctx) {
+            console.warn("Text.getWidth() called without a CanvasRenderingContext2D. Cannot accurately measure text width.");
+            // Fallback: return a rough estimate or 0, depending on desired behavior
+            // For now, returning 0 to highlight the need for ctx.
+            return 0;
+        }
+        ctx.save(); // Save the current context state
+        ctx.font = this.font; // Set the font for accurate measurement
+        const metrics = ctx.measureText(this.text);
+        ctx.restore(); // Restore the context state
+        return metrics.width;
+    }
+
+    /**
+     * Calculates and returns the height of the text.
+     * This method requires a CanvasRenderingContext2D to accurately measure text.
+     * Note: Text height can be more complex than width. This uses common metrics.
+     * @param {CanvasRenderingContext2D} ctx - The canvas rendering context.
+     * @returns {number} The height of the text in pixels.
+     */
+    getHeight(ctx) {
+        if (!ctx) {
+            console.warn("Text.getHeight() called without a CanvasRenderingContext2D. Cannot accurately measure text height.");
+            return 0;
+        }
+        ctx.save();
+        ctx.font = this.font;
+        const metrics = ctx.measureText(this.text);
+        ctx.restore();
+        // A common way to estimate height is ascent + descent.
+        // If these properties are not available or if a simpler estimate is needed,
+        // you might infer from font size or use a fixed line height.
+        if (metrics.actualBoundingBoxAscent && metrics.actualBoundingBoxDescent) {
+            return metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+        }
+        // Fallback: A very rough estimate based on font size (e.g., 1.2 times font size)
+        // This requires parsing the font string, which can be complex.
+        // For simplicity, if bounding box metrics aren't available, we might return 0
+        // or a default value, or you might need a more robust font size parser.
+        // Given the context, '20pt Arial' implies a standard font, so bounding box should work.
+        return 0; // Or a more sophisticated fallback if needed
+    }
+
+    /**
      * Draws the text on the canvas context.
      * @param {CanvasRenderingContext2D} ctx - The canvas rendering context.
      */
@@ -435,12 +486,13 @@ export class Text {
         ctx.globalAlpha = this.opacity;
         ctx.fillStyle = this.color;
         ctx.font = this.font;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center'; // Your original code sets this, so keep it for drawing
+        ctx.textBaseline = 'middle'; // Your original code sets this, so keep it for drawing
         ctx.fillText(this.text, this.x, this.y);
         ctx.restore();
     }
 }
+
 
 /**
  * Represents an image shape.
@@ -1539,15 +1591,33 @@ function careerButtonHit() {
   addBackButton();
 
   const username = localStorage.getItem('username') || 'Guest';
-  // Remove startX as it will be calculated dynamically
   let y = 150;
   const lineHeight = 30;
+
+  // IMPORTANT: Get your canvas context here.
+  // Replace 'getCanvasContext()' with the actual way to get your canvas's 2D context.
+  // For example, if you have a global 'canvas' variable:
+  // const ctx = canvas.getContext('2d');
+  // Or if you pass it around:
+  const canvasElement = document.getElementById('yourGameCanvasId'); // Replace with your actual canvas ID
+  const ctx = canvasElement ? canvasElement.getContext('2d') : null;
+
+  if (!ctx) {
+    console.error("Could not get canvas 2D context. Text measurement and drawing may fail.");
+    // Handle this error appropriately, e.g., display a simpler message or exit.
+    const errorText = new Text("Error: Canvas not found.", "20pt Arial");
+    errorText.setColor("#ffffff");
+    errorText.setPosition(getWidth() / 2, y); // Center roughly
+    add(errorText);
+    return; // Exit if context is not available
+  }
+
 
   function createStatText(content, x, y) {
     const text = new Text(content, "20pt Arial");
     text.setColor("#ffffff");
     text.setLayer(4);
-    text.originalFontSize = 20;
+    text.originalFontSize = 20; // This property was in your original Text creation
     text.setPosition(x, y);
     return text;
   }
@@ -1568,18 +1638,17 @@ function careerButtonHit() {
       `K/D Ratio: ${kd}`
     ];
 
-    // Get the canvas width (assuming getWidth() is a function that returns it)
-    const canvasWidth = getWidth(); 
+    const canvasWidth = getWidth(); // This should return the total width of your drawing area/canvas
 
     for (let i = 0; i < lines.length; i++) {
       const lineContent = lines[i];
-      // Create a temporary text object to measure its width
-      const tempText = new Text(lineContent, "20pt Arial"); 
-      const textWidth = tempText.getWidth();
-      
+      // Create a temporary text object to measure its width using the new getWidth method
+      const tempText = new Text(lineContent, "20pt Arial");
+      const textWidth = tempText.getWidth(ctx); // Pass the context to getWidth()
+
       // Calculate x to center the text
-      const x = (canvasWidth - textWidth) / 2; 
-      
+      const x = (canvasWidth - textWidth) / 2;
+
       const line = createStatText(lineContent, x, y + i * lineHeight);
       add(line);
     }
@@ -1610,11 +1679,14 @@ function careerButtonHit() {
     })
     .catch(err => {
       console.error("Error loading career stats:", err);
-      // For error message, also center it
       const errorLineContent = "Unable to load stats.";
-      const tempErrorText = new Text(errorLineContent, "20pt Arial");
-      const errorTextWidth = tempErrorText.getWidth();
+
       const canvasWidth = getWidth(); // Make sure to get canvas width here too
+
+      // Use the new getWidth method for the error text as well
+      const tempErrorText = new Text(errorLineContent, "20pt Arial");
+      const errorTextWidth = tempErrorText.getWidth(ctx); // Pass the context
+
       const errorX = (canvasWidth - errorTextWidth) / 2;
 
       const errorText = createStatText(errorLineContent, errorX, y);
