@@ -42,6 +42,7 @@ export function getSpreadMultiplier(
   const isAirborne = !isGrounded;
   const speed = velocity.length();
 
+  // Weapon-specific spread values
   let standingBase, runBase, airBase, crouchFactor, runThreshold, aimFactor;
   switch (weaponKey) {
     case "ak-47":
@@ -73,12 +74,12 @@ export function getSpreadMultiplier(
       crouchFactor = 0.50; runThreshold = 4; aimFactor = 0.25;
   }
 
-  // ✅ OVERRIDE: If airborne, return pure airborne spread immediately
-  if (isAirborne) {
+  // ✅ Override spread if airborne — for all weapons except marshal
+  if (isAirborne && weaponKey !== "marshal") {
     return airBase;
   }
 
-  // Otherwise, calculate normal ground spread logic
+  // Standard grounded/movement-based spread logic
   let currentSpreadAngle;
   if (speed <= 3) {
     currentSpreadAngle = standingBase;
@@ -89,9 +90,11 @@ export function getSpreadMultiplier(
     currentSpreadAngle = standingBase * (1 - t) + runBase * t;
   }
 
+  // Apply crouch and aim modifiers
   if (isCrouched) currentSpreadAngle *= crouchFactor;
   if (isAiming) currentSpreadAngle *= aimFactor;
 
+  // Recoil pattern (AK-47 only)
   if (weaponKey === "ak-47") {
     const recoilPatternValue = getRecoilAngle(weaponKey, shotIndex);
     currentSpreadAngle += recoilPatternValue * 1;
