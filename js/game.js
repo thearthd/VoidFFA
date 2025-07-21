@@ -2227,6 +2227,12 @@ mesh.rotation.set(M.degToRad(0), M.degToRad(0), 0);
 mesh.position.set(0.5, 0.8 - 1.4, 0);
 break;
 
+case "m79":
+mesh.scale.set(0.5, 0.5, 0.5);
+mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
+mesh.position.set(0.5, 0.8 - 1.4, 0);
+break;
+
 default:
 console.warn(`resetWeaponPose(): unknown weapon "${weaponKey}"`);
 }
@@ -2288,6 +2294,15 @@ clone.scale.set(2, 2, 2);
 clone.rotation.set(
 THREE.MathUtils.degToRad(0),
 THREE.MathUtils.degToRad(0),
+0
+);
+clone.position.set(0.5, 0.8 - 1.4, 0);
+break;
+case "m79":
+clone.scale.set(0.5, 0.5, 0.5);
+clone.rotation.set(
+THREE.MathUtils.degToRad(0),
+THREE.MathUtils.degToRad(180),
 0
 );
 clone.position.set(0.5, 0.8 - 1.4, 0);
