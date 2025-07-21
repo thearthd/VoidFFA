@@ -1537,14 +1537,6 @@ function careerButtonHit() {
     clearMenuCanvas();
     add(logo);
 
-
-    // You can add your career UI elements here
-    let careerText = new Text("View your stats and achievements.", "30pt Arial");
-    careerText.setColor("#aaaaaa");
-    careerText.setPosition(getWidth() / 2, getHeight() / 2);
-    add(careerText);
-    currentMenuObjects.push(careerText);
-
     addBackButton();
 }
 
