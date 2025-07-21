@@ -49,6 +49,8 @@ updateHealthShieldUI,
 createTracer
 } from "./ui.js";
 
+import { userStatsRef } from './firebase-config.js';
+
 import { initInput, inputState, postFrameCleanup } from "./input.js";
 import { PhysicsController } from "./physics.js";
 import { WeaponController, _prototypeModels, getWeaponModel, activeTracers }  from "./weapons.js";
@@ -234,55 +236,73 @@ bloomPass = null;
 }
 
 async function determineWinnerAndEndGame() {
-    console.log("Determining winner and ending game...");
+  console.log("Determining winner and ending game...");
 
-    if (!playersRef) {
-        console.error("determineWinnerAndEndGame: playersRef is NULL, cannot determine winner.");
-        return;
+  if (!playersRef) {
+    console.error("determineWinnerAndEndGame: playersRef is NULL");
+    return;
+  }
+
+  // 1) Pull all players’ final stats
+  const playersSnapshot = await playersRef.once("value");
+  let winner = { username: "No one", kills: -1, deaths: 0 };
+  const statsByUser = {};
+
+  playersSnapshot.forEach(childSnap => {
+    const p = childSnap.val();
+    if (!p || typeof p.kills !== 'number') return;
+    statsByUser[p.username] = {
+      kills:  p.kills || 0,
+      deaths: p.deaths || 0,
+      win:    0
+    };
+    if (p.kills > winner.kills) {
+      winner = { username: p.username, kills: p.kills, deaths: p.deaths || 0 };
     }
+  });
 
-    const playersSnapshot = await playersRef.once("value");
-    let winner = { username: "No one", kills: -1 };
-    const playerIdsToDisconnect = [];
+  // Mark the winner
+  if (winner.username in statsByUser) {
+    statsByUser[winner.username].win = 1;
+  }
 
-    playersSnapshot.forEach(childSnap => {
-        const player = childSnap.val();
-        if (player && typeof player.kills === 'number') {
-            playerIdsToDisconnect.push(childSnap.key);
-            if (player.kills > winner.kills) {
-                winner = { username: player.username, kills: player.kills };
-            }
-        }
-    });
+  // 2) Store winner in localStorage & UI
+  console.log(`WINNER: ${winner.username} (${winner.kills} kills, ${winner.deaths} deaths)`);
+  localStorage.setItem('gameWinner', JSON.stringify(winner));
+  localStorage.setItem('gameEndedTimestamp', Date.now().toString());
+  const gameTimerEl = document.getElementById("game-timer");
+  if (gameTimerEl) {
+    gameTimerEl.textContent = `WINNER: ${winner.username}`;
+    gameTimerEl.style.display = "block";
+  }
 
-    // Store winner in localStorage
-    console.log(`PRE-DISCONNECT: The winner is ${winner.username} with ${winner.kills} kills!`);
-    localStorage.setItem('gameWinner', JSON.stringify(winner));
-    localStorage.setItem('gameEndedTimestamp', Date.now().toString());
+  // 3) Update cumulative stats in /userStats via transactions
+  //    This ensures we correctly increment even if multiple games end concurrently.
+  const updates = Object.entries(statsByUser).map(
+    ([username, { kills, deaths, win }]) =>
+      userStatsRef.child(username).transaction(current => {
+        return {
+          kills:  (current?.kills  || 0) + kills,
+          deaths: (current?.deaths || 0) + deaths,
+          wins:   (current?.wins   || 0) + win
+        };
+      })
+  );
+  // Wait for **all** stats to be updated before teardown
+  await Promise.all(updates);
 
-    // Show the banner
-    const gameTimerElement = document.getElementById("game-timer");
-    if (gameTimerElement) {
-        gameTimerElement.textContent = `WINNER: ${winner.username}`;
-        gameTimerElement.style.display = "block";
-    }
-
-    // Detach the kills listener if it’s still on
-    if (playersKillsListener) {
-        playersRef.off("value", playersKillsListener);
-        playersKillsListener = null;
-        console.log("Detached players kill listener.");
-    }
-
-    // 1) Dispose game internals (loops, audio, etc.)
-    await disposeGame();
-
-    // 2) Full cleanup of Firebase data & Three.js scene
-    await fullCleanup(activeGameId);
-
-    // 3) Finally, disconnect everyone (this triggers their reload)
-    playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
+  // 4) Detach listeners, cleanup, and disconnect players
+  if (playersKillsListener) {
+    playersRef.off("value", playersKillsListener);
+    playersKillsListener = null;
+    console.log("Detached players kill listener.");
+  }
+  await disposeGame();
+  await fullCleanup(activeGameId);
+  playersSnapshot.forEach(childSnap => disconnectPlayer(childSnap.key));
 }
+
+
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 
 document.addEventListener('DOMContentLoaded', () => {
