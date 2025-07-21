@@ -8,6 +8,7 @@ export const RECOIL_PATTERN = {
   ],
   deagle: [0.025],
   marshal: [0.055],
+  m79: [0.010],
 };
 
 export const ADS_FOV = {
@@ -15,6 +16,7 @@ export const ADS_FOV = {
   deagle: 50,
   ak47: 60,
   marshal: 10,
+  m79: 70,
 };
 
 /**
@@ -54,6 +56,10 @@ export function getSpreadMultiplier(
     case "marshal":
       standingBase = 0.1; runBase = 0.15; airBase = 0.2;
       crouchFactor = 0.40; runThreshold = 4; aimFactor = 0.01;
+      break;
+    case "m79":
+      standingBase = 0.05; runBase = 0.1; airBase = 0.15;
+      crouchFactor = 0.50; runThreshold = 4; aimFactor = 0.25;
       break;
     case "mp5":
       standingBase = 0.3; runBase = 1; airBase = 1.1;
