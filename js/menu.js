@@ -1116,6 +1116,9 @@ let playerCard = createAnimatedButton(
 
  playerCard.setText(username); // REMOVED TEXT
 
+let settingsMenu = new ImageShape("https://codehs.com/uploads/56483d9381657b285dc5dd85277963dd");
+settingsMenu.setSize(1920/2, 1080/2);
+settingsMenu.setPosition(getWidth()/2 - ((1920/2)/2), getHeight()/2 - ((1080/2)/2));
 
 
 function playerCardHit() {
@@ -1556,7 +1559,7 @@ function addBackButton(destination, func) {
 function settingsButtonHit() {
     clearMenuCanvas();
     add(logo);
-
+     add(settingsMenu);
     // Get the HTML elements for the sensitivity slider and settings box
 
 
