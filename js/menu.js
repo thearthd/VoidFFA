@@ -1558,7 +1558,6 @@ function addBackButton(destination, func) {
  */
 function settingsButtonHit() {
     clearMenuCanvas();
-    add(logo);
      add(settingsMenu);
     // Get the HTML elements for the sensitivity slider and settings box
 
