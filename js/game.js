@@ -49,7 +49,7 @@ updateHealthShieldUI,
 createTracer
 } from "./ui.js";
 
-import { userStatsRef } from './firebase-config.js';
+import { usersRef } from './firebase-config.js';
 
 import { initInput, inputState, postFrameCleanup } from "./input.js";
 import { PhysicsController } from "./physics.js";
@@ -276,22 +276,16 @@ async function determineWinnerAndEndGame() {
     gameTimerEl.style.display = "block";
   }
 
-  // 3) Update cumulative stats in /userStats via transactions
-  //    This ensures we correctly increment even if multiple games end concurrently.
-  const updates = Object.entries(statsByUser).map(
-    ([username, { kills, deaths, win }]) =>
-      userStatsRef.child(username).transaction(current => {
-        return {
-          kills:  (current?.kills  || 0) + kills,
-          deaths: (current?.deaths || 0) + deaths,
-          wins:   (current?.wins   || 0) + win
-        };
-      })
-  );
-  // Wait for **all** stats to be updated before teardown
-  await Promise.all(updates);
+  // 3) Increment only the 'wins' stat under /users/{username}/stats/wins
+  //    (kills/deaths have already been bumped in real time)
+  const winUpdates = Object.entries(statsByUser)
+    .filter(([_, { win }]) => win === 1)
+    .map(([username]) =>
+      incrementUserStat(username, 'wins', 1)
+    );
+  await Promise.all(winUpdates);
 
-  // 4) Detach listeners, cleanup, and disconnect players
+  // 4) Teardown
   if (playersKillsListener) {
     playersRef.off("value", playersKillsListener);
     playersKillsListener = null;
@@ -2380,6 +2374,15 @@ entry.group.userData.velocityY = 0;
 // -------------------------------------------------------------
 // Applies damage and flashes red, then reverts to originalColor
 // -------------------------------------------------------------
+function incrementUserStat(username, field, amount) {
+  return usersRef
+    .child(username)
+    .child('stats')
+    .child(field)
+    .transaction(current => (current || 0) + amount)
+    .catch(err => console.warn(`[Stats] ${username}.${field} update failed:`, err));
+}
+
 function applyDamageToRemote(targetId, damage, killerInfo) {
     if (targetId === window.localPlayer.id) {
         if (killerInfo && killerInfo.id) {
@@ -2424,6 +2427,8 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
             };
 
             if (newHP <= 0) {
+                incrementUserStat(data.username, 'deaths', 1);
+
                 Object.assign(updateData, {
                     deaths: (data.deaths || 0) + 1,
                     ks: 0,
@@ -2438,22 +2443,16 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                             .then(snap2 => {
                                 const kd = snap2.val() || {};
                                 const newKills = (kd.kills || 0) + 1;
-                                const newKS = (kd.ks || 0) + 1;
+                                const newKS    = (kd.ks    || 0) + 1;
 
-                                window.localPlayer.kills = newKills; // Update local cache
-                                window.localPlayer.ks = newKS;       // Update local cache
+                                window.localPlayer.kills = newKills;
+                                window.localPlayer.ks    = newKS;
 
                                 return playersRef.child(window.localPlayer.id)
-                                    .update({
-                                        kills: newKills,
-                                        ks: newKS
-                                    })
+                                    .update({ kills: newKills, ks: newKS })
                                     .then(() => {
-                                        // **REMOVED: The check for 40 kills here.**
-                                        // This check is now handled by the playersKillsListener.
-                                        // This function's primary job is to apply damage and update stats.
+                                        incrementUserStat(window.localPlayer.username, 'kills', 1);
 
-                                        // Play kill-streak sound for local player
                                         if (killerInfo.id === window.localPlayer.id) {
                                             const streak = newKS >= 10 ? 10 : newKS;
                                             const url = typeof KILLSTREAK_SOUNDS !== 'undefined' ? KILLSTREAK_SOUNDS[streak] : null;
@@ -2473,9 +2472,9 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
                         }
                         if (typeof killsRef !== 'undefined') {
                             return killsRef.push({
-                                killer: window.localPlayer.username,
-                                victim: data.username,
-                                weapon: window.localPlayer.weapon,
+                                killer:    window.localPlayer.username,
+                                victim:    data.username,
+                                weapon:    window.localPlayer.weapon,
                                 timestamp: Date.now()
                             });
                         }
