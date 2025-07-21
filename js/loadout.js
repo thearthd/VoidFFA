@@ -11,8 +11,8 @@ const SECONDARIES = [
 ];
 
 function initLoadout() {
-  populateWeaponGrid('primary-container', PRIMARIES, 'primary');
-  populateWeaponGrid('secondary-container', SECONDARIES, 'secondary');
+  //populateWeaponGrid('primary-container', PRIMARIES, 'primary');
+ // populateWeaponGrid('secondary-container', SECONDARIES, 'secondary');
 
   const saved = loadLoadout();
   selectButton(saved.primary, 'primary');
