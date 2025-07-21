@@ -35,6 +35,23 @@ export class AudioManager {
     return sound;
 }
 
+        stopBackgroundSound(sound) {
+        if (sound && sound.isPlaying) {
+            sound.stop();
+            // Optional: Remove it from the active set if you don't want to track it anymore
+            this.active.delete(sound);
+            // Optional: You might want to disconnect the source to fully clean up resources
+            if (sound.source && typeof sound.source.disconnect === "function") {
+                try {
+                    sound.source.disconnect();
+                } catch (e) {
+                    console.error("Error disconnecting background audio source:", e);
+                }
+            }
+        }
+    }
+
+
     playSpatial(url, worldPosition, { loop = false, volume = 1, hearingRange = 100, rolloffFactor = 2, distanceModel = 'linear' } = {}) {
         const pa = new THREE.PositionalAudio(this.listener);
         pa.position.copy(worldPosition);
