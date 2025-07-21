@@ -582,32 +582,30 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
   playersRef = dbRefs.playersRef;
   gameConfigRef = dbRefs.gameConfigRef;
-  // NEW: Reference for the timer master status
   const gameTimerMasterRef = gameConfigRef.child("timerMaster");
 
   const gameTimerElement = document.getElementById("game-timer");
+
+  // Declare currentRemainingSeconds here, outside the if (ffaEnabled) block
+  // but still within the startGame function's scope.
+  let currentRemainingSeconds = null; // Initialize to null to indicate syncing
 
   if (ffaEnabled) {
     gameTimerElement.style.display = "block";
 
     const initialGameDurationSeconds = 1 * 60; // 1 minute for testing, revert to 10 * 60 for actual game
 
-    // Clear any existing interval before starting a new one (important for re-entry)
     if (gameInterval) {
       clearInterval(gameInterval);
-      gameInterval = null; // Clear the global variable
+      gameInterval = null;
     }
 
     let isTimerMaster = false; // Flag to indicate if this client is the timer master
 
-    // Try to become the timer master using a Firebase transaction
-    // This ensures only one client successfully writes its ID as the master
     await gameTimerMasterRef.transaction(currentMasterId => {
       if (currentMasterId === null) {
-        // No master exists, claim it!
-        return localPlayerId; // Set current client's ID as the master
+        return localPlayerId;
       }
-      // A master already exists, abort the transaction
       return undefined;
     }).then(result => {
       if (result.committed && result.snapshot.val() === localPlayerId) {
@@ -620,33 +618,25 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
       console.error("Error trying to become timer master:", error);
     });
 
-    // 1) Listen for the game duration AND the master status in Firebase.
-    // All clients listen to the gameDuration. Only the master writes to it.
+    // Listener for gameDuration (all clients)
     gameConfigRef.child("gameDuration").on("value", snapshot => {
       const duration = snapshot.val();
       if (typeof duration === "number") {
-        // If the duration is explicitly set in Firebase, update local
-        // This handles cases where master changes or initial sync
-        currentRemainingSeconds = duration;
+        currentRemainingSeconds = duration; // Update local variable
       } else if (duration === null && isTimerMaster) {
-        // If duration doesn't exist AND this client is the master, set it initially
         gameConfigRef.child("gameDuration").set(initialGameDurationSeconds)
           .then(() => console.log("Timer master set initial game duration."))
           .catch(err => console.error("Error setting initial game duration:", err));
       }
     });
 
-    // Listen to changes in timer master (e.g., if current master disconnects)
-    // This is optional but good for robustness
+    // Listener for timerMaster changes (all clients)
     gameTimerMasterRef.on("value", snapshot => {
       const masterId = snapshot.val();
       if (masterId === localPlayerId) {
-        // This client *is* the master (or just became it)
         isTimerMaster = true;
       } else {
-        // Another client is the master, or no master
         isTimerMaster = false;
-        // If this client was the master and now isn't, clear its interval
         if (gameInterval) {
           clearInterval(gameInterval);
           gameInterval = null;
@@ -654,20 +644,17 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
       }
     });
 
-    // 2) Start a per-second countdown based on the synced duration
-    // Only the timer master will run the decrement logic and update Firebase
     gameInterval = setInterval(async () => {
-      // Check if this client is the timer master BEFORE doing anything with decrementing
       if (!isTimerMaster) {
-        // Non-master clients just update their display based on the listener
-        const mins = Math.floor(currentRemainingSeconds / 60);
-        const secs = currentRemainingSeconds % 60;
-        gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
-        // If currentRemainingSeconds is null (e.g., initial sync)
+        // Non-master clients just update their display
         if (currentRemainingSeconds === null) {
           gameTimerElement.textContent = "Time: Syncing…";
+        } else {
+          const mins = Math.floor(currentRemainingSeconds / 60);
+          const secs = currentRemainingSeconds % 60;
+          gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
         }
-        return; // Exit if not the master, do not decrement or write to Firebase
+        return;
       }
 
       // Logic below runs ONLY for the timer master
@@ -678,37 +665,30 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
       if (currentRemainingSeconds <= 0) {
         clearInterval(gameInterval);
-        gameInterval = null; // Ensure global var is cleared
+        gameInterval = null;
         gameTimerElement.textContent = "TIME UP!";
-        // The master removes the duration, signaling game over for others too
         await gameConfigRef.child("gameDuration").remove()
           .catch(err => console.error("Error removing gameDuration:", err));
-        await gameTimerMasterRef.remove() // Master also removes its master status
+        await gameTimerMasterRef.remove()
           .catch(err => console.error("Error removing timerMaster status:", err));
         determineWinnerAndEndGame();
-        return; // Exit the interval callback
+        return;
       }
 
-      currentRemainingSeconds--; // Decrement every second (only for master)
+      currentRemainingSeconds--;
 
       const mins = Math.floor(currentRemainingSeconds / 60);
       const secs = currentRemainingSeconds % 60;
 
       gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
 
-      // Update Firebase *only if this is the master* and time is still positive
-      if (currentRemainingSeconds >= 0) { // Update even at 0 before calling end game
+      if (currentRemainingSeconds >= 0) {
         await gameConfigRef.child("gameDuration").set(currentRemainingSeconds)
           .catch(err => console.error("Error updating gameDuration:", err));
       }
 
-    }, 1000); // Update every 1 second
+    }, 1000);
 
-    // 3) First-to-X-kills listener
-    // This listener should be active on ALL clients, but only ONE client (ideally the master,
-    // or any client that detects it first) should trigger determineWinnerAndEndGame to avoid race conditions.
-    // For simplicity, we'll let any client trigger it for now, but in a robust system, you'd
-    // have a "game state" variable that only one client updates to "ended".
     if (playersKillsListener) {
       playersRef.off("value", playersKillsListener);
     }
@@ -721,43 +701,37 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         }
       });
       if (reachedThreshold) {
-        // To prevent multiple calls to determineWinnerAndEndGame,
-        // you should ensure game state is updated.
-        // For now, let's just clear intervals/listeners on *this* client.
         console.log("Kill threshold reached. Ending game...");
         playersRef.off("value", playersKillsListener);
-        playersKillsListener = null; // Clear global variable
+        playersKillsListener = null;
         if (gameInterval) {
           clearInterval(gameInterval);
-          gameInterval = null; // Clear global variable
+          gameInterval = null;
         }
-        // Only the master or a designated "game manager" should trigger this cleanup
-        // to avoid multiple calls. If this is *not* the master, it should wait for
-        // the master to update the game state to "ended".
-        // For this example, if the kill threshold is reached, we'll let any client
-        // trigger the end game if it's the master or if no master is explicitly set (edge case).
-        if (isTimerMaster || (gameTimerMasterRef && gameTimerMasterRef.snapshot.val() === null)) { // Added snapshot.val() check
-            // Clear the timer master status and game duration
-            gameConfigRef.child("gameDuration").remove()
-                .catch(err => console.error("Error removing gameDuration on kill threshold:", err));
-            gameTimerMasterRef.remove()
-                .catch(err => console.error("Error removing timerMaster status on kill threshold:", err));
-            determineWinnerAndEndGame();
-        } else {
-            // If not the master, simply ensure local timer/listeners are off
-            // and let the master handle the full game end sequence.
-            console.log("Kill threshold reached, but not timer master. Awaiting master to end game.");
-        }
+
+        // Use a consistent way to check for master or unassigned master state
+        gameTimerMasterRef.once('value').then(masterSnapshot => {
+            const currentMasterFromDb = masterSnapshot.val();
+            if (isTimerMaster || currentMasterFromDb === null) {
+                // Only the master or the first one to detect it when no master is set
+                gameConfigRef.child("gameDuration").remove()
+                    .catch(err => console.error("Error removing gameDuration on kill threshold:", err));
+                gameTimerMasterRef.remove()
+                    .catch(err => console.error("Error removing timerMaster status on kill threshold:", err));
+                determineWinnerAndEndGame();
+            } else {
+                console.log("Kill threshold reached, but not timer master. Awaiting master to end game.");
+            }
+        });
       }
     });
 
-  } else { // If FFA is not enabled
+  } else {
     gameTimerElement.style.display = "none";
     if (gameInterval) {
       clearInterval(gameInterval);
       gameInterval = null;
     }
-    // Ensure duration and master status are cleared if FFA is off
     gameConfigRef.child("gameDuration").remove();
     gameConfigRef.child("timerMaster").remove();
   }
@@ -837,7 +811,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
   animate();
 }
-
 
 
 export function hideGameUI() {
