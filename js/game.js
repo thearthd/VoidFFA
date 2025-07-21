@@ -235,11 +235,6 @@ bloomPass = null;
 }
 }
 
-async function triggerEndGameOnce() {
-  const res = await gameConfigRef.child('meta/ended').transaction(curr => curr ? undefined : true);
-  if (!res.committed) return;
-  await determineWinnerAndEndGame();
-}
 
 // Compute winner, update stats, disconnect everyone
 async function determineWinnerAndEndGame() {
