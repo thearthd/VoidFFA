@@ -365,7 +365,7 @@ export async function createSigmaCity(scene, physicsController) {
     return spawnPoints;
 }
 
-export async function diddyDunes(scene, physicsController) {
+export async function createDiddyDunes(scene, physicsController) {
     // Track loaded meshes and readiness status
     window.envMeshes = [];
     window.mapReady = false;
