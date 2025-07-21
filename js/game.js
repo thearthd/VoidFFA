@@ -577,114 +577,138 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
   if (ffaEnabled) {
     gameTimerElement.style.display = "block";
 
-    // 1) Initialize duration and end flag
-    const initialGameDurationSeconds = 10 * 60; // 10 minutes
+    // 1) Initialize duration, end flag, and owner
+    const INITIAL_DURATION = 10 * 60; // 10 minutes in seconds
     let currentRemainingSeconds = null;
     let gameEnded = false;
+    let isOwner = false;
+    let ownerId = null;
+    let localInterval = null;
 
-    // 2) Sync duration from Firebase
-    gameConfigRef.child("gameDuration").on("value", snapshot => {
-      const duration = snapshot.val();
-      if (typeof duration === "number") {
-        currentRemainingSeconds = duration;
-      } else if (duration === null) {
-        // First-join: set initial duration
-        gameConfigRef.child("gameDuration").transaction(current => {
-          return current === null ? initialGameDurationSeconds : undefined;
-        });
+    // 2) Elect a timer-owner via transaction if none exists
+    const ownerRef = gameConfigRef.child('owner');
+    ownerRef.transaction(current => {
+      return current === null ? localPlayerId : undefined;
+    });
+
+    // 3) Ensure that when the owner disconnects, 'owner' is cleared
+    ownerRef.onDisconnect().remove();
+
+    // 4) Listen for changes to the owner field
+    ownerRef.on('value', snap => {
+      ownerId = snap.val();
+      isOwner = (ownerId === localPlayerId);
+
+      // If I just became owner, start the local countdown interval
+      if (isOwner && localInterval === null) {
+        startOwnerInterval();
+      }
+      // If I'm no longer owner, clear any existing interval
+      if (!isOwner && localInterval !== null) {
+        clearInterval(localInterval);
+        localInterval = null;
       }
     });
 
-    // 3) Listen for an explicit end flag
-    gameConfigRef.child("ended").on("value", snapshot => {
-      if (snapshot.val() === true && !gameEnded) {
+    // 5) Sync gameDuration from Firebase
+    gameConfigRef.child('gameDuration').on('value', snap => {
+      const val = snap.val();
+      if (typeof val === 'number') {
+        currentRemainingSeconds = val;
+      } else if (val === null) {
+        // first join (or after reset) sets initial duration
+        gameConfigRef.child('gameDuration').transaction(curr =>
+          curr === null ? INITIAL_DURATION : undefined
+        );
+      }
+    });
+
+    // 6) Listen for explicit end flag
+    gameConfigRef.child('ended').on('value', snap => {
+      if (snap.val() === true && !gameEnded) {
         gameEnded = true;
-        clearInterval(gameInterval);
-        gameTimerElement.textContent = "TIME UP!";
+        if (localInterval) clearInterval(localInterval);
+        gameTimerElement.textContent = 'TIME UP!';
         determineWinnerAndEndGame();
       }
     });
 
-    // 4) Clear any existing interval
-    if (gameInterval) clearInterval(gameInterval);
-
-    // 5) Start countdown locally
-    gameInterval = setInterval(() => {
-      if (gameEnded) return;
-
-      if (currentRemainingSeconds == null) {
-        gameTimerElement.textContent = "Time: Syncing…";
-        return;
-      }
-
-      if (currentRemainingSeconds <= 0) {
-        // flip the shared end flag
-        gameConfigRef.child("ended").set(true);
-        return;
-      }
-
-      // decrement & display
-      currentRemainingSeconds--;
-      const mins = Math.floor(currentRemainingSeconds / 60);
-      const secs = currentRemainingSeconds % 60;
-      gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
-
-      // push updated time
-      gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
-    }, 1000);
-
-    // 6) First-to-X-kills listener
-    if (playersKillsListener) playersRef.off("value", playersKillsListener);
-    playersKillsListener = playersRef.on("value", snapshot => {
-      let reachedThreshold = false;
-      snapshot.forEach(childSnap => {
-        if (childSnap.val().kills >= 40) {
-          reachedThreshold = true;
+    // 7) Function to start the interval on the owner client
+    function startOwnerInterval() {
+      localInterval = setInterval(() => {
+        if (gameEnded || currentRemainingSeconds == null) return;
+        if (currentRemainingSeconds <= 0) {
+          // Owner flips the end flag for everyone
+          gameConfigRef.child('ended').set(true);
+          return;
         }
+        // Decrement and broadcast
+        currentRemainingSeconds--;
+        gameConfigRef.child('gameDuration').set(currentRemainingSeconds);
+      }, 1000);
+    }
+
+    // 8) UI updater runs on every client
+    setInterval(() => {
+      if (currentRemainingSeconds == null) {
+        gameTimerElement.textContent = 'Time: Syncing…';
+      } else {
+        const mins = Math.floor(currentRemainingSeconds / 60);
+        const secs = currentRemainingSeconds % 60;
+        gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+      }
+    }, 250);
+
+    // 9) First-to-X-kills listener (only flips end flag)
+    if (playersKillsListener) playersRef.off('value', playersKillsListener);
+    playersKillsListener = playersRef.on('value', snap => {
+      let reached = false;
+      snap.forEach(child => {
+        if (child.val().kills >= 40) reached = true;
       });
-      if (reachedThreshold && !gameEnded) {
-        gameConfigRef.child("ended").set(true);
+      if (reached && !gameEnded) {
+        gameConfigRef.child('ended').set(true);
       }
     });
 
   } else {
     // Non-FFA cleanup
-    gameTimerElement.style.display = "none";
+    gameTimerElement.style.display = 'none';
     if (gameInterval) clearInterval(gameInterval);
-    gameConfigRef.child("gameDuration").remove();
-    gameConfigRef.child("ended").remove();
+    gameConfigRef.child('gameDuration').remove();
+    gameConfigRef.child('ended').remove();
+    gameConfigRef.child('owner').remove();
   }
 
-  // … rest of your initialization remains unchanged …
+  // … rest of initialization unchanged …
   initGlobalFogAndShadowParams();
   window.isGamePaused = false;
-  document.getElementById("menu-overlay").style.display = "none";
-  document.body.classList.add("game-active");
-  document.getElementById("game-container").style.display = "block";
-  document.getElementById("hud").style.display = "block";
-  document.getElementById("crosshair").style.display = "block";
+  document.getElementById('menu-overlay').style.display = 'none';
+  document.body.classList.add('game-active');
+  document.getElementById('game-container').style.display = 'block';
+  document.getElementById('hud').style.display = 'block';
+  document.getElementById('crosshair').style.display = 'block';
 
   if (!localPlayerId) {
-    console.error("No localPlayerId after initNetwork—cannot proceed.");
+    console.error('No localPlayerId after initNetwork—cannot proceed.');
     return;
   }
 
-  // Physics, weapons, scene init…
   window.physicsController = new PhysicsController(window.camera, scene);
   physicsController        = window.physicsController;
   weaponController         = new WeaponController(
     window.camera,
     dbRefs.playersRef,
-    dbRefs.mapStateRef.child("bullets"),
+    dbRefs.mapStateRef.child('bullets'),
     createTracer,
     localPlayerId,
     physicsController
   );
   window.weaponController = weaponController;
 
-  if (mapName === "CrocodilosConstruction") {
+  if (mapName === 'CrocodilosConstruction') {
     await initSceneCrocodilosConstruction();
-  } else if (mapName === "SigmaCity") {
+  } else if (mapName === 'SigmaCity') {
     await initSceneSigmaCity();
   }
 
@@ -729,7 +753,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
   createLeaderboardOverlay();
   animate();
 }
-
 
 
 export function hideGameUI() {
