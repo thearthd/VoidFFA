@@ -1781,7 +1781,7 @@ export function initMenuUI() {
 if (saveUsernameBtn) {
   saveUsernameBtn.addEventListener("click", async () => {
     const raw = usernameInput.value.trim();
-    const val = raw; // we already trimmed spaces
+    const val = raw; // already trimmed
     const alphaNumRegex = /^[A-Za-z0-9_]+$/;
 
     // 1) Basic format validation
@@ -1793,24 +1793,20 @@ if (saveUsernameBtn) {
       );
     }
 
-    // 2) Uniqueness check (case‑insensitive)
+    // Normalize to lowercase for the DB key so that "Jar" and "jar" collide
+    const key = val.toLowerCase();
+
+    // 2) Uniqueness check by directly looking at usersRef/<key>
     try {
-      const snap = await usersRef.once('value');
-      const users = snap.val() || {};
-      const lower = val.toLowerCase();
+      const userNode = usersRef.child(key);
+      const snap     = await userNode.once('value');
 
-      for (let key in users) {
-        const existing = users[key].username;
-        // skip entries that don’t have a valid username string
-        if (typeof existing !== 'string') continue;
-
-        if (existing.toLowerCase() === lower) {
-          return Swal.fire(
-            'Name Taken',
-            `“${val}” is already in use. Please choose another.`,
-            'warning'
-          );
-        }
+      if (snap.exists()) {
+        return Swal.fire(
+          'Name Taken',
+          `“${val}” is already in use. Please choose another.`,
+          'warning'
+        );
       }
     } catch (err) {
       console.error("Error checking existing usernames:", err);
@@ -1826,11 +1822,18 @@ if (saveUsernameBtn) {
     username = val;
     playerCard.setText(username);
 
-    // 4) Store in menu DB
-    usersRef.push({
-      username: val,
-      savedAt: firebase.database.ServerValue.TIMESTAMP
-    });
+    // 4) Write to menu DB under the username key
+    //    this will create /users/<lowercase-username> instead of a push-id
+    usersRef
+      .child(key)
+      .set({
+        username: val,
+        savedAt:  firebase.database.ServerValue.TIMESTAMP
+      })
+      .catch(err => {
+        console.error("Error saving username to DB:", err);
+        // you could show another Swal here if you want
+      });
 
     // 5) Hide prompt and show game
     showPanel(null);
@@ -1843,7 +1846,6 @@ if (saveUsernameBtn) {
     }
   });
 }
-
     // --- Sensitivity Slider Logic ---
     function setSensitivity(newVal) {
         const v = Math.min(parseFloat(sensitivityRange.max), Math.max(parseFloat(sensitivityRange.min), newVal)).toFixed(2);
