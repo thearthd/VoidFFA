@@ -1539,8 +1539,6 @@ function careerButtonHit() {
   addBackButton();
 
   const username = localStorage.getItem('username') || 'Guest';
-  console.log("Career stats for:", username);
-
   const startX = 100;
   let y = 150;
   const lineHeight = 30;
@@ -1554,36 +1552,49 @@ function careerButtonHit() {
     return text;
   }
 
-  usersRef
-    .orderByChild("username")
-    .equalTo(username)
-    .once("value")
-    .then(snapshot => {
-      let userData = null;
-      snapshot.forEach(child => {
-        userData = child.val();
-      });
+  function displayStats(userData) {
+    const wins = userData.wins || 0;
+    const losses = userData.losses || 0;
+    const kills = userData.kills || 0;
+    const deaths = userData.deaths || 0;
+    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
 
-      if (!userData) throw new Error("User not found in database.");
+    const lines = [
+      `Career Stats for ${username}`,
+      `Wins: ${wins}`,
+      `Losses: ${losses}`,
+      `Kills: ${kills}`,
+      `Deaths: ${deaths}`,
+      `K/D Ratio: ${kd}`
+    ];
 
-      const wins   = userData.wins   || 0;
-      const losses = userData.losses || 0;
-      const kills  = userData.kills  || 0;
-      const deaths = userData.deaths || 0;
-      const kd     = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
+    for (let i = 0; i < lines.length; i++) {
+      const line = createStatText(lines[i], startX, y + i * lineHeight);
+      add(line);
+    }
+  }
 
-      const lines = [
-        `Career Stats for ${username}`,
-        `Wins: ${wins}`,
-        `Losses: ${losses}`,
-        `Kills: ${kills}`,
-        `Deaths: ${deaths}`,
-        `K/D Ratio: ${kd}`
-      ];
+  usersRef.child(username).once('value')
+    .then(snap => {
+      if (snap.exists()) {
+        console.log("Stats found directly under key:", username, snap.val());
+        displayStats(snap.val());
+      } else {
+        console.log("No direct key match, querying by username property...");
+        return usersRef
+          .orderByChild('username')
+          .equalTo(username)
+          .once('value')
+          .then(qsnap => {
+            let userData = null;
+            qsnap.forEach(child => {
+              userData = child.val();
+            });
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = createStatText(lines[i], startX, y + i * lineHeight);
-        add(line);
+            if (!userData) throw new Error("User not found in database.");
+
+            displayStats(userData);
+          });
       }
     })
     .catch(err => {
