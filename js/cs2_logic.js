@@ -37,12 +37,11 @@ export function getSpreadMultiplier(
   isCrouched,
   isAiming,
   isGrounded,
-  shotIndex = 0 // Default to 0 for single shots or weapons not needing this
+  shotIndex = 0
 ) {
   const isAirborne = !isGrounded;
   const speed = velocity.length();
 
-  // Weapon-specific base values for spread angles (in radians) and factors
   let standingBase, runBase, airBase, crouchFactor, runThreshold, aimFactor;
   switch (weaponKey) {
     case "ak-47":
@@ -74,37 +73,27 @@ export function getSpreadMultiplier(
       crouchFactor = 0.50; runThreshold = 4; aimFactor = 0.25;
   }
 
-  // Calculate the base spread angle based on movement state
+  // ✅ OVERRIDE: If airborne, return pure airborne spread immediately
+  if (isAirborne) {
+    return airBase;
+  }
+
+  // Otherwise, calculate normal ground spread logic
   let currentSpreadAngle;
-  if (speed <= 3 && isGrounded) {
+  if (speed <= 3) {
     currentSpreadAngle = standingBase;
-  } else if (isAirborne) {
-    currentSpreadAngle = airBase;
   } else if (speed > runThreshold) {
     currentSpreadAngle = runBase;
   } else {
-    // Interpolate between standing and running spread based on speed
     const t = Math.min(speed / runThreshold, 1);
     currentSpreadAngle = standingBase * (1 - t) + runBase * t;
   }
 
-  // Apply crouch and aim factors as multipliers to the current spread angle
   if (isCrouched) currentSpreadAngle *= crouchFactor;
   if (isAiming) currentSpreadAngle *= aimFactor;
 
-  // Apply extra airborne penalty as a multiplier
-  if (isAirborne) currentSpreadAngle *= (airBase * 10);
-
-  // --- AK-47 Progressive Inaccuracy based on Recoil Pattern ---
   if (weaponKey === "ak-47") {
-    // Get the recoil angle for the current shot from the RECOIL_PATTERN
     const recoilPatternValue = getRecoilAngle(weaponKey, shotIndex);
-
-    // Add a scaled portion of the recoil pattern value to the spread angle.
-    // The '0.5' is a scaling factor. Adjust this value to control how much
-    // the recoil pattern's magnitude directly influences the bullet spread.
-    // A value of 1 means the spread increases by the exact recoil angle for that shot.
-    // A smaller value means less contribution, making the AK-47 less punishing.
     currentSpreadAngle += recoilPatternValue * 1;
   }
 
