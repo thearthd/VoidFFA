@@ -586,7 +586,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     gameTimerElement.style.display = 'block';
 
     // Timer settings
-    const INITIAL_DURATION = 10 * 60; // 10 minutes
+    const INITIAL_DURATION = 1 * 60; // 10 minutes
     let currentRemainingSeconds = null;
     let gameEnded = false;
     let localInterval = null;
@@ -631,16 +631,21 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     });
 
     // Sync the remaining time from Firebase
-    gameConfigRef.child('gameDuration').on('value', snap => {
-      const val = snap.val();
-      if (typeof val === 'number') {
-        currentRemainingSeconds = val;
-      } else if (val === null) {
+gameConfigRef.child('gameDuration').on('value', snap => {
+  const val = snap.val();
+  if (typeof val === 'number') {
+    currentRemainingSeconds = val;
+  } else if (val === null) {
+    // Only set INITIAL_DURATION if the game hasn’t been flagged as ended
+    gameConfigRef.child('ended').once('value').then(endSnap => {
+      if (endSnap.val() !== true) {
         gameConfigRef.child('gameDuration').transaction(curr =>
           curr === null ? INITIAL_DURATION : undefined
         );
       }
     });
+  }
+});
 
     // Listen for explicit end flag
     gameConfigRef.child('ended').on('value', snap => {
