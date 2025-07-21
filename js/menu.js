@@ -1594,7 +1594,7 @@ function careerButtonHit() {
   const lineHeight = 60;
   const canvasWidth = getWidth();
 
-  // Create a single off-screen canvas context for measuring text
+  // Off-screen canvas for centering text
   const measureCtx = document.createElement("canvas").getContext("2d");
   measureCtx.font = "20pt Arial";
 
@@ -1603,22 +1603,19 @@ function careerButtonHit() {
     text.setColor("#ffffff");
     text.setLayer(4);
     text.originalFontSize = 20;
-
-    // Measure width and center
     const textWidth = measureCtx.measureText(content).width;
     const centerX = canvasWidth / 2;
     text.setPosition(centerX, y);
-
     return text;
   }
 
   function displayStats(userData) {
     const stats = userData.stats || {};
-    const wins = stats.wins || 0;
-    const kills = stats.kills || 0;
-    const deaths = stats.deaths || 0;
-    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
-    const losses = userData.losses || 0;
+    const wins    = stats.wins   || 0;
+    const kills   = stats.kills  || 0;
+    const deaths  = stats.deaths || 0;
+    const kd      = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
+    const losses  = userData.losses || 0;
 
     const lines = [
       `Career Stats for ${username}`,
@@ -1629,12 +1626,11 @@ function careerButtonHit() {
       `K/D Ratio: ${kd}`
     ];
 
-    // Start drawing at y = 150
     let y = 250;
-    for (let i = 0; i < lines.length; i++) {
-      const lineText = createStatText(lines[i], y + i * lineHeight);
-      add(lineText);
-    }
+    lines.forEach((line, i) => {
+      const t = createStatText(line, y + i * lineHeight);
+      add(t);
+    });
   }
 
   usersRef.child(username).once('value')
@@ -1659,6 +1655,69 @@ function careerButtonHit() {
       const errorText = createStatText("Unable to load stats.", 150);
       add(errorText);
     });
+
+  // --- Players Listing & Search ---
+
+  const showBtn   = document.getElementById('show-players-btn');
+  const container = document.getElementById('player-search-container');
+  const listDiv   = document.getElementById('player-list-container');
+  const searchIn  = document.getElementById('player-search-input');
+
+  const store = Redux.createStore((s = {}) => s);
+  ReduxSearch.register({
+    store,
+    collection: 'players',
+    fields: ['username']
+  });
+
+  let allPlayers = [];
+  usersRef.once('value')
+    .then(snap => {
+      snap.forEach(child => {
+        allPlayers.push({
+          id: child.key,
+          username: child.val().username || child.key
+        });
+      });
+      store.dispatch(ReduxSearch.addEntities({
+        collection: 'players',
+        entities: allPlayers
+      }));
+    });
+
+  showBtn.addEventListener('click', () => {
+    container.classList.toggle('hidden');
+    if (!container.classList.contains('hidden')) {
+      renderList(allPlayers);
+    }
+  });
+
+  searchIn.addEventListener('input', e => {
+    const term = e.target.value;
+    if (!term) {
+      renderList(allPlayers);
+      return;
+    }
+    const results = ReduxSearch.search(store.getState(), {
+      collection: 'players',
+      term
+    });
+    renderList(results);
+  });
+
+  function renderList(items) {
+    listDiv.innerHTML = '';
+    if (items.length === 0) {
+      listDiv.innerHTML = '<div class="player-item">No matches</div>';
+      return;
+    }
+    items.forEach(p => {
+      const d = document.createElement('div');
+      d.textContent = p.username;
+      d.className = 'player-item';
+      listDiv.appendChild(d);
+    });
+  }
 }
 /**
  * Handles the "Loadout" button click.
