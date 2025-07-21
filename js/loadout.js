@@ -82,8 +82,8 @@ function updateHUD() {
       const img = document.createElement('img');
       img.src = data.img;
       img.alt = key;
-      img.style.width = '128px';
-      img.style.height = '128px';
+      img.style.width = '32px';
+      img.style.height = '32px';
       hud.appendChild(img);
     }
   });
