@@ -293,6 +293,14 @@ async function determineWinnerAndEndGame() {
   }
   await Promise.all(statUpdates);
 
+  try {
+    // remove the entire gameConfig node
+    await gameConfigRef.remove();
+    console.log("Game config fully removed.");
+  } catch (e) {
+    console.error("Failed to remove gameConfig:", e);
+  }
+    
   // 5) Detach realtime listener
   if (playersKillsListener) {
     playersRef.off("value", playersKillsListener);
