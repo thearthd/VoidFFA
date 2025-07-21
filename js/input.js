@@ -27,6 +27,12 @@ let debugText;
 // threshold to drop spurious mouse movements
 const MAX_DELTA = 200;
 
+function getSavedLoadout() {
+  return {
+    primary:   localStorage.getItem('loadout_primary'),
+    secondary: localStorage.getItem('loadout_secondary'),
+  };
+}
 
 export function initInput() {
   const elementToLock = document.body;
@@ -320,3 +326,25 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 });
+
+window.addEventListener("keydown", (e) => {
+  const chatInput = document.getElementById("chat-input");
+  if (document.activeElement === chatInput) return;
+
+  // only handle weapon‑switch keys here
+  const keyMap = {
+    Digit1: 'knife',
+    Digit2: 'deagle',
+    Digit3: 'ak-47',
+    Digit4: 'marshal',
+    Digit5: 'm79',
+  };
+  const attempt = keyMap[e.code];
+  if (attempt) {
+    const { primary, secondary } = getSavedLoadout();
+    if (attempt === 'knife' || attempt === primary || attempt === secondary) {
+      inputState.weaponSwitch = attempt;
+      e.preventDefault();
+    }
+    return;
+  }
