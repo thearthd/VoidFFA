@@ -116,6 +116,9 @@ export function initInput() {
       case "Digit4":
         inputState.weaponSwitch = "marshal";
         break;
+      case "Digit5":
+        inputState.weaponSwitch = "m79";
+        break;
       case "KeyX":
         inputState.fire = true;
         inputState.fireJustPressed = true;
@@ -166,6 +169,7 @@ export function initInput() {
       case "Digit2":
       case "Digit3":
       case "Digit4":
+      case "Digit5":
         inputState.weaponSwitch = null;
         break;
       case "KeyX":
