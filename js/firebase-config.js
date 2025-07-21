@@ -41,7 +41,6 @@ export const gameDatabaseConfigs = {
 let menuApp = null;
 export let gamesRef = null;
 export let usersRef = null;
-export let userStatsRef = null;    // ← new
 
 export function initializeMenuFirebase() {
   if (menuApp) return;
