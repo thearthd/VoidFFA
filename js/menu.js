@@ -1539,39 +1539,72 @@ function careerButtonHit() {
   addBackButton();
 
   const username = localStorage.getItem('username') || 'Guest';
+  console.log("careerButtonHit for user:", username);
 
-  usersRef.child(username).once('value').then(snapshot => {
-    const stats = snapshot.val() || {};
-    const wins   = stats.wins   || 0;
-    const losses = stats.losses || 0;
-    const kills  = stats.kills  || 0;
-    const deaths = stats.deaths || 0;
+  // 1) try direct lookup first
+  usersRef.child(username).once('value')
+    .then(snap => {
+      if (snap.exists()) {
+        console.log("Found stats under key=", username, snap.val());
+        return [{ key: username, ...snap.val() }];
+      } else {
+        // 2) fallback: search by a 'username' property
+        console.log("No direct child, doing query by property");
+        return usersRef
+          .orderByChild('username')
+          .equalTo(username)
+          .once('value')
+          .then(qsnap => {
+            const results = [];
+            qsnap.forEach(child => {
+              results.push({ key: child.key, ...child.val() });
+            });
+            return results;
+          });
+      }
+    })
+    .then(records => {
+      console.log("Resolved records:", records);
+      if (records.length === 0) {
+        throw new Error("No user record found");
+      }
+      // assume first match
+      const stats = records[0];
+      const wins   = stats.wins   || 0;
+      const losses = stats.losses || 0;
+      const kills  = stats.kills  || 0;
+      const deaths = stats.deaths || 0;
+      const kd     = deaths > 0 ? (kills/deaths).toFixed(2) : 'N/A';
 
-    const startX = 100;
-    let y = 150;
-    const lineHeight = 30;
+      // 3) render with TextShape
+      const startX = 100;
+      let y = 150;
+      const lh = 30;
 
-    add(new Text(`Career Stats for ${username}`, startX, y));
-    y += lineHeight;
+      add(new TextShape(`Career Stats for ${username}`, startX, y));
+      y += lh;
+      add(new TextShape(`Wins:      ${wins}`,   startX, y));
+      y += lh;
+      add(new TextShape(`Losses:   ${losses}`, startX, y));
+      y += lh;
+      add(new TextShape(`Kills:      ${kills}`,  startX, y));
+      y += lh;
+      add(new TextShape(`Deaths:   ${deaths}`, startX, y));
+      y += lh;
+      add(new TextShape(`K/D Ratio: ${kd}`,    startX, y));
 
-    add(new Text(`Wins:   ${wins}`,   startX, y));
-    y += lineHeight;
-
-    add(new Text(`Losses: ${losses}`, startX, y));
-    y += lineHeight;
-
-    add(new Text(`Kills:  ${kills}`,  startX, y));
-    y += lineHeight;
-
-    add(new Text(`Deaths: ${deaths}`, startX, y));
-    y += lineHeight;
-
-    const kdRatio = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
-    add(new Text(`K/D Ratio: ${kdRatio}`, startX, y));
-  }).catch(err => {
-    console.error('Failed to load career stats:', err);
-    add(new Text('Unable to load career stats.', 100, 150));
-  });
+      // 4) force a redraw if your engine needs it
+      if (typeof draw === 'function') {
+        draw();
+      }
+    })
+    .catch(err => {
+      console.error("Failed to load or render career stats:", err);
+      add(new TextShape('Unable to load career stats.', 100, 150));
+      if (typeof draw === 'function') {
+        draw();
+      }
+    });
 }
 
 /**
