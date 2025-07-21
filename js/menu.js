@@ -1595,14 +1595,21 @@ function careerButtonHit() {
   const lineHeight = 30;
 
   const ctx = document.createElement("canvas").getContext("2d");
-  ctx.font = "20pt Arial"; // Use the same font to measure
+  ctx.font = "20pt Arial"; // Use the same font to measure width
 
-  function createStatText(content, x, y) {
+  function createStatText(content, y) {
     const text = new Text(content, "20pt Arial");
     text.setColor("#ffffff");
     text.setLayer(4);
     text.originalFontSize = 20;
-    text.setPosition(x, y);
+
+    // Use canvas context to measure text width
+    const textWidth = ctx.measureText(content).width;
+    const canvasWidth = getWidth();
+    const centerX = canvasWidth / 2;
+
+    // Position so the center of the text aligns with the screen center
+    text.setPosition(centerX - textWidth / 2, y);
     return text;
   }
 
@@ -1622,14 +1629,8 @@ function careerButtonHit() {
       `K/D Ratio: ${kd}`
     ];
 
-    const canvasWidth = getWidth();
-
     for (let i = 0; i < lines.length; i++) {
-      const lineContent = lines[i];
-      const textWidth = ctx.measureText(lineContent).width;
-      const x = (canvasWidth - textWidth) / 2;
-
-      const line = createStatText(lineContent, x, y + i * lineHeight);
+      const line = createStatText(lines[i], y + i * lineHeight);
       add(line);
     }
   }
@@ -1652,7 +1653,6 @@ function careerButtonHit() {
             });
 
             if (!userData) throw new Error("User not found in database.");
-
             displayStats(userData);
           });
       }
@@ -1660,11 +1660,7 @@ function careerButtonHit() {
     .catch(err => {
       console.error("Error loading career stats:", err);
       const errorLineContent = "Unable to load stats.";
-      const canvasWidth = getWidth();
-      const errorTextWidth = ctx.measureText(errorLineContent).width;
-      const errorX = (canvasWidth - errorTextWidth) / 2;
-
-      const errorText = createStatText(errorLineContent, errorX, y);
+      const errorText = createStatText(errorLineContent, y);
       add(errorText);
     });
 }
