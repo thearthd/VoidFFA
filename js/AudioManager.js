@@ -87,3 +87,23 @@ export class AudioManager {
     }
   }
 }
+
+let audioManagerInstance = null; // Ensure this is declared if not elsewhere
+
+export function initializeAudioManager(camera, scene) {
+    console.log("Attempting to initialize AudioManager...");
+    console.log("Camera received:", camera);
+    console.log("Scene received:", scene);
+
+    if (!camera || !scene) {
+        console.error("Cannot initialize AudioManager: Camera or Scene are undefined/null. AudioManager will not be created.");
+        return;
+    }
+    if (audioManagerInstance) {
+        console.warn("AudioManager already initialized. Stopping existing sounds and reinitializing.");
+        audioManagerInstance.stopAll();
+    }
+    audioManagerInstance = new AudioManager(camera, scene);
+    window.audioManager = audioManagerInstance;
+    console.log("AudioManager successfully initialized with camera:", camera.uuid, "at initial position:", camera.position.toArray());
+}
