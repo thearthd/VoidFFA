@@ -1431,7 +1431,7 @@ async function gamesButtonHit() {
             none.setPosition(getWidth() / 2, getHeight() / 2);
             add(none);
             currentMenuObjects.push(none);
-            addBackButton(menu);
+            addBackButton(playButtonHit);
             return;
         }
 
