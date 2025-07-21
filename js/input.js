@@ -1,7 +1,3 @@
-// js/input_with_debug.js
-// Handles keyboard/mouse input with Pointer Lock, prevents snapping by filtering out implausible deltas,
-// plus a visible debug cursor, numeric overlay, console logging, and cursor hide/restore on Esc.
-
 const chatInput = document.getElementById("chat-input");
 
 export const inputState = {
@@ -10,7 +6,7 @@ export const inputState = {
   left: false,
   right: false,
   crouch: false,
-  slow: false,             // ← new
+  slow: false,
   jump: false,
   fire: false,
   fireJustPressed: false,
@@ -50,7 +46,6 @@ export function initInput() {
 
   document.addEventListener("pointerlockchange", () => {
     const locked = document.pointerLockElement === elementToLock;
-   // console.log("🔒 pointerLockChange — locked?", locked);
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
     if (locked) {
@@ -78,7 +73,9 @@ export function initInput() {
     // If chat is focused, ignore game keys
     if (document.activeElement === chatInput) return;
 
+    const { primary, secondary } = getSavedLoadout();
     let handled = true;
+
     switch (e.code) {
       case "KeyW":
         inputState.forward = true;
@@ -114,16 +111,16 @@ export function initInput() {
         inputState.weaponSwitch = "knife";
         break;
       case "Digit2":
-        inputState.weaponSwitch = "deagle";
+        if (primary === "deagle") inputState.weaponSwitch = "deagle";
         break;
       case "Digit3":
-        inputState.weaponSwitch = "ak-47";
+        if (primary === "ak-47") inputState.weaponSwitch = "ak-47";
         break;
       case "Digit4":
-        inputState.weaponSwitch = "marshal";
+        if (primary === "marshal") inputState.weaponSwitch = "marshal";
         break;
       case "Digit5":
-        inputState.weaponSwitch = "m79";
+        if (secondary === "m79") inputState.weaponSwitch = "m79";
         break;
       case "KeyX":
         inputState.fire = true;
@@ -231,7 +228,6 @@ export function initInput() {
 }
 
 export function initDebugCursor() {
-  // Debug dot
   debugCursor = document.createElement("div");
   Object.assign(debugCursor.style, {
     position: "absolute",
@@ -244,7 +240,6 @@ export function initDebugCursor() {
   });
   document.body.appendChild(debugCursor);
 
-  // Debug text overlay
   debugText = document.createElement("div");
   Object.assign(debugText.style, {
     position: "fixed",
@@ -260,7 +255,6 @@ export function initDebugCursor() {
   });
   document.body.appendChild(debugText);
 
-  // Center start
   debugX = window.innerWidth / 2;
   debugY = window.innerHeight / 2;
   updateDebugCursor();
@@ -270,15 +264,12 @@ export function updateDebugCursor() {
   debugX += inputState.mouseDX;
   debugY += inputState.mouseDY;
 
-  // Clamp inside window
   debugX = Math.max(0, Math.min(window.innerWidth, debugX));
   debugY = Math.max(0, Math.min(window.innerHeight, debugY));
 
-  // Move debug dot
   debugCursor.style.left = debugX + "px";
   debugCursor.style.top  = debugY + "px";
 
-  // Update text with raw deltas and dot pos
   debugText.innerText =
     `∆X: ${inputState.mouseDX}  ∆Y: ${inputState.mouseDY}\n` +
     `X: ${Math.round(debugX)}  Y: ${Math.round(debugY)}`;
@@ -292,13 +283,7 @@ export function postFrameCleanup() {
 }
 
 function onMouseMove(e) {
-  // drop spurious large jumps
   if (Math.abs(e.movementX) > MAX_DELTA || Math.abs(e.movementY) > MAX_DELTA) {
-   // console.warn(
-   //   "Dropped spurious mouse move →",
-  //    e.movementX,
-  //    e.movementY
- //   );
     return;
   }
   inputState.mouseDX += e.movementX;
@@ -308,14 +293,10 @@ function onMouseMove(e) {
 const chatContainer = document.getElementById("chat-box");
 
 window.addEventListener("keydown", (e) => {
-  // Prevent C from closing chat if user is currently typing
   if (e.code === "KeyC") {
-    // If chat input is focused, ignore C key
     if (document.activeElement === chatInput) {
-      return; // Do nothing, user is typing
+      return;
     }
-
-    // Otherwise, toggle chat UI (no focus)
     if (chatContainer.classList.contains("hidden")) {
       chatContainer.classList.remove("hidden");
     } else {
@@ -323,28 +304,5 @@ window.addEventListener("keydown", (e) => {
       chatInput.blur();
     }
     e.preventDefault();
-    return;
   }
 });
-
-window.addEventListener("keydown", (e) => {
-  const chatInput = document.getElementById("chat-input");
-  if (document.activeElement === chatInput) return;
-
-  // only handle weapon‑switch keys here
-  const keyMap = {
-    Digit1: 'knife',
-    Digit2: 'deagle',
-    Digit3: 'ak-47',
-    Digit4: 'marshal',
-    Digit5: 'm79',
-  };
-  const attempt = keyMap[e.code];
-  if (attempt) {
-    const { primary, secondary } = getSavedLoadout();
-    if (attempt === 'knife' || attempt === primary || attempt === secondary) {
-      inputState.weaponSwitch = attempt;
-      e.preventDefault();
-    }
-    return;
-  }
