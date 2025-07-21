@@ -574,184 +574,269 @@ delete pendingRestore[victimId];
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
 
-    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
-    if (!networkOk) {
-        console.warn("Network init failed.");
-        return;
+  const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
+  if (!networkOk) {
+    console.warn("Network init failed.");
+    return;
+  }
+
+  playersRef = dbRefs.playersRef;
+  gameConfigRef = dbRefs.gameConfigRef;
+  // NEW: Reference for the timer master status
+  const gameTimerMasterRef = gameConfigRef.child("timerMaster");
+
+  const gameTimerElement = document.getElementById("game-timer");
+
+  if (ffaEnabled) {
+    gameTimerElement.style.display = "block";
+
+    const initialGameDurationSeconds = 1 * 60; // 1 minute for testing, revert to 10 * 60 for actual game
+
+    // Clear any existing interval before starting a new one (important for re-entry)
+    if (gameInterval) {
+      clearInterval(gameInterval);
+      gameInterval = null; // Clear the global variable
     }
 
-    playersRef = dbRefs.playersRef;
-    gameConfigRef = dbRefs.gameConfigRef;
+    let isTimerMaster = false; // Flag to indicate if this client is the timer master
 
-    const gameTimerElement = document.getElementById("game-timer");
-
-    if (ffaEnabled) {
-        gameTimerElement.style.display = "block";
-
-        // Set an initial game duration in seconds if it doesn't exist.
-        // For example, 10 minutes (600 seconds).
-        const initialGameDurationSeconds = 1 * 60; // 10 minutes
-        let currentRemainingSeconds = initialGameDurationSeconds; // Local variable to track remaining time
-
-        // 1) Listen for (or set) the game duration in Firebase.
-        // We'll primarily rely on the local countdown, but this ensures initial sync.
-        gameConfigRef.child("gameDuration").on("value", snapshot => {
-            const duration = snapshot.val();
-            if (typeof duration === "number") {
-                currentRemainingSeconds = duration;
-            } else {
-                // Only set if it doesn't exist, to avoid resetting on every client join
-                gameConfigRef.child("gameDuration").transaction(currentData => {
-                    if (currentData === null) {
-                        return initialGameDurationSeconds;
-                    }
-                    return undefined; // Abort the transaction if data already exists
-                });
-            }
-        });
-
-        // 2) Clear any existing interval before starting a new one
-        if (gameInterval) {
-            clearInterval(gameInterval);
-        }
-
-        // 3) Start a per-second countdown based on the synced duration
-        gameInterval = setInterval(() => {
-            if (currentRemainingSeconds === null) {
-                gameTimerElement.textContent = "Time: Syncing…";
-                return;
-            }
-
-            // --- IMPORTANT CHANGE HERE ---
-            // Check if time is already up or about to be up BEFORE decrementing
-            if (currentRemainingSeconds <= 0) {
-                clearInterval(gameInterval);
-                gameTimerElement.textContent = "TIME UP!";
-                // Ensure removal happens only once and is the last step for this condition
-                gameConfigRef.child("gameDuration").remove();
-                determineWinnerAndEndGame();
-                return; // Exit the interval callback
-            }
-
-            currentRemainingSeconds--; // Decrement every second
-
-            const mins = Math.floor(currentRemainingSeconds / 60);
-            const secs = currentRemainingSeconds % 60;
-
-            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
-
-            // Update Firebase *after* decrementing, but only if not yet zero or negative
-            if (currentRemainingSeconds > 0) {
-                gameConfigRef.child("gameDuration").set(currentRemainingSeconds);
-            }
-
-        }, 1000); // Update every 1 second
-
-        // 4) Optional: first-to-X-kills listener (unchanged)
-        if (playersKillsListener) {
-            playersRef.off("value", playersKillsListener);
-        }
-        playersKillsListener = playersRef.on("value", snapshot => {
-            let reachedThreshold = false;
-            snapshot.forEach(childSnap => {
-                const player = childSnap.val();
-                if (player.kills >= 40) {
-                    reachedThreshold = true;
-                }
-            });
-            if (reachedThreshold) {
-                playersRef.off("value", playersKillsListener);
-                clearInterval(gameInterval);
-                // When kill threshold is reached, immediately remove and end game
-                gameConfigRef.child("gameDuration").remove();
-                determineWinnerAndEndGame();
-            }
-        });
-
-    } else {
-        gameTimerElement.style.display = "none";
-        if (gameInterval) {
-            clearInterval(gameInterval);
-        }
-        gameConfigRef.child("gameDuration").remove(); // Ensure duration is cleared if FFA is off
-    }
-
-    // ... (rest of your code remains unchanged)
-    initGlobalFogAndShadowParams();
-    window.isGamePaused = false;
-    document.getElementById("menu-overlay").style.display = "none";
-    document.body.classList.add("game-active");
-    document.getElementById("game-container").style.display = "block";
-    document.getElementById("hud").style.display = "block";
-    document.getElementById("crosshair").style.display = "block";
-
-    if (!localPlayerId) {
-        console.error("No localPlayerId after initNetwork—cannot proceed.");
-        return;
-    }
-
-    window.physicsController = new PhysicsController(window.camera, scene);
-    physicsController = window.physicsController;
-
-    weaponController = new WeaponController(
-        window.camera,
-        dbRefs.playersRef,
-        dbRefs.mapStateRef.child("bullets"),
-        createTracer,
-        localPlayerId,
-        physicsController
-    );
-    window.weaponController = weaponController;
-
-    if (mapName === "CrocodilosConstruction") {
-        await initSceneCrocodilosConstruction();
-    } else if (mapName === "SigmaCity") {
-        await initSceneSigmaCity();
-    }
-
-    initInput();
-    initChatUI();
-    initBulletHoles();
-    initializeAudioManager(window.camera, scene);
-    startSoundListener();
-    const spawn = findFurthestSpawn();
-    window.localPlayer = {
-        id: localPlayerId,
-        username,
-        x: spawn.x,
-        y: spawn.y,
-        z: spawn.z,
-        rotY: 0,
-        health: initialPlayerHealth,
-        shield: initialPlayerShield,
-        weapon: initialPlayerWeapon,
-        kills: 0,
-        deaths: 0,
-        ks: 0,
-        bodyColor: Math.floor(Math.random() * 0xffffff),
-        isDead: false
-    };
-    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-
-    await dbRefs.playersRef.child(localPlayerId).set({
-        ...window.localPlayer,
-        lastUpdate: Date.now()
+    // Try to become the timer master using a Firebase transaction
+    // This ensures only one client successfully writes its ID as the master
+    await gameTimerMasterRef.transaction(currentMasterId => {
+      if (currentMasterId === null) {
+        // No master exists, claim it!
+        return localPlayerId; // Set current client's ID as the master
+      }
+      // A master already exists, abort the transaction
+      return undefined;
+    }).then(result => {
+      if (result.committed && result.snapshot.val() === localPlayerId) {
+        console.log("This client is now the timer master!");
+        isTimerMaster = true;
+      } else {
+        console.log("Another client is the timer master.");
+      }
+    }).catch(error => {
+      console.error("Error trying to become timer master:", error);
     });
-    updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
-    weaponController.equipWeapon(window.localPlayer.weapon);
-    initInventory(window.localPlayer.weapon);
-    initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
-    updateInventory(window.localPlayer.weapon);
-    updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
+    // 1) Listen for the game duration AND the master status in Firebase.
+    // All clients listen to the gameDuration. Only the master writes to it.
+    gameConfigRef.child("gameDuration").on("value", snapshot => {
+      const duration = snapshot.val();
+      if (typeof duration === "number") {
+        // If the duration is explicitly set in Firebase, update local
+        // This handles cases where master changes or initial sync
+        currentRemainingSeconds = duration;
+      } else if (duration === null && isTimerMaster) {
+        // If duration doesn't exist AND this client is the master, set it initially
+        gameConfigRef.child("gameDuration").set(initialGameDurationSeconds)
+          .then(() => console.log("Timer master set initial game duration."))
+          .catch(err => console.error("Error setting initial game duration:", err));
+      }
+    });
 
-    createRespawnOverlay();
-    createFadeOverlay();
-    createLeaderboardOverlay();
+    // Listen to changes in timer master (e.g., if current master disconnects)
+    // This is optional but good for robustness
+    gameTimerMasterRef.on("value", snapshot => {
+      const masterId = snapshot.val();
+      if (masterId === localPlayerId) {
+        // This client *is* the master (or just became it)
+        isTimerMaster = true;
+      } else {
+        // Another client is the master, or no master
+        isTimerMaster = false;
+        // If this client was the master and now isn't, clear its interval
+        if (gameInterval) {
+          clearInterval(gameInterval);
+          gameInterval = null;
+        }
+      }
+    });
 
-    animate();
+    // 2) Start a per-second countdown based on the synced duration
+    // Only the timer master will run the decrement logic and update Firebase
+    gameInterval = setInterval(async () => {
+      // Check if this client is the timer master BEFORE doing anything with decrementing
+      if (!isTimerMaster) {
+        // Non-master clients just update their display based on the listener
+        const mins = Math.floor(currentRemainingSeconds / 60);
+        const secs = currentRemainingSeconds % 60;
+        gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
+        // If currentRemainingSeconds is null (e.g., initial sync)
+        if (currentRemainingSeconds === null) {
+          gameTimerElement.textContent = "Time: Syncing…";
+        }
+        return; // Exit if not the master, do not decrement or write to Firebase
+      }
+
+      // Logic below runs ONLY for the timer master
+      if (currentRemainingSeconds === null) {
+        gameTimerElement.textContent = "Time: Syncing…";
+        return;
+      }
+
+      if (currentRemainingSeconds <= 0) {
+        clearInterval(gameInterval);
+        gameInterval = null; // Ensure global var is cleared
+        gameTimerElement.textContent = "TIME UP!";
+        // The master removes the duration, signaling game over for others too
+        await gameConfigRef.child("gameDuration").remove()
+          .catch(err => console.error("Error removing gameDuration:", err));
+        await gameTimerMasterRef.remove() // Master also removes its master status
+          .catch(err => console.error("Error removing timerMaster status:", err));
+        determineWinnerAndEndGame();
+        return; // Exit the interval callback
+      }
+
+      currentRemainingSeconds--; // Decrement every second (only for master)
+
+      const mins = Math.floor(currentRemainingSeconds / 60);
+      const secs = currentRemainingSeconds % 60;
+
+      gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
+
+      // Update Firebase *only if this is the master* and time is still positive
+      if (currentRemainingSeconds >= 0) { // Update even at 0 before calling end game
+        await gameConfigRef.child("gameDuration").set(currentRemainingSeconds)
+          .catch(err => console.error("Error updating gameDuration:", err));
+      }
+
+    }, 1000); // Update every 1 second
+
+    // 3) First-to-X-kills listener
+    // This listener should be active on ALL clients, but only ONE client (ideally the master,
+    // or any client that detects it first) should trigger determineWinnerAndEndGame to avoid race conditions.
+    // For simplicity, we'll let any client trigger it for now, but in a robust system, you'd
+    // have a "game state" variable that only one client updates to "ended".
+    if (playersKillsListener) {
+      playersRef.off("value", playersKillsListener);
+    }
+    playersKillsListener = playersRef.on("value", snapshot => {
+      let reachedThreshold = false;
+      snapshot.forEach(childSnap => {
+        const player = childSnap.val();
+        if (player.kills >= 40) {
+          reachedThreshold = true;
+        }
+      });
+      if (reachedThreshold) {
+        // To prevent multiple calls to determineWinnerAndEndGame,
+        // you should ensure game state is updated.
+        // For now, let's just clear intervals/listeners on *this* client.
+        console.log("Kill threshold reached. Ending game...");
+        playersRef.off("value", playersKillsListener);
+        playersKillsListener = null; // Clear global variable
+        if (gameInterval) {
+          clearInterval(gameInterval);
+          gameInterval = null; // Clear global variable
+        }
+        // Only the master or a designated "game manager" should trigger this cleanup
+        // to avoid multiple calls. If this is *not* the master, it should wait for
+        // the master to update the game state to "ended".
+        // For this example, if the kill threshold is reached, we'll let any client
+        // trigger the end game if it's the master or if no master is explicitly set (edge case).
+        if (isTimerMaster || (gameTimerMasterRef && gameTimerMasterRef.snapshot.val() === null)) { // Added snapshot.val() check
+            // Clear the timer master status and game duration
+            gameConfigRef.child("gameDuration").remove()
+                .catch(err => console.error("Error removing gameDuration on kill threshold:", err));
+            gameTimerMasterRef.remove()
+                .catch(err => console.error("Error removing timerMaster status on kill threshold:", err));
+            determineWinnerAndEndGame();
+        } else {
+            // If not the master, simply ensure local timer/listeners are off
+            // and let the master handle the full game end sequence.
+            console.log("Kill threshold reached, but not timer master. Awaiting master to end game.");
+        }
+      }
+    });
+
+  } else { // If FFA is not enabled
+    gameTimerElement.style.display = "none";
+    if (gameInterval) {
+      clearInterval(gameInterval);
+      gameInterval = null;
+    }
+    // Ensure duration and master status are cleared if FFA is off
+    gameConfigRef.child("gameDuration").remove();
+    gameConfigRef.child("timerMaster").remove();
+  }
+
+  // ... (rest of your code remains unchanged)
+  initGlobalFogAndShadowParams();
+  window.isGamePaused = false;
+  document.getElementById("menu-overlay").style.display = "none";
+  document.body.classList.add("game-active");
+  document.getElementById("game-container").style.display = "block";
+  document.getElementById("hud").style.display = "block";
+  document.getElementById("crosshair").style.display = "block";
+
+  if (!localPlayerId) {
+    console.error("No localPlayerId after initNetwork—cannot proceed.");
+    return;
+  }
+
+  window.physicsController = new PhysicsController(window.camera, scene);
+  physicsController = window.physicsController;
+
+  weaponController = new WeaponController(
+    window.camera,
+    dbRefs.playersRef,
+    dbRefs.mapStateRef.child("bullets"),
+    createTracer,
+    localPlayerId,
+    physicsController
+  );
+  window.weaponController = weaponController;
+
+  if (mapName === "CrocodilosConstruction") {
+    await initSceneCrocodilosConstruction();
+  } else if (mapName === "SigmaCity") {
+    await initSceneSigmaCity();
+  }
+
+  initInput();
+  initChatUI();
+  initBulletHoles();
+  initializeAudioManager(window.camera, scene);
+  startSoundListener();
+  const spawn = findFurthestSpawn();
+  window.localPlayer = {
+    id: localPlayerId,
+    username,
+    x: spawn.x,
+    y: spawn.y,
+    z: spawn.z,
+    rotY: 0,
+    health: initialPlayerHealth,
+    shield: initialPlayerShield,
+    weapon: initialPlayerWeapon,
+    kills: 0,
+    deaths: 0,
+    ks: 0,
+    bodyColor: Math.floor(Math.random() * 0xffffff),
+    isDead: false
+  };
+  window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
+
+  await dbRefs.playersRef.child(localPlayerId).set({
+    ...window.localPlayer,
+    lastUpdate: Date.now()
+  });
+  updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+
+  weaponController.equipWeapon(window.localPlayer.weapon);
+  initInventory(window.localPlayer.weapon);
+  initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
+  updateInventory(window.localPlayer.weapon);
+  updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
+
+  createRespawnOverlay();
+  createFadeOverlay();
+  createLeaderboardOverlay();
+
+  animate();
 }
-
 
 
 
