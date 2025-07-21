@@ -610,7 +610,7 @@ export function initInventory(currentWeaponKey) {
     hsContainer.appendChild(shieldBarBg);
 
     // 5) INVENTORY SLOTS
-    const weaponKeys = ["knife", "deagle", "ak-47", "marshal"];
+    const weaponKeys = ["knife", "deagle", "ak-47", "marshal", "m79"];
     for (const key of weaponKeys) {
         const slot = document.createElement("div");
         slot.classList.add("inventory-slot");
@@ -631,6 +631,7 @@ export function initInventory(currentWeaponKey) {
             case "deagle": nameAbbrev.textContent = "DEAG"; break;
             case "ak-47": nameAbbrev.textContent = "AK47"; break;
             case "marshal": nameAbbrev.textContent = "MARL"; break;
+            case "m79": nameAbbrev.textContent = "M79"; break;
         }
         slot.appendChild(nameAbbrev);
         if (key === currentWeaponKey) {
