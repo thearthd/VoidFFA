@@ -1591,7 +1591,7 @@ function careerButtonHit() {
   addBackButton();
 
   const username = localStorage.getItem('username') || 'Guest';
-  const lineHeight = 30;
+  const lineHeight = 60;
   const canvasWidth = getWidth();
 
   // Create a single off-screen canvas context for measuring text
