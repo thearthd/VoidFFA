@@ -89,9 +89,9 @@ export async function claimGameSlot(username, map, ffaEnabled) {
   if (!chosenKey) return null;
 
   const rootRef = chosenApp.database().ref();
-  const gameRef = rootRef.child("game");
 
-  // 1) Write the per-slot game node
+  // Create game entry
+  const gameRef = rootRef.child("game");
   await gameRef.set({
     host: username,
     map,
@@ -99,43 +99,30 @@ export async function claimGameSlot(username, map, ffaEnabled) {
     createdAt: firebase.database.ServerValue.TIMESTAMP
   });
 
-  // 2) Write the per-slot gameConfig
+  // Create gameConfig inside the /game node
   const startTime = Date.now();
   const gameDuration = 600; // seconds
   const endTime = startTime + gameDuration * 1000;
+
   await gameRef.child("gameConfig").set({
     startTime,
     gameDuration,
     endTime
   });
 
-  // 3) Push an entry into the lobby DB so usernames appear in the menu
-  //    gamesRef was initialized at top of file as menuApp.database().ref("games")
-  const lobbyEntryRef = gamesRef.push();
-  await lobbyEntryRef.set({
-    slot:       chosenKey,
-    host:       username,
-    map,
-    ffaEnabled,
-    startedAt:  firebase.database.ServerValue.TIMESTAMP
-  });
-  // save the lobby entry key for later removal
-  activeGameId = lobbyEntryRef.key;
-
-  // 4) Return the per-game refs as before
+  // Return useful database references
   const dbRefs = {
-    playersRef:    gameRef.child("players"),
-    chatRef:       gameRef.child("chat"),
-    killsRef:      gameRef.child("kills"),
-    mapStateRef:   gameRef.child("mapState"),
-    tracersRef:    gameRef.child("tracers"),
-    soundsRef:     gameRef.child("sounds"),
+    playersRef: gameRef.child("players"),
+    chatRef: gameRef.child("chat"),
+    killsRef: gameRef.child("kills"),
+    mapStateRef: gameRef.child("mapState"),
+    tracersRef: gameRef.child("tracers"),
+    soundsRef: gameRef.child("sounds"),
     gameConfigRef: gameRef.child("gameConfig")
   };
 
   return { slotName: chosenKey, dbRefs };
 }
-
 /**
  * Release the slot by clearing /game in its own DB and marking it free in lobby.
  */
