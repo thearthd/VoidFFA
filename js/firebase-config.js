@@ -52,7 +52,6 @@ export function initializeMenuFirebase() {
   const db = menuApp.database();
   gamesRef     = db.ref("games");
   usersRef     = db.ref("users");
-  userStatsRef = db.ref("userStats");  // ← initialize it here
 }
 initializeMenuFirebase();
 
