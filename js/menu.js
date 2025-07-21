@@ -29,6 +29,8 @@ import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
 import { initNetwork, setActiveGameId } from "./network.js";
 import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef } from './firebase-config.js';
+
+import {  showLoadoutScreen, hideLoadoutScreen } from "./loadout.js";
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
 // <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -1665,18 +1667,20 @@ function careerButtonHit() {
  * Clears the current menu and displays a placeholder loadout screen.
  */
 function loadoutButtonHit() {
-    clearMenuCanvas();
-    add(logo);
+  // first clear out any canvas‑drawn menu items
+  clearMenuCanvas();
 
+  // show our DOM loadout overlay
+  showLoadoutScreen();
 
-    // You can add your loadout UI elements here
-    let loadoutText = new Text("Equip weapons and gear.", "30pt Arial");
-    loadoutText.setColor("#aaaaaa");
-    loadoutText.setPosition(getWidth() / 2, getHeight() / 2);
-    add(loadoutText);
-    currentMenuObjects.push(loadoutText);
-
-    addBackButton();
+  // add a “Back” hookup to return to the canvas menu
+  // (you already have addBackButton() logic that maybe wants to go back—
+  //  just hook it to hide the loadout screen)
+  addBackButton(() => {
+    hideLoadoutScreen();
+    // rebuild your canvas menu if needed, e.g.:
+    menu();
+  });
 }
 
 
