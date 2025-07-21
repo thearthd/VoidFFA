@@ -1539,7 +1539,7 @@ function careerButtonHit() {
   addBackButton();
 
   const username = localStorage.getItem('username') || 'Guest';
-  const startX = 100;
+  // Remove startX as it will be calculated dynamically
   let y = 150;
   const lineHeight = 30;
 
@@ -1552,27 +1552,38 @@ function careerButtonHit() {
     return text;
   }
 
-function displayStats(userData) {
-  const stats = userData.stats || {};
-  const wins = stats.wins || 0;
-  const kills = stats.kills || 0;
-  const deaths = stats.deaths || 0;
-  const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
+  function displayStats(userData) {
+    const stats = userData.stats || {};
+    const wins = stats.wins || 0;
+    const kills = stats.kills || 0;
+    const deaths = stats.deaths || 0;
+    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
 
-  const lines = [
-    `Career Stats for ${username}`,
-    `Wins: ${wins}`,
-    `Losses: ${userData.losses || 0}`,
-    `Kills: ${kills}`,
-    `Deaths: ${deaths}`,
-    `K/D Ratio: ${kd}`
-  ];
+    const lines = [
+      `Career Stats for ${username}`,
+      `Wins: ${wins}`,
+      `Losses: ${userData.losses || 0}`,
+      `Kills: ${kills}`,
+      `Deaths: ${deaths}`,
+      `K/D Ratio: ${kd}`
+    ];
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = createStatText(lines[i], startX, y + i * lineHeight);
-    add(line);
+    // Get the canvas width (assuming getWidth() is a function that returns it)
+    const canvasWidth = getWidth(); 
+
+    for (let i = 0; i < lines.length; i++) {
+      const lineContent = lines[i];
+      // Create a temporary text object to measure its width
+      const tempText = new Text(lineContent, "20pt Arial"); 
+      const textWidth = tempText.getWidth();
+      
+      // Calculate x to center the text
+      const x = (canvasWidth - textWidth) / 2; 
+      
+      const line = createStatText(lineContent, x, y + i * lineHeight);
+      add(line);
+    }
   }
-}
 
   usersRef.child(username).once('value')
     .then(snap => {
@@ -1599,7 +1610,14 @@ function displayStats(userData) {
     })
     .catch(err => {
       console.error("Error loading career stats:", err);
-      const errorText = createStatText("Unable to load stats.", startX, y);
+      // For error message, also center it
+      const errorLineContent = "Unable to load stats.";
+      const tempErrorText = new Text(errorLineContent, "20pt Arial");
+      const errorTextWidth = tempErrorText.getWidth();
+      const canvasWidth = getWidth(); // Make sure to get canvas width here too
+      const errorX = (canvasWidth - errorTextWidth) / 2;
+
+      const errorText = createStatText(errorLineContent, errorX, y);
       add(errorText);
     });
 }
