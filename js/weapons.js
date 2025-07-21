@@ -693,7 +693,7 @@ let appliedRecoilAngle = rawRecoil;
 if (this.currentKey === "ak-47" && shotIndex >= 7) {
   appliedRecoilAngle = 0.008;
 }     
-if (this.currentKey === "ak-47" && shotIndex = 9) {
+if (this.currentKey === "ak-47" && shotIndex == 9) {
   appliedRecoilAngle = 0.007;
 }     
 if (this.currentKey === "ak-47" && shotIndex >= 10) {
