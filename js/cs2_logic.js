@@ -22,7 +22,7 @@ export const ADS_FOV = {
 /**
  * Calculates the half-angle (in radians) of the spread cone for a given weapon and state.
  * For AK-47, the spread progressively increases with each shot, following its recoil pattern.
- *
+ * f
  * @param {string} weaponKey
  * @param {THREE.Vector3} velocity       – full horizontal movement vector
  * @param {boolean} isCrouched
