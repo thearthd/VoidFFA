@@ -53,6 +53,8 @@ export const preload = src => {
     img.src = src;
 };
 
+let dontyetpls = 0;
+
 // Get the canvas element and its 2D rendering context
 const canvas = document.getElementById('menuCanvas');
 const ctx = canvas.getContext('2d');
@@ -71,7 +73,6 @@ let canvasHeight = canvas.height;
 let menuSong = new Audio("https://codehs.com/uploads/7ab8d31b9bb147e3952841963f6f3769");
 menuSong.volume = 0.4;
 menuSong.loop = true;
-menuSong.play();
 
 /**
  * Sets the canvas dimensions to a fixed size (1920x1080) and updates
@@ -1194,6 +1195,8 @@ function updateBoardHit() {
  * Now explicitly calls makeButton for initial clickable elements.
  */
 function menu() {
+     if(dontyetpls == 0){  menuSong.play(); }
+     dontyetpls = 1;
     clearMenuCanvas(); // Clear anything previously on canvas
     // add(background); // REMOVED BACKGROUND
     sensitivitySliderContainer.style.display = "none"; // Or "block", depending on your CSS layout
