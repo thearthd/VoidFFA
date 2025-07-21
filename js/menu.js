@@ -1041,7 +1041,7 @@ export function initGameMenu(containerId, imageUrl) {
  */
 export function bindEscapeToggle() {
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") toggleGameMenu();
+    if (e.key === "p" || e.key === "P") toggleGameMenu();
   });
 }
 
