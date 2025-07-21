@@ -245,15 +245,14 @@ export async function createSigmaCity(scene, physicsController) {
     // Define scaling and initial spawn points for the map
     const SCALE = 2;
     const rawSpawnPoints = [
-         new THREE.Vector3(0, 50, 0), // 1
-     //   new THREE.Vector3(-1, 3, -4), // 1
-     //   new THREE.Vector3(-55, -1, -6), // 2
-    //    new THREE.Vector3(13, 5, 47), // 3
-    //    new THREE.Vector3(1, 5, -66), // 4
-    //    new THREE.Vector3(21, 5, -45), // 5
-    //    new THREE.Vector3(0, 10, 22), // 6
-   //     new THREE.Vector3(43, 1, -35), // 7
-   //     new THREE.Vector3(24, 3, -14), // 8
+        new THREE.Vector3(-1, 3, -4), // 1
+        new THREE.Vector3(-55, -1, -6), // 2
+        new THREE.Vector3(13, 5, 47), // 3
+        new THREE.Vector3(1, 5, -66), // 4
+        new THREE.Vector3(21, 5, -45), // 5
+        new THREE.Vector3(0, 10, 22), // 6
+        new THREE.Vector3(43, 1, -35), // 7
+        new THREE.Vector3(24, 3, -14), // 8
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 2));
 
@@ -344,6 +343,133 @@ export async function createSigmaCity(scene, physicsController) {
             },
             err => {
                 console.error('❌ Error loading SigmaCity GLB:', err);
+                reject(err);
+            }
+        );
+    });
+
+    // Track GLB load progress with the loader UI
+    loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
+        onGLBProgress = cb;
+    });
+
+    // Wait for the map loading to complete
+    await mapLoadPromise;
+
+    // When fully done, update readiness status and hide loader UI
+    loaderUI.onComplete(() => {
+        window.mapReady = true;
+        console.log('🗺️ Map + BVH Collider fully ready!');
+    });
+
+    return spawnPoints;
+}
+
+export async function diddyDunes(scene, physicsController) {
+    // Track loaded meshes and readiness status
+    window.envMeshes = [];
+    window.mapReady = false;
+
+    // Initialize loader UI with a single milestone for GLB loading
+    const loaderUI = new Loader();
+    const mapLoadPercentages = [1.0]; // GLB loading is 100% of the map load
+    loaderUI.show('Loading diddyDunes Map...', mapLoadPercentages);
+
+    // Define scaling and initial spawn points for the map
+    const SCALE = 2;
+    const rawSpawnPoints = [
+        new THREE.Vector3(0, 70, 0), // 1
+
+    ];
+    const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 2));
+
+    // Set up sunlight and shadows for the scene
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+    sunLight.position.set(50, 100, 50);
+    sunLight.target.position.set(0, 0, 0);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(2048, 2048);
+    const d = 100;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.camera.near = 0.1;
+    sunLight.shadow.camera.far = 200;
+    scene.add(sunLight, sunLight.target);
+
+    // URL of the GLB model for the map
+    const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sandyards_standoff_2.glb';
+
+    // 1) Load the GLB model into the scene and process it for collision detection
+    let gltfGroup = null;
+    let onGLBProgress = () => {};
+    const mapLoadPromise = new Promise((resolve, reject) => {
+        new GLTFLoader().load(
+            GLB_MODEL_URL,
+            gltf => {
+                gltfGroup = gltf.scene;
+                gltfGroup.scale.set(SCALE, SCALE, SCALE);
+                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
+
+                // Add the visual GLTF group to the scene
+                scene.add(gltfGroup);
+
+                // Enable shadows and anisotropy on all meshes in the GLTF group
+                gltfGroup.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material.map) {
+                            child.material.map.anisotropy = 4;
+                        }
+                        window.envMeshes.push(child); // Store reference to environment meshes
+                        // Ensure geometries have indices for BVH computation if missing
+                        if (child.geometry && !child.geometry.index) {
+                            child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
+                        }
+                    }
+                });
+
+                // --- MeshBVH Collider Setup ---
+                // Create a StaticGeometryGenerator from the loaded GLTF scene to merge geometries
+                const staticGenerator = new StaticGeometryGenerator(gltfGroup);
+                staticGenerator.attributes = ['position']; // Only position is needed for collision
+
+                // Generate the merged geometry from the static generator
+                const mergedGeometry = staticGenerator.generate();
+
+                // Compute the BVH on the merged geometry using the MeshBVH constructor directly
+                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry); // <--- Changed here
+
+                // Create the collider mesh using the merged geometry and a basic material
+                const collider = new THREE.Mesh(mergedGeometry, new THREE.MeshBasicMaterial());
+                collider.material.wireframe = true; // For visualization during development
+                collider.material.opacity = 0.5;
+                collider.material.transparent = true;
+                collider.visible = false; // Hide the collider by default in production
+
+                // Add the collider to the scene
+                scene.add(collider);
+
+                // Optional: Add MeshBVHHelper for visual debugging of the BVH structure
+                const visualizer = new MeshBVHHelper(collider, 10); // 10 is an example depth
+                visualizer.visible = false; // Hide by default
+                scene.add(visualizer);
+
+                // Pass the created collider mesh to the physics controller
+                // Assumes physicsController has a method like setCollider(mesh)
+                physicsController.setCollider(collider);
+                physicsController.worldBVH = collider.geometry.boundsTree;
+                console.log('✔️ GLB mesh loaded and BVH collider built.');
+                resolve(gltfGroup); // Resolve the promise once loading and BVH setup are complete
+            },
+            // Progress callback for GLB loading
+            evt => {
+                if (evt.lengthComputable) onGLBProgress(evt);
+            },
+            err => {
+                console.error('❌ Error loading diddyDunes GLB:', err);
                 reject(err);
             }
         );
