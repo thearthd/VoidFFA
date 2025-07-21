@@ -1662,38 +1662,65 @@ export function initMenuUI() {
         usernameInput.value = username;
     }
 
-    if (saveUsernameBtn) {
-        saveUsernameBtn.addEventListener("click", () => {
-            const val = usernameInput.value.trim();
-            if (val.length > 0) {
-                localStorage.setItem("username", val);
-                username = val;
-                playerCard.setText(username); // REMOVED TEXT
-                // Hide the HTML username prompt
-                showPanel(null);
+if (saveUsernameBtn) {
+  saveUsernameBtn.addEventListener("click", async () => {
+    const raw = usernameInput.value.trim();
+    const val = raw; // we already trimmed spaces
+const alphaNumRegex = /^[A-Za-z0-9_]+$/;
 
-              usersRef.push({
-                username: val,
-                savedAt: firebase.database.ServerValue.TIMESTAMP
-              });
-                 
-                // Show the canvas and draw the main menu
-                canvas.style.display = 'block';
-                menu();
+    // 1) Basic format validation
+if (!alphaNumRegex.test(val)) {
+  return Swal.fire(
+    'Invalid Username',
+    'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_), with no spaces or other symbols.',
+    'error'
+  );
+}
 
-                // Hide the HTML game logo
-                document.getElementById("game-logo").classList.add("hidden");
-                const menuOverlayElement = document.getElementById('menu-overlay');
-                if (menuOverlayElement) {
-                    menuOverlayElement.style.display = 'none';
-                }
+    // 2) Uniqueness check (case‑insensitive)
+    try {
+      const snap = await usersRef.once('value');
+      const users = snap.val() || {};
+      const lower = val.toLowerCase();
 
-            } else {
-                console.warn("Username cannot be empty!");
-                Swal.fire('Warning', 'Username cannot be empty!', 'warning');
-            }
-        });
+      for (let key in users) {
+        if (users[key].username.toLowerCase() === lower) {
+          return Swal.fire(
+            'Name Taken',
+            `“${val}” is already in use. Please choose another.`,
+            'warning'
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Error checking existing usernames:", err);
+      return Swal.fire(
+        'Error',
+        'Could not verify username uniqueness. Please try again in a moment.',
+        'error'
+      );
     }
+
+    // 3) Save locally
+    localStorage.setItem("username", val);
+    username = val;
+    playerCard.setText(username);
+
+    // 4) Store in menu DB
+    usersRef.push({
+      username: val,
+      savedAt:  firebase.database.ServerValue.TIMESTAMP
+    });
+
+    // 5) Hide prompt and show game
+    showPanel(null);
+    canvas.style.display = 'block';
+    menu();
+    document.getElementById("game-logo").classList.add("hidden");
+    const menuOverlayElement = document.getElementById('menu-overlay');
+    if (menuOverlayElement) menuOverlayElement.style.display = 'none';
+  });
+}
 
     // --- Sensitivity Slider Logic ---
     function setSensitivity(newVal) {
