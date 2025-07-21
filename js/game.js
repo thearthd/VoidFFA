@@ -2019,10 +2019,6 @@ export function animate(timestamp) {
             postFrameCleanup();
             return; // Exit early if player is dead
         } else {
-            // Player is alive: ensure game sounds are playing and death overlays are hidden
-            if (windSound && !windSound.paused) windSound.pause();
-            if (forestNoise && !forestNoise.paused) forestNoise.pause();
-            if (deathTheme && !deathTheme.paused) deathTheme.pause();
 
             if (fadeOverlay && fadeOverlay.style.opacity !== "0") {
                 hideFadeOverlay(); // Assumes this function correctly sets opacity to "0" and pointerEvents to "none"
