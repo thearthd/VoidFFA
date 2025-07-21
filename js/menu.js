@@ -1591,11 +1591,12 @@ function careerButtonHit() {
   addBackButton();
 
   const username = localStorage.getItem('username') || 'Guest';
-  let y = 150;
   const lineHeight = 30;
+  const canvasWidth = getWidth();
 
-  const ctx = document.createElement("canvas").getContext("2d");
-  ctx.font = "20pt Arial"; // Use the same font to measure width
+  // Create a single off-screen canvas context for measuring text
+  const measureCtx = document.createElement("canvas").getContext("2d");
+  measureCtx.font = "20pt Arial";
 
   function createStatText(content, y) {
     const text = new Text(content, "20pt Arial");
@@ -1603,13 +1604,11 @@ function careerButtonHit() {
     text.setLayer(4);
     text.originalFontSize = 20;
 
-    // Use canvas context to measure text width
-    const textWidth = ctx.measureText(content).width;
-    const canvasWidth = getWidth();
+    // Measure width and center
+    const textWidth = measureCtx.measureText(content).width;
     const centerX = canvasWidth / 2;
-
-    // Position so the center of the text aligns with the screen center
     text.setPosition(centerX - textWidth / 2, y);
+
     return text;
   }
 
@@ -1619,39 +1618,37 @@ function careerButtonHit() {
     const kills = stats.kills || 0;
     const deaths = stats.deaths || 0;
     const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
+    const losses = userData.losses || 0;
 
     const lines = [
       `Career Stats for ${username}`,
       `Wins: ${wins}`,
-      `Losses: ${userData.losses || 0}`,
+      `Losses: ${losses}`,
       `Kills: ${kills}`,
       `Deaths: ${deaths}`,
       `K/D Ratio: ${kd}`
     ];
 
+    // Start drawing at y = 150
+    let y = 150;
     for (let i = 0; i < lines.length; i++) {
-      const line = createStatText(lines[i], y + i * lineHeight);
-      add(line);
+      const lineText = createStatText(lines[i], y + i * lineHeight);
+      add(lineText);
     }
   }
 
   usersRef.child(username).once('value')
     .then(snap => {
       if (snap.exists()) {
-        console.log("Stats found directly under key:", username, snap.val());
         displayStats(snap.val());
       } else {
-        console.log("No direct key match, querying by username property...");
         return usersRef
           .orderByChild('username')
           .equalTo(username)
           .once('value')
           .then(qsnap => {
             let userData = null;
-            qsnap.forEach(child => {
-              userData = child.val();
-            });
-
+            qsnap.forEach(child => { userData = child.val(); });
             if (!userData) throw new Error("User not found in database.");
             displayStats(userData);
           });
@@ -1659,8 +1656,7 @@ function careerButtonHit() {
     })
     .catch(err => {
       console.error("Error loading career stats:", err);
-      const errorLineContent = "Unable to load stats.";
-      const errorText = createStatText(errorLineContent, y);
+      const errorText = createStatText("Unable to load stats.", 150);
       add(errorText);
     });
 }
