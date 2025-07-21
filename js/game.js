@@ -28,8 +28,7 @@ THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
-import { createSigmaCity } from "./map.js";
-import { createCrocodilosConstruction } from "./map.js";
+import { createDiddyDunes, createSigmaCity, createCrocodilosConstruction } from "./map.js";
 
 import { initNetwork, sendPlayerUpdate, localPlayerId, remotePlayers, updateHealth, updateShield, initializeAudioManager, startSoundListener, disconnectPlayer } from "./network.js";
 import { claimGameSlot, releaseGameSlot } from './firebase-config.js';
@@ -682,7 +681,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     await initSceneCrocodilosConstruction();
   } else if (mapName === 'SigmaCity') {
     await initSceneSigmaCity();
-  }
+  } else if (mapName === 'DiddyDunes') {
+    await initSceneDiddyDunes();
 
   initInput();
   initChatUI();
@@ -993,6 +993,119 @@ onWindowResize(); // Call once initially to set the correct sizes
 }
 
 
+export async function initSceneDiddyDunes() { // Make initSceneCrocodilosConstruction async
+sceneNum = 2;
+console.log("Initializing DiddyDunes scene...");
+
+scene = new THREE.Scene();
+const skyColor = new THREE.Color(0x87CEEB);
+scene.background = skyColor;
+window.scene = scene;
+
+
+const skyGeo = new THREE.SphereGeometry(200, 32, 32).scale(-1, 1, 1);
+const skyMat = new THREE.MeshBasicMaterial({
+color: 0x000022,
+side: THREE.BackSide,
+fog: false
+});
+skyMesh = new THREE.Mesh(skyGeo, skyMat);
+scene.add(skyMesh);
+window.scene = scene;
+
+
+window.camera.rotation.order = "YXZ";
+scene.add( window.camera );
+
+
+// 3. Renderer
+window.renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias might reduce the "pixelated" effect of lower resolution
+renderer = window.renderer;
+renderer.domElement.style.position = "relative";
+renderer.domElement.style.zIndex = "0";
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x000000, 1);
+document.getElementById("game-container").appendChild(renderer.domElement);
+window.renderer = renderer;
+
+// 4. Hemisphere Light
+hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.05);
+scene.add(hemi);
+window.hemi = hemi;
+
+// 5. Post-processing Composer
+// Note: EffectComposer also needs to know the renderer's *display* size
+composer = new EffectComposer(renderer);
+renderPass = new RenderPass(scene, window.camera);
+composer.addPass(renderPass);
+window.composer = composer;
+window.renderPass = renderPass;
+
+// --- Initial Detail Setup for DiddyDunes ---
+toggleSceneDetails(detailsEnabled);
+
+// --- Map and Physics Initialization ---
+// AWAIT the creation of the map and spawn points
+spawnPoints = await createDiddyDunes(scene, physicsController);
+window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual array
+
+const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
+physicsController.setPlayerPosition(initialSpawnPoint);
+
+// --- Audio Initialization ---
+if (typeof forestNoise !== 'undefined') {
+forestNoise.volume = 0.05;
+forestNoise.play().catch(err => console.warn("Failed to play forest noise:", err));
+window.windSound = forestNoise; // Renamed to windSound for consistency if only one wind sound
+} else {
+console.warn("forestNoise is not defined. Audio might not play for DiddyDunes.");
+}
+
+// --- Window Resize Handling ---
+function onWindowResize() {
+const container = document.getElementById("game-container");
+const displayWidth  = container.clientWidth;
+const displayHeight = container.clientHeight;
+
+// 1) Render & post‑process at fixed 1280×720
+renderer.setSize(FIXED_WIDTH, FIXED_HEIGHT, false);
+if (composer) composer.setSize(FIXED_WIDTH, FIXED_HEIGHT);
+
+// 2) Stretch the canvas via CSS to fill the container
+renderer.domElement.style.width  = `${displayWidth}px`;
+renderer.domElement.style.height = `${displayHeight}px`;
+
+// 3) Update camera to match the display aspect ratio
+window.camera.aspect = displayWidth / displayHeight;
+window.camera.updateProjectionMatrix();
+
+// 4) Re‑attach weapon to local player (if needed)
+if (window.weaponController && window.localPlayer && typeof getWeaponModel === 'function' && typeof attachWeaponToPlayer === 'function') {
+const key = window.localPlayer.weapon.replace(/-/g, "").toLowerCase();
+const proto = getWeaponModel(key);
+if (proto) attachWeaponToPlayer(window.localPlayer.id, key);
+}
+
+// 5) Re‑attach weapons for remote players
+if (window.remotePlayers) {
+Object.values(window.remotePlayers).forEach(({ currentWeapon, weaponRoot }) => {
+if (currentWeapon && weaponRoot && typeof attachWeaponToPlayer === 'function') {
+attachWeaponToPlayer(weaponRoot.userData.playerId, currentWeapon);
+}
+});
+}
+
+// 6) Resize HUD overlay
+const hud = document.getElementById("hud");
+if (hud) {
+hud.style.width  = `${displayWidth}px`;
+hud.style.height = `${displayHeight}px`;
+}
+}
+
+window.addEventListener("resize", onWindowResize, false);
+onWindowResize(); // Call once initially to set the correct sizes
+}
 
 
 
