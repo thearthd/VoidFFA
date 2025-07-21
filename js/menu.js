@@ -1805,66 +1805,55 @@ if (!alphaNumRegex.test(val)) {
 
 // --- Main execution logic ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Check for a stored winner from a previous game
-    const storedWinner = localStorage.getItem('gameWinner');
-    if (storedWinner) {
-        try {
-            const winner = JSON.parse(storedWinner);
-            console.log("SweetAlert: Displaying winner from previous game session.");
-            Swal.fire({
-                title: 'GAME OVER!',
-                html: `The winner is <strong>${winner.username}</strong> with <strong>${winner.kills}</strong> kills!`,
-                icon: 'success',
-                confirmButtonText: 'Play Again',
-                allowOutsideClick: false, // Prevent closing by clicking outside
-                allowEscapeKey: false // Prevent closing by pressing Escape
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    console.log("SweetAlert: User confirmed, proceeding to menu.");
-                }
-            });
-
-            // Clean up localStorage immediately after displaying the winner
-            localStorage.removeItem('gameWinner');
-            localStorage.removeItem('gameEndedTimestamp'); // Also remove the timestamp if you stored it
-        } catch (e) {
-            console.error("SweetAlert: Error parsing stored winner data from localStorage:", e);
-            localStorage.removeItem('gameWinner'); // Clear corrupted data
-            localStorage.removeItem('gameEndedTimestamp');
+  const stored = localStorage.getItem('gameWinner');
+  if (stored) {
+    try {
+      const { winners, kills } = JSON.parse(stored);
+      const title = winners.length > 1 ? 'GAME OVER! Multiple Winners!' : 'GAME OVER!';
+      const names = winners.join(', ');
+      Swal.fire({
+        title,
+        html: winners.length > 1
+          ? `The winners are <strong>${names}</strong> with <strong>${kills}</strong> kills each!`
+          : `The winner is <strong>${names}</strong> with <strong>${kills}</strong> kills!`,
+        icon: 'success',
+        confirmButtonText: 'Play Again',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      }).then(result => {
+        if (result.isConfirmed) {
+          console.log("SweetAlert: User confirmed, proceeding to menu.");
         }
+      });
+    } catch (e) {
+      console.error("SweetAlert: Error parsing stored winner:", e);
+    } finally {
+      localStorage.removeItem('gameWinner');
+      localStorage.removeItem('gameEndedTimestamp');
     }
+  }
 
-
-    // Always initialize the menu UI if we are on index.html or the root path
-    if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
-        console.log("Attempting to initialize Menu UI on index.html...");
-        initMenuUI(); // Initialize the HTML-based menu
-        // menu(); // Calling menu() here twice if initMenuUI also calls it can be redundant
-        console.log("Menu UI initialization process started.");
+  if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
+    initMenuUI();
+  } else {
+    const gameWrapper = document.getElementById('game-container');
+    if (gameWrapper) {
+      createGameUI(gameWrapper);
+      const username = localStorage.getItem("username") || "Guest";
+      const params = new URLSearchParams(window.location.search);
+      const mapName = params.get('map');
+      const gameId  = params.get('gameId');
+      if (mapName && gameId) {
+        console.log(`Auto-joining game: Map=${mapName}, GameID=${gameId}`);
+      } else if (mapName) {
+        console.log(`Auto-starting game: Map=${mapName}`);
+      } else {
+        console.warn("No map or game ID in URL; falling back to menu.");
+        menu();
+      }
     } else {
-        const gameWrapper = document.getElementById('game-container');
-        if (gameWrapper) {
-            createGameUI(gameWrapper);
-            // This part of the else block for starting game on other paths
-            // usually means joining an existing game via URL params
-            const username = localStorage.getItem("username") || "Guest";
-            const urlParams = new URLSearchParams(window.location.search);
-            const mapName = urlParams.get('map');
-            const gameId = urlParams.get('gameId'); // Get gameId from URL
-            if (mapName && gameId) {
-                console.log(`Auto-joining game from URL: Map=${mapName}, GameID=${gameId}`);
-
-            } else if (mapName) {
-                console.log(`Auto-starting game from URL (no gameId): Map=${mapName}`);
-
-            } else {
-                console.warn("No map or game ID found in URL parameters, cannot auto-start game.");
-                // If on a non-root path but no game info, fallback to menu
-                menu();
-            }
-        } else {
-            console.error("game-container element not found!");
-            menu(); // Fallback to menu if no game container
-        }
+      console.error("game-container element not found!");
+      menu();
     }
+  }
 });
