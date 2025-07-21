@@ -683,6 +683,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     await initSceneSigmaCity();
   } else if (mapName === 'DiddyDunes') {
     await initSceneDiddyDunes();
+  }
 
   initInput();
   initChatUI();
