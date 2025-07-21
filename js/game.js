@@ -300,23 +300,11 @@ async function determineWinnerAndEndGame() {
     console.log("Detached players kill listener.");
   }
 
-  // 6) Signal every player to disconnect by updating their status in the database
-  const signalDisconnectPromises = [];
-  playersSnapshot.forEach(childSnap => {
-    const playerId = childSnap.key;
-    // Assuming playersRef points to a collection where childSnap.key is the player's unique ID
-    // We update a 'disconnected' flag and optionally a 'disconnectReason'
-    signalDisconnectPromises.push(
-      playersRef.child(playerId).update({ disconnected: true, disconnectReason: 'game_ended' })
-        .catch(error => console.error(`Failed to signal disconnect for player ${playerId}:`, error))
-    );
-  });
-  await Promise.all(signalDisconnectPromises);
-  console.log(`Disconnect signals sent to ${signalDisconnectPromises.length} players.`);
-
   // 7) Finally, clean up game resources
   await disposeGame();
   await fullCleanup(activeGameId);
+
+    playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
 }
 
 
