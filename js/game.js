@@ -300,11 +300,16 @@ async function determineWinnerAndEndGame() {
     console.log("Detached players kill listener.");
   }
 
+await Promise.all(
+  playerIdsToDisconnect.map(id => disconnectPlayer(id))
+);
+
+    
   // 7) Finally, clean up game resources
   await disposeGame();
   await fullCleanup(activeGameId);
 
-    playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
+
 }
 
 
