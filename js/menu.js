@@ -1552,27 +1552,27 @@ function careerButtonHit() {
     return text;
   }
 
-  function displayStats(userData) {
-    const wins = userData.wins || 0;
-    const losses = userData.losses || 0;
-    const kills = userData.kills || 0;
-    const deaths = userData.deaths || 0;
-    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
+function displayStats(userData) {
+  const stats = userData.stats || {};
+  const wins = stats.wins || 0;
+  const kills = stats.kills || 0;
+  const deaths = stats.deaths || 0;
+  const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
 
-    const lines = [
-      `Career Stats for ${username}`,
-      `Wins: ${wins}`,
-      `Losses: ${losses}`,
-      `Kills: ${kills}`,
-      `Deaths: ${deaths}`,
-      `K/D Ratio: ${kd}`
-    ];
+  const lines = [
+    `Career Stats for ${username}`,
+    `Wins: ${wins}`,
+    `Losses: ${userData.losses || 0}`,
+    `Kills: ${kills}`,
+    `Deaths: ${deaths}`,
+    `K/D Ratio: ${kd}`
+  ];
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = createStatText(lines[i], startX, y + i * lineHeight);
-      add(line);
-    }
+  for (let i = 0; i < lines.length; i++) {
+    const line = createStatText(lines[i], startX, y + i * lineHeight);
+    add(line);
   }
+}
 
   usersRef.child(username).once('value')
     .then(snap => {
