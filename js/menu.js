@@ -1599,7 +1599,7 @@ function careerButtonHit() {
   measureCtx.font = "20pt Arial";
 
   function createStatText(content, y) {
-    const text = new Text(content, "20pt Arial");
+    const text = new Text(content, "40pt Arial");
     text.setColor("#ffffff");
     text.setLayer(4);
     text.originalFontSize = 20;
@@ -1630,7 +1630,7 @@ function careerButtonHit() {
     ];
 
     // Start drawing at y = 150
-    let y = 150;
+    let y = 250;
     for (let i = 0; i < lines.length; i++) {
       const lineText = createStatText(lines[i], y + i * lineHeight);
       add(lineText);
