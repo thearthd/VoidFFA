@@ -1287,7 +1287,7 @@ async function createGameButtonHit() {
     });
 
     if (!formValues) {
-        return menu();
+        return;
     }
 
 const gameData = {
