@@ -1586,257 +1586,79 @@ function settingsButtonHit() {
  * Clears the current menu and displays a placeholder career screen.
  */
 function careerButtonHit() {
-    clearMenuCanvas(); // Clear existing menu items
-    add(logo);
-    addBackButton(); // This back button will initially act for career stats
+  clearMenuCanvas();
+  add(logo);
+  addBackButton();
 
-    const username = localStorage.getItem('username') || 'Guest';
-    const lineHeight = 60;
-    const canvasWidth = getWidth(); // Assuming getWidth() exists
+  const username = localStorage.getItem('username') || 'Guest';
+  const lineHeight = 60;
+  const canvasWidth = getWidth();
 
-    // Create a single off-screen canvas context for measuring text
-    const measureCtx = document.createElement("canvas").getContext("2d");
-    measureCtx.font = "20pt Arial"; // Using 20pt as per your createStatText font size
+  // Create a single off-screen canvas context for measuring text
+  const measureCtx = document.createElement("canvas").getContext("2d");
+  measureCtx.font = "20pt Arial";
 
-    function createStatText(content, y) {
-        // This function should be adapted to create and position Text objects on your canvas
-        // or whatever your 'add' function expects. For direct DOM manipulation, you'd use:
-        const textElement = document.createElement('div');
-        textElement.textContent = content;
-        textElement.style.color = "#ffffff";
-        textElement.style.fontSize = "20pt";
-        textElement.style.fontFamily = "Arial";
-        textElement.style.position = "absolute";
-        textElement.style.top = `${y}px`;
-        textElement.style.left = "50%";
-        textElement.style.transform = "translateX(-50%)";
-        textElement.style.whiteSpace = "nowrap";
-        // Assuming 'add' can handle this DOM element or your custom Text object
-        return textElement;
+  function createStatText(content, y) {
+    const text = new Text(content, "40pt Arial");
+    text.setColor("#ffffff");
+    text.setLayer(4);
+    text.originalFontSize = 20;
+
+    // Measure width and center
+    const textWidth = measureCtx.measureText(content).width;
+    const centerX = canvasWidth / 2;
+    text.setPosition(centerX, y);
+
+    return text;
+  }
+
+  function displayStats(userData) {
+    const stats = userData.stats || {};
+    const wins = stats.wins || 0;
+    const kills = stats.kills || 0;
+    const deaths = stats.deaths || 0;
+    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
+    const losses = userData.losses || 0;
+
+    const lines = [
+      `Career Stats for ${username}`,
+      `Wins: ${wins}`,
+      `Losses: ${losses}`,
+      `Kills: ${kills}`,
+      `Deaths: ${deaths}`,
+      `K/D Ratio: ${kd}`
+    ];
+
+    // Start drawing at y = 150
+    let y = 250;
+    for (let i = 0; i < lines.length; i++) {
+      const lineText = createStatText(lines[i], y + i * lineHeight);
+      add(lineText);
     }
+  }
 
-    function displayStats(userData) {
-        // Your existing logic to display career stats
-        const stats = userData.stats || {};
-        const wins = stats.wins || 0;
-        const kills = stats.kills || 0;
-        const deaths = stats.deaths > 0 ? stats.deaths : 0; // Prevent division by zero
-        const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
-        const losses = userData.losses || 0;
-
-        const lines = [
-            `Career Stats for ${username}`,
-            `Wins: ${wins}`,
-            `Losses: ${losses}`,
-            `Kills: ${kills}`,
-            `Deaths: ${deaths}`,
-            `K/D Ratio: ${kd}`
-        ];
-
-        let y = 250;
-        for (let i = 0; i < lines.length; i++) {
-            const lineText = createStatText(lines[i], y + i * lineHeight);
-            add(lineText); // Use your game's 'add' function
-        }
-    }
-
-    // --- New Player List Feature Logic ---
-
-    // 1. Create the "View Players" button
-    const viewPlayersBtn = document.createElement('button');
-    viewPlayersBtn.id = 'viewPlayersBtn';
-    viewPlayersBtn.textContent = 'View Players';
-    viewPlayersBtn.className = 'menu-button'; // Apply a class for basic styling
-    // Position the button (adjust these styles based on your game's UI layout)
-    viewPlayersBtn.style.position = 'absolute';
-    viewPlayersBtn.style.top = '100px'; // Example position
-    viewPlayersBtn.style.left = '50%';
-    viewPlayersBtn.style.transform = 'translateX(-50%)';
-    viewPlayersBtn.style.zIndex = '10'; // Ensure it's on top
-    add(viewPlayersBtn); // Add the button to your game's display
-
-    // 2. Create the Player List Container (initially hidden)
-    const playerListContainer = document.createElement('div');
-    playerListContainer.id = 'playerListContainer';
-    playerListContainer.classList.add('hidden'); // Use CSS to hide/show
-    // Apply essential styles for positioning and layout
-    playerListContainer.style.position = 'fixed'; // Fixed to viewport for overlay
-    playerListContainer.style.top = '50%';
-    playerListContainer.style.left = '50%';
-    playerListContainer.style.transform = 'translate(-50%, -50%)';
-    playerListContainer.style.width = '90%';
-    playerListContainer.style.maxWidth = '500px';
-    playerListContainer.style.height = '80%';
-    playerListContainer.style.maxHeight = '500px';
-    playerListContainer.style.backgroundColor = '#666';
-    playerListContainer.style.borderRadius = '8px';
-    playerListContainer.style.padding = '20px';
-    playerListContainer.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.7)';
-    playerListContainer.style.display = 'flex'; // Use flexbox for internal layout
-    playerListContainer.style.flexDirection = 'column';
-    playerListContainer.style.alignItems = 'center';
-    playerListContainer.style.zIndex = '100'; // Ensure it's above other elements
-    add(playerListContainer); // Add the container to your game's display
-
-    // 3. Create Search Wrapper and Input
-    const playerSearchWrapper = document.createElement('div');
-    playerSearchWrapper.id = 'playerSearchWrapper';
-    playerSearchWrapper.style.width = '100%';
-    playerSearchWrapper.style.marginBottom = '15px';
-    playerSearchWrapper.style.display = 'flex';
-    playerSearchWrapper.style.justifyContent = 'center';
-    playerListContainer.appendChild(playerSearchWrapper);
-
-    const playerSearchInput = document.createElement('input');
-    playerSearchInput.type = 'text';
-    playerSearchInput.id = 'playerSearchInput';
-    playerSearchInput.placeholder = 'Search for a player...';
-    playerSearchInput.style.width = 'calc(100% - 20px)';
-    playerSearchInput.style.padding = '10px';
-    playerSearchInput.style.border = '1px solid #888';
-    playerSearchInput.style.borderRadius = '5px';
-    playerSearchInput.style.fontSize = '16px';
-    playerSearchInput.style.backgroundColor = '#777';
-    playerSearchInput.style.color = '#fff';
-    playerSearchWrapper.appendChild(playerSearchInput);
-
-    // 4. Create Player List Wrapper and List (for scrolling)
-    const playerListWrapper = document.createElement('div');
-    playerListWrapper.id = 'playerListWrapper';
-    playerListWrapper.style.width = '100%';
-    playerListWrapper.style.flexGrow = '1'; // Allows the list to take available vertical space
-    playerListWrapper.style.overflowY = 'auto'; // **This creates the scrolling feature**
-    playerListWrapper.style.border = '1px solid #888';
-    playerListWrapper.style.borderRadius = '5px';
-    playerListWrapper.style.backgroundColor = '#777';
-    playerListWrapper.style.marginBottom = '15px';
-    playerListContainer.appendChild(playerListWrapper);
-
-    const playerList = document.createElement('ul');
-    playerList.id = 'playerList';
-    playerList.style.listStyle = 'none';
-    playerList.style.padding = '0';
-    playerList.style.margin = '0';
-    playerList.style.width = '100%';
-    playerListWrapper.appendChild(playerList);
-
-    // 5. Create the "Back" button for the player list
-    const closePlayerListBtn = document.createElement('button');
-    closePlayerListBtn.id = 'closePlayerListBtn';
-    closePlayerListBtn.textContent = 'Back';
-    closePlayerListBtn.className = 'menu-button';
-    playerListContainer.appendChild(closePlayerListBtn);
-
-    // Initial state: hide player list, show career stats (if loaded) and viewPlayersBtn
-    playerListContainer.classList.add('hidden');
-    viewPlayersBtn.classList.remove('hidden');
-
-    // --- Event Listeners for the new feature ---
-
-    viewPlayersBtn.addEventListener('click', () => {
-        // Hide existing career stats text and the "View Players" button
-        // You'll need to adapt this based on how your 'clearMenuCanvas' works
-        // or how you manage showing/hiding different UI panels.
-        // For example, if career stats are added as specific elements to the canvas:
-        // You might need to remove them or hide their layer.
-        // For simplicity, we'll just hide the button itself and show the list.
-        viewPlayersBtn.classList.add('hidden');
-        playerListContainer.classList.remove('hidden'); // Show player list
-
-        // Fetch all usernames from your usersRef (the database)
-        usersRef.once('value') // Assumes usersRef is available and works like Firebase snapshot
-            .then(snapshot => {
-                playerList.innerHTML = ''; // Clear existing list items
-
-                // SimpleJekyllSearch expects an array of objects with 'title' and 'content'
-                const searchableData = [];
-
-                snapshot.forEach(childSnapshot => {
-                    const userData = childSnapshot.val(); // Get user data for this child
-                    // IMPORTANT: Ensure your user data structure includes 'username'
-                    if (userData && userData.username) {
-                        const usernameEntry = userData.username;
-                        searchableData.push({ title: usernameEntry, content: usernameEntry });
-
-                        const listItem = document.createElement('li');
-                        listItem.textContent = usernameEntry;
-                        listItem.style.padding = '10px 15px';
-                        listItem.style.borderBottom = '1px solid #888';
-                        listItem.style.color = '#eee';
-                        listItem.style.fontSize = '18px';
-                        listItem.style.cursor = 'pointer';
-                        listItem.style.transition = 'background-color 0.2s ease';
-                        listItem.addEventListener('mouseover', () => listItem.style.backgroundColor = '#555');
-                        listItem.addEventListener('mouseout', () => listItem.style.backgroundColor = 'transparent');
-                        listItem.addEventListener('click', () => {
-                            // Optional: When a username is clicked, you could display their stats
-                            // You would need to handle navigating back to career stats view here.
-                            console.log(`Clicked on user: ${usernameEntry}`);
-                            // Example: If you want to show their stats and close the list:
-                            // localStorage.setItem('username', usernameEntry); // Set the clicked user
-                            // closePlayerListBtn.click(); // Close the list
-                            // Then call a function that brings you back to a menu where career stats can be viewed.
-                        });
-                        playerList.appendChild(listItem);
-                    }
-                });
-
-                // Initialize SimpleJekyllSearch
-                if (typeof SimpleJekyllSearch !== 'undefined') {
-                    // Destroy previous instance if exists to re-initialize with new data
-                    if (window.playerSearchInstance) {
-                        window.playerSearchInstance.destroy();
-                    }
-                    window.playerSearchInstance = new SimpleJekyllSearch({
-                        searchInput: playerSearchInput, // Reference the created input element
-                        resultsContainer: playerList,   // Reference the created ul element
-                        dataSource: searchableData,
-                        searchResultTemplate: '<li>{title}</li>',
-                        noResultsText: '<li>No matching players found.</li>',
-                        limit: 100 // Adjust limit as needed
-                    });
-                } else {
-                    console.error("SimpleJekyllSearch is not loaded. Ensure the CDN script is in your HTML.");
-                }
-            })
-            .catch(err => {
-                console.error("Error fetching all usernames:", err);
-                playerList.innerHTML = '<li>Error loading players.</li>';
-            });
+  usersRef.child(username).once('value')
+    .then(snap => {
+      if (snap.exists()) {
+        displayStats(snap.val());
+      } else {
+        return usersRef
+          .orderByChild('username')
+          .equalTo(username)
+          .once('value')
+          .then(qsnap => {
+            let userData = null;
+            qsnap.forEach(child => { userData = child.val(); });
+            if (!userData) throw new Error("User not found in database.");
+            displayStats(userData);
+          });
+      }
+    })
+    .catch(err => {
+      console.error("Error loading career stats:", err);
+      const errorText = createStatText("Unable to load stats.", 150);
+      add(errorText);
     });
-
-    closePlayerListBtn.addEventListener('click', () => {
-        playerListContainer.classList.add('hidden'); // Hide the player list
-        viewPlayersBtn.classList.remove('hidden'); // Show the "View Players" button again
-        playerSearchInput.value = ''; // Clear the search input
-        // Re-display initial career stats or menu if needed here
-        // Your current clearMenuCanvas() and add(logo), addBackButton()
-        // might need to be re-executed or adjusted if they hide these elements.
-    });
-
-    // Original logic for displaying initial user's career stats
-    usersRef.child(username).once('value')
-        .then(snap => {
-            if (snap.exists()) {
-                displayStats(snap.val());
-            } else {
-                return usersRef
-                    .orderByChild('username') // Assuming orderByChild is available if using Firebase SDK
-                    .equalTo(username)
-                    .once('value')
-                    .then(qsnap => {
-                        let userData = null;
-                        qsnap.forEach(child => { userData = child.val(); });
-                        if (!userData) throw new Error("User not found in database.");
-                        displayStats(userData);
-                    });
-            }
-        })
-        .catch(err => {
-            console.error("Error loading career stats:", err);
-            const errorText = createStatText("Unable to load stats.", 150);
-            add(errorText); // Use your game's 'add' function
-        });
 }
 /**
  * Handles the "Loadout" button click.
