@@ -1534,10 +1534,44 @@ function settingsButtonHit() {
  * Clears the current menu and displays a placeholder career screen.
  */
 function careerButtonHit() {
-    clearMenuCanvas();
-    add(logo);
+  clearMenuCanvas();
+  add(logo);
+  addBackButton();
 
-    addBackButton();
+  const username = localStorage.getItem('username') || 'Guest';
+
+  usersRef.child(username).once('value').then(snapshot => {
+    const stats = snapshot.val() || {};
+    const wins   = stats.wins   || 0;
+    const losses = stats.losses || 0;
+    const kills  = stats.kills  || 0;
+    const deaths = stats.deaths || 0;
+
+    const startX = 100;
+    let y = 150;
+    const lineHeight = 30;
+
+    add(new Text(`Career Stats for ${username}`, startX, y));
+    y += lineHeight;
+
+    add(new Text(`Wins:   ${wins}`,   startX, y));
+    y += lineHeight;
+
+    add(new Text(`Losses: ${losses}`, startX, y));
+    y += lineHeight;
+
+    add(new Text(`Kills:  ${kills}`,  startX, y));
+    y += lineHeight;
+
+    add(new Text(`Deaths: ${deaths}`, startX, y));
+    y += lineHeight;
+
+    const kdRatio = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
+    add(new Text(`K/D Ratio: ${kdRatio}`, startX, y));
+  }).catch(err => {
+    console.error('Failed to load career stats:', err);
+    add(new Text('Unable to load career stats.', 100, 150));
+  });
 }
 
 /**
