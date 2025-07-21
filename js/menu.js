@@ -507,7 +507,7 @@ export class ImageShape extends Shape {
         this.image.src = src;
         this.image.onload = () => {
             this.loaded = true;
-            if (onLoadCallback) onLoadCallback(); // Trigger callback once image is loaded
+            if (onLoadCallback) onLoadCallback();
         };
         this.loaded = false;
 
@@ -515,7 +515,7 @@ export class ImageShape extends Shape {
         this.y = 0;
         this.width = 100;
         this.height = 100;
-        this.opacity = 1.0;  // Add default opacity
+        this.opacity = 1.0;
         this.anchorX = 0;
         this.anchorY = 0;
     }
@@ -546,8 +546,9 @@ export class ImageShape extends Shape {
 
     getWidth() { return this.width; }
     getHeight() { return this.height; }
-    getY() { return this.y; }             // <- NEW
-    getOpacity() { return this.opacity; } // <- NEW
+    getX() { return this.x; }               // ← NEW
+    getY() { return this.y; }               // ← NEW
+    getOpacity() { return this.opacity; }   // ← NEW
 
     draw(ctx) {
         if (!this.loaded) return;
@@ -557,7 +558,6 @@ export class ImageShape extends Shape {
         ctx.restore();
     }
 }
-
 /**
  * The main game loop that clears the canvas, sorts and draws all shapes,
  * and then requests the next animation frame.
