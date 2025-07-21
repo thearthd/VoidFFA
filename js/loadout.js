@@ -11,8 +11,8 @@ const SECONDARIES = [
 ];
 
 function initLoadout() {
-  //populateWeaponGrid('primary-container', PRIMARIES, 'primary');
- // populateWeaponGrid('secondary-container', SECONDARIES, 'secondary');
+  populateWeaponGrid('primary-container', PRIMARIES, 'primary');
+  populateWeaponGrid('secondary-container', SECONDARIES, 'secondary');
 
   const saved = loadLoadout();
   selectButton(saved.primary, 'primary');
@@ -35,7 +35,6 @@ function initLoadout() {
   updateHUD();
 }
 
-initLoadout();
 function populateWeaponGrid(containerId, list, slotType) {
   const container = document.getElementById(containerId);
   list.forEach(w => {
