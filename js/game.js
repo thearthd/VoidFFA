@@ -99,11 +99,14 @@ let deathTheme = new Audio("https://codehs.com/uploads/720078943b931e7eb258b01fb
 deathTheme.loop = true;
 deathTheme.volume = 0.5;
 
-const forestNoise = new Audio(
-"https://codehs.com/uploads/e26ad4fc80829f48ecd9b470fe84987d"
-);
-forestNoise.loop   = true;
-forestNoise.volume = 0.15;
+let currentWindSoundInstance = null;
+let currentForestNoiseInstance = null;
+// You'll need to define the URLs for your sounds if they are not already.
+// For example:
+const WIND_SOUND_URL = 'https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa'; // Adjust your path
+const FOREST_NOISE_URL = 'https://codehs.com/uploads/e26ad4fc80829f48ecd9b470fe84987d'; // Adjust your path
+
+
 
 
 const bulletHoleMeshes = {};
@@ -758,239 +761,253 @@ function setupDetailToggle() {
 
 
 export async function initSceneCrocodilosConstruction() { // Make initSceneCrocodilosConstruction async
-sceneNum = 1;
-console.log("Initializing CrocodilosConstruction scene...");
+    sceneNum = 1;
+    console.log("Initializing CrocodilosConstruction scene...");
 
-
-
-
-
-// 1. Scene
-scene = new THREE.Scene();
-const skyGeo = new THREE.SphereGeometry(200, 32, 32).scale(-1, 1, 1);
-const skyMat = new THREE.MeshBasicMaterial({
-color: 0x000022,
-side: THREE.BackSide,
-fog: false
-});
-const skyColor = new THREE.Color(0x111122);
-scene.background = skyColor;
-skyMesh = new THREE.Mesh(skyGeo, skyMat);
-scene.add(skyMesh);
-window.scene = scene;
-
-
-window.camera.rotation.order = "YXZ";
-scene.add( window.camera );
-
-
-// 3. Renderer
-window.renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias might reduce the "pixelated" effect of lower resolution
-renderer = window.renderer;
-renderer.domElement.style.position = "relative";
-renderer.domElement.style.zIndex = "0";
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.setClearColor(0x000000, 1);
-document.getElementById("game-container").appendChild(renderer.domElement);
-window.renderer = renderer;
-
-// 4. Hemisphere Light
-hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.05);
-scene.add(hemi);
-window.hemi = hemi;
-
-// 5. Post-processing Composer
-// Note: EffectComposer also needs to know the renderer's *display* size
-composer = new EffectComposer(renderer);
-renderPass = new RenderPass(scene, window.camera);
-composer.addPass(renderPass);
-window.composer = composer;
-window.renderPass = renderPass;
-
-// --- Initial Detail Setup for CrocodilosConstruction ---
-toggleSceneDetails(detailsEnabled);
-
-// --- Map and Physics Initialization ---
-// AWAIT the creation of the map and spawn points
-spawnPoints = await createCrocodilosConstruction(scene, physicsController);
-window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual array
-
-const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
-physicsController.setPlayerPosition(initialSpawnPoint);
-
-// --- Audio Initialization ---
-if (window.audioManager) {
-    const windSoundUrl = 'https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa'; // Replace with the actual URL string
-    // Store the returned sound object if you want to stop it later
-    const currentlyPlayingWindSound = window.audioManager.playBackgroundSound(windSoundUrl, {
-        loop: true,
-        volume: 0.1
+    // 1. Scene
+    scene = new THREE.Scene();
+    const skyGeo = new THREE.SphereGeometry(200, 32, 32).scale(-1, 1, 1);
+    const skyMat = new THREE.MeshBasicMaterial({
+        color: 0x000022,
+        side: THREE.BackSide,
+        fog: false
     });
-    // You can store 'currentlyPlayingWindSound' in a global or accessible variable
-    // if you need to stop it later, as discussed in the previous answer.
-    // e.g., window.currentBackgroundSound = currentlyPlayingWindSound;
-} else {
-    console.warn("AudioManager is not initialized. Cannot play background sound.");
+    const skyColor = new THREE.Color(0x111122);
+    scene.background = skyColor;
+    skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    scene.add(skyMesh);
+    window.scene = scene;
+
+
+    window.camera.rotation.order = "YXZ";
+    scene.add(window.camera);
+
+
+    // 3. Renderer
+    window.renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias might reduce the "pixelated" effect of lower resolution
+    renderer = window.renderer;
+    renderer.domElement.style.position = "relative";
+    renderer.domElement.style.zIndex = "0";
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setClearColor(0x000000, 1);
+    document.getElementById("game-container").appendChild(renderer.domElement);
+    window.renderer = renderer;
+
+    // 4. Hemisphere Light
+    hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.05);
+    scene.add(hemi);
+    window.hemi = hemi;
+
+    // 5. Post-processing Composer
+    // Note: EffectComposer also needs to know the renderer's *display* size
+    composer = new EffectComposer(renderer);
+    renderPass = new RenderPass(scene, window.camera);
+    composer.addPass(renderPass);
+    window.composer = composer;
+    window.renderPass = renderPass;
+
+    // --- Initial Detail Setup for CrocodilosConstruction ---
+    toggleSceneDetails(detailsEnabled);
+
+    // --- Map and Physics Initialization ---
+    // AWAIT the creation of the map and spawn points
+    spawnPoints = await createCrocodilosConstruction(scene, physicsController);
+    window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual array
+
+    const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
+    physicsController.setPlayerPosition(initialSpawnPoint);
+
+    // --- Audio Initialization ---
+    // Make sure AudioManager is initialized before calling this!
+    if (window.audioManager) {
+        // Stop any currently playing forest noise if switching from another scene
+        if (currentForestNoiseInstance) {
+            window.audioManager.stopBackgroundSound(currentForestNoiseInstance);
+            currentForestNoiseInstance = null; // Clear reference
+        }
+
+        // Use the defined WIND_SOUND_URL or your specific one
+        // Note: The URL 'https://codehs.com/uploads/91aa5e56fc63838b4bdc06f596849daa'
+        // is very specific. Ensure it's correct for your deployment.
+        // I'll use the global WIND_SOUND_URL for consistency if you've defined it.
+        // If not, use your specific URL string directly.
+        currentWindSoundInstance = window.audioManager.playBackgroundSound(WIND_SOUND_URL, {
+            loop: true,
+            volume: 0.1
+        });
+        console.log("Initialized CrocodilosConstruction: Playing wind sound via AudioManager.");
+
+    } else {
+        console.warn("AudioManager is not initialized. Cannot play background sound for CrocodilosConstruction.");
+    }
+
+    // --- Window Resize Handling ---
+    function onWindowResize() {
+        const container = document.getElementById("game-container");
+        const displayWidth = container.clientWidth;
+        const displayHeight = container.clientHeight;
+
+        // 1) Render & post‑process at fixed 1280×720
+        renderer.setSize(FIXED_WIDTH, FIXED_HEIGHT, false);
+        if (composer) composer.setSize(FIXED_WIDTH, FIXED_HEIGHT);
+
+        // 2) Stretch the canvas via CSS to fill the container
+        renderer.domElement.style.width = `${displayWidth}px`;
+        renderer.domElement.style.height = `${displayHeight}px`;
+
+        // 3) Update camera to match the display aspect ratio
+        window.camera.aspect = displayWidth / displayHeight;
+        window.camera.updateProjectionMatrix();
+
+        // 4) Re‑attach weapon to local player (if needed)
+        if (window.weaponController && window.localPlayer && typeof getWeaponModel === 'function' && typeof attachWeaponToPlayer === 'function') {
+            const key = window.localPlayer.weapon.replace(/-/g, "").toLowerCase();
+            const proto = getWeaponModel(key);
+            if (proto) attachWeaponToPlayer(window.localPlayer.id, key);
+        }
+
+        // 5) Re‑attach weapons for remote players
+        if (window.remotePlayers) {
+            Object.values(window.remotePlayers).forEach(({ currentWeapon, weaponRoot }) => {
+                if (currentWeapon && weaponRoot && typeof attachWeaponToPlayer === 'function') {
+                    attachWeaponToPlayer(weaponRoot.userData.playerId, currentWeapon);
+                }
+            });
+        }
+
+        // 6) Resize HUD overlay
+        const hud = document.getElementById("hud");
+        if (hud) {
+            hud.style.width = `${displayWidth}px`;
+            hud.style.height = `${displayHeight}px`;
+        }
+    }
+
+    window.addEventListener("resize", onWindowResize, false);
+    onWindowResize(); // Call once initially to set the correct sizes
 }
 
-// --- Window Resize Handling ---
-function onWindowResize() {
-const container = document.getElementById("game-container");
-const displayWidth  = container.clientWidth;
-const displayHeight = container.clientHeight;
-
-// 1) Render & post‑process at fixed 1280×720
-renderer.setSize(FIXED_WIDTH, FIXED_HEIGHT, false);
-if (composer) composer.setSize(FIXED_WIDTH, FIXED_HEIGHT);
-
-// 2) Stretch the canvas via CSS to fill the container
-renderer.domElement.style.width  = `${displayWidth}px`;
-renderer.domElement.style.height = `${displayHeight}px`;
-
-// 3) Update camera to match the display aspect ratio
-window.camera.aspect = displayWidth / displayHeight;
-window.camera.updateProjectionMatrix();
-
-// 4) Re‑attach weapon to local player (if needed)
-if (window.weaponController && window.localPlayer && typeof getWeaponModel === 'function' && typeof attachWeaponToPlayer === 'function') {
-const key = window.localPlayer.weapon.replace(/-/g, "").toLowerCase();
-const proto = getWeaponModel(key);
-if (proto) attachWeaponToPlayer(window.localPlayer.id, key);
-}
-
-// 5) Re‑attach weapons for remote players
-if (window.remotePlayers) {
-Object.values(window.remotePlayers).forEach(({ currentWeapon, weaponRoot }) => {
-if (currentWeapon && weaponRoot && typeof attachWeaponToPlayer === 'function') {
-attachWeaponToPlayer(weaponRoot.userData.playerId, currentWeapon);
-}
-});
-}
-
-// 6) Resize HUD overlay
-const hud = document.getElementById("hud");
-if (hud) {
-hud.style.width  = `${displayWidth}px`;
-hud.style.height = `${displayHeight}px`;
-}
-}
-
-window.addEventListener("resize", onWindowResize, false);
-onWindowResize(); // Call once initially to set the correct sizes
-}
-
+// Your initSceneSigmaCity function from the previous response remains unchanged.
+// I'm including it here just for context, but the update only applies to CrocodilosConstruction.
 export async function initSceneSigmaCity() { // Make initSceneCrocodilosConstruction async
-sceneNum = 2;
-console.log("Initializing SigmaCity scene...");
+    sceneNum = 2;
+    console.log("Initializing SigmaCity scene...");
 
-scene = new THREE.Scene();
-const skyColor = new THREE.Color(0x87CEEB);
-scene.background = skyColor;
-window.scene = scene;
-
-
-const skyGeo = new THREE.SphereGeometry(200, 32, 32).scale(-1, 1, 1);
-const skyMat = new THREE.MeshBasicMaterial({
-color: 0x000022,
-side: THREE.BackSide,
-fog: false
-});
-skyMesh = new THREE.Mesh(skyGeo, skyMat);
-scene.add(skyMesh);
-window.scene = scene;
+    scene = new THREE.Scene();
+    const skyColor = new THREE.Color(0x87CEEB);
+    scene.background = skyColor;
+    window.scene = scene;
 
 
-window.camera.rotation.order = "YXZ";
-scene.add( window.camera );
+    const skyGeo = new THREE.SphereGeometry(200, 32, 32).scale(-1, 1, 1);
+    const skyMat = new THREE.MeshBasicMaterial({
+        color: 0x000022,
+        side: THREE.BackSide,
+        fog: false
+    });
+    skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    scene.add(skyMesh);
+    window.scene = scene;
 
 
-// 3. Renderer
-window.renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias might reduce the "pixelated" effect of lower resolution
-renderer = window.renderer;
-renderer.domElement.style.position = "relative";
-renderer.domElement.style.zIndex = "0";
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.setClearColor(0x000000, 1);
-document.getElementById("game-container").appendChild(renderer.domElement);
-window.renderer = renderer;
+    window.camera.rotation.order = "YXZ";
+    scene.add(window.camera);
 
-// 4. Hemisphere Light
-hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.05);
-scene.add(hemi);
-window.hemi = hemi;
 
-// 5. Post-processing Composer
-// Note: EffectComposer also needs to know the renderer's *display* size
-composer = new EffectComposer(renderer);
-renderPass = new RenderPass(scene, window.camera);
-composer.addPass(renderPass);
-window.composer = composer;
-window.renderPass = renderPass;
+    // 3. Renderer
+    window.renderer = new THREE.WebGLRenderer({ antialias: false }); // Antialias might reduce the "pixelated" effect of lower resolution
+    renderer = window.renderer;
+    renderer.domElement.style.position = "relative";
+    renderer.domElement.style.zIndex = "0";
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setClearColor(0x000000, 1);
+    document.getElementById("game-container").appendChild(renderer.domElement);
+    window.renderer = renderer;
 
-// --- Initial Detail Setup for SigmaCity ---
-toggleSceneDetails(detailsEnabled);
+    // 4. Hemisphere Light
+    hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.05);
+    scene.add(hemi);
+    window.hemi = hemi;
 
-// --- Map and Physics Initialization ---
-// AWAIT the creation of the map and spawn points
-spawnPoints = await createSigmaCity(scene, physicsController);
-window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual array
+    // 5. Post-processing Composer
+    // Note: EffectComposer also needs to know the renderer's *display* size
+    composer = new EffectComposer(renderer);
+    renderPass = new RenderPass(scene, window.camera);
+    composer.addPass(renderPass);
+    window.composer = composer;
+    window.renderPass = renderPass;
 
-const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
-physicsController.setPlayerPosition(initialSpawnPoint);
+    // --- Initial Detail Setup for SigmaCity ---
+    toggleSceneDetails(detailsEnabled);
 
-// --- Audio Initialization ---
-if (typeof forestNoise !== 'undefined') {
-forestNoise.volume = 0.05;
-forestNoise.play().catch(err => console.warn("Failed to play forest noise:", err));
-window.windSound = forestNoise; // Renamed to windSound for consistency if only one wind sound
-} else {
-console.warn("forestNoise is not defined. Audio might not play for SigmaCity.");
-}
+    // --- Map and Physics Initialization ---
+    // AWAIT the creation of the map and spawn points
+    spawnPoints = await createSigmaCity(scene, physicsController);
+    window.spawnPoints = spawnPoints; // Now window.spawnPoints will be the actual array
 
-// --- Window Resize Handling ---
-function onWindowResize() {
-const container = document.getElementById("game-container");
-const displayWidth  = container.clientWidth;
-const displayHeight = container.clientHeight;
+    const initialSpawnPoint = findFurthestSpawn(); // Call your function to get a spawn point
+    physicsController.setPlayerPosition(initialSpawnPoint);
 
-// 1) Render & post‑process at fixed 1280×720
-renderer.setSize(FIXED_WIDTH, FIXED_HEIGHT, false);
-if (composer) composer.setSize(FIXED_WIDTH, FIXED_HEIGHT);
+    // --- Audio Initialization ---
+    // Make sure AudioManager is initialized before calling this!
+    if (window.audioManager) {
+        // Stop any currently playing wind sound if switching from another scene
+        if (currentWindSoundInstance) {
+            window.audioManager.stopBackgroundSound(currentWindSoundInstance);
+            currentWindSoundInstance = null; // Clear reference
+        }
+        // Play the forest noise and store its instance
+        currentForestNoiseInstance = window.audioManager.playBackgroundSound(FOREST_NOISE_URL, { loop: true, volume: 0.05 });
+        console.log("Initialized SigmaCity: Playing forest noise via AudioManager.");
+    } else {
+        console.warn("AudioManager is not initialized. Cannot play background sound for SigmaCity.");
+    }
 
-// 2) Stretch the canvas via CSS to fill the container
-renderer.domElement.style.width  = `${displayWidth}px`;
-renderer.domElement.style.height = `${displayHeight}px`;
 
-// 3) Update camera to match the display aspect ratio
-window.camera.aspect = displayWidth / displayHeight;
-window.camera.updateProjectionMatrix();
+    // --- Window Resize Handling ---
+    function onWindowResize() {
+        const container = document.getElementById("game-container");
+        const displayWidth = container.clientWidth;
+        const displayHeight = container.clientHeight;
 
-// 4) Re‑attach weapon to local player (if needed)
-if (window.weaponController && window.localPlayer && typeof getWeaponModel === 'function' && typeof attachWeaponToPlayer === 'function') {
-const key = window.localPlayer.weapon.replace(/-/g, "").toLowerCase();
-const proto = getWeaponModel(key);
-if (proto) attachWeaponToPlayer(window.localPlayer.id, key);
-}
+        // 1) Render & post‑process at fixed 1280×720
+        renderer.setSize(FIXED_WIDTH, FIXED_HEIGHT, false);
+        if (composer) composer.setSize(FIXED_WIDTH, FIXED_HEIGHT);
 
-// 5) Re‑attach weapons for remote players
-if (window.remotePlayers) {
-Object.values(window.remotePlayers).forEach(({ currentWeapon, weaponRoot }) => {
-if (currentWeapon && weaponRoot && typeof attachWeaponToPlayer === 'function') {
-attachWeaponToPlayer(weaponRoot.userData.playerId, currentWeapon);
-}
-});
-}
+        // 2) Stretch the canvas via CSS to fill the container
+        renderer.domElement.style.width = `${displayWidth}px`;
+        renderer.domElement.style.height = `${displayHeight}px`;
 
-// 6) Resize HUD overlay
-const hud = document.getElementById("hud");
-if (hud) {
-hud.style.width  = `${displayWidth}px`;
-hud.style.height = `${displayHeight}px`;
-}
-}
+        // 3) Update camera to match the display aspect ratio
+        window.camera.aspect = displayWidth / displayHeight;
+        window.camera.updateProjectionMatrix();
 
-window.addEventListener("resize", onWindowResize, false);
-onWindowResize(); // Call once initially to set the correct sizes
+        // 4) Re‑attach weapon to local player (if needed)
+        if (window.weaponController && window.localPlayer && typeof getWeaponModel === 'function' && typeof attachWeaponToPlayer === 'function') {
+            const key = window.localPlayer.weapon.replace(/-/g, "").toLowerCase();
+            const proto = getWeaponModel(key);
+            if (proto) attachWeaponToPlayer(window.localPlayer.id, key);
+        }
+
+        // 5) Re‑attach weapons for remote players
+        if (window.remotePlayers) {
+            Object.values(window.remotePlayers).forEach(({ currentWeapon, weaponRoot }) => {
+                if (currentWeapon && weaponRoot && typeof attachWeaponToPlayer === 'function') {
+                    attachWeaponToPlayer(weaponRoot.userData.playerId, currentWeapon);
+                }
+            });
+        }
+
+        // 6) Resize HUD overlay
+        const hud = document.getElementById("hud");
+        if (hud) {
+            hud.style.width = `${displayWidth}px`;
+            hud.style.height = `${displayHeight}px`;
+        }
+    }
+
+    window.addEventListener("resize", onWindowResize, false);
+    onWindowResize(); // Call once initially to set the correct sizes
 }
 
 
@@ -1847,98 +1864,112 @@ hideRespawn();
 };
 
 function respawnPlayer() {
-// 0) Flip yourself alive immediately
-window.localPlayer.isDead = false;
+    // 0) Flip yourself alive immediately
+    window.localPlayer.isDead = false;
 
-// UI + audio reset
-deathTheme.currentTime = 0;
-deathTheme.pause();
-if (sceneNum == 1) {
-windSound.play().catch(err => console.warn(err));
-} else if (sceneNum == 2) {
-forestNoise.play().catch(err => console.warn(err));
-}
+    // UI + audio reset
+    if (deathTheme) { // Check if deathTheme exists before pausing
+        deathTheme.currentTime = 0;
+        deathTheme.pause();
+    }
 
-respawnOverlay.style.display = "none";
-document.getElementById("crosshair").style.display = "block";
-if (fadeOverlay) {
-fadeOverlay.style.pointerEvents = "none";
-fadeOverlay.style.opacity = "0";
-}
+    // Stop any existing ambient sounds before playing the new one
+    if (window.audioManager) {
+        if (currentWindSoundInstance) window.audioManager.stopBackgroundSound(currentWindSoundInstance);
+        if (currentForestNoiseInstance) window.audioManager.stopBackgroundSound(currentForestNoiseInstance);
 
-// 1) Compute spawn point
-const spawn = findFurthestSpawn();
+        if (sceneNum == 1) {
+            currentWindSoundInstance = window.audioManager.playBackgroundSound(WIND_SOUND_URL, { loop: true, volume: 0.05 });
+            console.log("Respawn: Playing wind sound.");
+        } else if (sceneNum == 2) {
+            currentForestNoiseInstance = window.audioManager.playBackgroundSound(FOREST_NOISE_URL, { loop: true, volume: 0.05 });
+            console.log("Respawn: Playing forest noise.");
+        }
+    } else {
+        console.warn("AudioManager not available for respawn audio.");
+    }
 
-// 2) Reset logical/player state
-window.localPlayer.x = spawn.x;
-window.localPlayer.y = spawn.y;
-window.localPlayer.z = spawn.z;
-physicsController.setPlayerPosition(spawn);
-// 3) Reset your physics body so PhysicsController doesn’t yank you back
-if (physicsController && physicsController.body) {
-const body = physicsController.body;
-// zero out any residual motion
-body.velocity.set(0, 0, 0);
-body.angularVelocity.set(0, 0, 0);
-// teleport to spawn + eye-height
-body.position.set(spawn.x, spawn.y + 1.6, spawn.z);
-// reset orientation
-body.quaternion.set(0, 0, 0, 1);
-body.wakeUp();
-}
 
-// 4) Move THREE camera immediately
-window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-window.camera.lookAt(new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z + 1).add(new THREE.Vector3(0, 0, 0)));
+    respawnOverlay.style.display = "none";
+    document.getElementById("crosshair").style.display = "block";
+    if (fadeOverlay) {
+        fadeOverlay.style.pointerEvents = "none";
+        fadeOverlay.style.opacity = "0";
+    }
 
-// 5) Reposition your model/group if you have one
-const group = window.localPlayer.group;
-if (group) {
-group.position.set(spawn.x, spawn.y + 1.6, spawn.z);
-}
+    // 1) Compute spawn point
+    const spawn = findFurthestSpawn();
 
-// 6) Re-add collidables for your body
-if (group) {
-group.traverse(child => {
-if (child.isMesh) {
-child.userData.isPlayerBodyPart = true;
-child.userData.playerId = window.localPlayer.id;
-window.collidables.push(child);
-}
-});
-// console.log('[respawnPlayer] Restored collidables, total now:', window.collidables.length);
-}
+    // 2) Reset logical/player state
+    window.localPlayer.x = spawn.x;
+    window.localPlayer.y = spawn.y;
+    window.localPlayer.z = spawn.z;
+    physicsController.setPlayerPosition(spawn);
+    // 3) Reset your physics body so PhysicsController doesn’t yank you back
+    if (physicsController && physicsController.body) {
+        const body = physicsController.body;
+        // zero out any residual motion
+        body.velocity.set(0, 0, 0);
+        body.angularVelocity.set(0, 0, 0);
+        // teleport to spawn + eye-height
+        body.position.set(spawn.x, spawn.y + 1.6, spawn.z);
+        // reset orientation
+        body.quaternion.set(0, 0, 0, 1);
+        body.wakeUp();
+    }
 
-// 7) Pointer-lock & input reset
-//  console.log("[respawnPlayer] Re-entering pointer lock");
-document.body.classList.add("game-active");
+    // 4) Move THREE camera immediately
+    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
+    window.camera.lookAt(new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z + 1).add(new THREE.Vector3(0, 0, 0)));
 
-// 8) Weapon & HUD reset
-if (typeof weaponAmmo === 'object') {
-for (const key in weaponAmmo) delete weaponAmmo[key];
-}
-for (const key in WeaponController.WEAPONS) {
-const stats = WeaponController.WEAPONS[key];
-weaponController.ammoStore[key] = stats.magazineSize;
-if (weaponController.currentKey === key) {
-weaponController.ammoInMagazine = stats.magazineSize;
-updateAmmoDisplay(weaponController.ammoInMagazine, stats.magazineSize);
-updateInventory(
-weaponController.getCurrentAmmo(),
-weaponController.getMaxAmmo()
-);
-}
-}
+    // 5) Reposition your model/group if you have one
+    const group = window.localPlayer.group;
+    if (group) {
+        group.position.set(spawn.x, spawn.y + 1.6, spawn.z);
+    }
 
-// 9) Sync alive state to Firebase
-playersRef.child(window.localPlayer.id).update({
-x: spawn.x,
-y: spawn.y,
-z: spawn.z,
-health: 100,
-shield: 50,
-isDead: false
-});
+    // 6) Re-add collidables for your body
+    if (group) {
+        group.traverse(child => {
+            if (child.isMesh) {
+                child.userData.isPlayerBodyPart = true;
+                child.userData.playerId = window.localPlayer.id;
+                window.collidables.push(child);
+            }
+        });
+        // console.log('[respawnPlayer] Restored collidables, total now:', window.collidables.length);
+    }
+
+    // 7) Pointer-lock & input reset
+    //  console.log("[respawnPlayer] Re-entering pointer lock");
+    document.body.classList.add("game-active");
+
+    // 8) Weapon & HUD reset
+    if (typeof weaponAmmo === 'object') {
+        for (const key in weaponAmmo) delete weaponAmmo[key];
+    }
+    for (const key in WeaponController.WEAPONS) {
+        const stats = WeaponController.WEAPONS[key];
+        weaponController.ammoStore[key] = stats.magazineSize;
+        if (weaponController.currentKey === key) {
+            weaponController.ammoInMagazine = stats.magazineSize;
+            updateAmmoDisplay(weaponController.ammoInMagazine, stats.magazineSize);
+            updateInventory(
+                weaponController.getCurrentAmmo(),
+                weaponController.getMaxAmmo()
+            );
+        }
+    }
+
+    // 9) Sync alive state to Firebase
+    playersRef.child(window.localPlayer.id).update({
+        x: spawn.x,
+        y: spawn.y,
+        z: spawn.z,
+        health: 100,
+        shield: 50,
+        isDead: false
+    });
 }
 
 
@@ -2002,8 +2033,13 @@ export function animate(timestamp) {
             if (cross) cross.style.display = "none";
 
             // Ensure death-related sounds are playing and others are paused
-            if (windSound && !windSound.paused) windSound.pause();
-            if (forestNoise && !forestNoise.paused) forestNoise.pause();
+            // Stop ambient sounds managed by AudioManager
+            if (window.audioManager) {
+                if (currentWindSoundInstance) window.audioManager.stopBackgroundSound(currentWindSoundInstance);
+                if (currentForestNoiseInstance) window.audioManager.stopBackgroundSound(currentForestNoiseInstance);
+            }
+
+            // deathTheme is assumed to be an HTMLAudioElement or similar, not managed by AudioManager
             if (deathTheme && deathTheme.paused) {
                 deathTheme.currentTime = 0;
                 deathTheme.play().catch(e => console.error("Error playing death theme:", e));
@@ -2021,9 +2057,28 @@ export function animate(timestamp) {
             return; // Exit early if player is dead
         } else {
             // Player is alive: ensure game sounds are playing and death overlays are hidden
-            if (windSound && !windSound.paused) windSound.pause();
-            if (forestNoise && !forestNoise.paused) forestNoise.pause();
+            // Stop death theme (if it's not managed by AudioManager)
             if (deathTheme && !deathTheme.paused) deathTheme.pause();
+
+            // Re-play ambient sounds if they are not already playing based on scene
+            if (window.audioManager) {
+                if (sceneNum === 1) {
+                    if (!currentWindSoundInstance || !currentWindSoundInstance.isPlaying) {
+                        // Stop other ambient sound if playing
+                        if (currentForestNoiseInstance) window.audioManager.stopBackgroundSound(currentForestNoiseInstance);
+                        // Start wind sound if not playing
+                        currentWindSoundInstance = window.audioManager.playBackgroundSound(WIND_SOUND_URL, { loop: true, volume: 0.05 });
+                    }
+                } else if (sceneNum === 2) {
+                    if (!currentForestNoiseInstance || !currentForestNoiseInstance.isPlaying) {
+                        // Stop other ambient sound if playing
+                        if (currentWindSoundInstance) window.audioManager.stopBackgroundSound(currentWindSoundInstance);
+                        // Start forest noise if not playing
+                        currentForestNoiseInstance = window.audioManager.playBackgroundSound(FOREST_NOISE_URL, { loop: true, volume: 0.05 });
+                    }
+                }
+            }
+
 
             if (fadeOverlay && fadeOverlay.style.opacity !== "0") {
                 hideFadeOverlay(); // Assumes this function correctly sets opacity to "0" and pointerEvents to "none"
