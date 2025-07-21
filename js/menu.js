@@ -1526,7 +1526,7 @@ async function gamesButtonHit() {
         errorText.setPosition(getWidth() / 2, getHeight() / 2);
         add(errorText);
         currentMenuObjects.push(errorText);
-        addBackButton(menu);
+        addBackButton(playButtonHit);
     }
 }
 /**
