@@ -1585,128 +1585,16 @@ function settingsButtonHit() {
  * Handles the "Career" button click.
  * Clears the current menu and displays a placeholder career screen.
  */
-import { createStore, combineReducers } from 'redux';
-import { createSearchableList } from 'redux-search';
-
-// -- Reducer to hold full list of usernames --
-function usersReducer(state = [], action) {
-  if (action.type === 'SET_USERS') return action.users;
-  return state;
-}
-
-// -- Wrap it in redux-search --
-const rootReducer = combineReducers({
-  allUsers: usersReducer,
-  searchableUsers: createSearchableList({
-    list:       'allUsers',
-    store:      'searchableUsers',
-    idSelector: u => u,
-    indexSelector: u => ({ username: u })
-  })
-});
-
-const store = createStore(rootReducer);
-
-// -- Helpers to build the DOM only once --
-let uiInitialized = false;
-function initUserListUI() {
-  if (uiInitialized) return;
-  uiInitialized = true;
-
-  // 1.1 Create button
-  const btn = document.createElement('button');
-  btn.id = 'showUsersBtn';
-  btn.textContent = 'Show Players';
-  btn.style.cssText = 'position:absolute; top:20px; right:20px; z-index:1000;';
-  document.body.appendChild(btn);
-
-  // 1.2 Create modal
-  const modal = document.createElement('div');
-  modal.id = 'userListModal';
-  Object.assign(modal.style, {
-    position:     'fixed',
-    top:          '10%',
-    left:         '50%',
-    transform:    'translateX(-50%)',
-    width:        '300px',
-    maxHeight:    '70%',
-    background:   'rgba(0,0,0,0.9)',
-    color:        '#fff',
-    border:       '2px solid #444',
-    borderRadius: '8px',
-    display:      'none',
-    flexDirection:'column',
-    zIndex:       1001,
-  });
-  // header
-  const header = document.createElement('div');
-  Object.assign(header.style, { display:'flex', padding:'8px' });
-  const input = document.createElement('input');
-  input.id = 'searchInput';
-  input.placeholder = 'Search usernames…';
-  Object.assign(input.style, {
-    flex: '1', padding:'6px', borderRadius:'4px', border:'none', marginRight:'8px'
-  });
-  const close = document.createElement('button');
-  close.id = 'closeUsersBtn';
-  close.textContent = '✕';
-  Object.assign(close.style, { background:'none', border:'none', color:'#fff', fontSize:'20px', cursor:'pointer' });
-  header.append(input, close);
-  // scroll container
-  const list = document.createElement('div');
-  list.id = 'userListContainer';
-  Object.assign(list.style, {
-    overflowY:'auto', padding:'8px', flex:'1', lineHeight:'1.6'
-  });
-  modal.append(header, list);
-  document.body.appendChild(modal);
-
-  // 1.3 Wire search input to redux-search
-  input.addEventListener('input', e => {
-    store.dispatch({ type: '@@redux-search/SEARCH', query: e.target.value });
-  });
-
-  // 1.4 Subscribe to store to render
-  store.subscribe(() => {
-    const { searchableUsers } = store.getState();
-    list.innerHTML = searchableUsers.length
-      ? searchableUsers.map(u => `<div style="padding:4px 0;border-bottom:1px solid #555;">${u}</div>`).join('')
-      : '<div>No users found.</div>';
-  });
-
-  // 1.5 Button and close handlers
-  btn.addEventListener('click', () => {
-    modal.style.display = 'flex';
-    if (!store.getState().allUsers.length) {
-      // load once
-      usersRef.once('value').then(snap => {
-        const all = [];
-        snap.forEach(ch => all.push(ch.val().username || ch.key));
-        store.dispatch({ type: 'SET_USERS', users: all });
-      });
-    }
-  });
-  close.addEventListener('click', () => {
-    modal.style.display = 'none';
-    input.value = '';
-    store.dispatch({ type: '@@redux-search/SEARCH', query: '' });
-  });
-}
-
-// ==== 2) Your updated careerButtonHit() ====
 function careerButtonHit() {
-  // existing canvas setup
   clearMenuCanvas();
   add(logo);
   addBackButton();
 
-  // === Inject and wire our user‐list UI ===
-  initUserListUI();
-
-  // === rest of your stats‐drawing code ===
   const username = localStorage.getItem('username') || 'Guest';
   const lineHeight = 60;
   const canvasWidth = getWidth();
+
+  // Create a single off-screen canvas context for measuring text
   const measureCtx = document.createElement("canvas").getContext("2d");
   measureCtx.font = "20pt Arial";
 
@@ -1714,37 +1602,62 @@ function careerButtonHit() {
     const text = new Text(content, "40pt Arial");
     text.setColor("#ffffff");
     text.setLayer(4);
-    const w = measureCtx.measureText(content).width;
-    text.setPosition(canvasWidth/2, y);
+    text.originalFontSize = 20;
+
+    // Measure width and center
+    const textWidth = measureCtx.measureText(content).width;
+    const centerX = canvasWidth / 2;
+    text.setPosition(centerX, y);
+
     return text;
   }
 
-  function displayStats(data) {
-    const s = data.stats||{};
+  function displayStats(userData) {
+    const stats = userData.stats || {};
+    const wins = stats.wins || 0;
+    const kills = stats.kills || 0;
+    const deaths = stats.deaths || 0;
+    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
+    const losses = userData.losses || 0;
+
     const lines = [
       `Career Stats for ${username}`,
-      `Wins: ${s.wins||0}`,
-      `Losses: ${data.losses||0}`,
-      `Kills: ${s.kills||0}`,
-      `Deaths: ${s.deaths||0}`,
-      `K/D Ratio: ${s.deaths>0 ? (s.kills/s.deaths).toFixed(2) : 'N/A'}`
+      `Wins: ${wins}`,
+      `Losses: ${losses}`,
+      `Kills: ${kills}`,
+      `Deaths: ${deaths}`,
+      `K/D Ratio: ${kd}`
     ];
+
+    // Start drawing at y = 150
     let y = 250;
-    lines.forEach((L,i) => add(createStatText(L, y + i*lineHeight)));
+    for (let i = 0; i < lines.length; i++) {
+      const lineText = createStatText(lines[i], y + i * lineHeight);
+      add(lineText);
+    }
   }
 
   usersRef.child(username).once('value')
-    .then(snap => snap.exists()
-      ? displayStats(snap.val())
-      : usersRef.orderByChild('username').equalTo(username).once('value').then(q => {
-          let d=null; q.forEach(c=>d=c.val());
-          if (!d) throw new Error("User not found");
-          displayStats(d);
-        })
-    )
+    .then(snap => {
+      if (snap.exists()) {
+        displayStats(snap.val());
+      } else {
+        return usersRef
+          .orderByChild('username')
+          .equalTo(username)
+          .once('value')
+          .then(qsnap => {
+            let userData = null;
+            qsnap.forEach(child => { userData = child.val(); });
+            if (!userData) throw new Error("User not found in database.");
+            displayStats(userData);
+          });
+      }
+    })
     .catch(err => {
-      console.error(err);
-      add(createStatText("Unable to load stats.", 150));
+      console.error("Error loading career stats:", err);
+      const errorText = createStatText("Unable to load stats.", 150);
+      add(errorText);
     });
 }
 /**
