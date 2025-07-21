@@ -1572,22 +1572,6 @@ function settingsButtonHit() {
 
 
     addBackButton(menu); // Keep the back button to return to the main menu
-
-    // When going back from settings, hide the HTML settings elements again
-    const backButton = currentMenuObjects.find(obj => obj instanceof ImageShape && obj.x === 50 && obj.y === 50); // Assuming this is your back button image
-    if (backButton && backButton.hitbox) {
-        // Override the original onClick to also hide settings elements
-        backButton.hitbox.onClick = () => {
-            currentPage = 0;
-            menu();
-            if (sensitivitySliderContainer) {
-                sensitivitySliderContainer.style.display = "none";
-            }
-            if (settingsBox) {
-                settingsBox.style.display = "none";
-            }
-        };
-    }
 }
 
 /**
