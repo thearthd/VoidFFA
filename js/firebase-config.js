@@ -35,6 +35,16 @@ export const gameDatabaseConfigs = {
     messagingSenderId: "1056288231871",
     appId:              "1:1056288231871:web:d4b35d473de14dfb98910a",
     measurementId:     "G-76TZ6XF8WL"
+  },
+  gameSlot3: {
+    apiKey: "AIzaSyDYc1sVr5sp6YGDZsDs3AN-FXhZGkaZAvA",
+    authDomain: "voidffa-slot3.firebaseapp.com",
+    databaseURL: "https://voidffa-slot3-default-rtdb.firebaseio.com",
+    projectId: "voidffa-slot3",
+    storageBucket: "voidffa-slot3.firebasestorage.app",
+    messagingSenderId: "280677059064",
+    appId: "1:280677059064:web:d632d5638624eca47d2e0d",
+    measurementId: "G-1SHC771L86"
   }
 };
 
