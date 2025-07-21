@@ -1343,7 +1343,7 @@ function showMenuOverlay() {
 async function initAndStartGame(username, mapName, gameId = null) {
      dontyetpls = 0;
      hud.style.display = "block";
-  initGameMenu("game-container", "https://codehs.com/uploads/2455c9b2b9cbdc692c6a11e39a736cf5");
+  initGameMenu("menuCanvas", "https://codehs.com/uploads/2455c9b2b9cbdc692c6a11e39a736cf5");
   bindEscapeToggle();
   // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === true;
