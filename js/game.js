@@ -254,19 +254,24 @@ async function determineWinnerAndEndGame() {
     statsByUser[p.username] = {
       kills:  p.kills || 0,
       deaths: p.deaths || 0,
-      win:    0
+      win:    0,
+      loss:   0
     };
     if (p.kills > winner.kills) {
       winner = { username: p.username, kills: p.kills, deaths: p.deaths || 0 };
     }
   });
 
-  // Mark the winner
-  if (winner.username in statsByUser) {
-    statsByUser[winner.username].win = 1;
-  }
+  // 2) Mark wins/losses
+  Object.entries(statsByUser).forEach(([username, stats]) => {
+    if (username === winner.username) {
+      stats.win = 1;
+    } else {
+      stats.loss = 1;
+    }
+  });
 
-  // 2) Store winner in localStorage & UI
+  // 3) Store winner in localStorage & UI
   console.log(`WINNER: ${winner.username} (${winner.kills} kills, ${winner.deaths} deaths)`);
   localStorage.setItem('gameWinner', JSON.stringify(winner));
   localStorage.setItem('gameEndedTimestamp', Date.now().toString());
@@ -276,24 +281,36 @@ async function determineWinnerAndEndGame() {
     gameTimerEl.style.display = "block";
   }
 
-  // 3) Increment only the 'wins' stat under /users/{username}/stats/wins
-  //    (kills/deaths have already been bumped in real time)
-  const winUpdates = Object.entries(statsByUser)
-    .filter(([_, { win }]) => win === 1)
-    .map(([username]) =>
-      incrementUserStat(username, 'wins', 1)
-    );
-  await Promise.all(winUpdates);
+  // 4) Update user stats: wins and losses
+  const statUpdates = [];
+  for (const [username, { win, loss }] of Object.entries(statsByUser)) {
+    if (win === 1) {
+      statUpdates.push(incrementUserStat(username, 'wins', 1));
+    }
+    if (loss === 1) {
+      statUpdates.push(incrementUserStat(username, 'losses', 1));
+    }
+  }
+  await Promise.all(statUpdates);
 
-  // 4) Teardown
+  // 5) Detach realtime listener
   if (playersKillsListener) {
     playersRef.off("value", playersKillsListener);
     playersKillsListener = null;
     console.log("Detached players kill listener.");
   }
+
+  // 6) Tell every player to disconnect (and await all)
+  const disconnectPromises = [];
+  playersSnapshot.forEach(childSnap => {
+    disconnectPromises.push(disconnectPlayer(childSnap.key));
+  });
+  await Promise.all(disconnectPromises);
+  console.log(`Disconnect messages sent to ${disconnectPromises.length} players.`);
+
+  // 7) Finally, clean up game resources
   await disposeGame();
   await fullCleanup(activeGameId);
-  playersSnapshot.forEach(childSnap => disconnectPlayer(childSnap.key));
 }
 
 
