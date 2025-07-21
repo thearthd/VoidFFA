@@ -40,7 +40,8 @@ export const gameDatabaseConfigs = {
 
 let menuApp = null;
 export let gamesRef = null;
-export let usersRef = null;   // ← add this
+export let usersRef = null;
+export let userStatsRef = null;    // ← new
 
 export function initializeMenuFirebase() {
   if (menuApp) return;
@@ -50,8 +51,9 @@ export function initializeMenuFirebase() {
     menuApp = firebase.initializeApp(menuConfig, "menuApp");
   }
   const db = menuApp.database();
-  gamesRef = db.ref("games");
-  usersRef = db.ref("users");   // ← initialize it here
+  gamesRef     = db.ref("games");
+  usersRef     = db.ref("users");
+  userStatsRef = db.ref("userStats");  // ← initialize it here
 }
 initializeMenuFirebase();
 
