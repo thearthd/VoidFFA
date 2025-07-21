@@ -1581,17 +1581,17 @@ function careerButtonHit() {
       let y = 150;
       const lh = 30;
 
-      add(new TextShape(`Career Stats for ${username}`, startX, y));
+      add(new Text(`Career Stats for ${username}`, startX, y));
       y += lh;
-      add(new TextShape(`Wins:      ${wins}`,   startX, y));
+      add(new Text(`Wins:      ${wins}`,   startX, y));
       y += lh;
-      add(new TextShape(`Losses:   ${losses}`, startX, y));
+      add(new Text(`Losses:   ${losses}`, startX, y));
       y += lh;
-      add(new TextShape(`Kills:      ${kills}`,  startX, y));
+      add(new Text(`Kills:      ${kills}`,  startX, y));
       y += lh;
-      add(new TextShape(`Deaths:   ${deaths}`, startX, y));
+      add(new Text(`Deaths:   ${deaths}`, startX, y));
       y += lh;
-      add(new TextShape(`K/D Ratio: ${kd}`,    startX, y));
+      add(new Text(`K/D Ratio: ${kd}`,    startX, y));
 
       // 4) force a redraw if your engine needs it
       if (typeof draw === 'function') {
