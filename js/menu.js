@@ -1801,7 +1801,7 @@ if (saveUsernameBtn) {
 
       for (let key in users) {
         const existing = users[key].username;
-        // skip over any entries that don't have a valid username string
+        // skip entries that don’t have a valid username string
         if (typeof existing !== 'string') continue;
 
         if (existing.toLowerCase() === lower) {
@@ -1838,7 +1838,9 @@ if (saveUsernameBtn) {
     menu();
     document.getElementById("game-logo").classList.add("hidden");
     const menuOverlayElement = document.getElementById('menu-overlay');
-    if (menuOverlayElement) menuOverlayElement.style.display = 'none';
+    if (menuOverlayElement) {
+      menuOverlayElement.style.display = 'none';
+    }
   });
 }
 
