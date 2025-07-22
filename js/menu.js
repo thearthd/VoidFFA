@@ -507,7 +507,7 @@ export class ImageShape extends Shape {
         this.image.src = src;
         this.image.onload = () => {
             this.loaded = true;
-            if (onLoadCallback) onLoadCallback();
+            if (onLoadCallback) onLoadCallback(); // Trigger callback once image is loaded
         };
         this.loaded = false;
 
@@ -515,49 +515,67 @@ export class ImageShape extends Shape {
         this.y = 0;
         this.width = 100;
         this.height = 100;
-        this.opacity = 1.0;
-        this.anchorX = 0;
+        this.anchorX = 0;    // Default: top-left (0 for horizontal)
         this.anchorY = 0;
     }
 
+    /**
+     * Sets the anchor point for positioning (not fully implemented for image drawing).
+     * @param {object} anchor - An object with horizontal and vertical properties.
+     */
     setAnchor({ horizontal, vertical }) {
         this.anchorX = horizontal;
         this.anchorY = vertical;
     }
 
+    /**
+     * Sets the width and height of the image.
+     * @param {number} width - The new width.
+     * @param {number} height - The new height.
+     */
     setSize(width, height) {
         this.width = width;
         this.height = height;
     }
 
+    /**
+     * Moves the image by a specified delta.
+     * @param {number} dx - The change in x-coordinate.
+     * @param {number} dy - The change in y-coordinate.
+     */
     move(dx, dy) {
         this.x += dx;
         this.y += dy;
     }
 
+    /**
+     * Sets the position of the image's top-left corner.
+     * @param {number} x - The x-coordinate.
+     * @param {number} y - The y-coordinate.
+     */
     setPosition(x, y) {
         this.x = x;
         this.y = y;
     }
 
-    setOpacity(opacity) {
-        this.opacity = opacity;
-    }
-
+    /** @returns {number} The width of the image. */
     getWidth() { return this.width; }
+    /** @returns {number} The height of the image. */
     getHeight() { return this.height; }
-    getX() { return this.x; }               // ← NEW
-    getY() { return this.y; }               // ← NEW
-    getOpacity() { return this.opacity; }   // ← NEW
 
+    /**
+     * Draws the image on the canvas context.
+     * @param {CanvasRenderingContext2D} ctx - The canvas rendering context.
+     */
     draw(ctx) {
-        if (!this.loaded) return;
+        if (!this.loaded) return; // Skip drawing until image is loaded
         ctx.save();
         ctx.globalAlpha = this.opacity;
         ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
         ctx.restore();
     }
 }
+
 /**
  * The main game loop that clears the canvas, sorts and draws all shapes,
  * and then requests the next animation frame.
@@ -993,112 +1011,6 @@ function clearMenuCanvas() {
 let username = localStorage.getItem("username") || '';
 
 
-
-
-
-let gameMenuShape = null;
-let isMenuVisible = false;
-
-/**
- * Call this once after your canvas & menu-overlay exist.
- * @param {string} containerId  The ID of your CodeHS canvas parent (e.g. "game-container")
- * @param {string} imageUrl     The URL of the slide-in image
- */
-export function initGameMenu(containerId, imageUrl) {
-  // Create the ImageShape off-screen and invisible
-  gameMenuShape = new ImageShape(imageUrl);
-  gameMenuShape.setSize(1920, 1080);
-  gameMenuShape.setPosition(getWidth()/2 - 960, -1080);
-  gameMenuShape.setOpacity(0);
-  gameMenuShape.setLayer(999);      // on top of everything
-  add(gameMenuShape);
-
-  // Ensure the DOM overlay exists & is hidden
-  const overlay = document.getElementById("menu-overlay");
-  if (overlay) overlay.classList.add("hidden");
-}
-
-/**
- * Attaches the Escape key listener to toggle the menu.
- */
-export function bindEscapeToggle() {
-  document.addEventListener("keydown", e => {
-    if (e.key === "p" || e.key === "P") toggleGameMenu();
-  });
-}
-
-/**
- * Slides the menu in/out and toggles the DOM overlay.
- */
-export function toggleGameMenu() {
-  if (!gameMenuShape) return;
-
-  const overlay = document.getElementById("menu-overlay");
-  if (!overlay) return;
-
-  if (!isMenuVisible) {
-    // show
-    overlay.classList.remove("hidden");
-    slideAndFade(
-      gameMenuShape,
-      { toY: getHeight()/2 - 540, toOpacity: 1, duration: 600, easing: "easeOutCubic" }
-    );
-  } else {
-    // hide
-    slideAndFade(
-      gameMenuShape,
-      {
-        toY: -1080,
-        toOpacity: 0,
-        duration: 600,
-        easing: "easeInCubic",
-        onComplete: () => overlay.classList.add("hidden")
-      }
-    );
-  }
-  isMenuVisible = !isMenuVisible;
-}
-
-
-/** 
- * Simple tween helper. Can be moved to its own utils file if you want.
- */
-function slideAndFade(target, { toY, toOpacity, duration, easing, onComplete } = {}) {
-  const startY = target.getY();
-  const startOp = target.getOpacity();
-  const dy = toY - startY, dOp = toOpacity - startOp;
-  const t0 = performance.now();
-
-  function ease(t) {
-    if (easing === "easeOutCubic") return 1 - Math.pow(1 - t, 3);
-    if (easing === "easeInCubic")  return t * t * t;
-    return t;
-  }
-
-  function step() {
-    const now = performance.now();
-    let t = Math.min(1, (now - t0) / duration);
-    t = ease(t);
-    target.setPosition(target.getX(), startY + dy * t);
-    target.setOpacity(startOp + dOp * t);
-    if (t < 1) requestAnimationFrame(step);
-    else if (onComplete) onComplete();
-  }
-  requestAnimationFrame(step);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
 let playButton = createAnimatedButton(
     "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
     1920 / 6, 1080 / 6, // Original width and height
@@ -1343,8 +1255,6 @@ function showMenuOverlay() {
 async function initAndStartGame(username, mapName, gameId = null) {
      dontyetpls = 0;
      hud.style.display = "block";
-  initGameMenu("menuCanvas", "https://codehs.com/uploads/2455c9b2b9cbdc692c6a11e39a736cf5");
-  bindEscapeToggle();
   // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === true;
   const ffaEnabled     = true; // ← or read from your HTML toggle if you have one
