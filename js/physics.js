@@ -64,82 +64,91 @@ function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
 }
 
 export class PhysicsController {
-constructor(camera, scene) {
-    this.camera = camera;
-    this.scene = scene;
+   constructor(camera, scene) {
+        this.camera = camera;
+        this.scene = scene;
 
-    // Player mesh centered on its origin:
-    this.player = new THREE.Mesh(
-        new RoundedBoxGeometry(
-            PLAYER_CAPSULE_RADIUS * 2,
-            PLAYER_TOTAL_HEIGHT,
-            PLAYER_CAPSULE_RADIUS * 2,
-            10,
-            PLAYER_CAPSULE_RADIUS
-        ),
-        new THREE.MeshStandardMaterial()
-    );
-    this.player.geometry.translate(0, -PLAYER_TOTAL_HEIGHT / 2, 0);
+        // Player mesh centered on its origin:
+        this.player = new THREE.Mesh(
+            new RoundedBoxGeometry(
+                PLAYER_CAPSULE_RADIUS * 2, // width
+                PLAYER_TOTAL_HEIGHT,       // height
+                PLAYER_CAPSULE_RADIUS * 2, // depth
+                10,
+                PLAYER_CAPSULE_RADIUS
+            ),
+            new THREE.MeshStandardMaterial()
+        );
+        this.player.geometry.translate(0, -PLAYER_TOTAL_HEIGHT / 2, 0);
 
-    const halfSegLen = (PLAYER_TOTAL_HEIGHT - 2 * PLAYER_CAPSULE_RADIUS) / 2;
-    this.player.capsuleInfo = {
-        radius: PLAYER_CAPSULE_RADIUS,
-        segment: new THREE.Line3(
-            new THREE.Vector3(0,  halfSegLen, 0),
-            new THREE.Vector3(0, -halfSegLen, 0)
-        )
-    };
+        // Capsule around center:
+        const halfSegLen = (PLAYER_TOTAL_HEIGHT - 2 * PLAYER_CAPSULE_RADIUS) / 2;
+        this.player.capsuleInfo = {
+            radius: PLAYER_CAPSULE_RADIUS,
+            segment: new THREE.Line3(
+                new THREE.Vector3(0,  halfSegLen, 0),
+                new THREE.Vector3(0, -halfSegLen, 0)
+            )
+        };
 
-    this.player.castShadow    = true;
-    this.player.receiveShadow = true;
-    this.player.material.shadowSide = 2;
+        this.player.castShadow    = true;
+        this.player.receiveShadow = true;
+        this.player.material.shadowSide = 2;
 
-    this.playerVelocity = new THREE.Vector3();
-    this.isGrounded     = false;
+        // Physics state
+        this.playerVelocity = new THREE.Vector3();
+        this.isGrounded     = false;
 
-    this.isCrouching = false;
-    this.targetPlayerHeight        = PLAYER_TOTAL_HEIGHT;
-    this.originalCapsuleSegmentLength = PLAYER_CAPSULE_SEGMENT_LENGTH;
-    this.originalCapsuleRadius        = PLAYER_CAPSULE_RADIUS;
+        // Crouching
+        this.isCrouching                  = false;
+        this.targetPlayerHeight           = PLAYER_TOTAL_HEIGHT;
+        this.originalCapsuleSegmentLength = PLAYER_CAPSULE_SEGMENT_LENGTH;
+        this.originalCapsuleRadius        = PLAYER_CAPSULE_RADIUS;
 
-    this.upVector      = new THREE.Vector3(0, 1, 0);
-    this.tempVector    = new THREE.Vector3();
-    this.tempVector2   = new THREE.Vector3();
-    this.tempBox       = new THREE.Box3();
-    this.tempMat       = new THREE.Matrix4();
-    this.tempSegment   = new THREE.Line3();
-    this.colliderMatrixWorldInverse = new THREE.Matrix4();
+        // Helpers
+        this.upVector      = new THREE.Vector3(0, 1, 0);
+        this.tempVector    = new THREE.Vector3();
+        this.tempVector2   = new THREE.Vector3();
+        this.tempBox       = new THREE.Box3();
+        this.tempMat       = new THREE.Matrix4();
+        this.tempSegment   = new THREE.Line3();
+        this.colliderMatrixWorldInverse = new THREE.Matrix4();
 
-    this.accumulator = 0;
-    this.collider    = null;
+        // Sub‑stepping
+        this.accumulator = 0;
+        this.collider    = null;
 
-    this.mouseTime = 0;
-    const container = document.getElementById('container') || document.body;
-    container.addEventListener('mousedown', () => {
-        document.body.requestPointerLock();
-        this.mouseTime = performance.now();
-    });
-    this.camera.rotation.order = 'YXZ';
+        // Input
+        this.mouseTime = 0;
+        const container = document.getElementById('container') || document.body;
+        container.addEventListener('mousedown', () => {
+            document.body.requestPointerLock();
+            this.mouseTime = performance.now();
+        });
+        this.camera.rotation.order = 'YXZ';
 
-    this.footAudios = [
-        new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
-        new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
-    ];
-    this.footAudios.forEach(a => a.volume = 0.7);
-    this.footIndex       = 0;
-    this.footAcc         = 0;
-    this.baseFootInterval = 4;
-    this.landAudio       = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
-    this.landAudio.volume = 0.8;
-    this.fallStartY      = null;
-    this.prevPlayerIsOnGround = false;
-    this.jumpTriggered    = false;
-    this.fallDelay        = 300;
-    this.fallStartTimer   = null;
+        // Audio
+        this.footAudios = [
+            new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
+            new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
+        ];
+        this.footAudios.forEach(a => a.volume = 0.7);
+        this.footIndex       = 0;
+        this.footAcc         = 0;
+        this.baseFootInterval = 4;
+        this.landAudio       = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
+        this.landAudio.volume = 0.8;
+        this.fallStartY      = null;
+        this.prevPlayerIsOnGround = false;
+        this.jumpTriggered    = false;
+        this.fallDelay        = 300;
+        this.fallStartTimer   = null;
 
-    this.speedModifier = 0;
-    this.isAim         = false;
-}
+        // Modifiers
+        this.speedModifier = 0;
+        this.isAim         = false;
+    }
+
 
     /**
      * Sets the MeshBVH collider for collision detection. This is called by map.js.
@@ -308,78 +317,79 @@ constructor(camera, scene) {
      * This function runs for each physics sub-step.
      * @param {number} delta The fixed time step for this physics update.
      */
-_updatePlayerPhysics(delta) {
-    // 1) gravity
-    if (this.isGrounded) {
-        this.playerVelocity.y = -GRAVITY * delta * 0.1;
-    } else {
-        this.playerVelocity.y -= GRAVITY * delta;
-    }
+    _updatePlayerPhysics(delta) {
+        // 1) gravity (NO tiny downward push when grounded)
+        if (this.isGrounded) {
+            this.playerVelocity.y = 0;
+        } else {
+            this.playerVelocity.y -= GRAVITY * delta;
+        }
 
-    // 2) cap horizontal speed
-    const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-    if (hSpeed > MAX_SPEED * this.speedModifier) {
-        const s = (MAX_SPEED * this.speedModifier) / hSpeed;
-        this.playerVelocity.x *= s;
-        this.playerVelocity.z *= s;
-    }
+        // 2) cap horizontal speed
+        const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+        if (hSpeed > MAX_SPEED * this.speedModifier) {
+            const s = (MAX_SPEED * this.speedModifier) / hSpeed;
+            this.playerVelocity.x *= s;
+            this.playerVelocity.z *= s;
+        }
 
-    // 3) crouch/scale logic
-    const currScaleY = this.player.scale.y;
-    const tgtScaleY  = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
-    if (Math.abs(currScaleY - tgtScaleY) > 0.001) {
-        const newScaleY = THREE.MathUtils.lerp(currScaleY, tgtScaleY, CROUCH_SPEED * delta);
-        const oldH = PLAYER_TOTAL_HEIGHT * currScaleY;
-        const newH = PLAYER_TOTAL_HEIGHT * newScaleY;
-        this.player.scale.y = newScaleY;
-        this.player.position.y -= (oldH - newH);
-        this.player.capsuleInfo.segment.end.y = - (this.originalCapsuleSegmentLength * newScaleY);
-    }
+        // 3) crouch/scale logic
+        const currScaleY = this.player.scale.y;
+        const tgtScaleY  = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
+        if (Math.abs(currScaleY - tgtScaleY) > 0.001) {
+            const newScaleY = THREE.MathUtils.lerp(currScaleY, tgtScaleY, CROUCH_SPEED * delta);
+            const oldH = PLAYER_TOTAL_HEIGHT * currScaleY;
+            const newH = PLAYER_TOTAL_HEIGHT * newScaleY;
+            this.player.scale.y = newScaleY;
+            this.player.position.y -= (oldH - newH);
+            this.player.capsuleInfo.segment.end.y = - (this.originalCapsuleSegmentLength * newScaleY);
+        }
 
-    // 4) compute proposed position
-    const proposedPos = this.player.position.clone()
-        .addScaledVector(this.playerVelocity, delta);
+        // 4) compute proposed position
+        const proposedPos = this.player.position.clone()
+            .addScaledVector(this.playerVelocity, delta);
 
-    // 5) translate capsule segment
-    this.tempSegment.copy(this.player.capsuleInfo.segment);
-    this.tempSegment.start.add(proposedPos);
-    this.tempSegment.end.add(proposedPos);
-    this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
-    this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
+        // 5) translate capsule segment into collider-space
+        this.tempSegment.copy(this.player.capsuleInfo.segment);
+        this.tempSegment.start.add(proposedPos);
+        this.tempSegment.end.add(proposedPos);
+        this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
+        this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
 
-    // 6) build AABB (no chaining)
-    const r = this.player.capsuleInfo.radius + 0.001;
-    this.tempBox.makeEmpty();
-    this.tempBox.expandByPoint(this.tempSegment.start);
-    this.tempBox.expandByPoint(this.tempSegment.end);
-    this.tempBox.min.addScalar(-r);
-    this.tempBox.max.addScalar( r);
+        // 6) build AABB
+        const r = this.player.capsuleInfo.radius + 0.001;
+        this.tempBox.makeEmpty();
+        this.tempBox.expandByPoint(this.tempSegment.start);
+        this.tempBox.expandByPoint(this.tempSegment.end);
+        this.tempBox.min.addScalar(-r);
+        this.tempBox.max.addScalar( r);
 
-    // 7) shapecast correction
-    const correction = new THREE.Vector3();
-    if (this.collider?.geometry?.boundsTree) {
-        this.collider.geometry.boundsTree.shapecast({
-            intersectsBounds: box => box.intersectsBox(this.tempBox),
-            intersectsTriangle: tri => {
-                const triPt = this.tempVector;
-                const capPt = this.tempVector2;
-                const dist  = tri.closestPointToSegment(this.tempSegment, triPt, capPt);
-                if (dist < this.player.capsuleInfo.radius) {
-                    const depth = this.player.capsuleInfo.radius - dist;
-                    const dir   = capPt.sub(triPt).normalize();
-                    correction.addScaledVector(dir, depth);
-                    this.playerVelocity.addScaledVector(dir, -dir.dot(this.playerVelocity));
+        // 7) shapecast correction
+        const correction = new THREE.Vector3();
+        if (this.collider?.geometry?.boundsTree) {
+            this.collider.geometry.boundsTree.shapecast({
+                intersectsBounds: box => box.intersectsBox(this.tempBox),
+                intersectsTriangle: tri => {
+                    const triPt = this.tempVector;
+                    const capPt = this.tempVector2;
+                    const dist  = tri.closestPointToSegment(this.tempSegment, triPt, capPt);
+                    if (dist < this.player.capsuleInfo.radius) {
+                        const depth = this.player.capsuleInfo.radius - dist;
+                        const dir   = capPt.sub(triPt).normalize();
+                        correction.addScaledVector(dir, depth);
+                        this.playerVelocity.addScaledVector(dir, -dir.dot(this.playerVelocity));
+                    }
                 }
-            }
-        });
+            });
+        }
+
+        // 8) apply movement + correction
+        this.player.position.copy(proposedPos).add(correction);
+        this.player.updateMatrixWorld();
+
+        // 9) camera follow
+        this.camera.position.copy(this.player.position);
     }
-
-    // 8) apply movement + correction
-    this.player.position.copy(proposedPos).add(correction);
-    this.player.updateMatrixWorld();
-
-    // 9) camera follow
-    this.camera.position.copy(this.player.position);
 }
     /**
      * Performs a downward shapecast to reliably determine if the player is grounded.
