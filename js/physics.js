@@ -67,7 +67,7 @@ export class PhysicsController {
     constructor(camera, scene) {
         this.camera = camera;
         this.scene = scene;
-
+        // a
         // Player mesh centered on its origin:
         this.player = new THREE.Mesh(
             new RoundedBoxGeometry(
