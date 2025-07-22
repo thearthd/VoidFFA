@@ -6,6 +6,8 @@ import { sendSoundEvent } from "./network.js"; // Assuming this path is correct
 const PLAYER_MASS = 70;
 const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
+const SLOPE_SLIDE_FACTOR = 0.15; // How much the player slides down slopes (0 = no slide, 1 = full gravity slide)
+const MAX_SLOPE_ANGLE = Math.cos(THREE.MathUtils.degToRad(50)); // Max angle player can walk up (in radians, converted from degrees) - was 45
 
 // Player capsule dimensions (matching the provided example's player setup)
 const PLAYER_CAPSULE_RADIUS = 0.5;
@@ -67,7 +69,7 @@ export class PhysicsController {
     constructor(camera, scene) {
         this.camera = camera;
         this.scene = scene;
-        // a
+
         // Player mesh centered on its origin:
         this.player = new THREE.Mesh(
             new RoundedBoxGeometry(
@@ -263,8 +265,11 @@ export class PhysicsController {
             this.isCrouching = true;
             this.targetPlayerHeight = currentCrouchHeight;
         } else {
-            this.isCrouching = false;
-            this.targetPlayerHeight = standingHeight;
+            // Only allow uncrouching if there's no ceiling
+            if (this._checkCeilingCollision(standingHeight)) {
+                this.isCrouching = false;
+                this.targetPlayerHeight = standingHeight;
+            }
         }
     }
 
@@ -284,9 +289,11 @@ export class PhysicsController {
         const segmentStart = new THREE.Vector3(0, 0, 0); // Top of the capsule
         const segmentEnd = new THREE.Vector3(0, -(checkHeight - 2 * currentRadius), 0); // Bottom of cylinder
 
-        this.tempSegment.copy(new THREE.Line3(segmentStart, segmentEnd));
-        this.tempSegment.start.add(this.player.position);
-        this.tempSegment.end.add(this.player.position);
+        // Adjust segment for current player rotation
+        const playerQuaternion = this.player.quaternion;
+        this.tempSegment.copy(new THREE.Line3(segmentStart, segmentEnd));
+        this.tempSegment.start.applyQuaternion(playerQuaternion).add(this.player.position);
+        this.tempSegment.end.applyQuaternion(playerQuaternion).add(this.player.position);
 
         // Transform the temporary standing segment into the collider's local space
         this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
@@ -309,7 +316,9 @@ export class PhysicsController {
                     // Check if the collision is above the player (a ceiling)
                     const normal = tri.getNormal(new THREE.Vector3());
                     // Dot product with upVector to see if normal points mostly downwards (ceiling)
-                    if (normal.dot(this.upVector) < -0.1) {
+                    // We use the player's current "up" vector, not world up.
+                    const playerUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.player.quaternion);
+                    if (normal.dot(playerUp) < -0.1) { // If normal points against player's up
                         hitCeiling = true;
                         return true; // Stop iterating
                     }
@@ -326,14 +335,17 @@ export class PhysicsController {
      * @param {number} delta The fixed time step for this physics update.
      */
     _updatePlayerPhysics(delta) {
-        // 1) gravity (NO tiny downward push when grounded)
+        // Apply gravity and potentially slide down slopes
         if (this.isGrounded) {
-            // When grounded, apply gravity along the inverse of the ground normal
-            const slideGravity = this._currentGroundNormal.clone().multiplyScalar(-GRAVITY * delta);
-            this.playerVelocity.add(slideGravity);
+            // Apply a component of gravity along the slope (pushing player down the slope)
+            const slopeComponent = this.upVector.clone().cross(this._currentGroundNormal).cross(this._currentGroundNormal);
+            this.playerVelocity.addScaledVector(slopeComponent, GRAVITY * SLOPE_SLIDE_FACTOR * delta);
+
             // Project velocity onto the ground plane to prevent "sinking"
+            // This also helps with consistent movement along slopes
             this.playerVelocity.sub(this._currentGroundNormal.clone().multiplyScalar(this.playerVelocity.dot(this._currentGroundNormal)));
         } else {
+            // Apply standard downward gravity when airborne
             this.playerVelocity.y -= GRAVITY * delta;
         }
 
@@ -361,10 +373,15 @@ export class PhysicsController {
         const proposedPos = this.player.position.clone()
             .addScaledVector(this.playerVelocity, delta);
 
-        // 5) translate capsule segment into collider-space
+        // Apply player's current rotation to capsule segment for collision checks
+        const playerQuaternion = this.player.quaternion;
         this.tempSegment.copy(this.player.capsuleInfo.segment);
-        this.tempSegment.start.add(proposedPos);
-        this.tempSegment.end.add(proposedPos);
+        this.tempSegment.start.applyQuaternion(playerQuaternion).add(proposedPos);
+        this.tempSegment.end.applyQuaternion(playerQuaternion).add(proposedPos);
+        // this.tempSegment.start.add(proposedPos); // Original line
+        // this.tempSegment.end.add(proposedPos);    // Original line
+
+        // 5) translate capsule segment into collider-space
         this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
         this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
 
@@ -437,7 +454,12 @@ export class PhysicsController {
             this.player.position.z
         );
 
+        // Apply player's current rotation to the ground check segment
+        const playerQuaternion = this.player.quaternion;
         this.tempSegment.copy(new THREE.Line3(checkSegmentStart, checkSegmentEnd));
+        this.tempSegment.start.applyQuaternion(playerQuaternion);
+        this.tempSegment.end.applyQuaternion(playerQuaternion);
+
 
         // Transform the check segment into the collider's local space
         this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
@@ -462,7 +484,8 @@ export class PhysicsController {
                 if (distance < currentRadius) {
                     const normal = tri.getNormal(new THREE.Vector3());
                     // Check if the surface normal is mostly upwards (indicating a walkable surface)
-                    if (normal.dot(this.upVector) > 0.7) { // 0.7 corresponds to about 45 degrees slope
+                    // Use MAX_SLOPE_ANGLE for walking limit. A larger dot product means flatter.
+                    if (normal.dot(this.upVector) > MAX_SLOPE_ANGLE) {
                         hitGround = true;
                         groundNormal = normal;
                         return true; // Stop iterating, we found ground
@@ -521,7 +544,7 @@ export class PhysicsController {
         this.fallStartY = null;
         this._currentGroundNormal.set(0, 1, 0); // Reset ground normal to world up
         this._targetPlayerQuaternion.identity(); // Reset target quaternion
-
+        this.player.quaternion.identity(); // Reset player rotation
 
         // Reset player scale and target height in case they were crouching
         this.player.scale.set(1, 1, 1);
@@ -606,8 +629,10 @@ export class PhysicsController {
             // The 'up' direction for the player should be the ground normal
             this._targetPlayerQuaternion.setFromUnitVectors(this.upVector, this._currentGroundNormal);
             // Then apply the look-at rotation for the forward direction
-            const forwardQuaternion = new THREE.Quaternion().setFromUnitVectors(this.player.getWorldDirection(this.tempVector).setY(0).normalize(), playerWorldForward);
+            const currentForwardOnPlane = this.player.getWorldDirection(this.tempVector).sub(this._currentGroundNormal.clone().multiplyScalar(this.player.getWorldDirection(new THREE.Vector3()).dot(this._currentGroundNormal))).normalize();
+            const forwardQuaternion = new THREE.Quaternion().setFromUnitVectors(currentForwardOnPlane, playerWorldForward);
             this._targetPlayerQuaternion.multiply(forwardQuaternion);
+
 
             this.player.quaternion.slerp(this._targetPlayerQuaternion, smoothingFactor);
         } else {
