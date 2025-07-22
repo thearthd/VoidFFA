@@ -603,7 +603,7 @@ export class PhysicsController {
      */
     _rotatePlayerModel() {
         if (this.isGrounded) {
-            const smoothingFactor = 5;
+            const smoothingFactor = 0.15;
             const playerWorldForward = new THREE.Vector3();
             this.camera.getWorldDirection(playerWorldForward);
             playerWorldForward.y = 0; // Flatten to horizontal
@@ -615,7 +615,7 @@ export class PhysicsController {
         } else {
             // If not grounded, smoothly return to upright (or keep previous horizontal rotation)
             const upAlignmentQuaternion = new THREE.Quaternion();
-            upAlignmentQuaternion.setFromUnitVectors(this.player.up, new THREE.Vector3(0, 1, 0));
+            upAlignmentQuaternion.setFromUnitVectors(this.player.up, new THREE.Vector3(0, 0, 0));
             this.player.quaternion.slerp(upAlignmentQuaternion, 0.05);
         }
     }
