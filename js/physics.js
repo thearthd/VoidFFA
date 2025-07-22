@@ -64,91 +64,82 @@ function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
 }
 
 export class PhysicsController {
-    constructor(camera, scene) {
-        this.camera = camera;
-        this.scene = scene;
+constructor(camera, scene) {
+    this.camera = camera;
+    this.scene = scene;
 
-        // Player mesh centered on its origin:
-        this.player = new THREE.Mesh(
-            new RoundedBoxGeometry(
-                PLAYER_CAPSULE_RADIUS * 2, // width
-                PLAYER_TOTAL_HEIGHT,       // height
-                PLAYER_CAPSULE_RADIUS * 2, // depth
-                10,                        // segments
-                PLAYER_CAPSULE_RADIUS      // corner radius
-            ),
-            new THREE.MeshStandardMaterial()
-        );
-        // Move geometry so its center is at (0,0,0)
-        this.player.geometry.translate(0, -PLAYER_TOTAL_HEIGHT / 2, 0);
+    // Player mesh centered on its origin:
+    this.player = new THREE.Mesh(
+        new RoundedBoxGeometry(
+            PLAYER_CAPSULE_RADIUS * 2,
+            PLAYER_TOTAL_HEIGHT,
+            PLAYER_CAPSULE_RADIUS * 2,
+            10,
+            PLAYER_CAPSULE_RADIUS
+        ),
+        new THREE.MeshStandardMaterial()
+    );
+    this.player.geometry.translate(0, -PLAYER_TOTAL_HEIGHT / 2, 0);
 
-        // Capsule definition around that center:
-        const halfSegLen = (PLAYER_TOTAL_HEIGHT - 2 * PLAYER_CAPSULE_RADIUS) / 2;
-        this.player.capsuleInfo = {
-            radius: PLAYER_CAPSULE_RADIUS,
-            segment: new THREE.Line3(
-                new THREE.Vector3(0,  halfSegLen, 0),  // top sphere center
-                new THREE.Vector3(0, -halfSegLen, 0)   // bottom sphere center
-            )
-        };
+    const halfSegLen = (PLAYER_TOTAL_HEIGHT - 2 * PLAYER_CAPSULE_RADIUS) / 2;
+    this.player.capsuleInfo = {
+        radius: PLAYER_CAPSULE_RADIUS,
+        segment: new THREE.Line3(
+            new THREE.Vector3(0,  halfSegLen, 0),
+            new THREE.Vector3(0, -halfSegLen, 0)
+        )
+    };
 
-        this.player.castShadow    = true;
-        this.player.receiveShadow = true;
-        this.player.material.shadowSide = 2;
+    this.player.castShadow    = true;
+    this.player.receiveShadow = true;
+    this.player.material.shadowSide = 2;
 
-        // Physics state
-        this.playerVelocity = new THREE.Vector3();
-        this.isGrounded     = false;
+    this.playerVelocity = new THREE.Vector3();
+    this.isGrounded     = false;
 
-        // Crouching
-        this.isCrouching               = false;
-        this.targetPlayerHeight        = PLAYER_TOTAL_HEIGHT;
-        this.originalCapsuleSegmentLength = PLAYER_CAPSULE_SEGMENT_LENGTH;
-        this.originalCapsuleRadius        = PLAYER_CAPSULE_RADIUS;
+    this.isCrouching = false;
+    this.targetPlayerHeight        = PLAYER_TOTAL_HEIGHT;
+    this.originalCapsuleSegmentLength = PLAYER_CAPSULE_SEGMENT_LENGTH;
+    this.originalCapsuleRadius        = PLAYER_CAPSULE_RADIUS;
 
-        // Helpers
-        this.upVector      = new THREE.Vector3(0, 1, 0);
-        this.tempVector    = new THREE.Vector3();
-        this.tempVector2   = new THREE.Vector3();
-        this.tempBox       = new THREE.Box3();
-        this.tempMat       = new THREE.Matrix4();
-        this.tempSegment   = new THREE.Line3();
-        this.colliderMatrixWorldInverse = new THREE.Matrix4();
+    this.upVector      = new THREE.Vector3(0, 1, 0);
+    this.tempVector    = new THREE.Vector3();
+    this.tempVector2   = new THREE.Vector3();
+    this.tempBox       = new THREE.Box3();
+    this.tempMat       = new THREE.Matrix4();
+    this.tempSegment   = new THREE.Line3();
+    this.colliderMatrixWorldInverse = new THREE.Matrix4();
 
-        // Sub‑stepping
-        this.accumulator = 0;
-        this.collider    = null;
+    this.accumulator = 0;
+    this.collider    = null;
 
-        // Input
-        this.mouseTime = 0;
-        const container = document.getElementById('container') || document.body;
-        container.addEventListener('mousedown', () => {
-            document.body.requestPointerLock();
-            this.mouseTime = performance.now();
-        });
-        this.camera.rotation.order = 'YXZ';
+    this.mouseTime = 0;
+    const container = document.getElementById('container') || document.body;
+    container.addEventListener('mousedown', () => {
+        document.body.requestPointerLock();
+        this.mouseTime = performance.now();
+    });
+    this.camera.rotation.order = 'YXZ';
 
-        // Audio
-        this.footAudios = [
-            new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
-            new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
-        ];
-        this.footAudios.forEach(a => a.volume = 0.7);
-        this.footIndex       = 0;
-        this.footAcc         = 0;
-        this.baseFootInterval = 4;
-        this.landAudio       = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
-        this.landAudio.volume = 0.8;
-        this.fallStartY      = null;
-        this.prevPlayerIsOnGround = false;
-        this.jumpTriggered    = false;
-        this.fallDelay        = 300;
-        this.fallStartTimer   = null;
+    this.footAudios = [
+        new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
+        new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
+    ];
+    this.footAudios.forEach(a => a.volume = 0.7);
+    this.footIndex       = 0;
+    this.footAcc         = 0;
+    this.baseFootInterval = 4;
+    this.landAudio       = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
+    this.landAudio.volume = 0.8;
+    this.fallStartY      = null;
+    this.prevPlayerIsOnGround = false;
+    this.jumpTriggered    = false;
+    this.fallDelay        = 300;
+    this.fallStartTimer   = null;
 
-        // Modifiers
-        this.speedModifier = 0;
-        this.isAim         = false;
-    }
+    this.speedModifier = 0;
+    this.isAim         = false;
+}
 
     /**
      * Sets the MeshBVH collider for collision detection. This is called by map.js.
@@ -349,20 +340,20 @@ _updatePlayerPhysics(delta) {
     const proposedPos = this.player.position.clone()
         .addScaledVector(this.playerVelocity, delta);
 
-    // 5) translate capsule segment manually (no .translate())
+    // 5) translate capsule segment
     this.tempSegment.copy(this.player.capsuleInfo.segment);
     this.tempSegment.start.add(proposedPos);
     this.tempSegment.end.add(proposedPos);
     this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
     this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
 
-    // 6) build AABB
+    // 6) build AABB (no chaining)
     const r = this.player.capsuleInfo.radius + 0.001;
-    this.tempBox.makeEmpty()
-        .expandByPoint(this.tempSegment.start)
-        .expandByPoint(this.tempSegment.end)
-        .min.addScalar(-r)
-        .max.addScalar( r);
+    this.tempBox.makeEmpty();
+    this.tempBox.expandByPoint(this.tempSegment.start);
+    this.tempBox.expandByPoint(this.tempSegment.end);
+    this.tempBox.min.addScalar(-r);
+    this.tempBox.max.addScalar( r);
 
     // 7) shapecast correction
     const correction = new THREE.Vector3();
@@ -390,7 +381,6 @@ _updatePlayerPhysics(delta) {
     // 9) camera follow
     this.camera.position.copy(this.player.position);
 }
-
     /**
      * Performs a downward shapecast to reliably determine if the player is grounded.
      * This is called after all movement and collision resolution for a physics step.
