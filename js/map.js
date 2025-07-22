@@ -378,8 +378,14 @@ export async function createDiddyDunes(scene, physicsController) {
     // Define scaling and initial spawn points for the map
     const SCALE = 2;
     const rawSpawnPoints = [
-        new THREE.Vector3(0, 70, 0), // 1
-
+        new THREE.Vector3(34, 3, 0), // 1
+        new THREE.Vector3(62, 1, -37), // 2
+        new THREE.Vector3(26, 3, -30), // 3
+        new THREE.Vector3(-27, 3, -74), // 4
+        new THREE.Vector3(12, 3, -20), // 5
+        new THREE.Vector3(-58, 8, 2), // 6
+        new THREE.Vector3(55, 1, -55), // 7
+        new THREE.Vector3(-20, 8, -13), // 8
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 2));
 
