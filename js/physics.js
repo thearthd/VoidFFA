@@ -64,7 +64,7 @@ function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
 }
 
 export class PhysicsController {
-   constructor(camera, scene) {
+    constructor(camera, scene) {
         this.camera = camera;
         this.scene = scene;
 
@@ -147,7 +147,6 @@ export class PhysicsController {
         // Modifiers
         this.speedModifier = 0;
         this.isAim         = false;
-        this.lastSurfaceNormal = new THREE.Vector3(0, 1, 0);
     }
 
 
@@ -318,108 +317,79 @@ export class PhysicsController {
      * This function runs for each physics sub-step.
      * @param {number} delta The fixed time step for this physics update.
      */
-_updatePlayerPhysics(delta) {
-    // 1) gravity
-    if (this.isGrounded) {
-        this.playerVelocity.y = 0;
-    } else {
-        this.playerVelocity.y -= GRAVITY * delta;
-    }
+    _updatePlayerPhysics(delta) {
+        // 1) gravity (NO tiny downward push when grounded)
+        if (this.isGrounded) {
+            this.playerVelocity.y = 0;
+        } else {
+            this.playerVelocity.y -= GRAVITY * delta;
+        }
 
-    // 2) cap horizontal speed
-    const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-    if (hSpeed > MAX_SPEED * this.speedModifier) {
-        const s = (MAX_SPEED * this.speedModifier) / hSpeed;
-        this.playerVelocity.x *= s;
-        this.playerVelocity.z *= s;
-    }
+        // 2) cap horizontal speed
+        const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+        if (hSpeed > MAX_SPEED * this.speedModifier) {
+            const s = (MAX_SPEED * this.speedModifier) / hSpeed;
+            this.playerVelocity.x *= s;
+            this.playerVelocity.z *= s;
+        }
 
-    // 3) crouch/scale logic
-    const currScaleY = this.player.scale.y;
-    const tgtScaleY  = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
-    if (Math.abs(currScaleY - tgtScaleY) > 0.001) {
-        const newScaleY = THREE.MathUtils.lerp(currScaleY, tgtScaleY, CROUCH_SPEED * delta);
-        const oldH = PLAYER_TOTAL_HEIGHT * currScaleY;
-        const newH = PLAYER_TOTAL_HEIGHT * newScaleY;
-        this.player.scale.y = newScaleY;
-        this.player.position.y -= (oldH - newH);
-        this.player.capsuleInfo.segment.end.y = - (this.originalCapsuleSegmentLength * newScaleY);
-    }
+        // 3) crouch/scale logic
+        const currScaleY = this.player.scale.y;
+        const tgtScaleY  = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
+        if (Math.abs(currScaleY - tgtScaleY) > 0.001) {
+            const newScaleY = THREE.MathUtils.lerp(currScaleY, tgtScaleY, CROUCH_SPEED * delta);
+            const oldH = PLAYER_TOTAL_HEIGHT * currScaleY;
+            const newH = PLAYER_TOTAL_HEIGHT * newScaleY;
+            this.player.scale.y = newScaleY;
+            this.player.position.y -= (oldH - newH);
+            this.player.capsuleInfo.segment.end.y = - (this.originalCapsuleSegmentLength * newScaleY);
+        }
 
-    // 4) compute proposed position
-    const proposedPos = this.player.position.clone()
-        .addScaledVector(this.playerVelocity, delta);
+        // 4) compute proposed position
+        const proposedPos = this.player.position.clone()
+            .addScaledVector(this.playerVelocity, delta);
 
-    // 5) translate capsule into collider-space
-    this.tempSegment.copy(this.player.capsuleInfo.segment);
-    this.tempSegment.start.add(proposedPos);
-    this.tempSegment.end.add(proposedPos);
-    this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
-    this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
+        // 5) translate capsule segment into collider-space
+        this.tempSegment.copy(this.player.capsuleInfo.segment);
+        this.tempSegment.start.add(proposedPos);
+        this.tempSegment.end.add(proposedPos);
+        this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
+        this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
 
-    // 6) build AABB
-    const r = this.player.capsuleInfo.radius + 0.001;
-    this.tempBox.makeEmpty();
-    this.tempBox.expandByPoint(this.tempSegment.start);
-    this.tempBox.expandByPoint(this.tempSegment.end);
-    this.tempBox.min.addScalar(-r);
-    this.tempBox.max.addScalar( r);
+        // 6) build AABB
+        const r = this.player.capsuleInfo.radius + 0.001;
+        this.tempBox.makeEmpty();
+        this.tempBox.expandByPoint(this.tempSegment.start);
+        this.tempBox.expandByPoint(this.tempSegment.end);
+        this.tempBox.min.addScalar(-r);
+        this.tempBox.max.addScalar( r);
 
-    // 7) shapecast: resolve penetration AND capture ground normal
-    const correction = new THREE.Vector3();
-    let hitNormal = new THREE.Vector3(0, 1, 0);
-
-    if (this.collider?.geometry?.boundsTree) {
-        this.collider.geometry.boundsTree.shapecast({
-            intersectsBounds: box => box.intersectsBox(this.tempBox),
-            intersectsTriangle: tri => {
-                // triPt and capPt reused from helpers
-                const triPt = this.tempVector;
-                const capPt = this.tempVector2;
-                const dist  = tri.closestPointToSegment(this.tempSegment, triPt, capPt);
-
-                if (dist < this.player.capsuleInfo.radius) {
-                    const depth = this.player.capsuleInfo.radius - dist;
-                    const pushDir = capPt.sub(triPt).normalize();
-                    correction.addScaledVector(pushDir, depth);
-
-                    // **Correct usage**: get the triangle normal into hitNormal
-                    tri.getNormal(hitNormal);
+        // 7) shapecast correction
+        const correction = new THREE.Vector3();
+        if (this.collider?.geometry?.boundsTree) {
+            this.collider.geometry.boundsTree.shapecast({
+                intersectsBounds: box => box.intersectsBox(this.tempBox),
+                intersectsTriangle: tri => {
+                    const triPt = this.tempVector;
+                    const capPt = this.tempVector2;
+                    const dist  = tri.closestPointToSegment(this.tempSegment, triPt, capPt);
+                    if (dist < this.player.capsuleInfo.radius) {
+                        const depth = this.player.capsuleInfo.radius - dist;
+                        const dir   = capPt.sub(triPt).normalize();
+                        correction.addScaledVector(dir, depth);
+                        this.playerVelocity.addScaledVector(dir, -dir.dot(this.playerVelocity));
+                    }
                 }
-            }
-        });
+            });
+        }
+
+        // 8) apply movement + correction
+        this.player.position.copy(proposedPos).add(correction);
+        this.player.updateMatrixWorld();
+
+        // 9) camera follow
+        this.camera.position.copy(this.player.position);
     }
-
-    // store last surface normal for slope logic
-    this.lastSurfaceNormal.copy(hitNormal);
-
-    // 8) apply movement + correction
-    this.player.position.copy(proposedPos).add(correction);
-    this.player.updateMatrixWorld();
-
-    // 9) stick to slopes: project velocity onto slope plane
-    if (this.isGrounded) {
-        const n = this.lastSurfaceNormal;
-        const vn = n.clone().multiplyScalar(n.dot(this.playerVelocity));
-        this.playerVelocity.sub(vn);
-    }
-
-    // 10) rotate player mesh to align with slope normal
-    if (this.isGrounded) {
-        const desiredQuat = new THREE.Quaternion().setFromUnitVectors(
-            new THREE.Vector3(0, 1, 0),
-            this.lastSurfaceNormal
-        );
-        this.player.quaternion.slerp(desiredQuat, 0.1);
-    } else {
-        // return upright in air
-        const uprightQuat = new THREE.Quaternion();
-        this.player.quaternion.slerp(uprightQuat, 0.05);
-    }
-
-    // 11) camera follow
-    this.camera.position.copy(this.player.position);
-}
     /**
      * Performs a downward shapecast to reliably determine if the player is grounded.
      * This is called after all movement and collision resolution for a physics step.
