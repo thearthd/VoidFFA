@@ -390,7 +390,6 @@ export class PhysicsController {
         // 9) camera follow
         this.camera.position.copy(this.player.position);
     }
-}
     /**
      * Performs a downward shapecast to reliably determine if the player is grounded.
      * This is called after all movement and collision resolution for a physics step.
