@@ -433,7 +433,7 @@ export class PhysicsController {
 
         // Create a small raycast capsule segment extending just below the player's current bottom
         // This allows checking for ground very close to the player's actual bottom.
-        const groundCheckOffset = 0.00; // Small offset to ensure contact
+        const groundCheckOffset = 0.05; // Small offset to ensure contact
 
         // Bottom of the actual player capsule (before adjusting for check)
         const actualCapsuleBottomY = this.player.position.y + segmentLength - currentRadius;
@@ -603,7 +603,7 @@ export class PhysicsController {
      */
     _rotatePlayerModel() {
         if (this.isGrounded) {
-            const smoothingFactor = 0.15;
+            const smoothingFactor = 5;
             const playerWorldForward = new THREE.Vector3();
             this.camera.getWorldDirection(playerWorldForward);
             playerWorldForward.y = 0; // Flatten to horizontal
