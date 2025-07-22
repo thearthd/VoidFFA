@@ -247,18 +247,27 @@ export class PhysicsController {
         }
 
         // Crouching logic
-        const currentCrouchHeight = PLAYER_TOTAL_HEIGHT * CROUCH_HEIGHT_RATIO;
-        const standingHeight = PLAYER_TOTAL_HEIGHT;
+    const currentCrouchHeight = PLAYER_TOTAL_HEIGHT * CROUCH_HEIGHT_RATIO;
+    const standingHeight      = PLAYER_TOTAL_HEIGHT;
 
-        // Determine target height based on input and ceiling check
-        if (input.crouch) {
-            this.isCrouching = true;
-            this.targetPlayerHeight = currentCrouchHeight;
-        } else {
-            this.isCrouching = false;
+    if (input.crouch) {
+        // Player is holding crouch: always crouch
+        this.isCrouching        = true;
+        this.targetPlayerHeight = currentCrouchHeight;
+    } else {
+        // Player released crouch: check if we can stand up
+        const canStand = this._checkCeilingCollision(standingHeight);
+        if (canStand) {
+            // No ceiling in the way: stand
+            this.isCrouching        = false;
             this.targetPlayerHeight = standingHeight;
+        } else {
+            // Head is under something—stay crouched
+            this.isCrouching        = true;
+            this.targetPlayerHeight = currentCrouchHeight;
         }
     }
+}
 
     /**
      * Checks if the player can stand up without hitting a ceiling.
