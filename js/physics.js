@@ -8,7 +8,7 @@ const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 const SLOPE_SLIDE_FACTOR = 0.15; // How much the player slides down slopes (0 = no slide, 1 = full gravity slide)
 const MAX_SLOPE_ANGLE = Math.cos(THREE.MathUtils.degToRad(50)); // Max angle player can walk up (in radians, converted from degrees) - was 45
-
+// f
 // Player capsule dimensions (matching the provided example's player setup)
 const PLAYER_CAPSULE_RADIUS = 0.5;
 const PLAYER_CAPSULE_SEGMENT_LENGTH = 2.2 - PLAYER_CAPSULE_RADIUS; // Length of the cylindrical part of the capsule
