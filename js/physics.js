@@ -68,87 +68,86 @@ export class PhysicsController {
         this.camera = camera;
         this.scene = scene;
 
-        // Player mesh and capsule information, matching the provided example
+        // Player mesh centered on its origin:
         this.player = new THREE.Mesh(
             new RoundedBoxGeometry(
-                PLAYER_CAPSULE_RADIUS * 2, // Width
-                PLAYER_TOTAL_HEIGHT,       // Height
-                PLAYER_CAPSULE_RADIUS * 2, // Depth
-                10,                        // Segments
-                PLAYER_CAPSULE_RADIUS      // Radius for rounded corners
+                PLAYER_CAPSULE_RADIUS * 2, // width
+                PLAYER_TOTAL_HEIGHT,       // height
+                PLAYER_CAPSULE_RADIUS * 2, // depth
+                10,                        // segments
+                PLAYER_CAPSULE_RADIUS      // corner radius
             ),
             new THREE.MeshStandardMaterial()
         );
-        // Translate the geometry so the player's origin (player.position) is at the top of the capsule
-        this.player.geometry.translate(0, -PLAYER_CAPSULE_RADIUS, 0);
+        // Move geometry so its center is at (0,0,0)
+        this.player.geometry.translate(0, -PLAYER_TOTAL_HEIGHT / 2, 0);
 
-        // Define the capsule for collision detection relative to the player's local origin
+        // Capsule definition around that center:
+        const halfSegLen = (PLAYER_TOTAL_HEIGHT - 2 * PLAYER_CAPSULE_RADIUS) / 2;
         this.player.capsuleInfo = {
             radius: PLAYER_CAPSULE_RADIUS,
-            // Segment starts at (0,0,0) (top of capsule) and goes down by segment length
             segment: new THREE.Line3(
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(0, -PLAYER_CAPSULE_SEGMENT_LENGTH, 0.0)
+                new THREE.Vector3(0,  halfSegLen, 0),  // top sphere center
+                new THREE.Vector3(0, -halfSegLen, 0)   // bottom sphere center
             )
         };
-        this.player.castShadow = true;
+
+        this.player.castShadow    = true;
         this.player.receiveShadow = true;
-        this.player.material.shadowSide = 2; // Render shadows on both sides of the material
+        this.player.material.shadowSide = 2;
 
-        // Physics state variables
+        // Physics state
         this.playerVelocity = new THREE.Vector3();
-        this.isGrounded = false; // Tracks if the player is currently on the ground
+        this.isGrounded     = false;
 
-        // NEW: Crouching state variables
-        this.isCrouching = false;
-        this.targetPlayerHeight = PLAYER_TOTAL_HEIGHT;
+        // Crouching
+        this.isCrouching               = false;
+        this.targetPlayerHeight        = PLAYER_TOTAL_HEIGHT;
         this.originalCapsuleSegmentLength = PLAYER_CAPSULE_SEGMENT_LENGTH;
-        this.originalCapsuleRadius = PLAYER_CAPSULE_RADIUS;
+        this.originalCapsuleRadius        = PLAYER_CAPSULE_RADIUS;
 
-        // Helper vectors and objects to avoid re-allocations during calculations
-        this.upVector = new THREE.Vector3(0, 1, 0);
-        this.tempVector = new THREE.Vector3();
-        this.tempVector2 = new THREE.Vector3();
-        this.tempBox = new THREE.Box3();
-        this.tempMat = new THREE.Matrix4();
-        this.tempSegment = new THREE.Line3();
-        this.colliderMatrixWorldInverse = new THREE.Matrix4(); // Pre-allocate and store inverse
+        // Helpers
+        this.upVector      = new THREE.Vector3(0, 1, 0);
+        this.tempVector    = new THREE.Vector3();
+        this.tempVector2   = new THREE.Vector3();
+        this.tempBox       = new THREE.Box3();
+        this.tempMat       = new THREE.Matrix4();
+        this.tempSegment   = new THREE.Line3();
+        this.colliderMatrixWorldInverse = new THREE.Matrix4();
 
-        // Physics sub-stepping accumulator
+        // Sub‑stepping
         this.accumulator = 0;
+        this.collider    = null;
 
-        // The MeshBVH collider, set externally by map.js
-        this.collider = null;
-
-        // Input and camera setup
+        // Input
         this.mouseTime = 0;
         const container = document.getElementById('container') || document.body;
         container.addEventListener('mousedown', () => {
             document.body.requestPointerLock();
             this.mouseTime = performance.now();
         });
-        this.camera.rotation.order = 'YXZ'; // Ensure correct camera rotation order
+        this.camera.rotation.order = 'YXZ';
 
-        // Audio setup
+        // Audio
         this.footAudios = [
             new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
             new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
         ];
-        this.footAudios.forEach(audio => { audio.volume = 0.7; });
-        this.footIndex = 0;
-        this.footAcc = 0;
+        this.footAudios.forEach(a => a.volume = 0.7);
+        this.footIndex       = 0;
+        this.footAcc         = 0;
         this.baseFootInterval = 4;
-        this.landAudio = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
+        this.landAudio       = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
         this.landAudio.volume = 0.8;
-        this.fallStartY = null;
-        this.prevPlayerIsOnGround = false; // Store previous ground state for landing sound
-        this.jumpTriggered = false; // Flag to track if the last airborne state was due to a jump
-        this.fallDelay = 300; // Delay before considering a fall initiated
-        this.fallStartTimer = null; // Timer for fall delay
+        this.fallStartY      = null;
+        this.prevPlayerIsOnGround = false;
+        this.jumpTriggered    = false;
+        this.fallDelay        = 300;
+        this.fallStartTimer   = null;
 
-        // Speed and aim modifiers (kept from original physics.js)
+        // Modifiers
         this.speedModifier = 0;
-        this.isAim = false;
+        this.isAim         = false;
     }
 
     /**
@@ -319,104 +318,78 @@ export class PhysicsController {
      * @param {number} delta The fixed time step for this physics update.
      */
     _updatePlayerPhysics(delta) {
-        // Apply gravity
+        // 1) gravity
         if (this.isGrounded) {
-            this.playerVelocity.y = -GRAVITY * delta * 0.1; // Small downward push to keep grounded
+            this.playerVelocity.y = -GRAVITY * delta * 0.1;
         } else {
-            this.playerVelocity.y -= GRAVITY * delta; // Full gravity in air
+            this.playerVelocity.y -= GRAVITY * delta;
         }
 
-        // Cap horizontal speed (already handled by lerping in controls, but as a safety)
-        const horizontalSpeed = Math.sqrt(this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z);
-        if (horizontalSpeed > MAX_SPEED * this.speedModifier) {
-            const ratio = (MAX_SPEED * this.speedModifier) / horizontalSpeed;
-            this.playerVelocity.x *= ratio;
-            this.playerVelocity.z *= ratio;
+        // 2) cap horizontal speed
+        const hSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+        if (hSpeed > MAX_SPEED * this.speedModifier) {
+            const s = (MAX_SPEED * this.speedModifier) / hSpeed;
+            this.playerVelocity.x *= s;
+            this.playerVelocity.z *= s;
         }
 
-        // Smoothly adjust player height for crouching
-        const currentScaleY = this.player.scale.y;
-        const targetScaleY = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
-
-        if (Math.abs(currentScaleY - targetScaleY) > 0.001) {
-            const newScaleY = THREE.MathUtils.lerp(currentScaleY, targetScaleY, CROUCH_SPEED * delta);
-            const oldHeight = PLAYER_TOTAL_HEIGHT * currentScaleY;
-            const newHeight = PLAYER_TOTAL_HEIGHT * newScaleY;
-
+        // 3) crouch/scale logic
+        const currScaleY = this.player.scale.y;
+        const tgtScaleY  = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
+        if (Math.abs(currScaleY - tgtScaleY) > 0.001) {
+            const newScaleY = THREE.MathUtils.lerp(currScaleY, tgtScaleY, CROUCH_SPEED * delta);
+            const oldH = PLAYER_TOTAL_HEIGHT * currScaleY;
+            const newH = PLAYER_TOTAL_HEIGHT * newScaleY;
             this.player.scale.y = newScaleY;
-
-            // Adjust player's y position so the bottom of the capsule stays on the ground
-            const heightDifference = oldHeight - newHeight;
-            this.player.position.y -= heightDifference;
-
-            // Update capsuleInfo segment based on new height
-            // The segment end is relative to the top of the capsule
-            this.player.capsuleInfo.segment.end.y = -(this.originalCapsuleSegmentLength * newScaleY);
+            this.player.position.y -= (oldH - newH);
+            this.player.capsuleInfo.segment.end.y = - (this.originalCapsuleSegmentLength * newScaleY);
         }
 
-        // Move the player's visual mesh by the current velocity
-        this.player.position.addScaledVector(this.playerVelocity, delta);
-        this.player.updateMatrixWorld(); // Update player's world matrix for correct collision checks
+        // 4) compute proposed position
+        const proposedPos = this.player.position.clone()
+            .addScaledVector(this.playerVelocity, delta);
 
-        // --- Collision Resolution using MeshBVH shapecast ---
-        const capsuleInfo = this.player.capsuleInfo;
-        const collisionRadius = capsuleInfo.radius + 0.001; // Small collision margin
+        // 5) capsule in collider-space
+        this.tempSegment.copy(this.player.capsuleInfo.segment).translate(proposedPos);
+        this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
+        this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
 
-        this.tempBox.makeEmpty();
-        this.tempSegment.copy(capsuleInfo.segment); // Copy the player's capsule segment
+        // 6) AABB
+        const r = this.player.capsuleInfo.radius + 0.001;
+        this.tempBox.makeEmpty()
+            .expandByPoint(this.tempSegment.start)
+            .expandByPoint(this.tempSegment.end)
+            .min.addScalar(-r)
+            .max.addScalar( r);
 
-        // Transform the capsule segment into the collider's local space
-        this.tempSegment.start.applyMatrix4(this.player.matrixWorld).applyMatrix4(this.colliderMatrixWorldInverse);
-        this.tempSegment.end.applyMatrix4(this.player.matrixWorld).applyMatrix4(this.colliderMatrixWorldInverse);
-
-        // Get the axis-aligned bounding box of the capsule in collider's local space
-        this.tempBox.expandByPoint(this.tempSegment.start);
-        this.tempBox.expandByPoint(this.tempSegment.end);
-        this.tempBox.min.addScalar(-collisionRadius);
-        this.tempBox.max.addScalar(collisionRadius);
-
-        if (this.collider && this.collider.geometry && this.collider.geometry.boundsTree) {
+        // 7) shapecast correction
+        const correction = new THREE.Vector3();
+        if (this.collider?.geometry?.boundsTree) {
             this.collider.geometry.boundsTree.shapecast({
-                intersectsBounds: box => box.intersectsBox(this.tempBox), // Optimize by checking AABB intersection first
+                intersectsBounds: box => box.intersectsBox(this.tempBox),
                 intersectsTriangle: tri => {
-                    // Check if the triangle is intersecting the capsule and adjust position
-                    const triPoint = this.tempVector;
-                    const capsulePoint = this.tempVector2;
-
-                    // Find the closest points between the triangle and the capsule segment
-                    const distance = tri.closestPointToSegment(this.tempSegment, triPoint, capsulePoint);
-
-                    if (distance < collisionRadius) {
-                        const depth = collisionRadius - distance; // Calculate penetration depth
-                        const direction = capsulePoint.sub(triPoint).normalize(); // Direction to push out
-
-                        // Push the capsule segment out of the collision
-                        this.tempSegment.start.addScaledVector(direction, depth);
-                        this.tempSegment.end.addScaledVector(direction, depth);
-
-                        // Adjust player velocity based on collision response
-                        // Project velocity onto the collision normal to "slide" along surfaces
-                        this.playerVelocity.addScaledVector(direction, -direction.dot(this.playerVelocity));
+                    const triPt = this.tempVector;
+                    const capPt = this.tempVector2;
+                    const dist  = tri.closestPointToSegment(this.tempSegment, triPt, capPt);
+                    if (dist < this.player.capsuleInfo.radius) {
+                        const depth = this.player.capsuleInfo.radius - dist;
+                        const dir   = capPt.sub(triPt).normalize();
+                        correction.addScaledVector(dir, depth);
+                        // velocity slide
+                        this.playerVelocity.addScaledVector(dir, -dir.dot(this.playerVelocity));
                     }
                 }
             });
-        } else {
-            console.warn("Collider or boundsTree not available for shapecast. Skipping collision detection.");
         }
 
-        // Get the adjusted position of the capsule segment in world space after collision resolution
-        const newPosition = this.tempVector;
-        newPosition.copy(this.tempSegment.start).applyMatrix4(this.collider.matrixWorld);
+        // 8) apply movement + correction
+        this.player.position.copy(proposedPos).add(correction);
+        this.player.updateMatrixWorld();
 
-        // Apply the collision adjustment to the player's actual position
-        // This calculates the necessary offset from the original (pre-collision) position
-        const deltaPositionCorrection = this.tempVector2.subVectors(newPosition, this.player.position);
-        this.player.position.add(deltaPositionCorrection);
-
-        // Update camera position to follow the player
-        // The camera should be at the top of the player's capsule, which is player.position.y
+        // 9) camera follow
         this.camera.position.copy(this.player.position);
     }
+}
 
     /**
      * Performs a downward shapecast to reliably determine if the player is grounded.
@@ -615,7 +588,7 @@ export class PhysicsController {
         } else {
             // If not grounded, smoothly return to upright (or keep previous horizontal rotation)
             const upAlignmentQuaternion = new THREE.Quaternion();
-            upAlignmentQuaternion.setFromUnitVectors(this.player.up, new THREE.Vector3(0, 0, 0));
+            upAlignmentQuaternion.setFromUnitVectors(this.player.up, new THREE.Vector3(0, 1, 0));
             this.player.quaternion.slerp(upAlignmentQuaternion, 0.05);
         }
     }
