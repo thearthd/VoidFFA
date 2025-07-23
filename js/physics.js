@@ -195,8 +195,8 @@ export class PhysicsController {
 tryStepUp() {
     if (!this.collider?.geometry?.boundsTree) return;
 
-    const STEP_HEIGHT = 0.5;
-    const STEP_FORWARD = 0.3;
+    const STEP_HEIGHT = 1;
+    const STEP_FORWARD = 1;
 
     // ❌ Don't step if player isn't moving
     if (this.playerVelocity.lengthSq() < 0.01) return;
