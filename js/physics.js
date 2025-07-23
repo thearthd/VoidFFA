@@ -2,18 +2,18 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { sendSoundEvent } from "./network.js"; // Assuming this path is correct
 
-// Constants for player physics and dimensions
+// --- Constants for Player Physics and Dimensions ---
 const PLAYER_MASS = 70; // Not currently used for actual mass-based physics, but good to have
 const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 
-// Player capsule dimensions (matching the provided example's player setup)
+// Player capsule dimensions
 const PLAYER_CAPSULE_RADIUS = 0.5;
 // segment length is the height of the cylindrical part between the two spheres
 const PLAYER_CAPSULE_SEGMENT_LENGTH = 2.2 - (2 * PLAYER_CAPSULE_RADIUS); // Length of the cylindrical part
-const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + (2 * PLAYER_CAPSULE_RADIUS); // Total height of the standing player (2.0)
+const PLAYER_TOTAL_HEIGHT = PLAYER_CAPSULE_SEGMENT_LENGTH + (2 * PLAYER_CAPSULE_RADIUS); // Total height of the standing player
 
-// NEW: Constants for controlled movement and crouching
+// Movement and Crouching Constants
 const PLAYER_ACCEL_GROUND = 3; // How quickly player reaches max speed on ground
 const PLAYER_DECEL_GROUND = 5; // How quickly player stops on ground (faster than accel)
 const PLAYER_ACCEL_AIR = 1;    // How quickly player reaches max speed in air (slower)
@@ -21,7 +21,7 @@ const PLAYER_DECEL_AIR = 3;    // How quickly player stops in air (slower than g
 const CROUCH_HEIGHT_RATIO = 0.6; // Player height when crouched (e.g., 60% of original)
 const CROUCH_SPEED = 8;        // Speed at which player crouches/stands
 
-const MAX_SPEED = 10; // Maximum horizontal speed, now directly used for movement
+const MAX_SPEED = 10; // Maximum horizontal speed
 
 const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps stop
 
@@ -33,7 +33,8 @@ const MAX_PHYSICS_STEPS = 5;    // Maximum number of physics steps per frame to 
 const STEP_HEIGHT = 0.5; // Maximum height the player can step up
 const STEP_FORWARD_BIAS = PLAYER_CAPSULE_RADIUS * 0.5; // How much to push forward when checking for a step
 
-// seamless audio-loop helper (UNCHANGED)
+// --- Helper Functions ---
+// seamless audio-loop helper (unchanged)
 function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
     let timerId = null, currentAudio = null;
     function scheduleNext() {
@@ -68,12 +69,13 @@ function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
     };
 }
 
+// --- PhysicsController Class ---
 export class PhysicsController {
     constructor(camera, scene) {
         this.camera = camera;
         this.scene = scene;
 
-        // Player mesh and capsule information, matching the provided example
+        // Player mesh and capsule information
         this.player = new THREE.Mesh(
             new RoundedBoxGeometry(
                 PLAYER_CAPSULE_RADIUS * 2, // Width
@@ -104,13 +106,13 @@ export class PhysicsController {
         this.playerVelocity = new THREE.Vector3();
         this.isGrounded = false; // Tracks if the player is currently on the ground
 
-        // NEW: Crouching state variables
+        // Crouching state variables
         this.isCrouching = false;
         this.targetPlayerHeight = PLAYER_TOTAL_HEIGHT;
         this.originalCapsuleSegmentLength = PLAYER_CAPSULE_SEGMENT_LENGTH;
-        this.originalCapsuleRadius = PLAYER_CAPSULE_RADIUS;
+        this.originalCapsuleRadius = PLAYER_CAPSULE_RADIUS; // Keep track of original for scaling calculations
 
-        // Helper vectors and objects to avoid re-allocations during calculations
+        // Helper vectors and objects to avoid re-allocations
         this.upVector = new THREE.Vector3(0, 1, 0);
         this.tempVector = new THREE.Vector3();
         this.tempVector2 = new THREE.Vector3();
@@ -133,6 +135,20 @@ export class PhysicsController {
             this.mouseTime = performance.now();
         });
         this.camera.rotation.order = 'YXZ'; // Ensure correct camera rotation order
+
+        // Input state object (crucial for _applyControls)
+        this.input = {
+            forward: false,
+            backward: false,
+            left: false,
+            right: false,
+            jump: false,
+            crouch: false,
+            slow: false,
+            sprint: false,
+            fire: false,
+            aim: false
+        };
 
         // Audio setup
         this.footAudios = [
@@ -195,6 +211,72 @@ export class PhysicsController {
         this.tempVector.normalize();
         this.tempVector.cross(this.upVector); // Cross with world up to get side vector
         return this.tempVector;
+    }
+
+    /**
+     * Applies player controls (movement, jumping, crouching) based on input.
+     * @param {number} delta The fixed time step for this physics update.
+     * @param {object} input An object containing input states (forward, backward, jump, etc.).
+     */
+    _applyControls(delta, input) {
+        // Horizontal movement (acceleration and deceleration)
+        const speed = this.isGrounded ? MAX_SPEED : MAX_SPEED * 0.7; // Reduce air control
+        const accel = this.isGrounded ? PLAYER_ACCEL_GROUND : PLAYER_ACCEL_AIR;
+        const decel = this.isGrounded ? PLAYER_DECEL_GROUND : PLAYER_DECEL_AIR;
+
+        // Determine target horizontal velocity
+        this.tempVector.set(0, 0, 0); // Reuse tempVector for target velocity
+        if (input.forward) this.tempVector.add(this.getForwardVector());
+        if (input.backward) this.tempVector.sub(this.getForwardVector());
+        if (input.left) this.tempVector.sub(this.getSideVector());
+        if (input.right) this.tempVector.add(this.getSideVector());
+
+        let targetX = 0;
+        let targetZ = 0;
+        if (this.tempVector.lengthSq() > 0.001) {
+            this.tempVector.normalize().multiplyScalar(speed * this.speedModifier);
+            targetX = this.tempVector.x;
+            targetZ = this.tempVector.z;
+        }
+
+        // Apply acceleration/deceleration
+        // X-axis
+        if (Math.abs(this.playerVelocity.x - targetX) > 0.001) {
+            const currentAccel = (targetX === 0) ? decel : accel;
+            this.playerVelocity.x = THREE.MathUtils.lerp(this.playerVelocity.x, targetX, currentAccel * delta);
+        } else {
+            this.playerVelocity.x = targetX; // Snap to target if very close
+        }
+
+        // Z-axis
+        if (Math.abs(this.playerVelocity.z - targetZ) > 0.001) {
+            const currentAccel = (targetZ === 0) ? decel : accel;
+            this.playerVelocity.z = THREE.MathUtils.lerp(this.playerVelocity.z, targetZ, currentAccel * delta);
+        } else {
+            this.playerVelocity.z = targetZ; // Snap to target if very close
+        }
+
+        // Jumping
+        if (input.jump && this.isGrounded) {
+            this.playerVelocity.y = JUMP_VELOCITY;
+            this.isGrounded = false; // Player is now airborne
+            this.jumpTriggered = true; // Set flag for landing sound
+        }
+
+        // Crouching logic
+        this.isCrouching = input.crouch;
+        const newTargetHeight = this.isCrouching ? PLAYER_TOTAL_HEIGHT * CROUCH_HEIGHT_RATIO : PLAYER_TOTAL_HEIGHT;
+
+        if (newTargetHeight !== this.targetPlayerHeight) {
+            // Check if player can stand up before setting target height
+            if (newTargetHeight > this.player.scale.y * PLAYER_TOTAL_HEIGHT) { // Trying to stand up
+                if (this._checkCeilingCollision(newTargetHeight)) {
+                    this.targetPlayerHeight = newTargetHeight;
+                }
+            } else { // Crouching down
+                this.targetPlayerHeight = newTargetHeight;
+            }
+        }
     }
 
     /**
@@ -455,7 +537,7 @@ export class PhysicsController {
 
         // Prepare collision shapecast for the PROPOSED position
         const cap = this.player.capsuleInfo;
-        const r = cap.radius * this.player.scale.y + 0.001; // Account for scaled radius
+        const r = cap.radius * this.player.scale.y + 0.001; // Account for scaled radius and add a small epsilon for robustness
 
         // Create a temporary capsule segment at the proposed position for collision checking
         const tempPlayerMatrix = new THREE.Matrix4().compose(
@@ -685,8 +767,8 @@ export class PhysicsController {
 
         let stepsTaken = 0;
         while (this.accumulator >= FIXED_TIME_STEP && stepsTaken < MAX_PHYSICS_STEPS) {
-            this._applyControls(FIXED_TIME_STEP, input);
-            this._updatePlayerPhysics(FIXED_TIME_STEP);
+            this._applyControls(FIXED_TIME_STEP, input); // Apply input controls
+            this._updatePlayerPhysics(FIXED_TIME_STEP); // Update physics
             this.accumulator -= FIXED_TIME_STEP;
             stepsTaken++;
         }
