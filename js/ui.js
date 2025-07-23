@@ -516,6 +516,9 @@ export function hideRespawn() {
     }
 }
 
+const DEFAULT_PRIMARY   = 'ak-47';
+const DEFAULT_SECONDARY = 'm79';
+
 /* —————————————————————————————————————————————————————————————————————
    INVENTORY + HEALTH & SHIELD BARS (HTML version)
    ————————————————————————————————————————————————————————————————————— */
