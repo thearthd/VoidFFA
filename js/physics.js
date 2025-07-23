@@ -322,12 +322,8 @@ _updatePlayerPhysics(delta) {
     // Reset grounded; we’ll detect contact this frame
     this.isGrounded = false;
 
-    // Apply gravity or snap-down
-    if (this.isGrounded) {
-        this.playerVelocity.y = -GRAVITY * delta * 0.1;
-    } else {
-        this.playerVelocity.y -= GRAVITY * delta;
-    }
+    // Apply gravity
+    this.playerVelocity.y += (this.isGrounded ? -GRAVITY * 0.1 : -GRAVITY) * delta;
 
     // Cap horizontal speed
     const horizSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
@@ -350,13 +346,41 @@ _updatePlayerPhysics(delta) {
         this.player.capsuleInfo.segment.end.y = -this.originalCapsuleSegmentLength * ns;
     }
 
-    // Move by velocity
+    // STEP DETECTION:
+    // If moving horizontally, raycast at foot height to see a step in front
+    const moveDir = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
+    if (moveDir.lengthSq() > 1e-6 && this.collider?.geometry?.boundsTree) {
+        const footCenter = this.player.position.clone();
+        // segment.end.y is negative cylinder length scaled
+        footCenter.y += this.player.capsuleInfo.segment.end.y;
+        const rayOrigin = footCenter.clone().addScalar(0.01); // slightly above foot center
+        const rayDir = moveDir.clone().normalize();
+        const horizontalDist = moveDir.clone().multiplyScalar(delta).length() + this.player.capsuleInfo.radius + 0.01;
+        const raycaster = new THREE.Raycaster(rayOrigin, rayDir, 0, horizontalDist);
+        // three-mesh-bvh extends Raycaster to use BVH if present
+        const hits = raycaster.intersectObject(this.collider, false);
+        if (hits.length) {
+            const hit = hits[0];
+            const stepHeight = hit.point.y - rayOrigin.y;
+            const MAX_STEP = 0.5;
+            if (stepHeight > 0 && stepHeight <= MAX_STEP) {
+                // snap up onto the step
+                this.player.position.y += stepHeight;
+                this.playerVelocity.y = 0;
+                this.isGrounded = true;
+            }
+        }
+    }
+
+    // Move by current velocity
     this.player.position.addScaledVector(this.playerVelocity, delta);
     this.player.updateMatrixWorld();
 
-    // Prepare collision shapecast
+    // COLLISION + STEP-UP RESOLUTION
     const cap = this.player.capsuleInfo;
     const r = cap.radius + 0.001;
+
+    // Build AABB around the capsule in collider-local space
     this.tempBox.makeEmpty();
     this.tempSegment.copy(cap.segment)
         .applyMatrix4(this.player.matrixWorld)
@@ -366,7 +390,8 @@ _updatePlayerPhysics(delta) {
     this.tempBox.min.addScalar(-r);
     this.tempBox.max.addScalar(r);
 
-    if (this.collider?.geometry?.boundsTree) {
+    // Shapecast to push out of geometry
+    if (this.collider.geometry.boundsTree) {
         this.collider.geometry.boundsTree.shapecast({
             intersectsBounds: box => box.intersectsBox(this.tempBox),
             intersectsTriangle: tri => {
@@ -383,43 +408,32 @@ _updatePlayerPhysics(delta) {
         });
     }
 
-    // Compute collision offset in world space
+    // Compute world-space collision offset
     const newStart = this.tempVector
         .copy(this.tempSegment.start)
         .applyMatrix4(this.collider.matrixWorld);
     const deltaVec = newStart.sub(this.player.position);
 
-    // Determine if this is a slope/step or a wall
+    // Determine slope vs wall
     const stepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
     const isSlope = deltaVec.y > stepThresh;
 
     // Decompose deltaVec
-    const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
-    const verticalDelta = deltaVec.y;
+    const horizDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
+    const vertDelta = deltaVec.y;
 
     if (isSlope) {
-        // Gentle slope or drop: move fully
-        this.player.position.add(horizontalDelta);
-        this.player.position.y += verticalDelta;
+        // gentle slope: apply full push
+        this.player.position.add(horizDelta);
+        this.player.position.y += vertDelta;
         this.isGrounded = true;
         this.playerVelocity.y = 0;
     } else {
-        // Wall bump: check for small step
-        const MAX_STEP = 1;
-        if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
-            // climb the step: apply horizontal push and snap up
-            this.player.position.add(horizontalDelta);
-            this.player.position.y += verticalDelta;
-            this.isGrounded = true;
-            this.playerVelocity.y = 0;
-        } else {
-            // slide along wall
-            const n = deltaVec.clone().normalize();
-            const proj = deltaVec.dot(this.playerVelocity);
-            this.playerVelocity.addScaledVector(n, -proj);
-            // apply only horizontal component of push so you don't get stuck
-            this.player.position.add(horizontalDelta);
-        }
+        // wall bump: slide horizontally
+        this.player.position.add(horizDelta);
+        const n = deltaVec.clone().normalize();
+        const proj = deltaVec.dot(this.playerVelocity);
+        this.playerVelocity.addScaledVector(n, -proj);
     }
 
     // Sync camera
