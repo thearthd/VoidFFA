@@ -23,10 +23,13 @@ let debugText;
 // threshold to drop spurious mouse movements
 const MAX_DELTA = 200;
 
+const DEFAULT_PRIMARY   = 'ak-47';
+const DEFAULT_SECONDARY = 'm79';
+
 function getSavedLoadout() {
   return {
-    primary:   localStorage.getItem('loadout_primary'),
-    secondary: localStorage.getItem('loadout_secondary'),
+  primary: localStorage.getItem('loadout_primary')   || DEFAULT_PRIMARY,
+  secondary: localStorage.getItem('loadout_secondary') || DEFAULT_SECONDARY,
   };
 }
 
