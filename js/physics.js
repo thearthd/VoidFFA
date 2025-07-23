@@ -476,16 +476,18 @@ _updatePlayerPhysics(delta) {
             this.isGrounded = true;
             this.playerVelocity.y = 0;
 
-} else {
-    // slide along wall
-    const n = deltaVec.clone().normalize();
-    const proj = deltaVec.dot(this.playerVelocity);
-    this.playerVelocity.addScaledVector(n, -proj);
-    // apply only horizontal component of push so you don't get stuck
-    this.player.position.add(horizontalDelta);
-    this.tryStepUp();
-    // 👉 Try step up after wall slide
-}
+        } else {
+            // slide along wall
+            const n = deltaVec.clone().normalize();
+            const proj = deltaVec.dot(this.playerVelocity);
+            this.playerVelocity.addScaledVector(n, -proj);
+            this.player.position.add(horizontalDelta);
+        
+            // ✅ Try stepping up only if grounded
+            if (this.isGrounded) {
+                this.tryStepUp();
+            }
+        }
     }
 
     // Sync camera
