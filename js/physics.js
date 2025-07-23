@@ -240,7 +240,7 @@ _attemptStepUp(currentProposedPosition, wallNormal, stepHeight) {
     let hitNormal = null;
 
     this.collider.geometry.boundsTree.shapecast({
-        intersectsBounds: box => box.intersectsSegment(this.tempSegment),
+      intersectsBounds: box => box.intersectsBox(this.tempBox),
         intersectsTriangle: tri => {
             const triPoint = this.tempVector;
             const segmentPoint = this.tempVector2;
