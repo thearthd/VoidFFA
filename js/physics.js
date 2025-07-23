@@ -266,10 +266,10 @@ _attemptStepUp(currentProposedPosition, wallNormal, stepHeight) {
 
         // Double check this final position doesn't cause collision *at the new height*
         // This is crucial to prevent "stuck" situations.
-        const testFinalSegment = new THREE.Line3(
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(0, -currentCapsule.segment.length(), 0)
-        );
+const testFinalSegment = new THREE.Line3(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, -currentCapsule.segment.distance(), 0)
+);
         testFinalSegment.start.add(newPlayerPos);
         testFinalSegment.end.add(newPlayerPos);
 
