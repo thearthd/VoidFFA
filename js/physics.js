@@ -482,7 +482,7 @@ _updatePlayerPhysics(delta) {
             this.player.position.y += verticalDelta;
             this.isGrounded = true;
             this.playerVelocity.y = 0;
-    this.tryStepUp();
+
 } else {
     // slide along wall
     const n = deltaVec.clone().normalize();
@@ -490,7 +490,7 @@ _updatePlayerPhysics(delta) {
     this.playerVelocity.addScaledVector(n, -proj);
     // apply only horizontal component of push so you don't get stuck
     this.player.position.add(horizontalDelta);
-
+    this.tryStepUp();
     // 👉 Try step up after wall slide
 }
     }
