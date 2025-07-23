@@ -482,6 +482,7 @@ _updatePlayerPhysics(delta) {
             this.player.position.y += verticalDelta;
             this.isGrounded = true;
             this.playerVelocity.y = 0;
+    this.tryStepUp();
 } else {
     // slide along wall
     const n = deltaVec.clone().normalize();
@@ -491,7 +492,6 @@ _updatePlayerPhysics(delta) {
     this.player.position.add(horizontalDelta);
 
     // 👉 Try step up after wall slide
-    this.tryStepUp();
 }
     }
 
