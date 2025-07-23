@@ -405,7 +405,7 @@ _updatePlayerPhysics(delta) {
         this.playerVelocity.y = 0;
     } else {
         // Wall bump: check for small step
-        const MAX_STEP = 0.5;
+        const MAX_STEP = 1;
         if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
             // climb the step: apply horizontal push and snap up
             this.player.position.add(horizontalDelta);
