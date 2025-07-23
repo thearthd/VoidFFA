@@ -198,27 +198,30 @@ tryStepUp() {
     const STEP_HEIGHT = 0.5;
     const STEP_FORWARD = 0.3;
 
-    // 1. Determine the forward direction on XZ plane
+    // ❌ Don't step if player isn't moving
+    if (this.playerVelocity.lengthSq() < 0.01) return;
+
+    // ✅ Forward direction on XZ plane
     const forward = this.getForwardVector().clone().setY(0).normalize();
 
-    // 2. Get current player base position (bottom of the capsule)
+    // ✅ Player's foot position (bottom of capsule)
     const capsule = this.player.capsuleInfo;
-    const footY = this.player.position.y + capsule.segment.end.y - capsule.radius;
+    const footY = this.player.position.y + capsule.segment.start.y + capsule.radius;
     const forwardOffset = forward.clone().multiplyScalar(STEP_FORWARD);
 
-    // 3. Define a point just in front of player at current foot level
+    // ✅ Position at the front of feet, just above the ground
     const frontLow = new THREE.Vector3(
         this.player.position.x + forwardOffset.x,
         footY + 0.01,
         this.player.position.z + forwardOffset.z
     );
 
-    // 4. Define the same point higher by STEP_HEIGHT
+    // ✅ Position above by STEP_HEIGHT
     const frontHigh = frontLow.clone();
     frontHigh.y += STEP_HEIGHT;
 
-    // 5. Create a test segment at new position (same shape as player capsule)
-    const newStart = new THREE.Vector3(0, 0, 0).add(frontHigh);
+    // ✅ Simulate placing capsule at frontHigh
+    const newStart = new THREE.Vector3(0, capsule.segment.start.y, 0).add(frontHigh);
     const newEnd = new THREE.Vector3(0, capsule.segment.end.y, 0).add(frontHigh);
 
     this.tempSegment.set(newStart.clone(), newEnd.clone());
@@ -232,7 +235,6 @@ tryStepUp() {
     this.tempBox.min.addScalar(-r);
     this.tempBox.max.addScalar(r);
 
-    // 6. Check if there's any collision at the higher position
     let blocked = false;
     this.collider.geometry.boundsTree.shapecast({
         intersectsBounds: box => box.intersectsBox(this.tempBox),
@@ -248,7 +250,7 @@ tryStepUp() {
         }
     });
 
-    // 7. If no collision, move player up
+    // ✅ Only step if the upper space is clear
     if (!blocked) {
         this.player.position.y += STEP_HEIGHT;
         this.player.updateMatrixWorld();
