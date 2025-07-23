@@ -357,7 +357,7 @@ _updatePlayerPhysics(delta) {
 
     // --- Collision + step-up resolution ---
     const capsuleInfo = this.player.capsuleInfo;
-    const collisionRadius = capsuleInfo.radius + 0.001;
+    const r = capsuleInfo.radius + 0.001;
 
     // Build AABB around the capsule in collider-local space
     this.tempBox.makeEmpty();
@@ -366,27 +366,25 @@ _updatePlayerPhysics(delta) {
         .applyMatrix4(this.colliderMatrixWorldInverse);
     this.tempBox.expandByPoint(this.tempSegment.start);
     this.tempBox.expandByPoint(this.tempSegment.end);
-    this.tempBox.min.addScalar(-collisionRadius);
-    this.tempBox.max.addScalar(collisionRadius);
+    this.tempBox.min.addScalar(-r);
+    this.tempBox.max.addScalar(r);
 
     // Shapecast to push out of geometry
-    if (this.collider && this.collider.geometry && this.collider.geometry.boundsTree) {
+    if (this.collider?.geometry?.boundsTree) {
         this.collider.geometry.boundsTree.shapecast({
             intersectsBounds: box => box.intersectsBox(this.tempBox),
             intersectsTriangle: tri => {
                 const triPoint = this.tempVector;
                 const capPoint = this.tempVector2;
                 const dist = tri.closestPointToSegment(this.tempSegment, triPoint, capPoint);
-                if (dist < collisionRadius) {
-                    const depth = collisionRadius - dist;
+                if (dist < r) {
+                    const depth = r - dist;
                     const pushDir = capPoint.sub(triPoint).normalize();
                     this.tempSegment.start.addScaledVector(pushDir, depth);
                     this.tempSegment.end.addScaledVector(pushDir, depth);
                 }
             }
         });
-    } else {
-        console.warn("Collider or boundsTree not available—skipping collision.");
     }
 
     // Compute world-space collision offset
@@ -399,20 +397,32 @@ _updatePlayerPhysics(delta) {
     const stepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
     const isStepOrSlope = deltaVec.y > stepThresh;
 
-    // Move by the collision offset (minus a tiny epsilon)
+    // Move by the collision offset (minus epsilon)
     const offset = Math.max(0, deltaVec.length() - 1e-5);
     deltaVec.normalize().multiplyScalar(offset);
     this.player.position.add(deltaVec);
 
     if (isStepOrSlope) {
-        // Landed on ground or stepped up → only zero vertical velocity
+        // Landed on ground or walked up a gentle slope
         this.isGrounded = true;
         this.playerVelocity.y = 0;
     } else {
-        // Hit a wall → slide along it
-        const normal = deltaVec.clone().normalize();
-        const proj = deltaVec.dot(this.playerVelocity);
-        this.playerVelocity.addScaledVector(normal, -proj);
+        // Hit a wall: try stepping if it's short enough
+        const STEP_HEIGHT = 0.5;
+        // Temporarily lift the capsule by STEP_HEIGHT and check for ceiling
+        const canStep = this._checkCeilingCollision(this.player.scale.y * PLAYER_TOTAL_HEIGHT + STEP_HEIGHT)
+            && Math.abs(deltaVec.y) < 1e-3;
+        if (canStep) {
+            // Step up onto the short wall
+            this.player.position.y += STEP_HEIGHT;
+            this.isGrounded = true;
+            this.playerVelocity.y = 0;
+        } else {
+            // Otherwise slide along the wall
+            const normal = deltaVec.clone().normalize();
+            const proj = deltaVec.dot(this.playerVelocity);
+            this.playerVelocity.addScaledVector(normal, -proj);
+        }
     }
 
     // Sync camera to player position
