@@ -192,6 +192,75 @@ export class PhysicsController {
         return this.tempVector;
     }
 
+tryStepUp() {
+    if (!this.collider?.geometry?.boundsTree) return;
+
+    const STEP_HEIGHT = 0.5;
+    const STEP_FORWARD_OFFSET = 0.3;
+    const STEP_CHECK_RADIUS = this.player.capsuleInfo.radius;
+
+    // Forward direction in world space
+    const forward = this.getForwardVector().clone();
+    forward.y = 0;
+    forward.normalize();
+
+    // Base of the capsule (feet level)
+    const footY = this.player.position.y + this.player.capsuleInfo.segment.end.y - STEP_CHECK_RADIUS;
+
+    // Cast start: slightly in front of player at foot level
+    const start = this.player.position.clone();
+    start.y = footY + 0.05; // slightly above feet
+    start.addScaledVector(forward, STEP_FORWARD_OFFSET);
+
+    // Cast end: just above the step height
+    const end = start.clone();
+    end.y += STEP_HEIGHT;
+
+    // Use capsule segment to test upward space at new step height
+    const testPos = this.player.position.clone();
+    testPos.y += STEP_HEIGHT;
+
+    const cap = this.player.capsuleInfo;
+    const segmentStart = new THREE.Vector3(0, 0, 0);
+    const segmentEnd = new THREE.Vector3(0, cap.segment.end.y, 0);
+
+    segmentStart.add(testPos);
+    segmentEnd.add(testPos);
+
+    this.tempSegment.set(segmentStart.clone(), segmentEnd.clone());
+    this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
+    this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
+
+    const r = cap.radius + 0.001;
+    this.tempBox.makeEmpty();
+    this.tempBox.expandByPoint(this.tempSegment.start);
+    this.tempBox.expandByPoint(this.tempSegment.end);
+    this.tempBox.min.addScalar(-r);
+    this.tempBox.max.addScalar(r);
+
+    let blocked = false;
+    this.collider.geometry.boundsTree.shapecast({
+        intersectsBounds: box => box.intersectsBox(this.tempBox),
+        intersectsTriangle: tri => {
+            const triPoint = this.tempVector;
+            const capsulePoint = this.tempVector2;
+            const distance = tri.closestPointToSegment(this.tempSegment, triPoint, capsulePoint);
+            if (distance < r) {
+                blocked = true;
+                return true;
+            }
+            return false;
+        }
+    });
+
+    if (!blocked) {
+        // No obstacle at elevated step spot, snap up
+        this.player.position.y += STEP_HEIGHT;
+        this.player.updateMatrixWorld();
+        this.isGrounded = true;
+        this.playerVelocity.y = 0;
+    }
+}
     /**
      * Handles player input and updates player velocity.
      * @param {number} deltaTime The time elapsed since the last frame.
@@ -409,17 +478,21 @@ _updatePlayerPhysics(delta) {
         if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
             // climb the step: apply horizontal push and snap up
             this.player.position.add(horizontalDelta);
+            
             this.player.position.y += verticalDelta;
             this.isGrounded = true;
             this.playerVelocity.y = 0;
-        } else {
-            // slide along wall
-            const n = deltaVec.clone().normalize();
-            const proj = deltaVec.dot(this.playerVelocity);
-            this.playerVelocity.addScaledVector(n, -proj);
-            // apply only horizontal component of push so you don't get stuck
-            this.player.position.add(horizontalDelta);
-        }
+} else {
+    // slide along wall
+    const n = deltaVec.clone().normalize();
+    const proj = deltaVec.dot(this.playerVelocity);
+    this.playerVelocity.addScaledVector(n, -proj);
+    // apply only horizontal component of push so you don't get stuck
+    this.player.position.add(horizontalDelta);
+
+    // 👉 Try step up after wall slide
+    this.tryStepUp();
+}
     }
 
     // Sync camera
