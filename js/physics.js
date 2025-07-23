@@ -195,32 +195,32 @@ export class PhysicsController {
 tryStepUp() {
     if (!this.collider?.geometry?.boundsTree) return;
 
-    const STEP_HEIGHT = 1;
-    const STEP_FORWARD = 1;
+    const STEP_HEIGHT = 1.0;
+    const STEP_FORWARD = 0.3;
 
-    // ❌ Don't step if player isn't moving
-    if (this.playerVelocity.lengthSq() < 0.01) return;
+    if (this.playerVelocity.lengthSq() < 0.01) {
+        console.log("❌ Not stepping: Player not moving.");
+        return;
+    }
 
-    // ✅ Forward direction on XZ plane
+    if (!this.isGrounded) {
+        console.log("❌ Not stepping: Player not grounded.");
+        return;
+    }
+
     const forward = this.getForwardVector().clone().setY(0).normalize();
-
-    // ✅ Player's foot position (bottom of capsule)
     const capsule = this.player.capsuleInfo;
     const footY = this.player.position.y + capsule.segment.start.y + capsule.radius;
-    const forwardOffset = forward.clone().multiplyScalar(STEP_FORWARD);
 
-    // ✅ Position at the front of feet, just above the ground
+    const forwardOffset = forward.clone().multiplyScalar(STEP_FORWARD);
     const frontLow = new THREE.Vector3(
         this.player.position.x + forwardOffset.x,
         footY + 0.01,
         this.player.position.z + forwardOffset.z
     );
-
-    // ✅ Position above by STEP_HEIGHT
     const frontHigh = frontLow.clone();
     frontHigh.y += STEP_HEIGHT;
 
-    // ✅ Simulate placing capsule at frontHigh
     const newStart = new THREE.Vector3(0, capsule.segment.start.y, 0).add(frontHigh);
     const newEnd = new THREE.Vector3(0, capsule.segment.end.y, 0).add(frontHigh);
 
@@ -236,6 +236,9 @@ tryStepUp() {
     this.tempBox.max.addScalar(r);
 
     let blocked = false;
+    const testCapsuleTopY = newEnd.y.toFixed(2);
+    const testCapsuleBottomY = newStart.y.toFixed(2);
+
     this.collider.geometry.boundsTree.shapecast({
         intersectsBounds: box => box.intersectsBox(this.tempBox),
         intersectsTriangle: tri => {
@@ -250,10 +253,12 @@ tryStepUp() {
         }
     });
 
-    // ✅ Only step if the upper space is clear
     if (!blocked) {
         this.player.position.y += STEP_HEIGHT;
         this.player.updateMatrixWorld();
+        console.log(`✅ Stepped up by ${STEP_HEIGHT} units. Capsule: [${testCapsuleBottomY} → ${testCapsuleTopY}]`);
+    } else {
+        console.log(`🧱 Step blocked. Capsule would be placed at: [${testCapsuleBottomY} → ${testCapsuleTopY}]`);
     }
 }
     /**
