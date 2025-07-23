@@ -196,48 +196,43 @@ tryStepUp() {
     if (!this.collider?.geometry?.boundsTree) return;
 
     const STEP_HEIGHT = 0.5;
-    const STEP_FORWARD_OFFSET = 0.3;
-    const STEP_CHECK_RADIUS = this.player.capsuleInfo.radius;
+    const STEP_FORWARD = 0.3;
 
-    // Forward direction in world space
-    const forward = this.getForwardVector().clone();
-    forward.y = 0;
-    forward.normalize();
+    // 1. Determine the forward direction on XZ plane
+    const forward = this.getForwardVector().clone().setY(0).normalize();
 
-    // Base of the capsule (feet level)
-    const footY = this.player.position.y + this.player.capsuleInfo.segment.end.y - STEP_CHECK_RADIUS;
+    // 2. Get current player base position (bottom of the capsule)
+    const capsule = this.player.capsuleInfo;
+    const footY = this.player.position.y + capsule.segment.end.y - capsule.radius;
+    const forwardOffset = forward.clone().multiplyScalar(STEP_FORWARD);
 
-    // Cast start: slightly in front of player at foot level
-    const start = this.player.position.clone();
-    start.y = footY + 0.05; // slightly above feet
-    start.addScaledVector(forward, STEP_FORWARD_OFFSET);
+    // 3. Define a point just in front of player at current foot level
+    const frontLow = new THREE.Vector3(
+        this.player.position.x + forwardOffset.x,
+        footY + 0.01,
+        this.player.position.z + forwardOffset.z
+    );
 
-    // Cast end: just above the step height
-    const end = start.clone();
-    end.y += STEP_HEIGHT;
+    // 4. Define the same point higher by STEP_HEIGHT
+    const frontHigh = frontLow.clone();
+    frontHigh.y += STEP_HEIGHT;
 
-    // Use capsule segment to test upward space at new step height
-    const testPos = this.player.position.clone();
-    testPos.y += STEP_HEIGHT;
+    // 5. Create a test segment at new position (same shape as player capsule)
+    const newStart = new THREE.Vector3(0, 0, 0).add(frontHigh);
+    const newEnd = new THREE.Vector3(0, capsule.segment.end.y, 0).add(frontHigh);
 
-    const cap = this.player.capsuleInfo;
-    const segmentStart = new THREE.Vector3(0, 0, 0);
-    const segmentEnd = new THREE.Vector3(0, cap.segment.end.y, 0);
-
-    segmentStart.add(testPos);
-    segmentEnd.add(testPos);
-
-    this.tempSegment.set(segmentStart.clone(), segmentEnd.clone());
+    this.tempSegment.set(newStart.clone(), newEnd.clone());
     this.tempSegment.start.applyMatrix4(this.colliderMatrixWorldInverse);
     this.tempSegment.end.applyMatrix4(this.colliderMatrixWorldInverse);
 
-    const r = cap.radius + 0.001;
+    const r = capsule.radius + 0.001;
     this.tempBox.makeEmpty();
     this.tempBox.expandByPoint(this.tempSegment.start);
     this.tempBox.expandByPoint(this.tempSegment.end);
     this.tempBox.min.addScalar(-r);
     this.tempBox.max.addScalar(r);
 
+    // 6. Check if there's any collision at the higher position
     let blocked = false;
     this.collider.geometry.boundsTree.shapecast({
         intersectsBounds: box => box.intersectsBox(this.tempBox),
@@ -253,12 +248,10 @@ tryStepUp() {
         }
     });
 
+    // 7. If no collision, move player up
     if (!blocked) {
-        // No obstacle at elevated step spot, snap up
         this.player.position.y += STEP_HEIGHT;
         this.player.updateMatrixWorld();
-        this.isGrounded = true;
-        this.playerVelocity.y = 0;
     }
 }
     /**
