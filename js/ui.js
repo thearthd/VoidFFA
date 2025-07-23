@@ -521,8 +521,8 @@ export function hideRespawn() {
    ————————————————————————————————————————————————————————————————————— */
 function getSavedLoadout() {
   return {
-    primary:   localStorage.getItem('loadout_primary'),
-    secondary: localStorage.getItem('loadout_secondary'),
+  primary: localStorage.getItem('loadout_primary')   || DEFAULT_PRIMARY,
+  secondary: localStorage.getItem('loadout_secondary') || DEFAULT_SECONDARY,
   };
 }
 
