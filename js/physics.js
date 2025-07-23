@@ -542,10 +542,10 @@ _updatePlayerPhysics(delta) {
              // Try to find a collision point below the player after moving forward
              const tempCapsuleForStep = {
                  radius: cap.radius,
-                 segment: new THREE.Line3(
-                     new THREE.Vector3(0, 0, 0),
-                     new THREE.Vector3(0, -cap.segment.length(), 0)
-                 )
+segment: new THREE.Line3(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, -cap.segment.distance(), 0)
+)
              };
 
              // Project player forward and up by STEP_HEIGHT
