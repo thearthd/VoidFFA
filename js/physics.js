@@ -402,12 +402,16 @@ _updatePlayerPhysics(delta) {
         console.log("Potential wall collision detected and grounded. Checking for step...");
 
         const playerFeetPosition = this.player.position.clone().add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT / 2, 0));
-        const currentHorizVelocity = this.playerVelocity.clone().setY(0).normalize();
+        const horizontalVelocityForStepCheck = this.playerVelocity.clone().setY(0);
         
-        if (currentHorizVelocity.lengthSq() < 0.0001) { 
-            console.log("No significant horizontal velocity for step check direction.");
+        // --- MODIFICATION 1: Prevent normalization of zero vector ---
+        if (horizontalVelocityForStepCheck.lengthSq() < 0.0001) { 
+            console.log("No significant horizontal velocity for step check direction. Cannot attempt step-up.");
+            // If there's no movement, we can't determine a forward direction for stepping up.
+            // Continue with regular collision resolution below this block.
         } else {
-            const stepCheckOrigin = playerFeetPosition.add(currentHorizVelocity.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
+            horizontalVelocityForStepCheck.normalize(); // Normalize only if not zero
+            const stepCheckOrigin = playerFeetPosition.add(horizontalVelocityForStepCheck.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
             stepCheckOrigin.y += STEP_HEIGHT + 0.01;
 
             const raycaster = new THREE.Raycaster(stepCheckOrigin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.02);
@@ -464,8 +468,14 @@ _updatePlayerPhysics(delta) {
         }
     }
 
-    const offset = Math.max(0, deltaVec.length() - 1e-5);
-    deltaVec.normalize().multiplyScalar(offset);
+    // --- MODIFICATION 2: Prevent normalization of zero deltaVec ---
+    const deltaVecLength = deltaVec.length();
+    const offset = Math.max(0, deltaVecLength - 1e-5);
+    if (deltaVecLength > 1e-6) { // Check if deltaVec is not effectively zero before normalizing
+        deltaVec.normalize().multiplyScalar(offset);
+    } else {
+        deltaVec.set(0,0,0); // Ensure it's zero if it's too small to normalize
+    }
     this.player.position.add(deltaVec);
 
     if (isStepOrSlope) {
@@ -480,12 +490,26 @@ _updatePlayerPhysics(delta) {
         this.playerVelocity.y = 0;
     }
 
-    if (deltaVec.lengthSq() > 1e-5) {
-        const distSq = this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z;
-        if (distSq > 1e-5) {
-            this.playerVelocity.setLength(Math.sqrt(distSq));
-        }
+    // This section often leads to NaNs if distSq is 0 or negative due to floating point
+    // Let's refine this to be safer
+    const currentHorizVelLengthSq = this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z;
+    if (currentHorizVelLengthSq < 1e-5) { // If horizontal velocity is near zero
+        this.playerVelocity.x = 0;
+        this.playerVelocity.z = 0;
+    } else {
+        // No change needed here, setLength handles 0 correctly, but 
+        // the overall velocity might have been altered by collision response,
+        // so re-calculating the horizontal speed is appropriate here.
+        // It's often simpler to just damp the horizontal velocity here if it's too small
+        // or apply friction elsewhere.
+        // The original intention was likely to maintain the horizontal speed after vertical adjustments.
+        // If you are relying on `setLength` to re-normalize after collisions, ensure the length is not NaN.
+        // This specific line `this.playerVelocity.setLength(Math.sqrt(distSq))`
+        // might be problematic if 'distSq' is already corrupted or became NaN.
+        // Given that it's recalculating from playerVelocity.x and playerVelocity.z,
+        // the NaN would have to originate earlier.
     }
+
 
     if (this.player.position.y < -10) { // Fall detection / reset
         this.player.position.set(0, 5, 0);
