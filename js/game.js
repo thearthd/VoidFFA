@@ -9,7 +9,7 @@ import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/exam
 import { ShaderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/ShaderPass.js";
 import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/shaders/CopyShader.js";
 import Stats from 'stats.js';
-import { dbRefs, disposeGame, activeGameId, setActiveGameId } from "./network.js";
+import { dbRefs, disposeGame, activeGameId, setActiveGameId, setupGameConfigListener } from "./network.js";
 
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
