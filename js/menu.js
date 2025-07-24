@@ -1160,23 +1160,12 @@ function inGameSettingsButtonHit() {
     clearMenuCanvas();
     add(settingsMenu); // Assuming settingsMenu is the container for your settings UI
      
-    // Get the HTML elements for the sensitivity slider and settings box
-    // Make sure these variables (sensitivitySliderContainer, settingsBox)
-    // are accessible in this scope, likely defined globally or passed in.
-    const sensitivitySliderContainer = document.getElementById('sensitivitySliderContainer'); // Example ID
+
 
     // Show these elements
-    if (sensitivitySliderContainer) {
-        sensitivitySliderContainer.style.display = "flex"; // Or "block", depending on your CSS layout
-    }
+     sensitivitySliderContainer.style.display = "flex"; // Or "block", depending on your CSS layout
 
-            settingsBox.style.display = 'block';
-            settingsBox.style.position = 'fixed';
-            settingsBox.style.top = '0';
-            settingsBox.style.left = '0';
-            settingsBox.style.width = '100%';
-            settingsBox.style.height = '100%';
-            settingsBox.style.zIndex = '1000';
+     settingsBox.style.display = 'block';
 
 
     // Add a back button to return from the settings to the escape menu
