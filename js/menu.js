@@ -1208,7 +1208,7 @@ window.addEventListener("keydown", e => {
             isPaused = true;
         } else {
           clearMenuCanvas();
-
+     settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
             // Revert overlay styles when unpaused
             canvas.style.display = 'none';
             canvas.style.position = '';
