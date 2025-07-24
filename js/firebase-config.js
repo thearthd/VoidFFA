@@ -45,7 +45,27 @@ export const gameDatabaseConfigs = {
     messagingSenderId: "280677059064",
     appId: "1:280677059064:web:d632d5638624eca47d2e0d",
     measurementId: "G-1SHC771L86"
-  }
+  },
+  gameSlot4: {
+    apiKey: "AIzaSyBSZApwBTq7TbRvCZBYUQEqkWBvF7QyZzY",
+    authDomain: "voidffa-slot4.firebaseapp.com",
+    databaseURL: "https://voidffa-slot4-default-rtdb.firebaseio.com",
+    projectId: "voidffa-slot4",
+    storageBucket: "voidffa-slot4.firebasestorage.app",
+    messagingSenderId: "91754867706",
+    appId: "1:91754867706:web:7632336bc2399ce19c1243",
+    measurementId: "G-8DRX8BW3D1"
+  },
+  gameSlot5: {
+    apiKey: "AIzaSyASSE5gkgoQcdMfHnRdNK8jsFBBOc7ad2Y",
+    authDomain: "voidffa-slot5.firebaseapp.com",
+    databaseURL: "https://voidffa-slot5-default-rtdb.firebaseio.com",
+    projectId: "voidffa-slot5",
+    storageBucket: "voidffa-slot5.firebasestorage.app",
+    messagingSenderId: "811056373450",
+    appId: "1:811056373450:web:174676c2c3a20e1e725e33",
+    measurementId: "G-QLR780287C"
+  },
 };
 
 let menuApp = null;
