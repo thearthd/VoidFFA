@@ -874,10 +874,6 @@ document.addEventListener("visibilitychange", () => {
     }
 });
 
-
-// New: Global interval to monitor and clean up stale game entries from the lobby
-let staleGameCleanupInterval = null;
-
 export function startStaleGameCleanupMonitor() {
     // Clear any existing monitor to prevent duplicates
     if (staleGameCleanupInterval) {
