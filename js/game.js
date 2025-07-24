@@ -2074,7 +2074,7 @@ export function animate(timestamp) {
         // console.log("Animation loop paused or stopped due to local player disconnection."); // Only for debugging
         return;
     }
-    
+
     // --- Frame Throttling (60fps) ---
     const FRAME_INTERVAL = 1000 / 60; // ≈16.67ms
     if (!animate.lastTime) {
@@ -2232,7 +2232,8 @@ export function animate(timestamp) {
             const rp = window.remotePlayers[id];
             if (rp.data) updateRemotePlayer(rp.data); // Assuming rp.data is the latest received network state
         }
-        handleWeaponSwitch();
+        // Removed handleWeaponSwitch() call here as the logic is now inline below
+
         // Weapon Switching
         if (inputState.weaponSwitch) {
             const oldW = window.localPlayer.weapon;
@@ -2255,7 +2256,10 @@ export function animate(timestamp) {
 
             weaponController.equipWeapon(newW);
             weaponController.ammoInMagazine = weaponAmmo[newW] ?? weaponController.stats.magazineSize;
-            updateInventory(weaponController.getCurrentAmmo(), weaponController.getMaxAmmo());
+            // ***************************************************************
+            // FIX: Pass the 'newW' (weapon key) to updateInventory
+            updateInventory(newW);
+            // ***************************************************************
             updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
             inputState.weaponSwitch = null; // Reset input state
             if (newW === "knife") activeRecoils.length = 0; // Clear recoil for knife
@@ -2311,7 +2315,6 @@ export function animate(timestamp) {
         postFrameCleanup(); // Ensure cleanup runs even if an error occurs
     }
 }
-
 
 
 function resetWeaponPose(weaponKey, mesh) {
