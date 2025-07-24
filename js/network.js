@@ -54,8 +54,6 @@ let tracersListener = null;
 let soundsListener = null;
 let gameConfigListener = null; // Used for the timer, etc.
 
-let staleGameCleanupInterval = null;
-
 export function setActiveGameId(id) {
     activeGameId = id;
 }
@@ -876,6 +874,7 @@ document.addEventListener("visibilitychange", () => {
 
 export function startStaleGameCleanupMonitor() {
     // Clear any existing monitor to prevent duplicates
+    let staleGameCleanupInterval = null;
     if (staleGameCleanupInterval) {
         clearInterval(staleGameCleanupInterval);
         console.log("[network.js] Cleared existing stale game cleanup monitor.");
