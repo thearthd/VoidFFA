@@ -1194,7 +1194,7 @@ window.addEventListener("keydown", e => {
             canvas.style.left = '0';
             canvas.style.width = '100%';
             canvas.style.height = '100%';
-            canvas.style.zIndex = '1000';
+            canvas.style.zIndex = '20';
 
             // Show and unlock the cursor
             document.body.style.cursor = 'auto';
