@@ -1143,40 +1143,48 @@ inGameSettingsBtn.setOpacity(0.3);
 
 // This function will be called when the in-game settings button is clicked.
 function inGameSettingsButtonHit() {
+    // You'll need to define clearMenuCanvas and add(settingsMenu) if they
+    // aren't already defined in your global scope.
+    // For now, let's assume they exist as per your provided context.
     clearMenuCanvas();
     add(settingsMenu); // Assuming settingsMenu is the container for your settings UI
 
-    const sensitivitySliderContainer = document.getElementById('sensitivitySliderContainer');
-    const settingsBox = document.getElementById('settingsBox');
+    // Get the HTML elements for the sensitivity slider and settings box
+    // Make sure these variables (sensitivitySliderContainer, settingsBox)
+    // are accessible in this scope, likely defined globally or passed in.
+    const sensitivitySliderContainer = document.getElementById('sensitivitySliderContainer'); // Example ID
+    const settingsBox = document.getElementById('settingsBox'); // Example ID
 
+    // Show these elements
     if (sensitivitySliderContainer) {
-        sensitivitySliderContainer.style.display = "flex";
+        sensitivitySliderContainer.style.display = "flex"; // Or "block", depending on your CSS layout
     }
     if (settingsBox) {
-        settingsBox.style.display = "block";
+        settingsBox.style.display = "block"; // Or "flex", depending on your CSS layout
     }
 
-    addBackButton(escMenu);
+    // Add a back button to return from the settings to the escape menu
+    // You'll need to define a function for this back button's click handler.
+    // For example, a function that removes settings elements and re-adds escMenu and inGameSettingsBtn.
+    addBackButton(escMenu); // Passing escMenu or a specific function to return to the esc menu state
+makeButton(inGameSettingsBtn, inGameSettingsButtonHit);
 }
 
-makeButton(inGameSettingsBtn, inGameSettingsButtonHit);
+// Make the inGameSettingsBtn clickable using your makeButton function
+// The onClick handler for inGameSettingsBtn will be inGameSettingsButtonHit.
+
 
 let isPaused = false;
 let checkInGame = false;
 
-// Store original event handlers if you need to restore them,
-// or use a single listener with conditional logic.
-let originalKeyDownHandler = null;
-let originalMouseDownHandler = null;
-
 window.addEventListener("keydown", e => {
-    // Always allow 'p' key to toggle pause, regardless of pause state
     if (checkInGame && e.key.toLowerCase() === 'p') {
         if (!isPaused) {
             // If not paused, show the menu and pause
-            add(escMenu);
-            add(inGameSettingsBtn);
+            add(escMenu); // Add the menu to the canvas if not already added
+            add(inGameSettingsBtn); // Add the settings button when the escape menu appears
 
+            // Apply overlay styles when paused
             canvas.style.display = 'block';
             canvas.style.position = 'fixed';
             canvas.style.top = '0';
@@ -1185,27 +1193,16 @@ window.addEventListener("keydown", e => {
             canvas.style.height = '100%';
             canvas.style.zIndex = '1000';
 
+            // Show and unlock the cursor
             document.body.style.cursor = 'auto';
 
             isPaused = true;
-
-            // Optional: If you have a main game loop, you might want to stop it here
-            // e.g., stopGameLoop();
-
-            // Disable other game-specific keydown and mousedown listeners
-            // Option 1: Store original handlers and remove them
-            // This is more robust if you have many specific listeners
-            // For this example, we'll use conditional logic within a single listener.
-            // If you have separate listeners for movement, shooting etc., you'd remove them here.
-            // For example:
-            // window.removeEventListener("keydown", gameMovementHandler);
-            // canvas.removeEventListener("mousedown", gameShootingHandler);
-
         } else {
             // If paused, hide the menu and unpause
             remove(escMenu);
-            remove(inGameSettingsBtn);
+            remove(inGameSettingsBtn); // Remove the settings button when unpausing
 
+            // Revert overlay styles when unpaused
             canvas.style.display = 'none';
             canvas.style.position = '';
             canvas.style.top = '';
@@ -1214,76 +1211,13 @@ window.addEventListener("keydown", e => {
             canvas.style.height = '';
             canvas.style.zIndex = '';
 
+            // Hide and lock the cursor
             document.body.style.cursor = 'none';
 
             isPaused = false;
-
-            // Optional: Restart your game loop here
-            // e.g., startGameLoop();
-
-            // Re-enable game-specific keydown and mousedown listeners
-            // For example:
-            // window.addEventListener("keydown", gameMovementHandler);
-            // canvas.addEventListener("mousedown", gameShootingHandler);
         }
-        // Prevent default behavior for 'p' key so it doesn't affect other things
-        e.preventDefault();
-    } else if (isPaused) {
-        // If 'p' was not hit, but the game IS paused, prevent all other key inputs
-        e.preventDefault();
-        e.stopPropagation(); // Stop event propagation
     }
 });
-
-
-// Add this to your existing general keydown listener for game input
-// or create a new one if you don't have a centralized one.
-window.addEventListener("keydown", e => {
-    // If the game is paused, and the key is not 'p', do nothing.
-    // The 'p' key handling is done in the event listener above.
-    if (isPaused) {
-        return;
-    }
-
-    // Your regular game keydown logic goes here
-    // e.g., character movement, skill activation, etc.
-    // console.log("Game input (keydown):", e.key);
-});
-
-
-// Do the same for mouse inputs
-canvas.addEventListener("mousedown", function(event) {
-    // Check for clickable shapes even when paused (for menu buttons)
-    // The clickableShapes loop already handles this by calling entry.onClick()
-    // if a button is hit.
-    // The crucial part is to prevent game-specific mouse actions.
-
-    if (isPaused) {
-        // If paused, prevent any game-specific mouse actions (e.g., shooting, camera rotation)
-        // However, allow menu clicks to pass through.
-        // Your existing clickableShapes loop needs to be outside this conditional block,
-        // or designed to handle clicks during pause.
-        // The current structure where the clickableShapes loop is at the top level
-        // of the canvas click listener is good because it will always check for menu buttons.
-
-        // If you have other mouse listeners that handle game actions (e.g., shooting,
-        // interacting with world objects), you need to add this check to them.
-        return; // Stop any further game-related mouse actions
-    }
-
-    // Your regular game mouse-down logic goes here
-    // e.log("Game input (mousedown) at:", event.clientX, event.clientY);
-});
-
-// Similarly for mousemove, if it controls camera or targeting
-canvas.addEventListener("mousemove", function(event) {
-    if (isPaused) {
-        // Prevent game-specific mousemove actions (e.g., camera rotation)
-        return;
-    }
-    // Your regular game mouse-move logic goes here
-});
-
 
 function playerCardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
