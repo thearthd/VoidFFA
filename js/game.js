@@ -620,11 +620,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     // Ensure you have a `renderer` and `camera` defined in your global scope or passed to startGame,
     // and that `controls` (PointerLockControls) is also set up for camera rotation.
     // For example, you might have an initThreeJS() function that sets these up globally.
-    if (!window.camera || !scene) {
-        console.error("Camera or scene not initialized before attempting to use them for physics/weapons.");
-        // Consider throwing an error or having a fallback.
-        return;
-    }
 
     physicsController = new PhysicsController(window.camera, scene);
     window.physicsController = physicsController; // Assign to window for global access if needed
