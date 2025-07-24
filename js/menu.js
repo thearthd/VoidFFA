@@ -1231,7 +1231,7 @@ function togglePauseMenuUI(shouldPause) {
 
 // Global variable to track if the game is "in-game" and therefore eligible for pausing.
 // This should be set to true when the actual game starts, and false when returning to a main menu.
-let isGameActive = false; // Renamed from checkInGame for clarity
+let checkInGame = false; // Renamed from checkInGame for clarity
 
 // Expose togglePauseMenuUI globally if it needs to be called from input.js or other modules
 // For example, when the 'Escape' key is pressed in input.js
@@ -1242,7 +1242,7 @@ window.addEventListener("keydown", e => {
     // Only respond to 'P' key if the game is active and not chat-focused.
     // The `input.js` file now handles the `Escape` key for pausing.
     // If you specifically want 'P' to also toggle the menu, keep this:
-    if (isGameActive && e.key.toLowerCase() === 'p') {
+    if (checkInGame && e.key.toLowerCase() === 'p') {
         // Use the inputState.isPaused from input.js to get the current state
         togglePauseMenuUI(!inputState.isPaused);
         e.preventDefault(); // Prevent default browser action for 'P'
