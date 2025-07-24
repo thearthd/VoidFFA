@@ -9,7 +9,7 @@ import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/exam
 import { ShaderPass } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/postprocessing/ShaderPass.js";
 import { CopyShader } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/shaders/CopyShader.js";
 import Stats from 'stats.js';
-import { dbRefs, disposeGame, activeGameId, setActiveGameId, setupGameConfigListener } from "./network.js";
+import { dbRefs, disposeGame, fullCleanup, activeGameId } from "./network.js";
 
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
@@ -93,8 +93,6 @@ let respawnButton  = null;
 let fadeOverlay    = null;
 let playersKillsListener = null;
 let sceneNum = 0;
-export const maxKills = 10;
-const updateInterval = 50; // Milliseconds for network updates
 
 let deathTheme = new Audio("https://codehs.com/uploads/720078943b931e7eb258b01fb10f1fba");
 deathTheme.loop = true;
@@ -236,8 +234,86 @@ bloomPass = null;
 }
 }
 
+async function determineWinnerAndEndGame() {
+  console.log("Determining winner and ending game...");
+  if (!playersRef) {
+    console.error("determineWinnerAndEndGame: playersRef is NULL");
+    return;
+  }
 
+  const playersSnapshot = await playersRef.once("value");
+  const statsByUser = {};
+  playersSnapshot.forEach(childSnap => {
+    const p = childSnap.val();
+    if (!p || typeof p.kills !== 'number') return;
+    statsByUser[p.username] = {
+      kills: p.kills || 0,
+      deaths: p.deaths || 0,
+      win: 0,
+      loss: 0
+    };
+  });
 
+  const allStats = Object.values(statsByUser);
+  if (allStats.length === 0) {
+    console.log("No players found");
+  } else {
+    const maxKills = Math.max(...allStats.map(s => s.kills));
+    if (maxKills > 0) {
+      const winners = Object.entries(statsByUser)
+        .filter(([_, s]) => s.kills === maxKills)
+        .map(([u]) => u);
+      for (const username of winners) {
+        statsByUser[username].win = 1;
+      }
+      for (const [username, s] of Object.entries(statsByUser)) {
+        if (!winners.includes(username)) {
+          s.loss = 1;
+        }
+      }
+      const display = winners.length > 1 ? winners.join(", ") : winners[0];
+      console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
+      localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
+      localStorage.setItem('gameEndedTimestamp', Date.now().toString());
+      const gameTimerEl = document.getElementById("game-timer");
+      if (gameTimerEl) {
+        gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
+        gameTimerEl.style.display = "block";
+      }
+    } else {
+      console.log("No kills recorded, no winners or losers");
+      localStorage.removeItem('gameWinner');
+      localStorage.removeItem('gameEndedTimestamp');
+    }
+  }
+
+  const statUpdates = [];
+  for (const [username, { win, loss }] of Object.entries(statsByUser)) {
+    if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
+    if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
+  }
+  await Promise.all(statUpdates);
+
+  try {
+    await gameConfigRef.remove();
+    console.log("Game config fully removed.");
+  } catch (e) {
+    console.error("Failed to remove gameConfig:", e);
+  }
+
+  if (playersKillsListener) {
+    playersRef.off("value", playersKillsListener);
+    playersKillsListener = null;
+    console.log("Detached players kill listener.");
+  }
+
+  await disposeGame();
+  await fullCleanup(activeGameId);
+
+  playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
+}
+
+window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 
 document.addEventListener('DOMContentLoaded', () => {
   const stored = localStorage.getItem('gameWinner');
@@ -480,240 +556,176 @@ delete pendingRestore[victimId];
 
 
 // Game Start
-export async function determineWinnerAndEndGame(gameId) {
-    console.log("Determining winner and ending game...");
-    if (!dbRefs || !dbRefs.playersRef) {
-        console.error("determineWinnerAndEndGame: dbRefs or playersRef is NULL. Cannot determine winner.");
-        return;
-    }
-
-    window.gameIsEnding = true;
-
-    const playersSnapshot = await dbRefs.playersRef.once("value");
-    const statsByUser = {};
-    playersSnapshot.forEach(childSnap => {
-        const p = childSnap.val();
-        if (!p || typeof p.kills !== 'number') return;
-        statsByUser[p.username] = {
-            kills: p.kills || 0,
-            deaths: p.deaths || 0,
-            win: 0,
-            loss: 0
-        };
-    });
-
-    const allStats = Object.values(statsByUser);
-    if (allStats.length === 0) {
-        console.log("No players found");
-    } else {
-        const maxKillsAchieved = Math.max(...allStats.map(s => s.kills)); // Use a different name to avoid confusion with module-level maxKills
-        if (maxKillsAchieved > 0) {
-            const winners = Object.entries(statsByUser)
-                .filter(([_, s]) => s.kills === maxKillsAchieved)
-                .map(([u]) => u);
-            for (const username of winners) {
-                statsByUser[username].win = 1;
-            }
-            for (const [username, s] of Object.entries(statsByUser)) {
-                if (!winners.includes(username)) {
-                    s.loss = 1;
-                }
-            }
-            const display = winners.length > 1 ? winners.join(", ") : winners[0];
-            console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKillsAchieved} kills)`);
-            localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKillsAchieved }));
-            localStorage.setItem('gameEndedTimestamp', Date.now().toString());
-
-            const gameTimerEl = document.getElementById("game-timer");
-            if (gameTimerEl) {
-                gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
-                gameTimerEl.style.display = "block";
-            }
-        } else {
-            console.log("No kills recorded, no winners or losers");
-            localStorage.removeItem('gameWinner');
-            localStorage.removeItem('gameEndedTimestamp');
-        }
-    }
-
-    const statUpdates = [];
-    for (const [username, { win, loss }] of Object.entries(statsByUser)) {
-        if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
-        if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
-    }
-    await Promise.all(statUpdates);
-
-    await disposeGame();
-    console.log("Game cleanup initiated after winner determination.");
-
-    window.gameIsEnding = false;
-}
-window.determineWinnerAndEndGame = determineWinnerAndEndGame;
-
-
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-    console.log("[game.js] startGame for", username, mapName, gameId, ffaEnabled);
+  const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
+  if (!networkOk) return;
+  playersRef    = dbRefs.playersRef;
+  gameConfigRef = dbRefs.gameConfigRef;
+  const gameTimerElement = document.getElementById('game-timer');
 
-    setActiveGameId(gameId);
+  if (ffaEnabled) {
+    gameTimerElement.style.display = 'block';
 
-    // initNetwork populates dbRefs and sets up basic listeners
-    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
-    if (!networkOk) {
-        console.error("[game.js] Network initialization failed. Aborting game start.");
-        return;
+    const INITIAL_DURATION = 10 * 60;
+    let currentRemainingSeconds = null;
+    let gameEnded = false;
+    let ownerInterval = null;
+    let uiInterval = null;
+    let ownerId = null;
+
+    const ownerRef = gameConfigRef.child('owner');
+    function tryElectSelf() {
+      ownerRef.transaction(curr => curr === null ? localPlayerId : undefined);
     }
+    tryElectSelf();
+    ownerRef.onDisconnect().remove();
 
-    const gameTimerElement = document.getElementById('game-timer');
-
-    if (ffaEnabled) {
-        gameTimerElement.style.display = 'block';
-
-        // Delegate game config and timer logic to network.js
-        setupGameConfigListener(dbRefs.gameConfigRef, gameTimerElement, determineWinnerAndEndGame);
-
-        // Kills listener for ending game based on kill count
-        if (playersKillsListener) {
-            dbRefs.playersRef.off('value', playersKillsListener);
-        }
-        playersKillsListener = dbRefs.playersRef.on('value', snap => {
-            if (window.gameIsEnding) return;
-            let reached = false;
-            snap.forEach(childSnap => {
-                if (childSnap.val() && typeof childSnap.val().kills === 'number' && childSnap.val().kills >= maxKills) {
-                    reached = true;
-                }
-            });
-            if (reached) {
-                console.log(`[startGame] Kill limit (${maxKills} kills) reached. Setting game ended flag in Firebase.`);
-                dbRefs.gameConfigRef.child('ended').set(true)
-                    .catch(err => console.error("Failed to set game ended flag via kill limit:", err));
-            }
-        });
-
-    } else {
-        gameTimerElement.style.display = 'none';
-        if (dbRefs.gameConfigRef) {
-            dbRefs.gameConfigRef.child('owner').remove().catch(console.error);
-            dbRefs.gameConfigRef.child('gameDuration').remove().catch(console.error);
-            dbRefs.gameConfigRef.child('ended').remove().catch(console.error);
-        }
-    }
-
-    // --- Start of Three.js and game scene setup ---
-    initGlobalFogAndShadowParams();
-    window.isGamePaused = false;
-
-    // UI visibility
-    document.getElementById('menu-overlay').style.display = 'none';
-    document.body.classList.add('game-active');
-    document.getElementById('game-container').style.display = 'block';
-    document.getElementById('hud').style.display = 'block';
-    document.getElementById('crosshair').style.display = 'block';
-
-    if (!localPlayerId) {
-        console.error("[game.js] localPlayerId is null after initNetwork. Cannot proceed with player setup.");
-        return;
-    }
-
-    // Initialize PhysicsController and WeaponController
-    // These need `scene` and `camera` to be defined by initScene functions.
-    // Ensure you have a `renderer` and `camera` defined in your global scope or passed to startGame,
-    // and that `controls` (PointerLockControls) is also set up for camera rotation.
-    // For example, you might have an initThreeJS() function that sets these up globally.
-
-    window.physicsController = new PhysicsController(window.camera, scene);
-    physicsController = window.physicsController;
-
-
-    weaponController = new WeaponController(
-        window.camera,
-        dbRefs.playersRef,
-        dbRefs.mapStateRef.child("bullets"),
-        createTracer,
-        localPlayerId,
-        physicsController
-    );
-    window.weaponController = weaponController; // Assign to window for global access if needed
-
-    // Initialize scene based on mapName (these functions should populate `scene` and `window.collidableObjects`)
-    if (mapName === 'CrocodilosConstruction') {
-        await initSceneCrocodilosConstruction();
-    } else if (mapName === 'SigmaCity') {
-        await initSceneSigmaCity();
-    } else if (mapName === 'DiddyDunes') {
-        await initSceneDiddyDunes();
-    } else {
-        console.warn(`[game.js] Unknown map: ${mapName}. Defaulting to basic scene.`);
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB);
-        window.collidableObjects = [];
-    }
-
-    // Now that scene is set up, ensure physics controller has collidable objects.
-    // Your PhysicsController.js should have a way to process `window.collidableObjects`.
-    // This is where the 'setCollider' error likely comes from if collidableObjects
-    // are not correctly processed by the physics controller.
-    // Example: physicsController.addColliders(window.collidableObjects);
-    // (This line is not provided in your original snippets, but likely crucial for your physics setup)
-
-
-    // Input, Chat, Bullet Holes, Audio
-    initInput();
-    initChatUI();
-    initBulletHoles();
-    // Initialize AudioManager from network.js (passing scene and camera)
-    initializeAudioManager(window.camera, scene);
-    startSoundListener(); // Start the network sound listener
-
-    // Local Player Setup
-    const spawn = findFurthestSpawn();
-    window.localPlayer = {
-        id: localPlayerId,
-        username,
-        x: spawn.x,
-        y: spawn.y,
-        z: spawn.z,
-        rotY: 0,
-        health: initialPlayerHealth,
-        shield: initialPlayerShield,
-        weapon: initialPlayerWeapon,
-        kills: 0,
-        deaths: 0,
-        ks: 0,
-        bodyColor: Math.floor(Math.random() * 0xffffff),
-        isDead: false
-    };
-    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0)); // Position camera at player spawn
-
-    // Update Firebase with local player's initial state
-    await dbRefs.playersRef.child(localPlayerId).set({
-        ...window.localPlayer,
-        lastUpdate: Date.now()
-    }).catch(err => {
-        console.error("Failed to set local player initial state in Firebase:", err);
+    ownerRef.on('value', snap => {
+      ownerId = snap.val();
+      if (ownerId === localPlayerId && ownerInterval === null) {
+        ownerInterval = setInterval(() => {
+          if (gameEnded || currentRemainingSeconds == null) return;
+          if (currentRemainingSeconds <= 0) {
+            gameConfigRef.child('ended').set(true);
+            return;
+          }
+          currentRemainingSeconds--;
+          gameConfigRef.child('gameDuration').set(currentRemainingSeconds);
+        }, 1000);
+      }
+      if (ownerId !== localPlayerId && ownerInterval !== null) {
+        clearInterval(ownerInterval);
+        ownerInterval = null;
+      }
+      if (ownerId === null) {
+        tryElectSelf();
+      }
     });
 
-    // Update UI elements related to the player
-    updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
-    weaponController.equipWeapon(window.localPlayer.weapon);
-    initInventory(window.localPlayer.weapon);
-    initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
-    updateInventory(window.localPlayer.weapon);
-    updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
+    const durationRef = gameConfigRef.child('gameDuration');
+    durationRef.on('value', snap => {
+      const val = snap.val();
+      if (typeof val === 'number') {
+        currentRemainingSeconds = val;
+      } else if (val === null && ownerId === localPlayerId && !gameEnded) {
+        durationRef.set(INITIAL_DURATION);
+      }
+    });
 
-    // Create game overlays
-    createRespawnOverlay();
-    createFadeOverlay();
-    createLeaderboardOverlay();
+    const endedRef = gameConfigRef.child('ended');
+    endedRef.on('value', snap => {
+      if (snap.val() === true && !gameEnded) {
+        gameEnded = true;
+        if (ownerInterval) clearInterval(ownerInterval);
+        if (uiInterval) clearInterval(uiInterval);
+        ownerRef.off('value');
+        durationRef.off('value');
+        endedRef.off('value');
+        gameTimerElement.textContent = 'TIME UP!';
+        determineWinnerAndEndGame();
+      }
+    });
 
-    // Start the animation loop
-    if (animationId) cancelAnimationFrame(animationId);
-    animate();
+    uiInterval = setInterval(() => {
+      if (currentRemainingSeconds == null) {
+        gameTimerElement.textContent = 'Time: Syncing…';
+      } else {
+        const mins = Math.floor(currentRemainingSeconds / 60);
+        const secs = currentRemainingSeconds % 60;
+        gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+      }
+    }, 250);
 
-    console.log("[game.js] startGame completed successfully.");
-    isGameActive = true;
+    if (playersKillsListener) {
+      playersRef.off('value', playersKillsListener);
+    }
+    playersKillsListener = playersRef.on('value', snap => {
+      let reached = false;
+      snap.forEach(childSnap => {
+        if (childSnap.val().kills >= 40) reached = true;
+      });
+      if (reached && !gameEnded) {
+        endedRef.set(true);
+      }
+    });
+
+  } else {
+    gameTimerElement.style.display = 'none';
+    if (gameInterval) clearInterval(gameInterval);
+    gameConfigRef.remove();
+  }
+
+  initGlobalFogAndShadowParams();
+  window.isGamePaused = false;
+  document.getElementById('menu-overlay').style.display = 'none';
+  document.body.classList.add('game-active');
+  document.getElementById('game-container').style.display = 'block';
+  document.getElementById('hud').style.display = 'block';
+  document.getElementById('crosshair').style.display = 'block';
+
+  if (!localPlayerId) return;
+
+  window.physicsController = new PhysicsController(window.camera, scene);
+  physicsController        = window.physicsController;
+  weaponController         = new WeaponController(
+    window.camera,
+    dbRefs.playersRef,
+    dbRefs.mapStateRef.child('bullets'),
+    createTracer,
+    localPlayerId,
+    physicsController
+  );
+  window.weaponController = weaponController;
+
+  if (mapName === 'CrocodilosConstruction') {
+    await initSceneCrocodilosConstruction();
+  } else if (mapName === 'SigmaCity') {
+    await initSceneSigmaCity();
+  } else if (mapName === 'DiddyDunes') {
+    await initSceneDiddyDunes();
+  }
+
+  initInput();
+  initChatUI();
+  initBulletHoles();
+  initializeAudioManager(window.camera, scene);
+  startSoundListener();
+
+  const spawn = findFurthestSpawn();
+  window.localPlayer = {
+    id: localPlayerId,
+    username,
+    x: spawn.x,
+    y: spawn.y,
+    z: spawn.z,
+    rotY: 0,
+    health: initialPlayerHealth,
+    shield: initialPlayerShield,
+    weapon: initialPlayerWeapon,
+    kills: 0,
+    deaths: 0,
+    ks: 0,
+    bodyColor: Math.floor(Math.random() * 0xffffff),
+    isDead: false
+  };
+  window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
+
+  await dbRefs.playersRef.child(localPlayerId).set({
+    ...window.localPlayer,
+    lastUpdate: Date.now()
+  });
+  updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+  weaponController.equipWeapon(window.localPlayer.weapon);
+  initInventory(window.localPlayer.weapon);
+  initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
+  updateInventory(window.localPlayer.weapon);
+  updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
+
+  createRespawnOverlay();
+  createFadeOverlay();
+  createLeaderboardOverlay();
+  animate();
 }
-
 
 export function hideGameUI() {
   document.getElementById("menu-overlay").style.display = "flex";
