@@ -144,7 +144,7 @@ export function createGameUI(gameWrapper) {
     healthShieldDisplay.id = 'health-shield-display';
     Object.assign(healthShieldDisplay.style, {
         position: 'absolute',
-        bottom: '70px', // Positioned above inventory, adjust as needed
+        bottom: '80px', // Positioned above inventory, adjust as needed
         left: '50%',
         transform: 'translateX(-50%)',
         display: 'flex',
