@@ -580,7 +580,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     if (ffaEnabled) {
         gameTimerElement.style.display = 'block';
 
-        const INITIAL_DURATION = 10 * 60; // 10 minutes
+        const INITIAL_DURATION = 1 * 60; // 10 minutes
         let currentRemainingSeconds = null;
         let gameEnded = false;
         let ownerInterval = null;
