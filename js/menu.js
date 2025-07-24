@@ -1136,32 +1136,62 @@ let escMenu = new ImageShape("https://codehs.com/uploads/badb165ef3d765a60258ba9
 escMenu.setSize(1920/2, 1080/2);
 escMenu.setPosition(getWidth()/2 - (1920/4), getHeight()/2 - (1080/4));
 
-// Make sure the pause menu is initially hidden
+let inGameSettingsBtn = new Rectangle(400, 200);
+inGameSettingsBtn.setPosition(getWidth()/2 - (1920/4), getHeight()/2 - (1080/4));
+inGameSettingsBtn.setColor("#ff0000");
+inGameSettingsBtn.setOpacity(0.3);
+
+// This function will be called when the in-game settings button is clicked.
+function inGameSettingsButtonHit() {
+    // You'll need to define clearMenuCanvas and add(settingsMenu) if they
+    // aren't already defined in your global scope.
+    // For now, let's assume they exist as per your provided context.
+    clearMenuCanvas();
+    add(settingsMenu); // Assuming settingsMenu is the container for your settings UI
+
+    // Get the HTML elements for the sensitivity slider and settings box
+    // Make sure these variables (sensitivitySliderContainer, settingsBox)
+    // are accessible in this scope, likely defined globally or passed in.
+    const sensitivitySliderContainer = document.getElementById('sensitivitySliderContainer'); // Example ID
+    const settingsBox = document.getElementById('settingsBox'); // Example ID
+
+    // Show these elements
+    if (sensitivitySliderContainer) {
+        sensitivitySliderContainer.style.display = "flex"; // Or "block", depending on your CSS layout
+    }
+    if (settingsBox) {
+        settingsBox.style.display = "block"; // Or "flex", depending on your CSS layout
+    }
+
+    // Add a back button to return from the settings to the escape menu
+    // You'll need to define a function for this back button's click handler.
+    // For example, a function that removes settings elements and re-adds escMenu and inGameSettingsBtn.
+    addBackButton(escMenu); // Passing escMenu or a specific function to return to the esc menu state
+}
+
+// Make the inGameSettingsBtn clickable using your makeButton function
+// The onClick handler for inGameSettingsBtn will be inGameSettingsButtonHit.
+makeButton(inGameSettingsBtn, inGameSettingsButtonHit);
 
 
-// Variable to track if the pause menu is open
 let isPaused = false;
-
-// New variable: controls if the game is in an active state where pausing is allowed
-// Set this to true when your game starts and is ready for interaction.
-// Set it to false when, for example, the game is over, or on a title screen.
-let checkInGame = false; 
+let checkInGame = false;
 
 window.addEventListener("keydown", e => {
     if (checkInGame && e.key.toLowerCase() === 'p') {
         if (!isPaused) {
             // If not paused, show the menu and pause
-
             add(escMenu); // Add the menu to the canvas if not already added
+            add(inGameSettingsBtn); // Add the settings button when the escape menu appears
 
             // Apply overlay styles when paused
-            canvas.style.display = 'block'; // Make sure it's visible
-            canvas.style.position = 'fixed'; // Key change: Position it relative to the viewport
+            canvas.style.display = 'block';
+            canvas.style.position = 'fixed';
             canvas.style.top = '0';
             canvas.style.left = '0';
             canvas.style.width = '100%';
             canvas.style.height = '100%';
-            canvas.style.zIndex = '1000'; // Ensure it's on top
+            canvas.style.zIndex = '1000';
 
             // Show and unlock the cursor
             document.body.style.cursor = 'auto';
@@ -1170,15 +1200,16 @@ window.addEventListener("keydown", e => {
         } else {
             // If paused, hide the menu and unpause
             remove(escMenu);
+            remove(inGameSettingsBtn); // Remove the settings button when unpausing
 
             // Revert overlay styles when unpaused
-            canvas.style.display = 'none'; // Hide it
-            canvas.style.position = ''; // Remove fixed positioning
+            canvas.style.display = 'none';
+            canvas.style.position = '';
             canvas.style.top = '';
             canvas.style.left = '';
             canvas.style.width = '';
             canvas.style.height = '';
-            canvas.style.zIndex = ''; // Reset z-index
+            canvas.style.zIndex = '';
 
             // Hide and lock the cursor
             document.body.style.cursor = 'none';
