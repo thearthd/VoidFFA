@@ -1154,7 +1154,7 @@ window.addEventListener("keydown", e => {
             // If not paused, show the menu and pause
           escMenu.setOpacity(1);
             add(escMenu); // Add the menu to the canvas if not already added
-          canvas.style.display = 'flex';
+          canvas.style.display = 'block';
             // Layer the canvas on top by increasing its z-index
             document.getElementById('menuCanvas').style.zIndex = '1000'; 
 
