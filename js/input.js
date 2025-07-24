@@ -115,6 +115,7 @@ export function initInput() {
   });
 */
   // Event listener for changes in pointer lock status
+  /*
   document.addEventListener("pointerlockchange", () => {
     const locked = document.pointerLockElement === elementToLock;
     inputState.mouseDX = 0;
@@ -135,7 +136,7 @@ export function initInput() {
       // Example: if (!inputState.isPaused) setPauseState(true);
     }
   });
-
+*/
   // Handle pointerlockerror (optional, but good for debugging)
   document.addEventListener("pointerlockerror", (e) => {
     console.error("Pointer Lock Error:", e);
