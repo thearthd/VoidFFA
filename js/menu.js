@@ -1170,9 +1170,9 @@ function inGameSettingsButtonHit() {
     if (sensitivitySliderContainer) {
         sensitivitySliderContainer.style.display = "flex"; // Or "block", depending on your CSS layout
     }
-    if (settingsBox) {
-        settingsBox.style.display = "block"; // Or "flex", depending on your CSS layout
-    }
+
+     settingsBox.style.display = "block"; // Or "flex", depending on your CSS layout
+
 
     // Add a back button to return from the settings to the escape menu
     // You'll need to define a function for this back button's click handler.
@@ -1208,9 +1208,7 @@ window.addEventListener("keydown", e => {
 
             isPaused = true;
         } else {
-            // If paused, hide the menu and unpause
-            remove(escMenu);
-            remove(inGameSettingsBtn); // Remove the settings button when unpausing
+          clearMenuCanvas();
 
             // Revert overlay styles when unpaused
             canvas.style.display = 'none';
