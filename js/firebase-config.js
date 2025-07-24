@@ -1,5 +1,6 @@
 // firebase-config.js
 
+
 // Configuration for your Firebase projects
 // Make sure these match your actual Firebase project configurations
 export const menuConfig = {
@@ -13,7 +14,7 @@ export const menuConfig = {
   measurementId: "G-X9CKZX4C74"
 };
 
-// Per-slot game DB configs
+// Per‑slot game DB configs
 export const gameDatabaseConfigs = {
   gameSlot1: {
     apiKey: "AIzaSyDEULlbzl5Sylo-zGHvRIOrd6AOWp4GcxA",
@@ -67,14 +68,10 @@ export const gameDatabaseConfigs = {
   },
 };
 
-// Define the current game version for the client
-export const CLIENT_GAME_VERSION = "v1.00";
-
 let menuApp = null;
 export let gamesRef = null;
 export let usersRef = null;
-export let slotsRef = null;
-export let menuRef = null; // New: Reference to the menu database root
+export let slotsRef = null; // Declare slotsRef here
 
 export function initializeMenuFirebase() {
   if (menuApp) return;
@@ -86,8 +83,7 @@ export function initializeMenuFirebase() {
   const db = menuApp.database();
   gamesRef = db.ref("games");
   usersRef = db.ref("users");
-  slotsRef = db.ref("slots");
-  menuRef = db.ref("/"); // Initialize menuRef to the root of the menu database
+  slotsRef = db.ref("slots"); // Initialize slotsRef inside the function
 }
 initializeMenuFirebase();
 
@@ -98,7 +94,7 @@ const gameApps = {};
 /**
  * Claim the first free slot by inspecting its own /game node.
  */
-export async function claimGameSlot(username, map, ffaEnabled, gameVersion) { // Added gameVersion
+export async function claimGameSlot(username, map, ffaEnabled) {
   let chosenKey = null,
     chosenApp = null;
 
@@ -150,7 +146,6 @@ export async function claimGameSlot(username, map, ffaEnabled, gameVersion) { //
     host: username,
     map,
     ffaEnabled,
-    gameVersion, // Assign the game version when claiming the slot
     createdAt: firebase.database.ServerValue.TIMESTAMP
   });
 
