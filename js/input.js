@@ -1,7 +1,7 @@
 import { updateInventory } from "./ui.js";
 
 const chatInput = document.getElementById("chat-input");
-
+// f
 export const inputState = {
   forward: false,
   backward: false,
