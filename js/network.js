@@ -79,9 +79,45 @@ export function initializeAudioManager(camera, scene) {
 
 export let activeGameId = null;
 
+window.addEventListener("beforeunload", async () => {
+  try {
+    await removeSelf();
+    await attemptFullCleanup();
+  } catch (e) {
+    console.error("Error in unload cleanup", e);
+  }
+});
+
 // add this:
 export function setActiveGameId(id) {
   activeGameId = id;
+}
+
+async function attemptFullCleanup() {
+  // 1) Read how many players remain
+  const snap = await dbRefs.playersRef.once("value");
+  if (snap.exists() && snap.numChildren() > 0) {
+    console.log("Other players remain—skipping full cleanup.");
+    return;
+  }
+
+  console.log("No players left—running full cleanup…");
+  // 2) Release the game slot
+  if (activeGameSlotName) {
+    await releaseGameSlot(activeGameSlotName);
+    console.log(`Slot ${activeGameSlotName} released.`);
+    activeGameSlotName = null;
+  }
+  // 3) Remove the lobby entry
+  if (activeGameId) {
+    await gamesRef.child(activeGameId).remove();
+    console.log(`Lobby entry ${activeGameId} removed.`);
+  }
+  // 4) Delete the entire /game node
+  const slotApp = firebase.app(initialSlotName + "App");
+  const rootRef  = slotApp.database().ref();
+  await rootRef.child("game").remove();
+  console.log("/game node removed for slot", initialSlotName);
 }
 
 export function startSoundListener() {
