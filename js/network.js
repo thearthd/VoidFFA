@@ -442,6 +442,15 @@ export async function endGameCleanup() {
         activeGameSlotName = null;
     }
 
+            const slotApp = firebase.app(initialSlotName + "App");
+            const rootRef = slotApp.database().ref();
+            console.log("[fullCleanup] ✓ slot rootRef acquired for", initialSlotName);
+
+            // 2) Delete game data from the specific slot's database
+            await rootRef.child("game").remove();
+            console.log("[fullCleanup] ✓ removed /game node");
+
+    
     localPlayerId = null;
 
     dbRefs = {};
@@ -610,26 +619,6 @@ export async function fullCleanup(gameId) {
         // endGameCleanup will also set activeGameSlotName to null, but we've already captured it.
         await endGameCleanup();
         console.log("[fullCleanup] ✓ endGameCleanup complete");
-
-
-            const slotApp = firebase.app(initialSlotName + "App");
-            const rootRef = slotApp.database().ref();
-            console.log("[fullCleanup] ✓ slot rootRef acquired for", initialSlotName);
-
-            // 2) Delete game data from the specific slot's database
-            await rootRef.child("game").remove();
-            console.log("[fullCleanup] ✓ removed /game node");
-
-            await Promise.all([
-                rootRef.child("players").remove(),
-                rootRef.child("chat").remove(),
-                rootRef.child("kills").remove(),
-                rootRef.child("mapState").remove(),
-                rootRef.child("tracers").remove(),
-                rootRef.child("sounds").remove(),
-                rootRef.child("gameConfig").remove(),
-            ]);
-
         // 4) Remove from lobby (this is on the *main* gamesRef, not slot-specific)
         if (gameId) {
             await gamesRef.child(gameId).remove();
