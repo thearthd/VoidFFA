@@ -1,8 +1,8 @@
 // js/ui.js
 
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
-import { sendChatMessage } from "./network.js"; // Assuming sendChatMessage is in network.js
-import { AnimatedTracer } from "./weapons.js"; // Assuming AnimatedTracer is in weapons.js
+import { sendChatMessage } from "./network.js";
+import { AnimatedTracer } from "./weapons.js";
 
 
 // Global variable to hold the Firebase database references for UI operations
@@ -88,9 +88,6 @@ export function createGameUI(gameWrapper) {
     // --- Append Chat Box to HUD ---
     const chatBox = document.createElement('chat-box');
     hud.appendChild(chatBox);
-    // REMOVED: document.getElementById('chat-input').style.display = 'none';
-    // The chat input will now be visible by default.
-    // You'll likely need a separate mechanism to toggle its visibility based on key presses.
 
 
     // --- Append Scoreboard to HUD ---
@@ -126,60 +123,81 @@ export function createGameUI(gameWrapper) {
     `;
     hud.appendChild(scoreboard);
 
+    // --- Create and append Ammo Display to HUD (Positioned top-right for now) ---
+    // Moved up to be visually distinct from health/inventory area
+    const ammoDiv = document.createElement("div");
+    ammoDiv.id = "ammo-display";
+    Object.assign(ammoDiv.style, {
+        position: "absolute",
+        bottom: "90px", // Adjusted to be above health/shield and inventory
+        right: "20px",
+        color: "white",
+        fontSize: "1.2rem",
+        fontFamily: "Arial, sans-serif",
+        textShadow: "1px 1px 2px black",
+        zIndex: "1000",
+        pointerEvents: "none",
+    });
+    hud.appendChild(ammoDiv);
+
+    // --- Create and append Health and Shield Display to HUD (Above Inventory) ---
+    const healthShieldDisplay = document.createElement('div');
+    healthShieldDisplay.id = 'health-shield-display';
+    Object.assign(healthShieldDisplay.style, {
+        position: 'absolute',
+        bottom: '60px', // Positioned above inventory, leaving space for ammo or other elements
+        left: '50%',
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center', // Center align the bars
+        zIndex: '1000',
+        pointerEvents: 'none',
+        color: 'white',
+        fontFamily: 'Arial, sans-serif',
+        textShadow: '1px 1px 2px black',
+        backgroundColor: 'rgba(0,0,0,0.5)', // Subtle background for the bar container
+        padding: '5px 10px',
+        borderRadius: '5px',
+        gap: '5px', // Space between health and shield bars
+    });
+
+    healthShieldDisplay.innerHTML = `
+        <div style="display: flex; align-items: center; width: 100%;">
+            <span style="margin-right: 5px; min-width: 40px; text-align: right;">HP:</span>
+            <div style="flex-grow: 1; height: 18px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
+                <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #0f0; transition: width 0.1s linear;"></div>
+            </div>
+            <span id="health-text" style="margin-left: 5px; min-width: 60px;">100 / 100</span>
+        </div>
+        <div style="display: flex; align-items: center; width: 100%;">
+            <span style="margin-right: 5px; min-width: 40px; text-align: right;">SHLD:</span>
+            <div style="flex-grow: 1; height: 18px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
+                <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #00f; transition: width 0.1s linear;"></div>
+            </div>
+            <span id="shield-text" style="margin-left: 5px; min-width: 60px;">50 / 50</span>
+        </div>
+    `;
+    hud.appendChild(healthShieldDisplay);
 
     // --- Append Inventory to HUD ---
     const inventory = document.createElement('div');
     inventory.id = 'inventory';
     Object.assign(inventory.style, {
         position: 'absolute',
-        bottom: '20px',
+        bottom: '20px', // Base position at the bottom
         left: '50%',
         transform: 'translateX(-50%)',
         display: 'flex',
         gap: '5px',
         zIndex: '1000',
-        pointerEvents: 'none', // Inventory elements should not block interaction
-    });
-    hud.appendChild(inventory); // Append to hud
-
-    // --- Create and append Health and Shield Display to HUD ---
-    const healthShieldDisplay = document.createElement('div');
-    healthShieldDisplay.id = 'health-shield-display';
-    Object.assign(healthShieldDisplay.style, {
-        position: 'absolute',
-        bottom: '20px',
-        right: '200px', // Adjust position as needed, e.g., next to inventory or ammo
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-end',
-        zIndex: '1000',
         pointerEvents: 'none',
-        color: 'white',
-        fontFamily: 'Arial, sans-serif',
-        textShadow: '1px 1px 2px black',
     });
+    hud.appendChild(inventory);
 
-    healthShieldDisplay.innerHTML = `
-        <div style="display: flex; align-items: center; margin-bottom: 5px;">
-            <span style="margin-right: 5px;">HP:</span>
-            <div style="width: 100px; height: 15px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
-                <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #0f0; transition: width 0.1s linear;"></div>
-            </div>
-            <span id="health-text" style="margin-left: 5px;">100 / 100</span>
-        </div>
-        <div style="display: flex; align-items: center;">
-            <span style="margin-right: 5px;">SHIELD:</span>
-            <div style="width: 100px; height: 15px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
-                <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #00f; transition: width 0.1s linear;"></div>
-            </div>
-            <span id="shield-text" style="margin-left: 5px;">50 / 50</span>
-        </div>
-    `;
-    hud.appendChild(healthShieldDisplay); // Append to hud
 
     // --- Create and append Respawn Overlay ---
-    // Assuming createRespawnOverlay function exists elsewhere
-    createRespawnOverlay(gameWrapper); // Call a dedicated function for respawn overlay
+    createRespawnOverlay(gameWrapper);
 
     // --- Create and append Loading Progress ---
     const loadingProgress = document.createElement('div');
@@ -193,25 +211,8 @@ export function createGameUI(gameWrapper) {
     damageOverlay.id = 'damage-overlay';
     gameWrapper.appendChild(damageOverlay);
 
-    // --- Create and append Ammo Display ---
-    const ammoDiv = document.createElement("div");
-    ammoDiv.id = "ammo-display";
-    Object.assign(ammoDiv.style, {
-        position: "absolute",
-        bottom: "20px",
-        right: "20px",
-        color: "white",
-        fontSize: "1.2rem",
-        fontFamily: "Arial, sans-serif",
-        textShadow: "1px 1px 2px black",
-        zIndex: "1000",
-        pointerEvents: "none",
-    });
-    hud.appendChild(ammoDiv); // Append to hud
-
 
     // Initialize listeners for interactive UI elements
-    // Assuming initChatUI and initBuyMenuEvents functions exist elsewhere
     initChatUI();
     initBuyMenuEvents();
 }
@@ -286,9 +287,6 @@ export function initChatUI() {
     const chatInput = document.getElementById("chat-input");
     const chatBox = document.getElementById("chat-box"); // Reference to the full chat box
     let chatCooldown = false;
-
-    // Toggle chat input visibility
-
 
 
     if (chatInput) {
@@ -672,7 +670,7 @@ const bulletHoles = {}; // Keep this map to track active bullet hole meshes
     BULLET TRACERS & HOLES (updated to export add/remove functions)
     ————————————————————————————————————————————————————————————————————— */
 
-export function createTracer(fromVec, toVec, weaponKey) { // <--- ADDED weaponKey
+export function createTracer(fromVec, toVec, weaponKey) {
     if (!window.scene) {
         console.warn("UI: window.scene not set, cannot create tracer.");
         return;
@@ -685,7 +683,7 @@ export function createTracer(fromVec, toVec, weaponKey) { // <--- ADDED weaponKe
     }
 
     // Pass the weaponKey to AnimatedTracer
-    new AnimatedTracer(fromVec, toVec, 250, weaponKey); // <--- ADDED weaponKey
+    new AnimatedTracer(fromVec, toVec, 250, weaponKey);
 }
 
 export function removeTracer(key) {
