@@ -1131,9 +1131,51 @@ disclaimerText.setColor("#ffffff");
 disclaimerText.setPosition(getWidth()/2, getHeight()-100);
 
 
+
 let escMenu = new ImageShape("https://codehs.com/uploads/badb165ef3d765a60258ba9db41f3f28");
 escMenu.setPosition(getWidth()/2, getHeight()/2);
 escMenu.setSize(1920/2, 1080/2);
+
+// Make sure the pause menu is initially hidden
+escMenu.setVisibility(false);
+
+// Variable to track if the pause menu is open
+let isPaused = false;
+
+// New variable: controls if the game is in an active state where pausing is allowed
+// Set this to true when your game starts and is ready for interaction.
+// Set it to false when, for example, the game is over, or on a title screen.
+let checkInGame = false; 
+
+window.addEventListener("keydown", e => {
+    // Only proceed if checkInGame is true AND the 'p' key is pressed
+    if (checkInGame && e.key.toLowerCase() === 'p') {
+        if (!isPaused) {
+            // If not paused, show the menu and pause
+            escMenu.setVisibility(true);
+            add(escMenu); // Add the menu to the canvas if not already added
+
+            // Layer the canvas on top by increasing its z-index
+            document.getElementById('gameCanvas').style.zIndex = '1000'; 
+
+            // Show and unlock the cursor
+            document.body.style.cursor = 'auto'; 
+            
+            isPaused = true;
+        } else {
+            // If paused, hide the menu and unpause
+            escMenu.setVisibility(false);
+            
+            // Reset canvas z-index
+            document.getElementById('gameCanvas').style.zIndex = ''; 
+
+            // Hide and lock the cursor
+            document.body.style.cursor = 'none'; 
+
+            isPaused = false;
+        }
+    }
+});
 
 
 function playerCardHit() {
@@ -1269,6 +1311,7 @@ function showMenuOverlay() {
 }
 
 async function initAndStartGame(username, mapName, gameId = null) {
+     checkInGame = true; 
      dontyetpls = 0;
      hud.style.display = "block";
   // Read your UI flags up front
