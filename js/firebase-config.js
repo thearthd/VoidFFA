@@ -88,7 +88,6 @@ export function initializeMenuFirebase() {
   usersRef = db.ref("users");
 
   // Call the stale game cleanup monitor here, AFTER gamesRef is initialized
-  startStaleGameCleanupMonitor();
   console.log("[firebase-config.js] Initialized menu Firebase and started stale game cleanup monitor.");
 }
 
