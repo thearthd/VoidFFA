@@ -1171,14 +1171,33 @@ function inGameSettingsButtonHit() {
     // Add a back button to return from the settings to the escape menu
     // You'll need to define a function for this back button's click handler.
     // For example, a function that removes settings elements and re-adds escMenu and inGameSettingsBtn.
+     addBackButton(inGameBack);
 }
 
 // Make the inGameSettingsBtn clickable using your makeButton function
 // The onClick handler for inGameSettingsBtn will be inGameSettingsButtonHit.
+function inGameBack(){
+     clearMenuCanvas();
+          add(escMenu); // Add the menu to the canvas if not already added
+       add(inGameSettingsBtn.image); // Add the settings button when the escape menu appears
+     makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
+       // Apply overlay styles when paused
+        canvas.style.display = 'block';
+          canvas.style.position = 'fixed';
+          canvas.style.top = '0';
+          canvas.style.left = '0';
+          canvas.style.width = '100%';
+          canvas.style.height = '100%';
+          canvas.style.zIndex = '20';
 
+            // Show and unlock the cursor
+          document.body.style.cursor = 'auto';
+}
 
 let isPaused = false;
 let checkInGame = false;
+
+
 
 window.addEventListener("keydown", e => {
     if (checkInGame && e.key.toLowerCase() === 'p') {
