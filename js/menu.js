@@ -1136,10 +1136,21 @@ let escMenu = new ImageShape("https://codehs.com/uploads/badb165ef3d765a60258ba9
 escMenu.setSize(1920/2, 1080/2);
 escMenu.setPosition(getWidth()/2 - (1920/4), getHeight()/2 - (1080/4));
 
-let inGameSettingsBtn = new Rectangle(400, 200);
-inGameSettingsBtn.setPosition(getWidth()/2 - (1920/4), getHeight()/2 - (1080/4));
-inGameSettingsBtn.setColor("#ff0000");
-inGameSettingsBtn.setOpacity(0.3);
+
+let inGameSettingsBtn = createAnimatedButton(
+    "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
+    1920/2, 1080/2
+    getWidth()/2 - (1920/4), getHeight()/2 - (1080/4),
+    getWidth()/2 - (1920/4), getHeight()/2 - (1080/4),
+    () => {
+        console.log("inGameSettingsBtn hit");
+          inGameSettingsButtonHit();
+         playButtonClick();
+    }
+);
+
+
+
 
 // This function will be called when the in-game settings button is clicked.
 function inGameSettingsButtonHit() {
@@ -1148,7 +1159,7 @@ function inGameSettingsButtonHit() {
     // For now, let's assume they exist as per your provided context.
     clearMenuCanvas();
     add(settingsMenu); // Assuming settingsMenu is the container for your settings UI
-
+     
     // Get the HTML elements for the sensitivity slider and settings box
     // Make sure these variables (sensitivitySliderContainer, settingsBox)
     // are accessible in this scope, likely defined globally or passed in.
@@ -1167,7 +1178,7 @@ function inGameSettingsButtonHit() {
     // You'll need to define a function for this back button's click handler.
     // For example, a function that removes settings elements and re-adds escMenu and inGameSettingsBtn.
     addBackButton(escMenu); // Passing escMenu or a specific function to return to the esc menu state
-makeButton(inGameSettingsBtn, inGameSettingsButtonHit);
+makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
 }
 
 // Make the inGameSettingsBtn clickable using your makeButton function
