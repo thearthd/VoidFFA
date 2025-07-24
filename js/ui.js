@@ -21,8 +21,8 @@ export function setUIDbRefs(dbRefsObject) {
 }
 
 /* —————————————————————————————————————————————————————————————————————
-   GAME UI ELEMENTS (dynamically created)
-   ————————————————————————————————————————————————————————————————————— */
+    GAME UI ELEMENTS (dynamically created)
+    ————————————————————————————————————————————————————————————————————— */
 
 /**
  * Dynamically creates and appends all necessary in-game UI elements
@@ -142,6 +142,41 @@ export function createGameUI(gameWrapper) {
     });
     hud.appendChild(inventory); // Append to hud
 
+    // --- Create and append Health and Shield Display to HUD ---
+    const healthShieldDisplay = document.createElement('div');
+    healthShieldDisplay.id = 'health-shield-display';
+    Object.assign(healthShieldDisplay.style, {
+        position: 'absolute',
+        bottom: '20px',
+        right: '200px', // Adjust position as needed, e.g., next to inventory or ammo
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        zIndex: '1000',
+        pointerEvents: 'none',
+        color: 'white',
+        fontFamily: 'Arial, sans-serif',
+        textShadow: '1px 1px 2px black',
+    });
+
+    healthShieldDisplay.innerHTML = `
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <span style="margin-right: 5px;">HP:</span>
+            <div style="width: 100px; height: 15px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
+                <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #0f0; transition: width 0.1s linear;"></div>
+            </div>
+            <span id="health-text" style="margin-left: 5px;">100 / 100</span>
+        </div>
+        <div style="display: flex; align-items: center;">
+            <span style="margin-right: 5px;">SHIELD:</span>
+            <div style="width: 100px; height: 15px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
+                <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #00f; transition: width 0.1s linear;"></div>
+            </div>
+            <span id="shield-text" style="margin-left: 5px;">50 / 50</span>
+        </div>
+    `;
+    hud.appendChild(healthShieldDisplay); // Append to hud
+
     // --- Create and append Respawn Overlay ---
     // Assuming createRespawnOverlay function exists elsewhere
     createRespawnOverlay(gameWrapper); // Call a dedicated function for respawn overlay
@@ -172,7 +207,7 @@ export function createGameUI(gameWrapper) {
         zIndex: "1000",
         pointerEvents: "none",
     });
-    gameWrapper.appendChild(ammoDiv); // Append to gameWrapper
+    hud.appendChild(ammoDiv); // Append to hud
 
 
     // Initialize listeners for interactive UI elements
@@ -181,10 +216,10 @@ export function createGameUI(gameWrapper) {
     initBuyMenuEvents();
 }
 /* —————————————————————————————————————————————————————————————————————
-   HEALTH + SHIELD BAR (Three.js version – unchanged from your ui.js)
-   ————————————————————————————————————————————————————————————————————— */
+    HEALTH + SHIELD BAR (Three.js version – unchanged from your ui.js)
+    ————————————————————————————————————————————————————————————————————— */
 export function createHealthBar() {
-    const width = 1.5;    // X size (horizontal length)
+    const width = 1.5;     // X size (horizontal length)
     const height = 0.2;  // Y size (vertical height of each bar)
     const depth = 0.05;  // Z size (thickness of each bar)
 
@@ -243,8 +278,8 @@ export function createHealthBar() {
 }
 
 /* —————————————————————————————————————————————————————————————————————
-   CHAT, KILLFEED, SCOREBOARD, RESPAWN, BUY MENU, INVENTORY, AMMO
-   ————————————————————————————————————————————————————————————————————— */
+    CHAT, KILLFEED, SCOREBOARD, RESPAWN, BUY MENU, INVENTORY, AMMO
+    ————————————————————————————————————————————————————————————————————— */
 
 // Chat UI: send on Enter (with 2-second cooldown)
 export function initChatUI() {
@@ -516,64 +551,64 @@ export function hideRespawn() {
     }
 }
 
-const DEFAULT_PRIMARY   = 'ak-47';
+const DEFAULT_PRIMARY = 'ak-47';
 const DEFAULT_SECONDARY = 'm79';
 
 /* —————————————————————————————————————————————————————————————————————
-   INVENTORY + HEALTH & SHIELD BARS (HTML version)
-   ————————————————————————————————————————————————————————————————————— */
+    INVENTORY + HEALTH & SHIELD BARS (HTML version)
+    ————————————————————————————————————————————————————————————————————— */
 function getSavedLoadout() {
-  return {
-  primary: localStorage.getItem('loadout_primary')   || DEFAULT_PRIMARY,
-  secondary: localStorage.getItem('loadout_secondary') || DEFAULT_SECONDARY,
-  };
+    return {
+        primary: localStorage.getItem('loadout_primary') || DEFAULT_PRIMARY,
+        secondary: localStorage.getItem('loadout_secondary') || DEFAULT_SECONDARY,
+    };
 }
 
 export function initInventory(currentWeaponKey) {
-  const inv = document.getElementById("inventory");
-  if (!inv) return;
-  inv.innerHTML = "";
+    const inv = document.getElementById("inventory");
+    if (!inv) return;
+    inv.innerHTML = "";
 
-  const parent = inv.parentNode;
-  if (getComputedStyle(parent).position === 'static') {
-    parent.style.position = 'relative';
-  }
-
-  const { primary, secondary } = getSavedLoadout();
-  const weaponKeys = ['knife'];
-  if (primary)   weaponKeys.push(primary);
-  if (secondary) weaponKeys.push(secondary);
-
-  for (const key of weaponKeys) {
-    const slot = document.createElement("div");
-    slot.classList.add("inventory-slot");
-    slot.id = `inv-${key}`;
-    Object.assign(slot.style, {
-      backgroundColor: '#333',
-      color: '#fff',
-      padding: '8px 12px',
-      border: '1px solid #555',
-      borderRadius: '4px',
-      cursor: 'pointer',
-      transition: 'background-color 0.2s, border-color 0.2s',
-      pointerEvents: 'auto',
-    });
-    const nameAbbrev = document.createElement("span");
-    switch (key) {
-      case "knife":   nameAbbrev.textContent = "KNIFE"; break;
-      case "deagle":  nameAbbrev.textContent = "DEAG";  break;
-      case "ak-47":   nameAbbrev.textContent = "AK47";  break;
-      case "marshal": nameAbbrev.textContent = "MARL";  break;
-      case "m79":     nameAbbrev.textContent = "M79";   break;
+    const parent = inv.parentNode;
+    if (getComputedStyle(parent).position === 'static') {
+        parent.style.position = 'relative';
     }
-    slot.appendChild(nameAbbrev);
-    if (key === currentWeaponKey) {
-      slot.classList.add("selected");
-      slot.style.borderColor = '#0f0';
-      slot.style.backgroundColor = '#444';
+
+    const { primary, secondary } = getSavedLoadout();
+    const weaponKeys = ['knife'];
+    if (primary) weaponKeys.push(primary);
+    if (secondary) weaponKeys.push(secondary);
+
+    for (const key of weaponKeys) {
+        const slot = document.createElement("div");
+        slot.classList.add("inventory-slot");
+        slot.id = `inv-${key}`;
+        Object.assign(slot.style, {
+            backgroundColor: '#333',
+            color: '#fff',
+            padding: '8px 12px',
+            border: '1px solid #555',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            transition: 'background-color 0.2s, border-color 0.2s',
+            pointerEvents: 'auto',
+        });
+        const nameAbbrev = document.createElement("span");
+        switch (key) {
+            case "knife": nameAbbrev.textContent = "KNIFE"; break;
+            case "deagle": nameAbbrev.textContent = "DEAG"; break;
+            case "ak-47": nameAbbrev.textContent = "AK47"; break;
+            case "marshal": nameAbbrev.textContent = "MARL"; break;
+            case "m79": nameAbbrev.textContent = "M79"; break;
+        }
+        slot.appendChild(nameAbbrev);
+        if (key === currentWeaponKey) {
+            slot.classList.add("selected");
+            slot.style.borderColor = '#0f0';
+            slot.style.backgroundColor = '#444';
+        }
+        inv.appendChild(slot);
     }
-    inv.appendChild(slot);
-  }
 }
 
 
@@ -634,8 +669,8 @@ const activeTracers = {};
 const bulletHoles = {}; // Keep this map to track active bullet hole meshes
 
 /* —————————————————————————————————————————————————————————————————————
-   BULLET TRACERS & HOLES (updated to export add/remove functions)
-   ————————————————————————————————————————————————————————————————————— */
+    BULLET TRACERS & HOLES (updated to export add/remove functions)
+    ————————————————————————————————————————————————————————————————————— */
 
 export function createTracer(fromVec, toVec, weaponKey) { // <--- ADDED weaponKey
     if (!window.scene) {
@@ -743,8 +778,8 @@ export function initBulletHoles() {
 
 
 /* —————————————————————————————————————————————————————————————————————
-   AMMO DISPLAY (unchanged)
-   ————————————————————————————————————————————————————————————————————— */
+    AMMO DISPLAY (unchanged)
+    ————————————————————————————————————————————————————————————————————— */
 let ammoDiv = null;
 export function initAmmoDisplay(weaponKey, maxAmmo) {
     // AmmoDiv is now created dynamically within createGameUI.
