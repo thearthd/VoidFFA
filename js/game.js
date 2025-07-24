@@ -234,83 +234,89 @@ bloomPass = null;
 }
 }
 
-async function determineWinnerAndEndGame() {
-  console.log("Determining winner and ending game...");
-  if (!playersRef) {
-    console.error("determineWinnerAndEndGame: playersRef is NULL");
-    return;
-  }
-
-  const playersSnapshot = await playersRef.once("value");
-  const statsByUser = {};
-  playersSnapshot.forEach(childSnap => {
-    const p = childSnap.val();
-    if (!p || typeof p.kills !== 'number') return;
-    statsByUser[p.username] = {
-      kills: p.kills || 0,
-      deaths: p.deaths || 0,
-      win: 0,
-      loss: 0
-    };
-  });
-
-  const allStats = Object.values(statsByUser);
-  if (allStats.length === 0) {
-    console.log("No players found");
-  } else {
-    const maxKills = Math.max(...allStats.map(s => s.kills));
-    if (maxKills > 0) {
-      const winners = Object.entries(statsByUser)
-        .filter(([_, s]) => s.kills === maxKills)
-        .map(([u]) => u);
-      for (const username of winners) {
-        statsByUser[username].win = 1;
-      }
-      for (const [username, s] of Object.entries(statsByUser)) {
-        if (!winners.includes(username)) {
-          s.loss = 1;
-        }
-      }
-      const display = winners.length > 1 ? winners.join(", ") : winners[0];
-      console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
-      localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
-      localStorage.setItem('gameEndedTimestamp', Date.now().toString());
-      const gameTimerEl = document.getElementById("game-timer");
-      if (gameTimerEl) {
-        gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
-        gameTimerEl.style.display = "block";
-      }
-    } else {
-      console.log("No kills recorded, no winners or losers");
-      localStorage.removeItem('gameWinner');
-      localStorage.removeItem('gameEndedTimestamp');
+async function determineWinnerAndEndGame(gameId) {
+    console.log("Determining winner and ending game...");
+    if (!playersRef) {
+        console.error("determineWinnerAndEndGame: playersRef is NULL");
+        return;
     }
-  }
 
-  const statUpdates = [];
-  for (const [username, { win, loss }] of Object.entries(statsByUser)) {
-    if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
-    if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
-  }
-  await Promise.all(statUpdates);
+    const playersSnapshot = await playersRef.once("value");
+    const statsByUser = {};
+    playersSnapshot.forEach(childSnap => {
+        const p = childSnap.val();
+        if (!p || typeof p.kills !== 'number') return;
+        statsByUser[p.username] = {
+            kills: p.kills || 0,
+            deaths: p.deaths || 0,
+            win: 0,
+            loss: 0
+        };
+    });
 
-  try {
-    await gameConfigRef.remove();
-    console.log("Game config fully removed.");
-  } catch (e) {
-    console.error("Failed to remove gameConfig:", e);
-  }
+    const allStats = Object.values(statsByUser);
+    if (allStats.length === 0) {
+        console.log("No players found");
+    } else {
+        const maxKills = Math.max(...allStats.map(s => s.kills));
+        if (maxKills > 0) {
+            const winners = Object.entries(statsByUser)
+                .filter(([_, s]) => s.kills === maxKills)
+                .map(([u]) => u);
+            for (const username of winners) {
+                statsByUser[username].win = 1;
+            }
+            for (const [username, s] of Object.entries(statsByUser)) {
+                if (!winners.includes(username)) {
+                    s.loss = 1;
+                }
+            }
+            const display = winners.length > 1 ? winners.join(", ") : winners[0];
+            console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
+            localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
+            localStorage.setItem('gameEndedTimestamp', Date.now().toString());
+            const gameTimerEl = document.getElementById("game-timer");
+            if (gameTimerEl) {
+                gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
+                gameTimerEl.style.display = "block";
+            }
+        } else {
+            console.log("No kills recorded, no winners or losers");
+            localStorage.removeItem('gameWinner');
+            localStorage.removeItem('gameEndedTimestamp');
+        }
+    }
 
-  if (playersKillsListener) {
-    playersRef.off("value", playersKillsListener);
-    playersKillsListener = null;
-    console.log("Detached players kill listener.");
-  }
+    const statUpdates = [];
+    for (const [username, { win, loss }] of Object.entries(statsByUser)) {
+        if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
+        if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
+    }
+    await Promise.all(statUpdates);
 
-  await disposeGame();
-  await fullCleanup(activeGameId);
+    try {
+        await gameConfigRef.remove();
+        console.log("Game config fully removed.");
+    } catch (e) {
+        console.error("Failed to remove gameConfig:", e);
+    }
 
-  playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
+    if (playersKillsListener) {
+        playersRef.off("value", playersKillsListener);
+        playersKillsListener = null;
+        console.log("Detached players kill listener.");
+    }
+
+    // Pass the gameId to fullCleanup. activeGameId should already be set by initNetwork.
+    // ensure fullCleanup can access the gameId
+    await disposeGame(); // This handles general game state cleanup
+    await fullCleanup(gameId); // This specifically handles Firebase cleanup including lobby entry
+
+    // playerIdsToDisconnect should be handled by fullCleanup's removal of player data
+    // It seems redundant here if fullCleanup is already removing all player data.
+    // You might remove this line, or ensure playerIdsToDisconnect is correctly populated
+    // based on currently active players if you intend a selective disconnect.
+    // playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
 }
 
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
@@ -808,91 +814,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     animate();
 }
 
-// Ensure determineWinnerAndEndGame also receives gameId
-async function determineWinnerAndEndGame(gameId) {
-    console.log("Determining winner and ending game...");
-    if (!playersRef) {
-        console.error("determineWinnerAndEndGame: playersRef is NULL");
-        return;
-    }
 
-    const playersSnapshot = await playersRef.once("value");
-    const statsByUser = {};
-    playersSnapshot.forEach(childSnap => {
-        const p = childSnap.val();
-        if (!p || typeof p.kills !== 'number') return;
-        statsByUser[p.username] = {
-            kills: p.kills || 0,
-            deaths: p.deaths || 0,
-            win: 0,
-            loss: 0
-        };
-    });
-
-    const allStats = Object.values(statsByUser);
-    if (allStats.length === 0) {
-        console.log("No players found");
-    } else {
-        const maxKills = Math.max(...allStats.map(s => s.kills));
-        if (maxKills > 0) {
-            const winners = Object.entries(statsByUser)
-                .filter(([_, s]) => s.kills === maxKills)
-                .map(([u]) => u);
-            for (const username of winners) {
-                statsByUser[username].win = 1;
-            }
-            for (const [username, s] of Object.entries(statsByUser)) {
-                if (!winners.includes(username)) {
-                    s.loss = 1;
-                }
-            }
-            const display = winners.length > 1 ? winners.join(", ") : winners[0];
-            console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
-            localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
-            localStorage.setItem('gameEndedTimestamp', Date.now().toString());
-            const gameTimerEl = document.getElementById("game-timer");
-            if (gameTimerEl) {
-                gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
-                gameTimerEl.style.display = "block";
-            }
-        } else {
-            console.log("No kills recorded, no winners or losers");
-            localStorage.removeItem('gameWinner');
-            localStorage.removeItem('gameEndedTimestamp');
-        }
-    }
-
-    const statUpdates = [];
-    for (const [username, { win, loss }] of Object.entries(statsByUser)) {
-        if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
-        if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
-    }
-    await Promise.all(statUpdates);
-
-    try {
-        await gameConfigRef.remove();
-        console.log("Game config fully removed.");
-    } catch (e) {
-        console.error("Failed to remove gameConfig:", e);
-    }
-
-    if (playersKillsListener) {
-        playersRef.off("value", playersKillsListener);
-        playersKillsListener = null;
-        console.log("Detached players kill listener.");
-    }
-
-    // Pass the gameId to fullCleanup. activeGameId should already be set by initNetwork.
-    // ensure fullCleanup can access the gameId
-    await disposeGame(); // This handles general game state cleanup
-    await fullCleanup(gameId); // This specifically handles Firebase cleanup including lobby entry
-
-    // playerIdsToDisconnect should be handled by fullCleanup's removal of player data
-    // It seems redundant here if fullCleanup is already removing all player data.
-    // You might remove this line, or ensure playerIdsToDisconnect is correctly populated
-    // based on currently active players if you intend a selective disconnect.
-    // playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
-}
 export function hideGameUI() {
   document.getElementById("menu-overlay").style.display = "flex";
   document.body.classList.remove("game-active");
