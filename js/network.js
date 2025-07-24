@@ -587,98 +587,159 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
 }
 
 // Function to set up gameConfig listener, to be called from game.js
-export function setupGameConfigListener(gameConfigRef, gameTimerElement, ownerRef, gameDurationRef, gameEndedRef, determineWinnerAndEndGame, localPlayerId) {
-    if (gameConfigListener) gameConfigRef.off("value", gameConfigListener); // Detach previous
+export function setupGameConfigListener(gameConfigRef, gameTimerElement, determineWinnerAndEndGame) {
+    if (!gameConfigRef || typeof gameConfigRef.on !== 'function' || typeof gameConfigRef.child !== 'function') {
+        console.error("setupGameConfigListener: Invalid gameConfigRef provided. Cannot set up listeners.", gameConfigRef);
+        return;
+    }
+
+    if (gameConfigListener) {
+        gameConfigRef.off("value", gameConfigListener); // Detach previous listener if it exists
+    }
+
+    const ownerRef = gameConfigRef.child('owner');
+    const gameDurationRef = gameConfigRef.child('gameDuration');
+    const gameEndedRef = gameConfigRef.child('ended');
+
+    if (!ownerRef || typeof ownerRef.onDisconnect !== 'function') {
+        console.error("setupGameConfigListener: ownerRef is not a valid Firebase Reference or does not support onDisconnect. This might indicate a deeper Firebase setup issue.", ownerRef);
+        return;
+    }
 
     // This listener captures all changes to gameConfig for timer updates and game end
     gameConfigListener = gameConfigRef.on('value', snap => {
         const config = snap.val() || {};
         const ownerId = config.owner;
-        const currentRemainingSeconds = typeof config.gameDuration === 'number' ? config.gameDuration : null;
+        let currentRemainingSeconds = typeof config.gameDuration === 'number' ? config.gameDuration : null;
         const gameEnded = config.ended === true;
 
-        // Logic for owner election if no owner is present
-        if (ownerId === null && localPlayerId) {
-            ownerRef.transaction(curr => curr === null ? localPlayerId : undefined)
-                .then(({ committed, snapshot }) => {
-                    if (committed) console.log(`[network.js] Successfully became owner: ${snapshot.val()}`);
-                    else if (snapshot.val() !== localPlayerId) console.log(`[network.js] Another player ${snapshot.val()} is already the owner.`);
-                })
-                .catch(error => console.error("[network.js] Owner election transaction failed:", error));
-        }
-
-        // Timer update logic for all clients (UI)
-        if (currentRemainingSeconds === null) {
-            gameTimerElement.textContent = 'Time: Syncing…';
-        } else {
-            const mins = Math.floor(currentRemainingSeconds / 60);
-            const secs = currentRemainingSeconds % 60;
-            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
-        }
+        // UI update for timer (for all clients)
+        if (gameTimerUIInterval) clearInterval(gameTimerUIInterval); // Clear existing UI interval
+        gameTimerUIInterval = setInterval(() => {
+            if (currentRemainingSeconds === null) {
+                gameTimerElement.textContent = 'Time: Syncing…';
+            } else {
+                const mins = Math.floor(currentRemainingSeconds / 60);
+                const secs = currentRemainingSeconds % 60;
+                gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+        }, 250); // Update UI 4 times a second for smoother display
 
         // Game ending logic
-        if (gameEnded && !window.gameIsEnding) { // Use a flag to prevent multiple calls
+        if (gameEnded && !window.gameIsEnding) {
             window.gameIsEnding = true;
             console.log("[network.js] Game ended flag detected. Initiating game end process.");
-            // Detach listeners related to game state (handled in disposeGame/endGameCleanup)
-            // Call the game's determineWinnerAndEndGame (pass gameId from activeGameId)
+
+            // Clear intervals directly related to this game config
+            if (ownerElectionRetryInterval) {
+                clearInterval(ownerElectionRetryInterval);
+                ownerElectionRetryInterval = null;
+            }
+            if (gameTimerUIInterval) {
+                clearInterval(gameTimerUIInterval);
+                gameTimerUIInterval = null;
+            }
+
             determineWinnerAndEndGame(activeGameId);
+        }
+
+        // Owner election and timer management logic (only for the owner)
+        if (ownerId === localPlayerId) {
+            if (!window._ownerInterval) { // Use a global variable for the owner interval to ensure only one exists
+                console.log(`[network.js] I am the owner (${localPlayerId}). Starting owner interval.`);
+                const INITIAL_DURATION = 1 * 60; // 10 minutes example
+                if (currentRemainingSeconds === null) {
+                    gameDurationRef.set(INITIAL_DURATION); // Initialize if not set
+                }
+
+                window._ownerInterval = setInterval(() => {
+                    // Only update if game hasn't ended and timer is valid
+                    if (gameEnded || currentRemainingSeconds === null) {
+                        if (gameEnded && window._ownerInterval) {
+                            clearInterval(window._ownerInterval);
+                            window._ownerInterval = null;
+                            console.log("[network.js] Owner interval cleared due to game ending.");
+                        }
+                        return;
+                    }
+
+                    if (currentRemainingSeconds <= 0) {
+                        console.log("[network.js] Game timer reached 0. Setting game ended flag.");
+                        gameEndedRef.set(true); // Signal game end
+                        if (window._ownerInterval) {
+                            clearInterval(window._ownerInterval);
+                            window._ownerInterval = null;
+                        }
+                        return;
+                    }
+                    console.log(`[network.js] Owner updating gameDuration: ${currentRemainingSeconds - 1}`);
+                    gameDurationRef.set(currentRemainingSeconds - 1);
+                    currentRemainingSeconds--; // Update local count immediately for smoother display
+                }, 1000);
+            }
+        } else {
+            // If I am NOT the owner and my interval IS running, stop it
+            if (window._ownerInterval) {
+                console.log("[network.js] No longer owner or owner changed. Clearing owner interval.");
+                clearInterval(window._ownerInterval);
+                window._ownerInterval = null;
+            }
+            // If there's no owner, try to elect one (important if owner disconnected)
+            if (ownerId === null && !gameEnded) { // Only try to elect if game is not ended
+                if (!ownerElectionRetryInterval) { // Prevent multiple retry intervals
+                    console.log("[network.js] No owner detected. Attempting to elect self (and retrying).");
+                    // Immediately try to elect, then set up a retry
+                    tryElectSelfOwner();
+                    ownerElectionRetryInterval = setInterval(tryElectSelfOwner, 5000); // Retry every 5 seconds
+                }
+            } else if (ownerId !== null && ownerElectionRetryInterval) {
+                // If an owner exists now, and we were retrying, stop the retry interval
+                clearInterval(ownerElectionRetryInterval);
+                ownerElectionRetryInterval = null;
+                console.log("[network.js] Owner detected, stopping owner election retry.");
+            }
         }
     });
 
     // Set onDisconnect for the owner node *from this client's perspective*
-    // This will ensure that if *this* client is the owner, and it disconnects,
-    // the 'owner' node is cleared, allowing another client to take over.
     ownerRef.onDisconnect().remove()
         .then(() => console.log(`[network.js] onDisconnect set for owner ref for local player ${localPlayerId}`))
         .catch(err => console.error("[network.js] Failed to set onDisconnect for owner ref:", err));
 
-    // Owner's responsibility to decrement timer
-    // This interval only runs if the localPlayerId is the current owner
-    let ownerInterval = null;
-    gameConfigRef.child('owner').on('value', ownerSnap => {
-        const currentOwnerId = ownerSnap.val();
-        if (currentOwnerId === localPlayerId) {
-            if (ownerInterval === null) {
-                console.log(`[network.js] I am the owner (${localPlayerId}). Starting owner interval.`);
-                ownerInterval = setInterval(() => {
-                    gameConfigRef.child('gameDuration').transaction(currentDuration => {
-                        if (typeof currentDuration !== 'number' || currentDuration <= 0) {
-                            if (currentDuration <= 0) {
-                                gameConfigRef.child('ended').set(true); // Signal game end
-                            }
-                            return undefined; // Abort transaction if invalid or 0/less
-                        }
-                        return currentDuration - 1;
-                    }).then(({ committed }) => {
-                        if (!committed) {
-                            // If transaction failed (e.g., another owner updated it, or already ended)
-                            // or if duration became 0, stop interval
-                            if (ownerInterval) {
-                                clearInterval(ownerInterval);
-                                ownerInterval = null;
-                                console.log("[network.js] Owner interval cleared due to transaction result or game ending.");
-                            }
-                        }
-                    }).catch(err => console.error("[network.js] Owner interval transaction failed:", err));
-                }, 1000);
+    // Initial attempt to elect self as owner
+    function tryElectSelfOwner() {
+        ownerRef.transaction(curr => {
+            if (curr === null || typeof curr === 'undefined') {
+                console.log(`[network.js] Attempting to elect self (${localPlayerId}) as owner via transaction.`);
+                return localPlayerId;
             }
-        } else if (ownerInterval !== null) {
-            // No longer the owner, or owner changed
-            clearInterval(ownerInterval);
-            ownerInterval = null;
-            console.log("[network.js] No longer owner. Clearing owner interval.");
-        }
-    });
+            return undefined; // Abort transaction if an owner already exists
+        }).then(({ committed, snapshot }) => {
+            if (committed) {
+                console.log(`[network.js] Successfully became owner: ${snapshot.val()}`);
+                if (ownerElectionRetryInterval) { // If we successfully became owner, stop the retry
+                    clearInterval(ownerElectionRetryInterval);
+                    ownerElectionRetryInterval = null;
+                }
+            } else if (snapshot.val() !== localPlayerId) {
+                console.log(`[network.js] Another player ${snapshot.val()} is already the owner.`);
+            }
+        }).catch(error => {
+            console.error("[network.js] Owner election transaction failed:", error);
+        });
+    }
 
-    // Initialize game duration if it's null and we become owner
-    gameDurationRef.on('value', snap => {
-        const val = snap.val();
-        if (val === null && gameConfigRef.child('owner').val() === localPlayerId) {
-            console.log("[network.js] Game duration is null. Initializing with INITIAL_DURATION.");
-            gameDurationRef.set(10 * 60); // Set initial duration (e.g., 10 minutes)
-        }
-    });
+    // Initial call to try to elect self (before any retry intervals)
+    if (gameConfigRef.child('owner')) { // Check if owner node exists to avoid unnecessary transactions
+        ownerRef.once('value').then(snap => {
+            if (snap.val() === null) {
+                tryElectSelfOwner();
+            }
+        });
+    }
+
+
+    console.log("[network.js] GameConfig listener set up and owner election process initialized.");
 }
 
 
