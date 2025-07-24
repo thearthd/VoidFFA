@@ -1,42 +1,40 @@
 // firebase-config.js
 
-import { startStaleGameCleanupMonitor } from './network.js';
-
 
 // Configuration for your Firebase projects
 // Make sure these match your actual Firebase project configurations
 export const menuConfig = {
-  apiKey: "AIzaSyBmLJnsXye8oBBpbtTZu0W9-cmEl8QM8s",
-  authDomain: "voidffa-menu.firebaseapp.com",
-  databaseURL: "https://voidffa-menu-default-rtdb.firebaseio.com",
-  projectId: "voidffa-menu",
-  storageBucket: "voidffa-menu.firebasestorage.app",
+  apiKey:            "AIzaSyBmLJnsXye8oBBpbtTZu0W9-cmEl8QM8s",
+  authDomain:        "voidffa-menu.firebaseapp.com",
+  databaseURL:       "https://voidffa-menu-default-rtdb.firebaseio.com",
+  projectId:         "voidffa-menu",
+  storageBucket:     "voidffa-menu.firebasestorage.app",
   messagingSenderId: "775839090279",
-  appId: "1:775839090279:web:1dfa69158b5e2b0ce436c2",
-  measurementId: "G-X9CKZX4C74"
+  appId:              "1:775839090279:web:1dfa69158b5e2b0ce436c2",
+  measurementId:     "G-X9CKZX4C74"
 };
 
-// Per-slot game DB configs
+// Per‑slot game DB configs
 export const gameDatabaseConfigs = {
   gameSlot1: {
-    apiKey: "AIzaSyDEULlbzl5Sylo-zGHvRIOrd6AOWp4GcxA",
-    authDomain: "d-shooter-fa105.firebaseapp.com",
-    databaseURL: "https://d-shooter-fa105-default-rtdb.firebaseio.com",
-    projectId: "d-shooter-fa105",
-    storageBucket: "d-shooter-fa105.firebasestorage.app",
+    apiKey:            "AIzaSyDEULlbzl5Sylo-zGHvRIOrd6AOWp4GcxA",
+    authDomain:        "d-shooter-fa105.firebaseapp.com",
+    databaseURL:       "https://d-shooter-fa105-default-rtdb.firebaseio.com",
+    projectId:         "d-shooter-fa105",
+    storageBucket:     "d-shooter-fa105.firebasestorage.app",
     messagingSenderId: "573466540294",
-    appId: "1:573466540294:web:b131bfb11220fe35848687",
-    measurementId: "G-KKRN5DVEMF"
+    appId:              "1:573466540294:web:b131bfb11220fe35848687",
+    measurementId:     "G-KKRN5DVEMF"
   },
   gameSlot2: {
-    apiKey: "AIzaSyAlp49gDO5XCQe9KvHH-yVzo1TrFUv_rGY",
-    authDomain: "sigmacity-27a9e.firebaseapp.com",
-    databaseURL: "https://sigmacity-27a9e-default-rtdb.firebaseio.com",
-    projectId: "sigmacity-27a9e",
-    storageBucket: "sigmacity-27a9e.firebasestorage.app",
+    apiKey:            "AIzaSyAlp49gDO5XCQe9KvHH-yVzo1TrFUv_rGY",
+    authDomain:        "sigmacity-27a9e.firebaseapp.com",
+    databaseURL:       "https://sigmacity-27a9e-default-rtdb.firebaseio.com",
+    projectId:         "sigmacity-27a9e",
+    storageBucket:     "sigmacity-27a9e.firebasestorage.app",
     messagingSenderId: "1056288231871",
-    appId: "1:1056288231871:web:d4b35d473de14dfb98910a",
-    measurementId: "G-76TZ6XF8WL"
+    appId:              "1:1056288231871:web:d4b35d473de14dfb98910a",
+    measurementId:     "G-76TZ6XF8WL"
   },
   gameSlot3: {
     apiKey: "AIzaSyDYc1sVr5sp6YGDZsDs3AN-FXhZGkaZAvA",
@@ -73,8 +71,6 @@ export const gameDatabaseConfigs = {
 let menuApp = null;
 export let gamesRef = null;
 export let usersRef = null;
-// Import the cleanup monitor function
-// Make sure the path to network.js is correct relative to firebase-config.js
 
 export function initializeMenuFirebase() {
   if (menuApp) return;
@@ -84,21 +80,19 @@ export function initializeMenuFirebase() {
     menuApp = firebase.initializeApp(menuConfig, "menuApp");
   }
   const db = menuApp.database();
-  gamesRef = db.ref("games");
-  usersRef = db.ref("users");
-
-  // Call the stale game cleanup monitor here, AFTER gamesRef is initialized
-  console.log("[firebase-config.js] Initialized menu Firebase and started stale game cleanup monitor.");
+  gamesRef     = db.ref("games");
+  usersRef     = db.ref("users");
 }
-
-initializeMenuFirebase(); // This call will now also start the monitor
+initializeMenuFirebase();
 
 // Metadata of slots in the lobby DB
-// Ensure menuApp is initialized before trying to use it here.
-// Since initializeMenuFirebase is called immediately, menuApp should be available.
 export const slotsRef = menuApp.database().ref("slots");
 
 export let activeGameId = null;
+
+// inside initNetwork(), after you do:
+//   const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
+
 
 const gameApps = {};
 
@@ -106,8 +100,7 @@ const gameApps = {};
  * Claim the first free slot by inspecting its own /game node.
  */
 export async function claimGameSlot(username, map, ffaEnabled) {
-  let chosenKey = null,
-    chosenApp = null;
+  let chosenKey = null, chosenApp = null;
 
   // Find the first free slot by checking its own /game node
   for (let slotName in gameDatabaseConfigs) {
@@ -161,21 +154,16 @@ export async function claimGameSlot(username, map, ffaEnabled) {
     gameConfigRef: gameRef.child("gameConfig")
   };
 
-  return {
-    slotName: chosenKey,
-    dbRefs
-  };
+  return { slotName: chosenKey, dbRefs };
 }
 /**
  * Release the slot by clearing /game in its own DB and marking it free in lobby.
  */
 export async function releaseGameSlot(slotName) {
   // 1) Mark the slot free
-  await slotsRef.child(slotName).set({
-    status: "free"
-  });
+  await slotsRef.child(slotName).set({ status: "free" });
 
-  // 2) Clear the per-slot game data
+  // 2) Clear the per‑slot game data
   const app = gameApps[slotName];
   if (app) {
     await app.database().ref("game").remove();
