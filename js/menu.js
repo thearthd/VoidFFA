@@ -23,12 +23,16 @@ horse power
 // If `gamesRef` is not automatically global, uncomment and use this (requires Firebase SDK loaded):
 // const gamesRef = firebase.app("menuApp").database().ref("games");
 
+
+const CLIENT_GAME_VERSION = "v1.00";
+
+
 // Placeholder for external imports, adjust paths as needed
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
 import { initNetwork, setActiveGameId } from "./network.js";
-import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef } from './firebase-config.js';
+import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, requiredGameVersion, assignPlayerVersion, } from './firebase-config.js';
 
 import {  showLoadoutScreen, hideLoadoutScreen } from "./loadout.js";
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
@@ -1324,16 +1328,30 @@ function playButtonHit() {
  * Handles the "Create Game" button click.
  * Uses SweetAlert2 for input and pushes game data to Firebase.
  */
-async function createGameButtonHit() {
+export async function createGameButtonHit() {
     username = localStorage.getItem("username");
+
+    // Assign the player's current version when they attempt to create a game
+    // Store it in localStorage for consistency across different parts of the menu
+    localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
+    await assignPlayerVersion(username, CLIENT_GAME_VERSION);
+
+
     if (!username || !username.trim()) {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
 
-    const { value: formValues } = await Swal.fire({
+    // Version check before creating a game
+    // This uses the dynamically loaded `requiredGameVersion` from firebase-config.js
+    if (CLIENT_GAME_VERSION !== requiredGameVersion) {
+        return Swal.fire('Update Required', `Your game version (${CLIENT_GAME_VERSION}) does not match the required version (${requiredGameVersion}). Please update your game to create games.`, 'error');
+    }
+
+    const {
+        value: formValues
+    } = await Swal.fire({
         title: 'Create New Game',
-        html:
-            `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
+        html: `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
             '<select id="swal-input2" class="swal2-select">' +
             '<option value="">Select Map</option>' +
             '<option value="DiddyDunes">DiddyDunes</option>' +
@@ -1346,13 +1364,17 @@ async function createGameButtonHit() {
         focusConfirm: false,
         preConfirm: () => {
             const gameName = document.getElementById('swal-input1').value;
-            const map      = document.getElementById('swal-input2').value;
-            const mode     = document.getElementById('swal-input3').value;
+            const map = document.getElementById('swal-input2').value;
+            const mode = document.getElementById('swal-input3').value;
             if (!gameName || !map || !mode) {
-                Swal.showValidationMessage(`Please fill all fields`);
+                Swal.showValidationValidationMessage(`Please fill all fields`);
                 return false;
             }
-            return { gameName, map, gamemode: mode };
+            return {
+                gameName,
+                map,
+                gamemode: mode
+            };
         }
     });
 
@@ -1360,28 +1382,29 @@ async function createGameButtonHit() {
         return;
     }
 
-const gameData = {
-  gameName:  formValues.gameName,
-  map:       formValues.map,
-  gamemode:  formValues.gamemode,
-  host:      username,
-  createdAt: firebase.database.ServerValue.TIMESTAMP,
-  status:    "waiting"          // ← add this
-};
+    const gameData = {
+        gameName: formValues.gameName,
+        map: formValues.map,
+        gamemode: formValues.gamemode,
+        host: username,
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        status: "waiting",
+        gameVersion: CLIENT_GAME_VERSION // Add the game version to the lobby entry
+    };
 
     try {
         // 1) push to games list
         const newGameRef = gamesRef.push();
         await newGameRef.set(gameData);
         const gameId = newGameRef.key;
-          let ffaEnabled = true;
+        let ffaEnabled = true;
         // 2) try to claim a slot
         const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
-         await gamesRef.child(gameId).child('status').set("starting");
+        await gamesRef.child(gameId).child('status').set("starting");
         if (!slotResult) {
             // 🔥 Dispose of the just-created game
             await newGameRef.remove();
-            Swal.fire('Error', 'No free slots available. Game discarded.', 'error');
+            Swal.fire('Error', 'No free slots available or version mismatch. Game discarded.', 'error');
             return;
         }
 
@@ -1396,7 +1419,7 @@ const gameData = {
             confirmButtonText: 'Join Game'
         }).then(res => {
             if (res.isConfirmed) {
-               // nice
+                // nice
             } else {
                 // nice
             }
@@ -1404,12 +1427,12 @@ const gameData = {
 
     } catch (error) {
         console.error("Error creating game:", error);
-        Swal.fire('Error','Could not create game: ' + error.message,'error');
+        Swal.fire('Error', 'Could not create game: ' + error.message, 'error');
     }
 }
 
 
-async function gamesButtonHit() {
+export async function gamesButtonHit() {
     clearMenuCanvas();
     add(logo);
     let loadingText = new Text("Loading games...", "30pt Arial");
@@ -1418,26 +1441,38 @@ async function gamesButtonHit() {
     add(loadingText);
     currentMenuObjects.push(loadingText);
 
+    username = localStorage.getItem("username");
+    // Assign player's current version when they attempt to browse games
+    localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
+    if (username) {
+        await assignPlayerVersion(username, CLIENT_GAME_VERSION);
+    }
+
     try {
         const snapshot = await gamesRef.once('value');
         const gamesObj = snapshot.val() || {};
 
         const activeSlots = Object.entries(gamesObj)
-            .filter(([id, game]) => game.status === "waiting" || game.status === "starting")
+            .filter(([id, game]) => {
+                // Filter out games that don't match the client's version
+                return (game.status === "waiting" || game.status === "starting") &&
+                    game.gameVersion === CLIENT_GAME_VERSION; // Only show games that match player's version
+            })
             .map(([id, game]) => ({
                 id,
-                gameName: game.gameName,    // ← include gameName
-                host:     game.host,
-                map:      game.map,
+                gameName: game.gameName,
+                host: game.host,
+                map: game.map,
                 createdAt: game.createdAt,
-                slot:     game.slot
+                slot: game.slot,
+                gameVersion: game.gameVersion // Include gameVersion in the slot info
             }))
             .sort((a, b) => b.createdAt - a.createdAt);
 
         remove(loadingText);
 
         if (activeSlots.length === 0) {
-            let none = new Text("No active games available. Create one!", "30pt Arial");
+            let none = new Text("No active games available for your version. Create one!", "30pt Arial");
             none.setColor("#ffffff");
             none.setPosition(getWidth() / 2, getHeight() / 2);
             add(none);
@@ -1455,8 +1490,8 @@ async function gamesButtonHit() {
 
         for (let i = 0; i < pageSlots.length; i++) {
             const slotInfo = pageSlots[i];
-            const gameId   = slotInfo.id;
-            const mapName  = slotInfo.map;
+            const gameId = slotInfo.id;
+            const mapName = slotInfo.map;
             const y = yStart + i * entryHeight;
 
             // Background hitbox
@@ -1466,8 +1501,16 @@ async function gamesButtonHit() {
                 getWidth() * 0.8,
                 100,
                 "rgba(50,50,50,0.7)",
-                () => {
+                async () => { // Made the callback async
                     console.log(`Joining game ${slotInfo.gameName} on map ${mapName}`);
+                    // Version check before joining a game
+                    const playerVersion = localStorage.getItem("playerVersion"); // The client's version
+                    if (playerVersion !== slotInfo.gameVersion) {
+                        Swal.fire('Version Mismatch', `This game requires version ${slotInfo.gameVersion}, but your game is version ${playerVersion || 'N/A'}. Please update to join.`, 'error');
+                        return; // Prevent joining the game
+                    }
+
+                    // If versions match, proceed to join
                     setActiveGameId(gameId);
                     initAndStartGame(username, mapName, gameId);
                 }
@@ -1482,8 +1525,8 @@ async function gamesButtonHit() {
             add(titleText);
             currentMenuObjects.push(titleText);
 
-            // Map details
-            let detailsText = new Text(`Map: ${slotInfo.map}`, "15pt Arial");
+            // Map details with version info
+            let detailsText = new Text(`Map: ${slotInfo.map} (Ver: ${slotInfo.gameVersion})`, "15pt Arial");
             detailsText.setColor("#999999");
             detailsText.setPosition(getWidth() * 0.5, y + 30);
             add(detailsText);
@@ -1498,7 +1541,10 @@ async function gamesButtonHit() {
                 "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d",
                 getWidth() / 2 - 150, paginationY,
                 70, 70,
-                () => { currentPage--; gamesButtonHit(); },
+                () => {
+                    currentPage--;
+                    gamesButtonHit();
+                },
                 ""
             );
             leftArrow.image.setLayer(4);
@@ -1511,7 +1557,10 @@ async function gamesButtonHit() {
                 "https://codehs.com/uploads/1bb4c45ae81aae1da5cebb8bb0713748",
                 getWidth() / 2 + 80, paginationY,
                 70, 70,
-                () => { currentPage++; gamesButtonHit(); },
+                () => {
+                    currentPage++;
+                    gamesButtonHit();
+                },
                 ""
             );
             rightArrow.image.setLayer(4);
