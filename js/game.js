@@ -557,176 +557,342 @@ delete pendingRestore[victimId];
 
 // Game Start
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
-  const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
-  if (!networkOk) return;
-  playersRef    = dbRefs.playersRef;
-  gameConfigRef = dbRefs.gameConfigRef;
-  const gameTimerElement = document.getElementById('game-timer');
+    console.log("[game.js] startGame for", username, mapName, gameId, ffaEnabled);
 
-  if (ffaEnabled) {
-    gameTimerElement.style.display = 'block';
+    // Call setActiveGameId as early as possible
+    setActiveGameId(gameId); // This ensures activeGameId is set for fullCleanup later
 
-    const INITIAL_DURATION = 1 * 60;
-    let currentRemainingSeconds = null;
-    let gameEnded = false;
-    let ownerInterval = null;
-    let uiInterval = null;
-    let ownerId = null;
+    const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
+    if (!networkOk) return;
 
-    const ownerRef = gameConfigRef.child('owner');
-    function tryElectSelf() {
-      ownerRef.transaction(curr => curr === null ? localPlayerId : undefined);
-    }
-    tryElectSelf();
-    ownerRef.onDisconnect().remove();
+    // Now that initNetwork has run, dbRefs should be populated
+    playersRef = dbRefs.playersRef;
+    gameConfigRef = dbRefs.gameConfigRef;
 
-    ownerRef.on('value', snap => {
-      ownerId = snap.val();
-      if (ownerId === localPlayerId && ownerInterval === null) {
-        ownerInterval = setInterval(() => {
-          if (gameEnded || currentRemainingSeconds == null) return;
-          if (currentRemainingSeconds <= 0) {
-            gameConfigRef.child('ended').set(true);
-            return;
-          }
-          currentRemainingSeconds--;
-          gameConfigRef.child('gameDuration').set(currentRemainingSeconds);
-        }, 1000);
-      }
-      if (ownerId !== localPlayerId && ownerInterval !== null) {
-        clearInterval(ownerInterval);
-        ownerInterval = null;
-      }
-      if (ownerId === null) {
+    const gameTimerElement = document.getElementById('game-timer');
+
+    if (ffaEnabled) {
+        gameTimerElement.style.display = 'block';
+
+        const INITIAL_DURATION = 10 * 60; // 10 minutes
+        let currentRemainingSeconds = null;
+        let gameEnded = false;
+        let ownerInterval = null;
+        let uiInterval = null;
+        let ownerId = null;
+
+        const ownerRef = gameConfigRef.child('owner');
+        const gameDurationRef = gameConfigRef.child('gameDuration');
+        const gameEndedRef = gameConfigRef.child('ended');
+
+        // Function to try and elect self as owner
+        function tryElectSelf() {
+            // Only try to elect if there's no owner or if current owner is explicitly null
+            ownerRef.transaction(curr => {
+                if (curr === null || typeof curr === 'undefined') {
+                    console.log(`[startGame] Electing self (${localPlayerId}) as owner.`);
+                    return localPlayerId;
+                }
+                return undefined; // Abort transaction if an owner already exists
+            }).then(({ committed, snapshot }) => {
+                if (committed) {
+                    console.log(`[startGame] Successfully became owner: ${snapshot.val()}`);
+                } else if (snapshot.val() !== localPlayerId) {
+                    console.log(`[startGame] Another player ${snapshot.val()} is already the owner.`);
+                }
+            }).catch(error => {
+                console.error("[startGame] Owner election transaction failed:", error);
+            });
+        }
+
+        // Set onDisconnect for owner if this player is the owner
+        // This is crucial: if the *elected* owner disconnects, their entry is removed.
+        // Another player will then be able to elect themselves.
+        ownerRef.onDisconnect().remove().then(() => {
+            console.log(`[startGame] onDisconnect set for owner ref for player ${localPlayerId}`);
+        }).catch(err => console.error("[startGame] Failed to set onDisconnect for owner ref:", err));
+
+        // Initial attempt to elect self as owner
         tryElectSelf();
-      }
-    });
 
-    const durationRef = gameConfigRef.child('gameDuration');
-    durationRef.on('value', snap => {
-      const val = snap.val();
-      if (typeof val === 'number') {
-        currentRemainingSeconds = val;
-      } else if (val === null && ownerId === localPlayerId && !gameEnded) {
-        durationRef.set(INITIAL_DURATION);
-      }
-    });
+        // Listen for owner changes
+        ownerRef.on('value', snap => {
+            ownerId = snap.val();
+            console.log(`[startGame] Current game owner: ${ownerId}`);
 
-    const endedRef = gameConfigRef.child('ended');
-    endedRef.on('value', snap => {
-      if (snap.val() === true && !gameEnded) {
-        gameEnded = true;
-        if (ownerInterval) clearInterval(ownerInterval);
-        if (uiInterval) clearInterval(uiInterval);
-        ownerRef.off('value');
-        durationRef.off('value');
-        endedRef.off('value');
-        gameTimerElement.textContent = 'TIME UP!';
-        determineWinnerAndEndGame();
-      }
-    });
+            // If I am the owner and the interval is not running, start it
+            if (ownerId === localPlayerId && ownerInterval === null) {
+                console.log(`[startGame] I am the owner. Starting owner interval.`);
+                ownerInterval = setInterval(() => {
+                    // Only update if game hasn't ended and timer is valid
+                    if (gameEnded || currentRemainingSeconds === null) {
+                        // If game ended, ensure the interval clears itself
+                        if (gameEnded && ownerInterval) {
+                            clearInterval(ownerInterval);
+                            ownerInterval = null;
+                            console.log("[startGame] Owner interval cleared due to game ending.");
+                        }
+                        return;
+                    }
 
-    uiInterval = setInterval(() => {
-      if (currentRemainingSeconds == null) {
-        gameTimerElement.textContent = 'Time: Syncing…';
-      } else {
-        const mins = Math.floor(currentRemainingSeconds / 60);
-        const secs = currentRemainingSeconds % 60;
-        gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
-      }
-    }, 250);
+                    if (currentRemainingSeconds <= 0) {
+                        console.log("[startGame] Game timer reached 0. Setting game ended flag.");
+                        gameEndedRef.set(true); // Signal game end
+                        // Ensure owner interval stops after setting ended flag
+                        if (ownerInterval) {
+                            clearInterval(ownerInterval);
+                            ownerInterval = null;
+                        }
+                        return;
+                    }
+                    console.log(`[startGame] Owner updating gameDuration: ${currentRemainingSeconds - 1}`);
+                    gameDurationRef.set(currentRemainingSeconds - 1);
+                }, 1000);
+            }
+            // If I am NOT the owner and my interval IS running, stop it
+            if (ownerId !== localPlayerId && ownerInterval !== null) {
+                console.log("[startGame] No longer owner or owner changed. Clearing owner interval.");
+                clearInterval(ownerInterval);
+                ownerInterval = null;
+            }
+            // If there's no owner, try to elect one (important if owner disconnected)
+            if (ownerId === null) {
+                console.log("[startGame] No owner detected. Attempting to elect self.");
+                tryElectSelf();
+            }
+        });
 
-    if (playersKillsListener) {
-      playersRef.off('value', playersKillsListener);
+
+        // Listen for gameDuration changes
+        gameDurationRef.on('value', snap => {
+            const val = snap.val();
+            if (typeof val === 'number') {
+                currentRemainingSeconds = val;
+            } else if (val === null && ownerId === localPlayerId && !gameEnded) {
+                // If duration is null (e.g., first time or cleared) and I'm the owner, initialize it
+                console.log("[startGame] Game duration is null. Initializing with INITIAL_DURATION.");
+                gameDurationRef.set(INITIAL_DURATION);
+            }
+        });
+
+        // Listen for game ended flag
+        gameEndedRef.on('value', snap => {
+            if (snap.val() === true && !gameEnded) {
+                gameEnded = true;
+                console.log("[startGame] Game ended flag detected. Initiating game end process.");
+
+                // Stop all related intervals and listeners to prevent further updates
+                if (ownerInterval) {
+                    clearInterval(ownerInterval);
+                    ownerInterval = null;
+                }
+                if (uiInterval) {
+                    clearInterval(uiInterval);
+                    uiInterval = null;
+                }
+                ownerRef.off('value');
+                gameDurationRef.off('value');
+                gameEndedRef.off('value');
+
+                gameTimerElement.textContent = 'TIME UP!';
+                determineWinnerAndEndGame(gameId); // Pass gameId to ensure fullCleanup has it
+            }
+        });
+
+        // UI update interval for timer display
+        uiInterval = setInterval(() => {
+            if (currentRemainingSeconds === null) {
+                gameTimerElement.textContent = 'Time: Syncing…';
+            } else {
+                const mins = Math.floor(currentRemainingSeconds / 60);
+                const secs = currentRemainingSeconds % 60;
+                gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+        }, 250);
+
+        // Kills listener for ending game based on kill count
+        if (playersKillsListener) {
+            playersRef.off('value', playersKillsListener);
+        }
+        playersKillsListener = playersRef.on('value', snap => {
+            let reached = false;
+            snap.forEach(childSnap => {
+                if (childSnap.val().kills >= 40) reached = true;
+            });
+            if (reached && !gameEnded) {
+                console.log("[startGame] Kill limit reached (40 kills). Setting game ended flag.");
+                gameEndedRef.set(true);
+            }
+        });
+
+    } else {
+        // If FFA is not enabled, hide timer and clean up related refs
+        gameTimerElement.style.display = 'none';
+        if (window.gameInterval) clearInterval(window.gameInterval); // Assuming window.gameInterval is the main game loop interval
+        // Also clear owner/duration/ended config if not FFA
+        gameConfigRef.child('owner').remove();
+        gameConfigRef.child('gameDuration').remove();
+        gameConfigRef.child('ended').remove();
     }
-    playersKillsListener = playersRef.on('value', snap => {
-      let reached = false;
-      snap.forEach(childSnap => {
-        if (childSnap.val().kills >= 40) reached = true;
-      });
-      if (reached && !gameEnded) {
-        endedRef.set(true);
-      }
+
+    // ... rest of startGame function (initialization of game, player, UI, etc.) ...
+    initGlobalFogAndShadowParams();
+    window.isGamePaused = false;
+    document.getElementById('menu-overlay').style.display = 'none';
+    document.body.classList.add('game-active');
+    document.getElementById('game-container').style.display = 'block';
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('crosshair').style.display = 'block';
+
+    if (!localPlayerId) return;
+
+    window.physicsController = new PhysicsController(window.camera, scene);
+    physicsController = window.physicsController; // Assign to local variable too
+    weaponController = new WeaponController(
+        window.camera,
+        dbRefs.playersRef,
+        dbRefs.mapStateRef.child('bullets'),
+        createTracer,
+        localPlayerId,
+        physicsController
+    );
+    window.weaponController = weaponController;
+
+    if (mapName === 'CrocodilosConstruction') {
+        await initSceneCrocodilosConstruction();
+    } else if (mapName === 'SigmaCity') {
+        await initSceneSigmaCity();
+    } else if (mapName === 'DiddyDunes') {
+        await initSceneDiddyDunes();
+    }
+
+    initInput();
+    initChatUI();
+    initBulletHoles();
+    initializeAudioManager(window.camera, scene);
+    startSoundListener();
+
+    const spawn = findFurthestSpawn();
+    window.localPlayer = {
+        id: localPlayerId,
+        username,
+        x: spawn.x,
+        y: spawn.y,
+        z: spawn.z,
+        rotY: 0,
+        health: initialPlayerHealth,
+        shield: initialPlayerShield,
+        weapon: initialPlayerWeapon,
+        kills: 0,
+        deaths: 0,
+        ks: 0,
+        bodyColor: Math.floor(Math.random() * 0xffffff),
+        isDead: false
+    };
+    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
+
+    await dbRefs.playersRef.child(localPlayerId).set({
+        ...window.localPlayer,
+        lastUpdate: Date.now()
     });
+    updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+    weaponController.equipWeapon(window.localPlayer.weapon);
+    initInventory(window.localPlayer.weapon);
+    initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
+    updateInventory(window.localPlayer.weapon);
+    updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
 
-  } else {
-    gameTimerElement.style.display = 'none';
-    if (gameInterval) clearInterval(gameInterval);
-    gameConfigRef.remove();
-  }
-
-  initGlobalFogAndShadowParams();
-  window.isGamePaused = false;
-  document.getElementById('menu-overlay').style.display = 'none';
-  document.body.classList.add('game-active');
-  document.getElementById('game-container').style.display = 'block';
-  document.getElementById('hud').style.display = 'block';
-  document.getElementById('crosshair').style.display = 'block';
-
-  if (!localPlayerId) return;
-
-  window.physicsController = new PhysicsController(window.camera, scene);
-  physicsController        = window.physicsController;
-  weaponController         = new WeaponController(
-    window.camera,
-    dbRefs.playersRef,
-    dbRefs.mapStateRef.child('bullets'),
-    createTracer,
-    localPlayerId,
-    physicsController
-  );
-  window.weaponController = weaponController;
-
-  if (mapName === 'CrocodilosConstruction') {
-    await initSceneCrocodilosConstruction();
-  } else if (mapName === 'SigmaCity') {
-    await initSceneSigmaCity();
-  } else if (mapName === 'DiddyDunes') {
-    await initSceneDiddyDunes();
-  }
-
-  initInput();
-  initChatUI();
-  initBulletHoles();
-  initializeAudioManager(window.camera, scene);
-  startSoundListener();
-
-  const spawn = findFurthestSpawn();
-  window.localPlayer = {
-    id: localPlayerId,
-    username,
-    x: spawn.x,
-    y: spawn.y,
-    z: spawn.z,
-    rotY: 0,
-    health: initialPlayerHealth,
-    shield: initialPlayerShield,
-    weapon: initialPlayerWeapon,
-    kills: 0,
-    deaths: 0,
-    ks: 0,
-    bodyColor: Math.floor(Math.random() * 0xffffff),
-    isDead: false
-  };
-  window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-
-  await dbRefs.playersRef.child(localPlayerId).set({
-    ...window.localPlayer,
-    lastUpdate: Date.now()
-  });
-  updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
-  weaponController.equipWeapon(window.localPlayer.weapon);
-  initInventory(window.localPlayer.weapon);
-  initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
-  updateInventory(window.localPlayer.weapon);
-  updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
-
-  createRespawnOverlay();
-  createFadeOverlay();
-  createLeaderboardOverlay();
-  animate();
+    createRespawnOverlay();
+    createFadeOverlay();
+    createLeaderboardOverlay();
+    animate();
 }
 
+// Ensure determineWinnerAndEndGame also receives gameId
+async function determineWinnerAndEndGame(gameId) {
+    console.log("Determining winner and ending game...");
+    if (!playersRef) {
+        console.error("determineWinnerAndEndGame: playersRef is NULL");
+        return;
+    }
+
+    const playersSnapshot = await playersRef.once("value");
+    const statsByUser = {};
+    playersSnapshot.forEach(childSnap => {
+        const p = childSnap.val();
+        if (!p || typeof p.kills !== 'number') return;
+        statsByUser[p.username] = {
+            kills: p.kills || 0,
+            deaths: p.deaths || 0,
+            win: 0,
+            loss: 0
+        };
+    });
+
+    const allStats = Object.values(statsByUser);
+    if (allStats.length === 0) {
+        console.log("No players found");
+    } else {
+        const maxKills = Math.max(...allStats.map(s => s.kills));
+        if (maxKills > 0) {
+            const winners = Object.entries(statsByUser)
+                .filter(([_, s]) => s.kills === maxKills)
+                .map(([u]) => u);
+            for (const username of winners) {
+                statsByUser[username].win = 1;
+            }
+            for (const [username, s] of Object.entries(statsByUser)) {
+                if (!winners.includes(username)) {
+                    s.loss = 1;
+                }
+            }
+            const display = winners.length > 1 ? winners.join(", ") : winners[0];
+            console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
+            localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
+            localStorage.setItem('gameEndedTimestamp', Date.now().toString());
+            const gameTimerEl = document.getElementById("game-timer");
+            if (gameTimerEl) {
+                gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
+                gameTimerEl.style.display = "block";
+            }
+        } else {
+            console.log("No kills recorded, no winners or losers");
+            localStorage.removeItem('gameWinner');
+            localStorage.removeItem('gameEndedTimestamp');
+        }
+    }
+
+    const statUpdates = [];
+    for (const [username, { win, loss }] of Object.entries(statsByUser)) {
+        if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
+        if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
+    }
+    await Promise.all(statUpdates);
+
+    try {
+        await gameConfigRef.remove();
+        console.log("Game config fully removed.");
+    } catch (e) {
+        console.error("Failed to remove gameConfig:", e);
+    }
+
+    if (playersKillsListener) {
+        playersRef.off("value", playersKillsListener);
+        playersKillsListener = null;
+        console.log("Detached players kill listener.");
+    }
+
+    // Pass the gameId to fullCleanup. activeGameId should already be set by initNetwork.
+    // ensure fullCleanup can access the gameId
+    await disposeGame(); // This handles general game state cleanup
+    await fullCleanup(gameId); // This specifically handles Firebase cleanup including lobby entry
+
+    // playerIdsToDisconnect should be handled by fullCleanup's removal of player data
+    // It seems redundant here if fullCleanup is already removing all player data.
+    // You might remove this line, or ensure playerIdsToDisconnect is correctly populated
+    // based on currently active players if you intend a selective disconnect.
+    // playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
+}
 export function hideGameUI() {
   document.getElementById("menu-overlay").style.display = "flex";
   document.body.classList.remove("game-active");
