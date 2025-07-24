@@ -441,7 +441,7 @@ export async function endGameCleanup() {
         localStorage.removeItem(`playerId-${activeGameSlotName}`);
         activeGameSlotName = null;
     }
-
+   const initialSlotName = activeGameSlotName; // Capture it here
             const slotApp = firebase.app(initialSlotName + "App");
             const rootRef = slotApp.database().ref();
             console.log("[fullCleanup] ✓ slot rootRef acquired for", initialSlotName);
