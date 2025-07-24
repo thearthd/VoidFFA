@@ -164,11 +164,11 @@ export function createGameUI(gameWrapper) {
     // Modified: Health and Shield text inside their bars, removed labels
     healthShieldDisplay.innerHTML = `
         <div style="width: 200px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative; margin-bottom: 5px;">
-            <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #5dff54; transition: width 0.1s linear;"></div>
+            <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #4ed147; transition: width 0.1s linear;"></div>
             <span id="health-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em;">100 / 100</span>
         </div>
         <div style="width: 200px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
-            <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #546eff; transition: width 0.1s linear;"></div>
+            <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #4755d1; transition: width 0.1s linear;"></div>
             <span id="shield-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em;">50 / 50</span>
         </div>
     `;
