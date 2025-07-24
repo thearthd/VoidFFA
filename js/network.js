@@ -54,6 +54,7 @@ let tracersListener = null;
 let soundsListener = null;
 let gameConfigListener = null; // Used for the timer, etc.
 
+let staleGameCleanupInterval = null;
 
 export function setActiveGameId(id) {
     activeGameId = id;
