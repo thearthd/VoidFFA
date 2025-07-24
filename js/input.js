@@ -1,4 +1,4 @@
-import { updateInventory } from "./ui.js"
+import { updateInventory } from "./ui.js";
 
 const chatInput = document.getElementById("chat-input");
 
@@ -17,6 +17,7 @@ export const inputState = {
   weaponSwitch: null,
   mouseDX: 0,
   mouseDY: 0,
+  isPaused: false, // Added for pause functionality
 };
 
 let debugCursor, debugX, debugY;
@@ -25,46 +26,75 @@ let debugText;
 // threshold to drop spurious mouse movements
 const MAX_DELTA = 200;
 
-const DEFAULT_PRIMARY   = 'ak-47';
+const DEFAULT_PRIMARY = 'ak-47';
 const DEFAULT_SECONDARY = 'm79';
 
 function getSavedLoadout() {
   return {
-  primary: localStorage.getItem('loadout_primary')   || DEFAULT_PRIMARY,
-  secondary: localStorage.getItem('loadout_secondary') || DEFAULT_SECONDARY,
+    primary: localStorage.getItem('loadout_primary') || DEFAULT_PRIMARY,
+    secondary: localStorage.getItem('loadout_secondary') || DEFAULT_SECONDARY,
   };
 }
 
 let currentPlayerWeaponKey = 'knife';
 
 export function handleWeaponSwitch() {
-    if (inputState.weaponSwitch !== null) {
-        // This means a weapon switch key was just pressed
-        const newWeaponKey = inputState.weaponSwitch;
+  if (inputState.weaponSwitch !== null) {
+    // This means a weapon switch key was just pressed
+    const newWeaponKey = inputState.weaponSwitch;
 
-        // Check if it's actually a different weapon to prevent unnecessary updates
-        if (newWeaponKey !== currentPlayerWeaponKey) {
-            currentPlayerWeaponKey = newWeaponKey;
+    // Check if it's actually a different weapon to prevent unnecessary updates
+    if (newWeaponKey !== currentPlayerWeaponKey) {
+      currentPlayerWeaponKey = newWeaponKey;
 
-            // *********** THIS IS THE CRUCIAL CALL ***********
-            updateInventory(currentPlayerWeaponKey);
-            // *************************************************
+      // *********** THIS IS THE CRUCIAL CALL ***********
+      updateInventory(currentPlayerWeaponKey);
+      // *************************************************
 
-            // You'll also need to update your player's actual weapon model and ammo here
-            // Example (pseudo-code):
-            // player.equipWeapon(currentPlayerWeaponKey);
-            // updateAmmoDisplay(player.currentWeapon.ammo, player.currentWeapon.maxAmmo);
-            console.log(`Switched to weapon: ${currentPlayerWeaponKey}`);
-        }
+      // You'll also need to update your player's actual weapon model and ammo here
+      // Example (pseudo-code):
+      // player.equipWeapon(currentPlayerWeaponKey);
+      // updateAmmoDisplay(player.currentWeapon.ammo, player.currentWeapon.maxAmmo);
+      console.log(`Switched to weapon: ${currentPlayerWeaponKey}`);
     }
+  }
 }
 
+export function setPauseState(paused) {
+  inputState.isPaused = paused;
+  if (paused) {
+    // Release pointer lock when paused
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+    // Reset all current input states to prevent continued actions from before pausing
+    inputState.forward = false;
+    inputState.backward = false;
+    inputState.left = false;
+    inputState.right = false;
+    inputState.crouch = false;
+    inputState.slow = false;
+    inputState.jump = false;
+    inputState.fire = false;
+    inputState.fireJustPressed = false;
+    inputState.reload = false;
+    inputState.aim = false;
+    inputState.weaponSwitch = null;
+    inputState.mouseDX = 0;
+    inputState.mouseDY = 0;
+  }
+  // You would typically call a function here to show/hide your pause menu UI
+  // e.g., if (window.togglePauseMenuUI) window.togglePauseMenuUI(paused);
+}
 
 export function initInput() {
   const elementToLock = document.body;
   const chatInput = document.getElementById("chat-input");
 
   elementToLock.addEventListener("mousedown", (e) => {
+    // Block game input when paused
+    if (inputState.isPaused) return;
+
     if (document.activeElement === chatInput) {
       e.preventDefault();
       return;
@@ -78,7 +108,8 @@ export function initInput() {
     const locked = document.pointerLockElement === elementToLock;
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
-    if (locked) {
+    // Only add mousemove listener if locked AND not paused
+    if (locked && !inputState.isPaused) {
       document.body.style.cursor = "none";
       document.addEventListener("mousemove", onMouseMove, false);
     } else {
@@ -88,20 +119,30 @@ export function initInput() {
   });
 
   window.addEventListener("keydown", (e) => {
-    // Toggle chat on backquote
+    // Always allow Backquote for chat
     if (e.code === "Backquote") {
       if (document.activeElement === chatInput) {
         chatInput.blur();
       } else {
         chatInput.focus();
+        // Clear movement inputs when chat is focused
         inputState.forward = inputState.backward = inputState.left = inputState.right = inputState.fire = false;
       }
       e.preventDefault();
       return;
     }
 
-    // If chat is focused, ignore game keys
-    if (document.activeElement === chatInput) return;
+    // Handle Escape key for pausing/unpausing
+    if (e.code === "Escape") {
+      setPauseState(!inputState.isPaused);
+      // If you have a global function to toggle your pause menu UI, call it here:
+      // if (window.togglePauseMenuUI) window.togglePauseMenuUI(inputState.isPaused);
+      e.preventDefault();
+      return;
+    }
+
+    // If game is paused or chat is focused, ignore other game keys
+    if (inputState.isPaused || document.activeElement === chatInput) return;
 
     const { primary, secondary } = getSavedLoadout();
     let handled = true;
@@ -160,7 +201,11 @@ export function initInput() {
   });
 
   window.addEventListener("keyup", (e) => {
-    if (document.activeElement === chatInput) return;
+    // Always allow Backquote for chat, or Escape to unpause (no action on keyup)
+    if (e.code === "Backquote" || e.code === "Escape") return;
+
+    // If game is paused or chat is focused, ignore other game keys
+    if (inputState.isPaused || document.activeElement === chatInput) return;
 
     let handled = true;
     switch (e.code) {
@@ -210,6 +255,11 @@ export function initInput() {
   });
 
   window.addEventListener("mousedown", (e) => {
+    // Block game input when paused
+    if (inputState.isPaused) {
+      e.preventDefault();
+      return;
+    }
     if (document.activeElement === chatInput) {
       e.preventDefault();
       return;
@@ -227,6 +277,11 @@ export function initInput() {
   });
 
   window.addEventListener("mouseup", (e) => {
+    // Block game input when paused
+    if (inputState.isPaused) {
+      e.preventDefault();
+      return;
+    }
     if (document.activeElement === chatInput) {
       e.preventDefault();
       return;
@@ -243,6 +298,11 @@ export function initInput() {
   });
 
   window.addEventListener("contextmenu", (e) => {
+    // Block game input when paused
+    if (inputState.isPaused) {
+      e.preventDefault();
+      return;
+    }
     if (document.pointerLockElement === elementToLock) {
       e.preventDefault();
     }
@@ -290,7 +350,7 @@ export function updateDebugCursor() {
   debugY = Math.max(0, Math.min(window.innerHeight, debugY));
 
   debugCursor.style.left = debugX + "px";
-  debugCursor.style.top  = debugY + "px";
+  debugCursor.style.top = debugY + "px";
 
   debugText.innerText =
     `∆X: ${inputState.mouseDX}  ∆Y: ${inputState.mouseDY}\n` +
@@ -298,7 +358,7 @@ export function updateDebugCursor() {
 }
 
 export function postFrameCleanup() {
-  inputState.weaponSwitch    = null;
+  inputState.weaponSwitch = null;
   inputState.fireJustPressed = false;
   inputState.mouseDX = 0;
   inputState.mouseDY = 0;
@@ -316,6 +376,7 @@ const chatContainer = document.getElementById("chat-box");
 
 window.addEventListener("keydown", (e) => {
   if (e.code === "KeyC") {
+    // Decide if 'C' can toggle chat when paused; currently it can.
     if (document.activeElement === chatInput) {
       return;
     }
