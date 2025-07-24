@@ -1154,7 +1154,7 @@ window.addEventListener("keydown", e => {
             // If not paused, show the menu and pause
           escMenu.setOpacity(1);
             add(escMenu); // Add the menu to the canvas if not already added
-
+          canvas.style.display = 'flex';
             // Layer the canvas on top by increasing its z-index
             document.getElementById('menuCanvas').style.zIndex = '1000'; 
 
@@ -1168,7 +1168,7 @@ window.addEventListener("keydown", e => {
             
             // Reset canvas z-index
             document.getElementById('menuCanvas').style.zIndex = ''; 
-
+           canvas.style.display = 'none';
             // Hide and lock the cursor
             document.body.style.cursor = 'none'; 
 
