@@ -149,29 +149,24 @@ export function createGameUI(gameWrapper) {
         transform: 'translateX(-50%)',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'flex-start', // Align items to the start for bars
+        alignItems: 'center', // Center align the bars
         zIndex: '1000',
         pointerEvents: 'none',
         color: 'white',
         fontFamily: 'Arial, sans-serif',
         textShadow: '1px 1px 2px black',
+        // Removed background for a cleaner look
     });
 
-    // Reverted to original bar structure
+    // Modified: Health and Shield text inside their bars, removed labels
     healthShieldDisplay.innerHTML = `
-        <div style="display: flex; align-items: center; margin-bottom: 5px;">
-            <span style="margin-right: 5px;">HP:</span>
-            <div style="width: 100px; height: 15px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
-                <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #0f0; transition: width 0.1s linear;"></div>
-            </div>
-            <span id="health-text" style="margin-left: 5px;">100 / 100</span>
+        <div style="width: 120px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative; margin-bottom: 5px;">
+            <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #0f0; transition: width 0.1s linear;"></div>
+            <span id="health-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em;">100 / 100</span>
         </div>
-        <div style="display: flex; align-items: center;">
-            <span style="margin-right: 5px;">SHIELD:</span>
-            <div style="width: 100px; height: 15px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
-                <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #00f; transition: width 0.1s linear;"></div>
-            </div>
-            <span id="shield-text" style="margin-left: 5px;">50 / 50</span>
+        <div style="width: 120px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
+            <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #00f; transition: width 0.1s linear;"></div>
+            <span id="shield-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em;">50 / 50</span>
         </div>
     `;
     hud.appendChild(healthShieldDisplay);
@@ -182,19 +177,15 @@ export function createGameUI(gameWrapper) {
     Object.assign(ammoDiv.style, {
         position: "absolute",
         bottom: "20px", // Same bottom as inventory to be on its right
-        // Left positioning will be relative to inventory
         color: "white",
         fontSize: "1.2rem",
         fontFamily: "Arial, sans-serif",
         textShadow: "1px 1px 2px black",
         zIndex: "1000",
         pointerEvents: "none",
-        // Added some padding/background for clarity
-        padding: '5px 10px',
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        borderRadius: '5px'
+        // Removed background, padding, and border-radius
     });
-    hud.appendChild(ammoDiv); // Append to hud
+    hud.appendChild(ammoDiv);
 
 
     // Initialize listeners for interactive UI elements
