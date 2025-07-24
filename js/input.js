@@ -313,7 +313,7 @@ export function initInput() {
         break;
     }
   });
-
+/*
   window.addEventListener("contextmenu", (e) => {
     // Prevent default context menu from appearing if pointer is locked
     // or if the game is paused (where you might have your own menu)
@@ -322,7 +322,7 @@ export function initInput() {
     }
   });
 }
-
+*/
 export function initDebugCursor() {
   debugCursor = document.createElement("div");
   Object.assign(debugCursor.style, {
