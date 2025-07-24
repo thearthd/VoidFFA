@@ -1340,7 +1340,7 @@ export async function createGameButtonHit() {
     if (!username || !username.trim()) {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
-
+     console.log(requiredGameVersion);
     // Version check before creating a game
     // This uses the dynamically loaded `requiredGameVersion` from firebase-config.js
     if (CLIENT_GAME_VERSION !== requiredGameVersion) {
