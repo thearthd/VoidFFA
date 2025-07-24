@@ -995,7 +995,7 @@ onWindowResize(); // Call once initially to set the correct sizes
 
 
 export async function initSceneDiddyDunes() { // Make initSceneCrocodilosConstruction async
-sceneNum = 2;
+sceneNum = 3;
 console.log("Initializing DiddyDunes scene...");
 
 scene = new THREE.Scene();
