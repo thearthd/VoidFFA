@@ -33,6 +33,31 @@ function getSavedLoadout() {
   };
 }
 
+let currentPlayerWeaponKey = 'knife';
+
+export function handleWeaponSwitch() {
+    if (inputState.weaponSwitch !== null) {
+        // This means a weapon switch key was just pressed
+        const newWeaponKey = inputState.weaponSwitch;
+
+        // Check if it's actually a different weapon to prevent unnecessary updates
+        if (newWeaponKey !== currentPlayerWeaponKey) {
+            currentPlayerWeaponKey = newWeaponKey;
+
+            // *********** THIS IS THE CRUCIAL CALL ***********
+            updateInventory(currentPlayerWeaponKey);
+            // *************************************************
+
+            // You'll also need to update your player's actual weapon model and ammo here
+            // Example (pseudo-code):
+            // player.equipWeapon(currentPlayerWeaponKey);
+            // updateAmmoDisplay(player.currentWeapon.ammo, player.currentWeapon.maxAmmo);
+            console.log(`Switched to weapon: ${currentPlayerWeaponKey}`);
+        }
+    }
+}
+
+
 export function initInput() {
   const elementToLock = document.body;
   const chatInput = document.getElementById("chat-input");
