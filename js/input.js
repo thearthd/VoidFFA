@@ -1,3 +1,5 @@
+import { updateInventory } from "./ui.js"
+
 const chatInput = document.getElementById("chat-input");
 
 export const inputState = {
