@@ -321,8 +321,9 @@ export function initInput() {
       e.preventDefault();
     }
   });
+  */
 }
-*/
+
 export function initDebugCursor() {
   debugCursor = document.createElement("div");
   Object.assign(debugCursor.style, {
