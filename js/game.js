@@ -655,24 +655,6 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     gameConfigRef.remove();
   }
 
-    playersRef.on('value', async snap => {
-  // If there are *no* children left, *then* do the full cleanup exactly once
-  if (!snap.exists()) {
-    console.log("playersRef is empty → performing full cleanup");
-    // detach this listener so it only fires once
-    playersRef.off('value');
-    // now teardown everything
-    await releaseGameSlot(activeGameSlotName);
-    console.log(`Slot ${activeGameSlotName} released`);
-    activeGameSlotName = null;
-    await gamesRef.child(activeGameId).remove();
-    console.log(`Lobby entry ${activeGameId} removed`);
-    const slotApp = firebase.app(initialSlotName + "App");
-    await slotApp.database().ref().child('game').remove();
-    console.log("/game node removed for slot", initialSlotName);
-  }
-});
-
   initGlobalFogAndShadowParams();
   window.isGamePaused = false;
   document.getElementById('menu-overlay').style.display = 'none';
