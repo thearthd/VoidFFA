@@ -541,7 +541,7 @@ const WEAPON_IMAGES = {
     'deagle': 'https://codehs.com/uploads/3a742a06b29233afdce01154d0c2247d',
     'marshal': 'https://codehs.com/uploads/231ea31e130955d00410d9b3d5f3a3b5',
     'm79': 'https://codehs.com/uploads/967700dec4457f4bf0461e723d74550d',
-    'knife': 'https://codehs.com/uploads/d4a2a1b1b2a4d3c3b0f5b7d9e8c7c9f8' // Assuming you have a knife image
+    'knife': 'https://codehs.com/uploads/77bebb74c5fca4548f6be9b19974bcbb' // Assuming you have a knife image
 };
 
 function getSavedLoadout() {
