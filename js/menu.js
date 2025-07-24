@@ -1170,13 +1170,18 @@ function inGameSettingsButtonHit() {
         sensitivitySliderContainer.style.display = "flex"; // Or "block", depending on your CSS layout
     }
 
-     settingsBox.style.display = "block"; // Or "flex", depending on your CSS layout
+            settingsBox.style.display = 'block';
+            settingsBox.style.position = 'fixed';
+            settingsBox.style.top = '0';
+            settingsBox.style.left = '0';
+            settingsBox.style.width = '100%';
+            settingsBox.style.height = '100%';
+            settingsBox.style.zIndex = '1000';
 
 
     // Add a back button to return from the settings to the escape menu
     // You'll need to define a function for this back button's click handler.
     // For example, a function that removes settings elements and re-adds escMenu and inGameSettingsBtn.
-    addBackButton(escMenu); // Passing escMenu or a specific function to return to the esc menu state
 }
 
 // Make the inGameSettingsBtn clickable using your makeButton function
