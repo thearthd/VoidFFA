@@ -33,7 +33,7 @@ import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
 import { initNetwork, setActiveGameId } from "./network.js";
 import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, requiredGameVersion, assignPlayerVersion, } from './firebase-config.js';
-
+import { setPauseState } from "./input.js";
 import {  showLoadoutScreen, hideLoadoutScreen } from "./loadout.js";
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
 // <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -1133,116 +1133,121 @@ disclaimerText.setPosition(getWidth()/2, getHeight()-100);
 
 
 let escMenu = new ImageShape("https://codehs.com/uploads/badb165ef3d765a60258ba9db41f3f28");
-escMenu.setSize(1920/2, 1080/2);
-escMenu.setPosition(getWidth()/2 - (1920/4), getHeight()/2 - (1080/4));
-
+escMenu.setSize(1920 / 2, 1080 / 2);
+escMenu.setPosition(getWidth() / 2 - (1920 / 4), getHeight() / 2 - (1080 / 4));
 
 let inGameSettingsBtn = createAnimatedButton(
     "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
-    1920/8, 1080/8,
-    getWidth()/2 - (1920/8)/2, getHeight()/2 - (1080/8)/2,
-    1920/8, 1080/8,
+    1920 / 8, 1080 / 8,
+    getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 - (1080 / 8) / 2,
+    1920 / 8, 1080 / 8,
     () => {
         console.log("inGameSettingsBtn hit");
-          inGameSettingsButtonHit();
-         playButtonClick();
+        inGameSettingsButtonHit();
+        playButtonClick();
     }
 );
 
-
-
-
-// This function will be called when the in-game settings button is clicked.
+/**
+ * Handles the display of the in-game settings menu.
+ * This function should be called when the settings button is clicked from the main escape menu.
+ */
 function inGameSettingsButtonHit() {
-    // You'll need to define clearMenuCanvas and add(settingsMenu) if they
-    // aren't already defined in your global scope.
-    // For now, let's assume they exist as per your provided context.
-    clearMenuCanvas();
-    add(settingsMenu); // Assuming settingsMenu is the container for your settings UI
-     
+    clearMenuCanvas(); // Clear current menu elements
+    add(settingsMenu); // Add the settings UI container
 
+    // Show settings-specific elements
+    sensitivitySliderContainer.style.display = "flex"; // Or "block"
+    settingsBox.style.display = 'block';
 
-    // Show these elements
-     sensitivitySliderContainer.style.display = "flex"; // Or "block", depending on your CSS layout
-
-     settingsBox.style.display = 'block';
-
-
-    // Add a back button to return from the settings to the escape menu
-    // You'll need to define a function for this back button's click handler.
-    // For example, a function that removes settings elements and re-adds escMenu and inGameSettingsBtn.
-     addBackButton(inGameBack);
+    addBackButton(inGameBack); // Add a back button to return to the escape menu
 }
 
-// Make the inGameSettingsBtn clickable using your makeButton function
-// The onClick handler for inGameSettingsBtn will be inGameSettingsButtonHit.
-function inGameBack(){
-     clearMenuCanvas();
-     settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
+/**
+ * Handles returning from the settings menu back to the main escape menu.
+ */
+function inGameBack() {
+    clearMenuCanvas(); // Clear current menu elements (settings)
+    settingsBox.style.display = "none";
     sensitivitySliderContainer.style.display = "none";
-     
-          add(escMenu); // Add the menu to the canvas if not already added
-       add(inGameSettingsBtn.image); // Add the settings button when the escape menu appears
-     makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
-       // Apply overlay styles when paused
+
+    // Re-add the main escape menu and its buttons
+    add(escMenu);
+    add(inGameSettingsBtn.image);
+    makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
+
+    // The canvas display and cursor state should be managed by the `togglePauseMenuUI`
+    // function, not directly by `inGameBack`, to ensure consistency.
+}
+
+/**
+ * Toggles the visibility of the pause menu and manages game pause state.
+ * @param {boolean} shouldPause - True to pause and show menu, false to unpause and hide menu.
+ */
+function togglePauseMenuUI(shouldPause) {
+    if (shouldPause) {
+        // Show the escape menu and its elements
+        add(escMenu);
+        add(inGameSettingsBtn.image);
+        makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
+
+        // Apply overlay styles to the canvas
+        // Assuming 'canvas' is your main game rendering element, this makes it an overlay.
         canvas.style.display = 'block';
-          canvas.style.position = 'fixed';
-          canvas.style.top = '0';
-          canvas.style.left = '0';
-          canvas.style.width = '100%';
-          canvas.style.height = '100%';
-          canvas.style.zIndex = '20';
+        canvas.style.position = 'fixed';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.zIndex = '20'; // Ensure it's above game elements
 
-            // Show and unlock the cursor
-          document.body.style.cursor = 'auto';
+        // Show and unlock the cursor
+        document.body.style.cursor = 'auto';
+
+        // Set the global game pause state
+        setPauseState(true);
+    } else {
+        // Hide all menu-related elements
+        clearMenuCanvas(); // Clears escMenu, settingsMenu, etc.
+        settingsBox.style.display = "none";
+        sensitivitySliderContainer.style.display = "none";
+
+        // Revert canvas overlay styles
+        canvas.style.display = 'none'; // Or 'block' if it's the game itself, but usually hidden when not in use as overlay
+        canvas.style.position = '';
+        canvas.style.top = '';
+        canvas.style.left = '';
+        canvas.style.width = '';
+        canvas.style.height = '';
+        canvas.style.zIndex = '';
+
+        // Hide and lock the cursor (if pointer lock is used for gameplay)
+        document.body.style.cursor = 'none';
+
+        // Set the global game unpause state
+        setPauseState(false);
+    }
 }
 
-let isPaused = false;
-let checkInGame = false;
+// Global variable to track if the game is "in-game" and therefore eligible for pausing.
+// This should be set to true when the actual game starts, and false when returning to a main menu.
+let isGameActive = false; // Renamed from checkInGame for clarity
 
+// Expose togglePauseMenuUI globally if it needs to be called from input.js or other modules
+// For example, when the 'Escape' key is pressed in input.js
+window.togglePauseMenuUI = togglePauseMenuUI;
 
-
+// Listen for the 'P' key press to toggle the pause menu
 window.addEventListener("keydown", e => {
-    if (checkInGame && e.key.toLowerCase() === 'p') {
-        if (!isPaused) {
-            // If not paused, show the menu and pause
-            add(escMenu); // Add the menu to the canvas if not already added
-            add(inGameSettingsBtn.image); // Add the settings button when the escape menu appears
-          makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
-            // Apply overlay styles when paused
-            canvas.style.display = 'block';
-            canvas.style.position = 'fixed';
-            canvas.style.top = '0';
-            canvas.style.left = '0';
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
-            canvas.style.zIndex = '20';
-
-            // Show and unlock the cursor
-            document.body.style.cursor = 'auto';
-
-            isPaused = true;
-        } else {
-          clearMenuCanvas();
-     settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
-    sensitivitySliderContainer.style.display = "none";
-            // Revert overlay styles when unpaused
-            canvas.style.display = 'none';
-            canvas.style.position = '';
-            canvas.style.top = '';
-            canvas.style.left = '';
-            canvas.style.width = '';
-            canvas.style.height = '';
-            canvas.style.zIndex = '';
-
-            // Hide and lock the cursor
-            document.body.style.cursor = 'none';
-
-            isPaused = false;
-        }
+    // Only respond to 'P' key if the game is active and not chat-focused.
+    // The `input.js` file now handles the `Escape` key for pausing.
+    // If you specifically want 'P' to also toggle the menu, keep this:
+    if (isGameActive && e.key.toLowerCase() === 'p') {
+        // Use the inputState.isPaused from input.js to get the current state
+        togglePauseMenuUI(!inputState.isPaused);
+        e.preventDefault(); // Prevent default browser action for 'P'
     }
 });
-
 function playerCardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
     const style = document.createElement('style');
