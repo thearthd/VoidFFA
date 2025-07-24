@@ -1,22 +1,18 @@
 // network.js
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 
-// f
-// New imports for game slot management
 import {
     claimGameSlot,
     releaseGameSlot,
-    gamesRef,
+    gamesRef, // Keep this import, it's the main lobby ref
     gameDatabaseConfigs
 } from "./firebase-config.js";
 
-// Re-importing existing functions from game.js and ui.js
-// Ensure these paths are correct relative to network.js
 import {
     addRemotePlayer,
     removeRemotePlayer as removeRemotePlayerModel,
     updateRemotePlayer,
-    handleLocalDeath // Assuming this handles respawn too
+    handleLocalDeath
 } from "./game.js";
 
 import {
@@ -26,14 +22,14 @@ import {
     createTracer,
     removeTracer,
     updateHealthShieldUI,
-    setUIDbRefs, // This will be used to pass the game-specific dbRefs to UI
+    setUIDbRefs,
     addBulletHole,
     removeBulletHole
 } from "./ui.js";
 
 import { WeaponController } from "./weapons.js";
 import { AudioManager } from "./AudioManager.js";
-import { SOUND_CONFIG } from './soundConfig.js'; // Ensure the path is correct
+import { SOUND_CONFIG } from './soundConfig.js';
 
 const PHYSICS_SOUNDS = {
     footstep: { run: 'https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba' },
@@ -41,26 +37,27 @@ const PHYSICS_SOUNDS = {
 };
 
 export let localPlayerId = null;
-export const remotePlayers = {}; // This is where Three.js objects for remote players are stored
-const permanentlyRemoved = new Set(); // Tracks players confirmed disconnected
-let latestValidIds = []; // Used in purgeNamelessPlayers
+export const remotePlayers = {};
+const permanentlyRemoved = new Set();
+let latestValidIds = [];
 
 let audioManagerInstance = null;
-export let dbRefs = {}; // Will hold game-specific Firebase references (playersRef, chatRef, etc.)
+export let dbRefs = {};
+export let activeGameId = null; // Storing the active gameId for fullCleanup
+let activeGameSlotName = null;
 
-let activeGameSlotName = null; // Stores the name of the currently claimed game slot
-
-// Store listeners so they can be detached
 let playersListener = null;
 let chatListener = null;
 let killsListener = null;
 let mapStateListener = null;
 let tracersListener = null;
 let soundsListener = null;
-let gameConfigListener = null; // New listener for game config changes (e.g., timer)
+let gameConfigListener = null; // Used for the timer, etc.
 
 
-// --- Core AudioManager Initialization & Listener Functions (from your original code) ---
+export function setActiveGameId(id) {
+    activeGameId = id;
+}
 
 export function initializeAudioManager(camera, scene) {
     console.log("Attempting to initialize AudioManager...");
@@ -73,88 +70,78 @@ export function initializeAudioManager(camera, scene) {
         audioManagerInstance.stopAll();
     }
     audioManagerInstance = new AudioManager(camera, scene, { hearingRange: 50 });
-    window.audioManager = audioManagerInstance; // Global access for game.js
+    window.audioManager = audioManagerInstance;
     console.log("AudioManager successfully initialized with camera:", camera.uuid, "at initial position:", camera.position.toArray());
 }
 
-export let activeGameId = null;
-
-// add this:
-export function setActiveGameId(id) {
-  activeGameId = id;
-}
-
 export function startSoundListener() {
-  if (!dbRefs || !dbRefs.soundsRef) {
-    console.error("Cannot start sound listener: dbRefs or soundsRef not initialized.");
-    return;
-  }
+    if (!dbRefs || !dbRefs.soundsRef) {
+        console.error("Cannot start sound listener: dbRefs or soundsRef not initialized.");
+        return;
+    }
 
-  dbRefs.soundsRef.off();
+    dbRefs.soundsRef.off();
 
-  dbRefs.soundsRef.on("child_added", (snap) => {
-    const data = snap.val();
-    const soundRef = snap.ref;
+    dbRefs.soundsRef.on("child_added", (snap) => {
+        const data = snap.val();
+        const soundRef = snap.ref;
 
-    if (!data || data.shooter === localPlayerId) {
-      if (data.shooter === localPlayerId) {
+        if (!data || data.shooter === localPlayerId) {
+            if (data.shooter === localPlayerId) {
+                // Own sounds can be removed quicker
+                setTimeout(() => {
+                    soundRef.remove().catch(err => console.error("Failed to remove own sound event from Firebase:", err));
+                }, 1000); // Remove own sound events faster (e.g., 1 second)
+            }
+            return;
+        }
+
+        // Remove other player's sound events after a reasonable time
         setTimeout(() => {
-          soundRef.remove().catch(err => console.error("Failed to remove own sound event from Firebase:", err));
-        }, 10000);
-      }
-      return;
-    }
+            soundRef.remove().catch(err => console.error("Failed to remove sound event from Firebase after 3s:", err));
+        }, 3000);
 
-    setTimeout(() => {
-      soundRef.remove().catch(err => console.error("Failed to remove sound event from Firebase after 10s:", err));
-    }, 3000);
+        const url = WeaponController.SOUNDS[data.soundKey]?.[data.soundType] ??
+            PHYSICS_SOUNDS[data.soundKey]?.[data.soundType];
 
-    const url = WeaponController.SOUNDS[data.soundKey]?.[data.soundType] ??
-      PHYSICS_SOUNDS[data.soundKey]?.[data.soundType];
+        if (!url) {
+            console.warn(`No URL found for soundKey: ${data.soundKey}, soundType: ${data.soundType}`);
+            return;
+        }
 
-    if (!url) {
-      console.warn(`No URL found for soundKey: ${data.soundKey}, soundType: ${data.soundType}`);
-      return;
-    }
+        const worldPos = new THREE.Vector3(data.x, data.y, data.z);
 
-    const worldPos = new THREE.Vector3(data.x, data.y, data.z);
-
-    if (audioManagerInstance) {
-      // Get sound properties from SOUND_CONFIG
-      const soundProps = SOUND_CONFIG[data.soundKey]?.[data.soundType];
-      if (soundProps) {
-        audioManagerInstance.playSpatial(
-          url,
-          worldPos,
-          {
-            loop: soundProps.loop ?? false, // Default to false if not specified
-            volume: soundProps.volume,
-            hearingRange: soundProps.hearingRange,
-            rolloffFactor: soundProps.rolloffFactor,
-            distanceModel: soundProps.distanceModel
-          }
-        );
-      } else {
-        // Fallback to default values if not found in SOUND_CONFIG
-        console.warn(`Sound properties not found for ${data.soundKey}:${data.soundType}. Playing with defaults.`);
-        audioManagerInstance.playSpatial(url, worldPos, { loop: false, volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' });
-      }
-    } else {
-      console.warn("AudioManager not initialized when trying to play spatial sound (after startSoundListener called).");
-    }
-  });
-  console.log("Firebase sound listener started.");
+        if (audioManagerInstance) {
+            const soundProps = SOUND_CONFIG[data.soundKey]?.[data.soundType];
+            if (soundProps) {
+                audioManagerInstance.playSpatial(
+                    url,
+                    worldPos,
+                    {
+                        loop: soundProps.loop ?? false,
+                        volume: soundProps.volume,
+                        hearingRange: soundProps.hearingRange,
+                        rolloffFactor: soundProps.rolloffFactor,
+                        distanceModel: soundProps.distanceModel
+                    }
+                );
+            } else {
+                console.warn(`Sound properties not found for ${data.soundKey}:${data.soundType}. Playing with defaults.`);
+                audioManagerInstance.playSpatial(url, worldPos, { loop: false, volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' });
+            }
+        } else {
+            console.warn("AudioManager not initialized when trying to play spatial sound (after startSoundListener called).");
+        }
+    });
+    console.log("Firebase sound listener started.");
 }
-
-
-// --- Player Data Update Functions (from your original code) ---
 
 let lastSync = 0;
 export function sendPlayerUpdate(data) {
     const now = Date.now();
-    if (now - lastSync < 50) return; // Limit update frequency
+    if (now - lastSync < 50) return;
     lastSync = now;
-    if (dbRefs.playersRef && localPlayerId) { // Check for playersRef from the current game slot
+    if (dbRefs.playersRef && localPlayerId) {
         dbRefs.playersRef.child(localPlayerId).update({
             x: data.x,
             y: data.y,
@@ -162,11 +149,9 @@ export function sendPlayerUpdate(data) {
             rotY: data.rotY,
             weapon: data.weapon,
             lastUpdate: now,
-            knifeSwing: data.knifeSwing, // Include knife animation states
+            knifeSwing: data.knifeSwing,
             knifeHeavy: data.knifeHeavy
         }).catch(err => console.error("Failed to send player update:", err));
-    } else {
-        // console.warn("Attempted to send player update before network initialized or localPlayerId is null."); // Too chatty
     }
 }
 
@@ -183,7 +168,7 @@ export function updateShield(shield) {
 }
 
 export function applyDamageToRemote(targetId, damage, killerInfo) {
-    if (!dbRefs.playersRef) { // Check for playersRef from the current game slot
+    if (!dbRefs.playersRef) {
         console.warn("dbRefs not initialized for damage application.");
         return;
     }
@@ -202,9 +187,9 @@ export function applyDamageToRemote(targetId, damage, killerInfo) {
         const justDied = prevHealth > 0 && health <= 0;
         if (justDied) {
             deaths += 1;
-            ks = 0; // Reset killstreak on death
-            health = 0; // Ensure health doesn't go negative on death
-            shield = 0; // Ensure shield is 0 on death
+            ks = 0;
+            health = 0;
+            shield = 0;
         }
         return { ...current, health, shield, deaths, ks, isDead: health <= 0, _justDied: justDied };
     }, (error, committed, snap) => {
@@ -232,29 +217,24 @@ export function applyDamageToRemote(targetId, damage, killerInfo) {
             }).catch(err => console.error("Failed to update killer stats:", err));
 
             if (targetId === localPlayerId) {
-                // If local player died, notify game.js
                 handleLocalDeath(killerInfo.killerUsername);
             }
         }
     });
 }
 
-// --- Event Sending Functions (Tracers, Chat, Bullet Holes, Sounds) ---
-
 export function sendTracer(tracerData) {
-    if (dbRefs.tracersRef) { // Check for tracersRef from the current game slot
+    if (dbRefs.tracersRef) {
         dbRefs.tracersRef.push({
             ...tracerData,
             shooter: localPlayerId,
             time: firebase.database.ServerValue.TIMESTAMP
         }).catch((err) => console.error("Failed to send tracer:", err));
-    } else {
-        // console.warn("Attempted to send tracer before network initialized or dbRefs.tracersRef is null."); // Too chatty
     }
 }
 
 export function sendChatMessage(username, text) {
-    if (dbRefs.chatRef) { // Check for chatRef from the current game slot
+    if (dbRefs.chatRef) {
         dbRefs.chatRef.push({ username, text, timestamp: Date.now() }).catch((err) => console.error("Failed to send chat message:", err));
     } else {
         console.warn("Attempted to send chat message before network initialized.");
@@ -262,19 +242,17 @@ export function sendChatMessage(username, text) {
 }
 
 export function sendBulletHole(pos) {
-    if (dbRefs.mapStateRef) { // Check for mapStateRef from the current game slot
+    if (dbRefs.mapStateRef) {
         dbRefs.mapStateRef.child("bullets").push({
             x: pos.x, y: pos.y, z: pos.z,
             nx: pos.nx, ny: pos.ny, nz: pos.nz,
-            timeCreated: Date.now() // Use Date.now() for client-side timestamp
+            timeCreated: Date.now()
         }).catch(err => console.error("Failed to send bullet hole:", err));
-    } else {
-        // console.warn("Attempted to send bullet hole before network initialized or dbRefs.mapStateRef is null."); // Too chatty
     }
 }
 
 export function sendSoundEvent(soundKey, soundType, position) {
-    if (dbRefs.soundsRef) { // Check for soundsRef from the current game slot
+    if (dbRefs.soundsRef) {
         const soundProps = SOUND_CONFIG[soundKey]?.[soundType];
         if (!soundProps) {
             console.warn(`Sound properties for ${soundKey}:${soundType} not found in SOUND_CONFIG. Event will be sent with minimal data.`);
@@ -307,43 +285,35 @@ export function sendSoundEvent(soundKey, soundType, position) {
 }
 
 export async function disposeGame() {
-  console.log("[network.js] Disposing game…");
+    console.log("[network.js] Disposing game…");
 
-  // 1) Run your existing cleanup of Firebase + slot
-  await endGameCleanup();
+    await endGameCleanup();
 
-  // 2) Clear any game‑side intervals and listeners
-  if (window.gameInterval) {
-    clearInterval(window.gameInterval);
-    window.gameInterval = null;
-  }
-  if (window.playersKillsListener && window.dbRefs?.playersRef) {
-    window.dbRefs.playersRef.off("value", window.playersKillsListener);
-    window.playersKillsListener = null;
-  }
+    if (window.gameInterval) {
+        clearInterval(window.gameInterval);
+        window.gameInterval = null;
+    }
+    // Note: playersKillsListener is handled in determineWinnerAndEndGame/startGame,
+    // so it might not be a global `window.playersKillsListener` anymore.
+    // Ensure all listeners are correctly detached by endGameCleanup.
 
-  // 3) Cancel the animation loop
-  if (window._animationId != null) {
-    cancelAnimationFrame(window._animationId);
-    window._animationId = null;
-  }
+    if (window._animationId != null) {
+        cancelAnimationFrame(window._animationId);
+        window._animationId = null;
+    }
 
-  // 4) Stop all audio
-  if (window.audioManager) {
-    window.audioManager.stopAll();
-  }
-  [ window.deathTheme, window.windSound, window.forestNoise ]
-    .forEach(sound => { if (sound && sound.pause) sound.pause(); });
+    if (window.audioManager) {
+        window.audioManager.stopAll();
+    }
+    [window.deathTheme, window.windSound, window.forestNoise]
+        .forEach(sound => { if (sound && sound.pause) sound.pause(); });
 
-  console.log("[network.js] Game disposed.");
+    console.log("[network.js] Game disposed.");
 }
-
-// --- Player Purging and Disconnection ---
 
 export function purgeNamelessPlayers(validIds = []) {
     Object.keys(remotePlayers).forEach(id => {
         const rp = remotePlayers[id];
-        // If player has no username (indicates incomplete data) OR is not in the latest valid IDs list
         if (!rp?.data?.username || (validIds.length && !validIds.includes(id))) {
             permanentlyRemoved.add(id);
             console.log(`[purgeNameless] Permanently removing ${id}`);
@@ -363,12 +333,11 @@ export function disconnectPlayer(playerId) {
         dbRefs.playersRef.child(playerId).remove()
             .then(() => {
                 console.log(`Local player ${playerId} removed from Firebase.`);
-                // Note: The `child_removed` listener for `localPlayerId` will handle `localStorage.removeItem("playerId")`
-                // and `location.reload()`, so we don't duplicate that here.
+                // No need for location.reload() here, let the fullCleanup or game end handle it.
             })
             .catch(err => console.error("Failed to remove local player from Firebase:", err));
 
-        localPlayerId = null; // Setting localPlayerId to null will also stop the animate loop in game.js
+        localPlayerId = null;
     } else {
         console.log("Disconnecting remote player:", playerId);
         removeRemotePlayerModel(playerId);
@@ -376,9 +345,7 @@ export function disconnectPlayer(playerId) {
         permanentlyRemoved.add(playerId);
     }
 }
-window.disconnectPlayer = disconnectPlayer; // Make accessible globally for button presses etc.
-
-// --- Game End Cleanup ---
+window.disconnectPlayer = disconnectPlayer;
 
 export async function endGameCleanup() {
     console.log("[network.js] Running endGameCleanup...");
@@ -387,8 +354,16 @@ export async function endGameCleanup() {
     if (playersListener && dbRefs.playersRef) {
         dbRefs.playersRef.off("value", playersListener);
         playersListener = null;
-        console.log("Players listener detached.");
+        console.log("Players 'value' listener detached.");
     }
+    // Also detach specific child listeners for playersRef
+    if (dbRefs.playersRef) {
+        dbRefs.playersRef.off("child_added");
+        dbRefs.playersRef.off("child_changed");
+        dbRefs.playersRef.off("child_removed");
+        console.log("Players 'child_...' listeners detached.");
+    }
+
     if (chatListener && dbRefs.chatRef) {
         dbRefs.chatRef.off("child_added", chatListener);
         chatListener = null;
@@ -400,12 +375,15 @@ export async function endGameCleanup() {
         console.log("Kills listener detached.");
     }
     if (mapStateListener && dbRefs.mapStateRef) {
+        // mapStateListener is typically for child_added on "bullets"
         dbRefs.mapStateRef.child("bullets").off("child_added", mapStateListener);
+        dbRefs.mapStateRef.child("bullets").off("child_removed");
         mapStateListener = null;
         console.log("MapState/bullets listener detached.");
     }
     if (tracersListener && dbRefs.tracersRef) {
         dbRefs.tracersRef.off("child_added", tracersListener);
+        dbRefs.tracersRef.off("child_removed"); // Ensure child_removed is also cleared
         tracersListener = null;
         console.log("Tracers listener detached.");
     }
@@ -414,37 +392,55 @@ export async function endGameCleanup() {
         soundsListener = null;
         console.log("Sounds listener detached.");
     }
-    if (gameConfigListener && dbRefs.gameConfigRef) {
+    if (gameConfigListener && dbRefs.gameConfigRef) { // Ensure this is detached
         dbRefs.gameConfigRef.off("value", gameConfigListener);
         gameConfigListener = null;
         console.log("GameConfig listener detached.");
     }
 
+    // Stop and clear any cleanup intervals from listeners
+    if (window.killsCleanupInterval) {
+        clearInterval(window.killsCleanupInterval);
+        window.killsCleanupInterval = null;
+        console.log("Kills cleanup interval cleared.");
+    }
+    if (window.bulletHoleCleanupInterval) { // Assuming you might add one for bullet holes
+        clearInterval(window.bulletHoleCleanupInterval);
+        window.bulletHoleCleanupInterval = null;
+        console.log("Bullet hole cleanup interval cleared.");
+    }
+
+
     if (audioManagerInstance) {
         audioManagerInstance.stopAll();
     }
 
+    // Attempt to remove local player from the *slot-specific* players node
     if (dbRefs.playersRef && localPlayerId) {
         try {
             await dbRefs.playersRef.child(localPlayerId).remove();
             console.log(`Local player '${localPlayerId}' explicitly removed from Firebase.`);
-          //  dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel();
+            // Important: cancel onDisconnect here if it was set on this player's actual data
+            dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel();
         } catch (error) {
             console.error(`Error removing local player '${localPlayerId}' from Firebase during cleanup:`, error);
         }
     }
 
-    // Release the game slot and remove the lobby entry
+    // Release the game slot and remove the lobby entry (this is crucial for the /game entry)
+    // This part ensures `releaseGameSlot` is called.
     if (activeGameSlotName) {
+        // releaseGameSlot already removes the lobby entry and frees the slot
         await releaseGameSlot(activeGameSlotName);
-        console.log(`Game slot '${activeGameSlotName}' released AND lobby entry removed.`);
+        console.log(`Game slot '${activeGameSlotName}' released AND lobby entry removed (if applicable).`);
         localStorage.removeItem(`playerId-${activeGameSlotName}`);
         activeGameSlotName = null;
     }
 
-    localPlayerId = null;
 
-    dbRefs = {};
+    localPlayerId = null; // Clear local player ID
+    dbRefs = {}; // Clear database references
+    // Clear local remote player objects
     for (const id in remotePlayers) {
         removeRemotePlayerModel(id);
     }
@@ -457,106 +453,100 @@ export async function endGameCleanup() {
     console.log("[network.js] Game cleanup complete. All listeners detached and data cleared.");
 }
 
-
 /**
  * Initializes the network connection for a new game.
  * Claims a game slot, sets up Firebase references, and attaches listeners.
  * @param {string} username - The username of the player joining the game.
  * @param {string} mapName - The name of the map for the game.
+ * @param {string} gameId - The ID of the game from the main lobby.
  * @param {boolean} ffaEnabled - True if FFA mode is enabled, false otherwise.
  * @returns {Promise<boolean>} True if network initialization was successful, false otherwise.
  */
 export async function initNetwork(username, mapName, gameId, ffaEnabled) {
-  console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
-  await endGameCleanup();
+    console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
+    await endGameCleanup(); // Ensure previous game state is fully cleaned up
 
-  // 1) look up slotName from the game entry
-  const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
-  const slotName = slotSnap.val();
-  if (!slotName) {
-    Swal.fire('Error','No slot associated with that game ID.','error');
-    return false;
-  }
-activeGameId = gameId;
-  // ─── MANUAL SLOT INITIALIZATION (instead of claimGameSlot) ───
-  activeGameSlotName = slotName;
+    // 1) look up slotName from the game entry
+    const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
+    const slotName = slotSnap.val();
+    if (!slotName) {
+        Swal.fire('Error', 'No slot associated with that game ID.', 'error');
+        return false;
+    }
+    setActiveGameId(gameId); // Set the active game ID here
+    activeGameSlotName = slotName; // Store the slot name for cleanup
 
-  // Pick the right config object from your firebase-config.js
-  const slotConfig = gameDatabaseConfigs[slotName];
-  if (!slotConfig) {
-    console.error(`No firebase config found for slot "${slotName}"`);
-    return false;
-  }
+    // Pick the right config object from your firebase-config.js
+    const slotConfig = gameDatabaseConfigs[slotName];
+    if (!slotConfig) {
+        console.error(`No firebase config found for slot "${slotName}"`);
+        // If config not found, consider if gameId should be removed from gamesRef
+        await gamesRef.child(gameId).remove().catch(err => console.error("Failed to remove game entry due to missing slot config:", err));
+        return false;
+    }
 
-  // Initialize—or re‑use if already initialized—the slot‑specific app
-  let slotApp;
-  try {
-    slotApp = firebase.app(slotName + 'App');
-  } catch (e) {
-    slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
-  }
+    let slotApp;
+    try {
+        slotApp = firebase.app(slotName + 'App');
+    } catch (e) {
+        slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
+    }
 
-  // Build your DB refs exactly as claimGameSlot would have done
-  const rootRef = slotApp.database().ref();
-  dbRefs = {
-    playersRef:    rootRef.child('players'),
-    chatRef:       rootRef.child('chat'),
-    killsRef:      rootRef.child('kills'),
-    mapStateRef:   rootRef.child('mapState'),
-    tracersRef:    rootRef.child('tracers'),
-    soundsRef:     rootRef.child('sounds'),
-    gameConfigRef: rootRef.child('gameConfig'),
-  };
-  setUIDbRefs(dbRefs);
-  console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotConfig.databaseURL}`);
-  const currentPlayersSnap = await dbRefs.playersRef.once('value');
-  if (currentPlayersSnap.numChildren() >= 10) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Game Full',
-      text: 'Sorry, this game slot already has 10 players.'
-    });
-    return false;
-  }
-    // --- CONSOLE LOG ADDED HERE ---
+    const rootRef = slotApp.database().ref();
+    dbRefs = {
+        playersRef: rootRef.child('players'),
+        chatRef: rootRef.child('chat'),
+        killsRef: rootRef.child('kills'),
+        mapStateRef: rootRef.child('mapState'),
+        tracersRef: rootRef.child('tracers'),
+        soundsRef: rootRef.child('sounds'),
+        gameConfigRef: rootRef.child('gameConfig'),
+    };
+    setUIDbRefs(dbRefs);
+    console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotConfig.databaseURL}`);
+
+    const currentPlayersSnap = await dbRefs.playersRef.once('value');
+    if (currentPlayersSnap.numChildren() >= 10) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Game Full',
+            text: 'Sorry, this game slot already has 10 players.'
+        });
+        return false;
+    }
+
     if (dbRefs.playersRef && dbRefs.playersRef.database && dbRefs.playersRef.database.app_ && dbRefs.playersRef.database.app_.options) {
         console.log(`[network.js] Game is connected to Firebase database: ${dbRefs.playersRef.database.app_.options.databaseURL}`);
     } else {
         console.warn("[network.js] Could not determine database URL from dbRefs.playersRef.database.app_.options. This might be expected if dbRefs are not fully initialized yet or structure is different.");
     }
     console.log("[network.js] dbRefs after claiming slot (from network.js):", dbRefs);
-    // --- END CONSOLE LOG ---
 
-    // Set localPlayerId
     let storedPlayerId = localStorage.getItem(`playerId-${activeGameSlotName}`);
     if (storedPlayerId) {
         localPlayerId = storedPlayerId;
         console.log(`[network.js] Re-using localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
     } else {
-        // Ensure that dbRefs.playersRef is available before trying to push
         if (!dbRefs.playersRef) {
-             console.error("[network.js] dbRefs.playersRef is not defined. Cannot generate localPlayerId.");
-             // Attempt to release the slot if it was claimed but playerRef isn't ready
-             if (activeGameSlotName) await releaseGameSlot(activeGameSlotName);
-             return false;
+            console.error("[network.js] dbRefs.playersRef is not defined. Cannot generate localPlayerId.");
+            // If we couldn't even get playersRef, the slot might not be properly set up
+            if (activeGameSlotName) await releaseGameSlot(activeGameSlotName); // Attempt to release
+            return false;
         }
-        localPlayerId = dbRefs.playersRef.push().key; // Generate a new player ID
+        localPlayerId = dbRefs.playersRef.push().key;
         localStorage.setItem(`playerId-${activeGameSlotName}`, localPlayerId);
         console.log(`[network.js] Generated new localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
     }
-    window.localPlayerId = localPlayerId; // Ensure it's accessible globally if needed by game.js directly
+    window.localPlayerId = localPlayerId;
 
-    // Set onDisconnect for the *game-specific* player reference
-    // This removes the player's data from the active game DB if they disconnect
     dbRefs.playersRef.child(localPlayerId).onDisconnect().remove()
         .then(() => console.log(`[network.js] onDisconnect set for player '${localPlayerId}' in game DB.`))
         .catch(err => console.error(`[network.js] Error setting onDisconnect for player '${localPlayerId}':`, err));
 
-    // Initial player state
     const initialPlayerState = {
         id: localPlayerId,
         username,
-        x: 0, y: 0, z: 0, // These will be overwritten by game.js's spawn point
+        x: 0, y: 0, z: 0,
         rotY: 0,
         health: 100,
         shield: 50,
@@ -579,115 +569,119 @@ activeGameId = gameId;
             title: 'Firebase Error',
             text: 'Could not write initial player data. Please check connection and try again.'
         });
-        // Release the slot if we failed to set initial player data
         if (activeGameSlotName) await releaseGameSlot(activeGameSlotName);
         return false;
     }
 
-    // Setup listeners for the new game's database
     setupPlayersListener(dbRefs.playersRef);
     setupChatListener(dbRefs.chatRef);
     setupKillsListener(dbRefs.killsRef);
     setupMapStateListener(dbRefs.mapStateRef);
-    startSoundListener(); // Uses dbRefs.soundsRef internally
+    startSoundListener();
     setupTracerListener(dbRefs.tracersRef);
-    // Note: gameConfig listener is typically set up in game.js for timer management
+    // The gameConfig listener is typically set up in game.js for timer management
 
     console.log("[network.js] Network initialization complete.");
-    return true; // Indicate success
+    return true;
 }
 
-// --- Listener Setup Functions ---
-export async function fullCleanup(gameId) {
-    console.log("[fullCleanup] START, gameId =", gameId);
+// Function to set up gameConfig listener, to be called from game.js
+export function setupGameConfigListener(gameConfigRef, gameTimerElement, ownerRef, gameDurationRef, gameEndedRef, determineWinnerAndEndGame, localPlayerId) {
+    if (gameConfigListener) gameConfigRef.off("value", gameConfigListener); // Detach previous
 
-    // ✅ Capture BEFORE cleanup processes which might wipe it
-    const initialSlotName = activeGameSlotName; // Capture it here
-    const initialLocalPlayerId = localPlayerId;
+    // This listener captures all changes to gameConfig for timer updates and game end
+    gameConfigListener = gameConfigRef.on('value', snap => {
+        const config = snap.val() || {};
+        const ownerId = config.owner;
+        const currentRemainingSeconds = typeof config.gameDuration === 'number' ? config.gameDuration : null;
+        const gameEnded = config.ended === true;
 
-    try {
-        // 1) Detach all listeners & remove local player using the *current* state
-        // endGameCleanup will also set activeGameSlotName to null, but we've already captured it.
-        await endGameCleanup();
-        console.log("[fullCleanup] ✓ endGameCleanup complete");
-
-        // Use the captured initialSlotName for operations that require it
-        if (!initialSlotName) {
-            console.warn("[fullCleanup] No initial active game slot found during fullCleanup, skipping slot-specific database removal.");
-            // We can still proceed with other cleanup steps, just skip the slot-specific ones.
-            // DO NOT THROW AN ERROR HERE, as endGameCleanup already did its job.
-        } else {
-            const slotApp = firebase.app(initialSlotName + "App");
-            const rootRef = slotApp.database().ref();
-            console.log("[fullCleanup] ✓ slot rootRef acquired for", initialSlotName);
-
-            // 2) Delete game data from the specific slot's database
-            await rootRef.child("game").remove();
-            console.log("[fullCleanup] ✓ removed /game node");
-
-            await Promise.all([
-                rootRef.child("players").remove(),
-                rootRef.child("chat").remove(),
-                rootRef.child("kills").remove(),
-                rootRef.child("mapState").remove(),
-                rootRef.child("tracers").remove(),
-                rootRef.child("sounds").remove(),
-                rootRef.child("gameConfig").remove(),
-            ]);
-            console.log("[fullCleanup] ✓ cleared players, chat, kills, mapState, tracers, sounds, gameConfig from slot DB");
-
-            // 3) Free the slot in slotsRef (if endGameCleanup didn't already handle it, which it should have)
-            // This call is redundant if endGameCleanup correctly releases the slot.
-            // Consider if `releaseGameSlot` should ONLY be in `endGameCleanup`.
-            // If `releaseGameSlot` is robust and handles being called multiple times, it's fine.
-            // If not, you might remove this line here.
-            // For now, let's assume endGameCleanup already released it.
-            // await releaseGameSlot(initialSlotName);
-            // console.log(`[fullCleanup] ✓ releaseGameSlot(${initialSlotName}) complete (might be redundant)`);
+        // Logic for owner election if no owner is present
+        if (ownerId === null && localPlayerId) {
+            ownerRef.transaction(curr => curr === null ? localPlayerId : undefined)
+                .then(({ committed, snapshot }) => {
+                    if (committed) console.log(`[network.js] Successfully became owner: ${snapshot.val()}`);
+                    else if (snapshot.val() !== localPlayerId) console.log(`[network.js] Another player ${snapshot.val()} is already the owner.`);
+                })
+                .catch(error => console.error("[network.js] Owner election transaction failed:", error));
         }
 
-        // 4) Remove from lobby (this is on the *main* gamesRef, not slot-specific)
-        if (gameId) {
-            await gamesRef.child(gameId).remove();
-            console.log(`[fullCleanup] ✓ removed lobby entry gamesRef/${gameId}`);
+        // Timer update logic for all clients (UI)
+        if (currentRemainingSeconds === null) {
+            gameTimerElement.textContent = 'Time: Syncing…';
         } else {
-            console.warn("[fullCleanup] no gameId provided, skipping lobby removal from main gamesRef");
+            const mins = Math.floor(currentRemainingSeconds / 60);
+            const secs = currentRemainingSeconds % 60;
+            gameTimerElement.textContent = `Time: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
         }
 
-        // 5) Dispose Three.js
-        if (window.scene) {
-            // Your disposeThreeScene function might need to be imported or globally accessible
-            if (typeof disposeThreeScene === 'function') {
-                disposeThreeScene(window.scene);
-            } else {
-                console.warn("[fullCleanup] disposeThreeScene function not found. Skipping scene disposal.");
-                // Manual basic cleanup if function isn't available
-                window.scene.clear();
-                window.scene = null;
+        // Game ending logic
+        if (gameEnded && !window.gameIsEnding) { // Use a flag to prevent multiple calls
+            window.gameIsEnding = true;
+            console.log("[network.js] Game ended flag detected. Initiating game end process.");
+            // Detach listeners related to game state (handled in disposeGame/endGameCleanup)
+            // Call the game's determineWinnerAndEndGame (pass gameId from activeGameId)
+            determineWinnerAndEndGame(activeGameId);
+        }
+    });
+
+    // Set onDisconnect for the owner node *from this client's perspective*
+    // This will ensure that if *this* client is the owner, and it disconnects,
+    // the 'owner' node is cleared, allowing another client to take over.
+    ownerRef.onDisconnect().remove()
+        .then(() => console.log(`[network.js] onDisconnect set for owner ref for local player ${localPlayerId}`))
+        .catch(err => console.error("[network.js] Failed to set onDisconnect for owner ref:", err));
+
+    // Owner's responsibility to decrement timer
+    // This interval only runs if the localPlayerId is the current owner
+    let ownerInterval = null;
+    gameConfigRef.child('owner').on('value', ownerSnap => {
+        const currentOwnerId = ownerSnap.val();
+        if (currentOwnerId === localPlayerId) {
+            if (ownerInterval === null) {
+                console.log(`[network.js] I am the owner (${localPlayerId}). Starting owner interval.`);
+                ownerInterval = setInterval(() => {
+                    gameConfigRef.child('gameDuration').transaction(currentDuration => {
+                        if (typeof currentDuration !== 'number' || currentDuration <= 0) {
+                            if (currentDuration <= 0) {
+                                gameConfigRef.child('ended').set(true); // Signal game end
+                            }
+                            return undefined; // Abort transaction if invalid or 0/less
+                        }
+                        return currentDuration - 1;
+                    }).then(({ committed }) => {
+                        if (!committed) {
+                            // If transaction failed (e.g., another owner updated it, or already ended)
+                            // or if duration became 0, stop interval
+                            if (ownerInterval) {
+                                clearInterval(ownerInterval);
+                                ownerInterval = null;
+                                console.log("[network.js] Owner interval cleared due to transaction result or game ending.");
+                            }
+                        }
+                    }).catch(err => console.error("[network.js] Owner interval transaction failed:", err));
+                }, 1000);
             }
-            console.log("[fullCleanup] ✓ Three.js scene disposed");
+        } else if (ownerInterval !== null) {
+            // No longer the owner, or owner changed
+            clearInterval(ownerInterval);
+            ownerInterval = null;
+            console.log("[network.js] No longer owner. Clearing owner interval.");
         }
-        if (window.camera) {
-            window.camera = null;
-            console.log("[fullCleanup] ✓ camera reference cleared");
+    });
+
+    // Initialize game duration if it's null and we become owner
+    gameDurationRef.on('value', snap => {
+        const val = snap.val();
+        if (val === null && gameConfigRef.child('owner').val() === localPlayerId) {
+            console.log("[network.js] Game duration is null. Initializing with INITIAL_DURATION.");
+            gameDurationRef.set(10 * 60); // Set initial duration (e.g., 10 minutes)
         }
-
-        // 6) Clear pointers (already largely done by endGameCleanup, but good to be explicit for fullCleanup's scope)
-        activeGameSlotName = null;
-        localPlayerId = null;
-
-        console.log("[fullCleanup] END");
-        location.reload();
-        return true;
-
-    } catch (err) {
-        console.error("[fullCleanup] ERROR during cleanup:", err);
-        throw err; // Re-throw to propagate the error if necessary
-    }
+    });
 }
+
 
 function setupPlayersListener(playersRef) {
-    // Detach previous listeners before attaching new ones
     playersRef.off("value");
     playersRef.off("child_added");
     playersRef.off("child_changed");
@@ -698,7 +692,7 @@ function setupPlayersListener(playersRef) {
         fullSnap.forEach(s => allIds.push(s.key));
         latestValidIds = allIds;
         purgeNamelessPlayers(latestValidIds);
-        updateScoreboard(playersRef); // Update UI scoreboard
+        updateScoreboard(playersRef);
     });
 
     playersRef.on("child_added", (snap) => {
@@ -712,23 +706,20 @@ function setupPlayersListener(playersRef) {
         }
 
         if (permanentlyRemoved.has(id)) {
-            permanentlyRemoved.delete(id); // Player re-joined
+            permanentlyRemoved.delete(id);
             console.log(`[permanentlyRemoved] Player ${id} re-joined, clearing from permanent removal list.`);
         }
 
-        // Explicit check to prevent adding a player model if it's already in our local cache
         if (remotePlayers[id]) {
             console.warn(`[playersRef:child_added] Player ${id} already exists in remotePlayers. Skipping model creation.`);
             return;
         }
 
-        // Check for essential data before adding the player model
         if (!data.username) {
             console.warn(`[playersRef:child_added] Player ${id} has incomplete data (missing username). Skipping model creation.`);
             return;
         }
 
-        // If all checks pass, add the remote player model
         addRemotePlayer(data);
     });
 
@@ -737,12 +728,11 @@ function setupPlayersListener(playersRef) {
         const id = data.id;
 
         if (permanentlyRemoved.has(id)) {
-            removeRemotePlayerModel(id); // Ensure we don't update models of removed players
+            removeRemotePlayerModel(id);
             return;
         }
 
         if (id === localPlayerId && window.localPlayer) {
-            // Only update localPlayer's health/shield/death status from DB if it changed
             if (typeof data.health === "number") {
                 window.localPlayer.health = data.health;
             }
@@ -757,13 +747,12 @@ function setupPlayersListener(playersRef) {
             }
             updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
 
-            // Update local player's body color if changed (for visual feedback/debugging)
             if (window.localPlayer.bodyMesh && typeof data.bodyColor === "number" &&
                 window.localPlayer.bodyMesh.material.color.getHex() !== data.bodyColor) {
                 window.localPlayer.bodyMesh.material.color.setHex(data.bodyColor);
             }
         } else {
-            updateRemotePlayer(data); // Update remote player's model and data
+            updateRemotePlayer(data);
         }
     });
 
@@ -771,9 +760,12 @@ function setupPlayersListener(playersRef) {
         const id = snap.key;
         if (id === localPlayerId) {
             console.warn("Local player removed from Firebase. Handling disconnection.");
-            localStorage.removeItem(`playerId-${activeGameSlotName}`); // Clear slot-specific ID
-            localPlayerId = null; // Ensure game loop knows to stop
-            // location.reload(); // Simple reload for now to go back to initial state
+            localStorage.removeItem(`playerId-${activeGameSlotName}`);
+            localPlayerId = null;
+            // The expectation is that `fullCleanup` (called by `determineWinnerAndEndGame`)
+            // or `endGameCleanup` has already been or will be triggered to handle the game's removal.
+            // Avoid `location.reload()` here to prevent premature reloads if `fullCleanup` is still running.
+            // A dedicated "return to lobby" flow should be triggered by the UI, perhaps after `fullCleanup`.
             return;
         }
         permanentlyRemoved.add(id);
@@ -782,7 +774,7 @@ function setupPlayersListener(playersRef) {
 }
 
 function setupChatListener(chatRef) {
-    if (chatListener) chatRef.off("child_added", chatListener); // Detach previous
+    if (chatListener) chatRef.off("child_added", chatListener);
     const chatSeenKeys = new Set();
     chatListener = chatRef.on("child_added", (snap) => {
         const { username: u, text } = snap.val();
@@ -794,24 +786,22 @@ function setupChatListener(chatRef) {
 }
 
 function setupKillsListener(killsRef) {
-    if (killsListener) killsRef.off("child_added", killsListener); // Detach previous
+    if (killsListener) killsRef.off("child_added", killsListener);
     killsListener = killsRef.limitToLast(5).on("child_added", (snap) => {
         const k = snap.val();
         updateKillFeed(k.killer, k.victim, k.weapon, snap.key);
-        updateScoreboard(dbRefs.playersRef); // This will cause full scoreboard refresh
+        updateScoreboard(dbRefs.playersRef);
     });
 
-    // Kills cleanup interval
-    // Clear any previous interval to prevent multiple from running
     if (window.killsCleanupInterval) {
         clearInterval(window.killsCleanupInterval);
     }
     window.killsCleanupInterval = setInterval(() => {
-        const cutoff = Date.now() - 60000; // 1 minute cutoff
+        const cutoff = Date.now() - 60000;
         killsRef.orderByChild("timestamp").endAt(cutoff).once("value", (snapshot) => {
             snapshot.forEach(child => child.ref.remove());
         });
-    }, 60000); // Run every minute
+    }, 60000);
 }
 
 function setupMapStateListener(mapStateRef) {
@@ -819,7 +809,6 @@ function setupMapStateListener(mapStateRef) {
         console.warn("mapStateRef is not defined, bullet hole synchronization disabled.");
         return;
     }
-    // Detach previous listeners for bullets child
     if (mapStateListener) {
         mapStateRef.child("bullets").off("child_added", mapStateListener);
         mapStateRef.child("bullets").off("child_removed");
@@ -829,38 +818,32 @@ function setupMapStateListener(mapStateRef) {
         const hole = snap.val();
         const holeKey = snap.key;
 
-        addBulletHole(hole, holeKey); // Call UI function to add locally
+        addBulletHole(hole, holeKey);
 
-        // Schedule removal from Firebase after its visual lifecycle (e.g., 5 seconds)
         setTimeout(() => {
             snap.ref.remove().catch(err => console.error("Failed to remove scheduled bullet hole from Firebase:", err));
-        }, Math.max(0, 5000 - (Date.now() - (hole.timeCreated || 0)))); // Ensure positive timeout
+        }, Math.max(0, 5000 - (Date.now() - (hole.timeCreated || 0))));
     });
 
     mapStateRef.child("bullets").on("child_removed", (snap) => {
-        removeBulletHole(snap.key); // Call UI function to remove locally
+        removeBulletHole(snap.key);
     });
 }
 
 function setupTracerListener(tracersRef) {
-    if (tracersListener) tracersRef.off("child_added", tracersListener); // Detach previous
+    if (tracersListener) tracersRef.off("child_added", tracersListener);
     tracersListener = tracersRef.on("child_added", (snap) => {
         const { ox, oy, oz, tx, ty, tz, shooter } = snap.val();
         const tracerRef = snap.ref;
-        // Remove from Firebase after a short delay (e.g., 1 second)
         setTimeout(() => tracerRef.remove().catch(err => console.error("Failed to remove tracer from Firebase:", err)), 1000);
-        // Always create tracer locally for all players, regardless of who shot it
         createTracer(new THREE.Vector3(ox, oy, oz), new THREE.Vector3(tx, ty, tz), snap.key);
     });
 
-    tracersRef.off("child_removed"); // Detach previous
+    tracersRef.off("child_removed");
     tracersRef.on("child_removed", (snap) => {
         removeTracer(snap.key);
     });
 }
-
-
-// --- Global Visibility Change Listener (from your original code) ---
 
 document.addEventListener("visibilitychange", () => {
     if (!document.hidden && dbRefs && dbRefs.playersRef) {
@@ -870,9 +853,8 @@ document.addEventListener("visibilitychange", () => {
             snapshot.forEach(snap => {
                 const data = snap.val();
                 activeFirebasePlayers.add(data.id);
-                if (data.id === localPlayerId) return; // Don't process local player as remote
+                if (data.id === localPlayerId) return;
 
-                // Update existing remote players or add new ones if they are in Firebase
                 if (remotePlayers[data.id]) {
                     updateRemotePlayer(data);
                 } else if (!permanentlyRemoved.has(data.id)) {
@@ -880,14 +862,153 @@ document.addEventListener("visibilitychange", () => {
                 }
             });
 
-            // Remove models for players no longer in Firebase
             Object.keys(remotePlayers).forEach(id => {
                 if (!activeFirebasePlayers.has(id)) {
                     console.log(`Resync: Player ${id} not found in Firebase. Removing model.`);
                     removeRemotePlayerModel(id);
-                    permanentlyRemoved.add(id); // Mark as permanently removed
+                    permanentlyRemoved.add(id);
                 }
             });
         }).catch(err => console.error("Error during visibility change resync:", err));
     }
 });
+
+
+// New: Global interval to monitor and clean up stale game entries from the lobby
+let staleGameCleanupInterval = null;
+
+export function startStaleGameCleanupMonitor() {
+    // Clear any existing monitor to prevent duplicates
+    if (staleGameCleanupInterval) {
+        clearInterval(staleGameCleanupInterval);
+        console.log("[network.js] Cleared existing stale game cleanup monitor.");
+    }
+
+    // Run this check periodically (e.g., every 5 minutes)
+    const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+    const MAX_INACTIVITY_MS = 10 * 60 * 1000; // Consider a game stale if no player updates for 10 minutes
+
+    staleGameCleanupInterval = setInterval(async () => {
+        console.log("[network.js] Running stale game cleanup monitor...");
+        try {
+            const gamesSnapshot = await gamesRef.once('value'); // Get all games in the lobby
+            if (!gamesSnapshot.exists()) {
+                console.log("[network.js] No active games in lobby to monitor for cleanup.");
+                return;
+            }
+
+            const gamesToDelete = [];
+
+            gamesSnapshot.forEach(gameSnap => {
+                const gameId = gameSnap.key;
+                const gameData = gameSnap.val();
+                const slotName = gameData.slot;
+
+                if (!slotName) {
+                    // If a game entry doesn't even have a slot, it's malformed, delete it.
+                    console.warn(`[Stale Cleanup] Game ${gameId} has no slot name. Marking for deletion.`);
+                    gamesToDelete.push({ gameId, reason: "No slot name" });
+                    return;
+                }
+
+                const slotConfig = gameDatabaseConfigs[slotName];
+                if (!slotConfig) {
+                    console.warn(`[Stale Cleanup] Game ${gameId} uses slot ${slotName} but no config found. Marking for deletion.`);
+                    gamesToDelete.push({ gameId, reason: "Missing slot config" });
+                    return;
+                }
+
+                // Initialize (or re-use) a Firebase app for the slot's database
+                let slotApp;
+                try {
+                    slotApp = firebase.app(slotName + 'App');
+                } catch (e) {
+                    slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
+                }
+                const slotDbRootRef = slotApp.database().ref();
+                const playersRef = slotDbRootRef.child('players');
+                const gameConfigRef = slotDbRootRef.child('gameConfig');
+
+
+                // Scenario 1: Game ended flag is true
+                gameConfigRef.child('ended').once('value').then(endedSnap => {
+                    if (endedSnap.val() === true) {
+                        console.log(`[Stale Cleanup] Game ${gameId} in slot ${slotName} is marked as ended. Marking for deletion.`);
+                        gamesToDelete.push({ gameId, slotName, reason: "Game ended flag true" });
+                        return; // Done with this game, move to next
+                    }
+
+                    // Scenario 2: No active players for a long time
+                    playersRef.once('value').then(playersSnap => {
+                        if (!playersSnap.exists() || playersSnap.numChildren() === 0) {
+                            console.log(`[Stale Cleanup] Game ${gameId} in slot ${slotName} has no players. Marking for deletion.`);
+                            gamesToDelete.push({ gameId, slotName, reason: "No players" });
+                            return;
+                        }
+
+                        // Check last update time for all players
+                        let latestPlayerUpdate = 0;
+                        playersSnap.forEach(playerChildSnap => {
+                            const playerData = playerChildSnap.val();
+                            if (playerData && playerData.lastUpdate && playerData.lastUpdate > latestPlayerUpdate) {
+                                latestPlayerUpdate = playerData.lastUpdate;
+                            }
+                        });
+
+                        if (Date.now() - latestPlayerUpdate > MAX_INACTIVITY_MS) {
+                            console.log(`[Stale Cleanup] Game ${gameId} in slot ${slotName} has been inactive for too long. Marking for deletion.`);
+                            gamesToDelete.push({ gameId, slotName, reason: "Inactive players" });
+                        }
+                    }).catch(err => console.error(`[Stale Cleanup] Error checking players for game ${gameId}:`, err));
+
+                }).catch(err => console.error(`[Stale Cleanup] Error checking game config for game ${gameId}:`, err));
+            });
+
+            // After iterating through all games, perform deletions
+            for (const { gameId, slotName, reason } of gamesToDelete) {
+                console.log(`[Stale Cleanup] Attempting to clean up game ${gameId} (Slot: ${slotName || 'N/A'}, Reason: ${reason})`);
+                try {
+                    // 1. Remove game entry from the main lobby
+                    await gamesRef.child(gameId).remove();
+                    console.log(`[Stale Cleanup] Removed lobby entry for game ${gameId}.`);
+
+                    // 2. Clear all data in the associated slot database
+                    if (slotName) {
+                        const slotConfig = gameDatabaseConfigs[slotName];
+                        if (slotConfig) {
+                            let slotApp;
+                            try {
+                                slotApp = firebase.app(slotName + 'App');
+                            } catch (e) {
+                                slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
+                            }
+                            const slotDbRootRef = slotApp.database().ref();
+                            await slotDbRootRef.remove(); // Remove ALL data for this slot
+                            console.log(`[Stale Cleanup] Cleared all data from slot database ${slotName}.`);
+                        }
+                    }
+                    // 3. Release the game slot (this might be redundant if slotDbRootRef.remove() cleans up the slot's state in slotsRef, but good to be explicit)
+                    await releaseGameSlot(slotName);
+                    console.log(`[Stale Cleanup] Released game slot ${slotName}.`);
+
+                } catch (cleanupErr) {
+                    console.error(`[Stale Cleanup] Failed to fully clean up game ${gameId}:`, cleanupErr);
+                }
+            }
+
+        } catch (err) {
+            console.error("[network.js] Error in stale game cleanup monitor:", err);
+        }
+    }, CHECK_INTERVAL_MS);
+    console.log("[network.js] Stale game cleanup monitor started.");
+}
+
+// You need to call this function once when your application initializes,
+// for example, in your main index.js or app.js after Firebase is set up.
+// Example:
+// import { startStaleGameCleanupMonitor } from './network.js';
+// firebase.initializeApp(firebaseConfig); // Your main app config
+// startStaleGameCleanupMonitor();
+
+
+// ... (rest of your existing network.js code) ...
