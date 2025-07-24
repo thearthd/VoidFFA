@@ -50,7 +50,7 @@ createTracer
 
 import { usersRef } from './firebase-config.js';
 
-import { initInput, inputState, postFrameCleanup } from "./input.js";
+import { initInput, inputState, postFrameCleanup, handleWeaponSwitch } from "./input.js";
 import { PhysicsController } from "./physics.js";
 import { WeaponController, _prototypeModels, getWeaponModel, activeTracers }  from "./weapons.js";
 let detailsEnabled;
@@ -2074,7 +2074,7 @@ export function animate(timestamp) {
         // console.log("Animation loop paused or stopped due to local player disconnection."); // Only for debugging
         return;
     }
-
+    
     // --- Frame Throttling (60fps) ---
     const FRAME_INTERVAL = 1000 / 60; // ≈16.67ms
     if (!animate.lastTime) {
@@ -2232,7 +2232,7 @@ export function animate(timestamp) {
             const rp = window.remotePlayers[id];
             if (rp.data) updateRemotePlayer(rp.data); // Assuming rp.data is the latest received network state
         }
-
+        handleWeaponSwitch();
         // Weapon Switching
         if (inputState.weaponSwitch) {
             const oldW = window.localPlayer.weapon;
