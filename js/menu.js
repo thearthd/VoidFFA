@@ -28,7 +28,7 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/
 import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
 import { initNetwork, setActiveGameId } from "./network.js";
-import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef } from './firebase-config.js';
+import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, CLIENT_GAME_VERSION, menuRef } from './firebase-config.js';
 
 import {  showLoadoutScreen, hideLoadoutScreen } from "./loadout.js";
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
@@ -1324,221 +1324,271 @@ function playButtonHit() {
  * Handles the "Create Game" button click.
  * Uses SweetAlert2 for input and pushes game data to Firebase.
  */
-async function createGameButtonHit() {
-    username = localStorage.getItem("username");
-    if (!username || !username.trim()) {
-        return Swal.fire('Error', 'Please set your username first.', 'error');
+async function checkGameVersion() {
+  try {
+    const snapshot = await menuRef.child("requiredGameVersion").once("value");
+    const requiredVersion = snapshot.val();
+
+    if (!requiredVersion) {
+      console.warn("No requiredGameVersion found in database. Allowing access.");
+      return true; // If no version is specified, assume no restriction
     }
 
-    const { value: formValues } = await Swal.fire({
-        title: 'Create New Game',
-        html:
-            `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
-            '<select id="swal-input2" class="swal2-select">' +
-            '<option value="">Select Map</option>' +
-            '<option value="DiddyDunes">DiddyDunes</option>' +
-            '<option value="SigmaCity">SigmaCity</option>' +
-            '<option value="CrocodilosConstruction">CrocodilosConstruction</option>' +
-            '</select>' +
-            '<select id="swal-input3" class="swal2-select">' +
-            '<option value="FFA">FFA</option>' +
-            '</select>',
-        focusConfirm: false,
-        preConfirm: () => {
-            const gameName = document.getElementById('swal-input1').value;
-            const map      = document.getElementById('swal-input2').value;
-            const mode     = document.getElementById('swal-input3').value;
-            if (!gameName || !map || !mode) {
-                Swal.showValidationMessage(`Please fill all fields`);
-                return false;
-            }
-            return { gameName, map, gamemode: mode };
-        }
+    if (CLIENT_GAME_VERSION !== requiredVersion) {
+      Swal.fire({
+        title: 'Update Required!',
+        html: `Your game version (${CLIENT_GAME_VERSION}) is outdated. Please update to version ${requiredVersion}.`,
+        icon: 'warning',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error checking game version:", error);
+    Swal.fire('Error', 'Failed to check game version. Please try again.', 'error');
+    return false;
+  }
+}
+
+async function createGameButtonHit() {
+  const versionOk = await checkGameVersion();
+  if (!versionOk) {
+    return; // Stop if version doesn't match
+  }
+
+  username = localStorage.getItem("username");
+  if (!username || !username.trim()) {
+    return Swal.fire('Error', 'Please set your username first.', 'error');
+  }
+
+  const { value: formValues } = await Swal.fire({
+    title: 'Create New Game',
+    html:
+      `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
+      '<select id="swal-input2" class="swal2-select">' +
+      '<option value="">Select Map</option>' +
+      '<option value="DiddyDunes">DiddyDunes</option>' +
+      '<option value="SigmaCity">SigmaCity</option>' +
+      '<option value="CrocodilosConstruction">CrocodilosConstruction</option>' +
+      '</select>' +
+      '<select id="swal-input3" class="swal2-select">' +
+      '<option value="FFA">FFA</option>' +
+      '</select>',
+    focusConfirm: false,
+    preConfirm: () => {
+      const gameName = document.getElementById('swal-input1').value;
+      const map = document.getElementById('swal-input2').value;
+      const mode = document.getElementById('swal-input3').value;
+      if (!gameName || !map || !mode) {
+        Swal.showValidationMessage(`Please fill all fields`);
+        return false;
+      }
+      return { gameName, map, gamemode: mode };
+    }
+  });
+
+  if (!formValues) {
+    return;
+  }
+
+  const gameData = {
+    gameName: formValues.gameName,
+    map: formValues.map,
+    gamemode: formValues.gamemode,
+    host: username,
+    createdAt: firebase.database.ServerValue.TIMESTAMP,
+    status: "waiting",
+    gameVersion: CLIENT_GAME_VERSION // Assign client's version to the game
+  };
+
+  try {
+    // 1) push to games list
+    const newGameRef = gamesRef.push();
+    await newGameRef.set(gameData);
+    const gameId = newGameRef.key;
+    let ffaEnabled = true;
+
+    // 2) try to claim a slot, passing the game version
+    const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled, CLIENT_GAME_VERSION);
+    await gamesRef.child(gameId).child('status').set("starting");
+
+    if (!slotResult) {
+      // 🔥 Dispose of the just-created game
+      await newGameRef.remove();
+      Swal.fire('Error', 'No free slots available. Game discarded.', 'error');
+      return;
+    }
+
+    // 3) store claimed slot
+    await gamesRef.child(gameId).child('slot').set(slotResult.slotName);
+
+    // 4) notify & join
+    Swal.fire({
+      title: 'Game Created!',
+      html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>`,
+      icon: 'success',
+      confirmButtonText: 'Join Game'
+    }).then(res => {
+      if (res.isConfirmed) {
+        // nice
+      } else {
+        // nice
+      }
     });
 
-    if (!formValues) {
-        return;
-    }
-
-const gameData = {
-  gameName:  formValues.gameName,
-  map:       formValues.map,
-  gamemode:  formValues.gamemode,
-  host:      username,
-  createdAt: firebase.database.ServerValue.TIMESTAMP,
-  status:    "waiting"          // ← add this
-};
-
-    try {
-        // 1) push to games list
-        const newGameRef = gamesRef.push();
-        await newGameRef.set(gameData);
-        const gameId = newGameRef.key;
-          let ffaEnabled = true;
-        // 2) try to claim a slot
-        const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
-         await gamesRef.child(gameId).child('status').set("starting");
-        if (!slotResult) {
-            // 🔥 Dispose of the just-created game
-            await newGameRef.remove();
-            Swal.fire('Error', 'No free slots available. Game discarded.', 'error');
-            return;
-        }
-
-        // 3) store claimed slot
-        await gamesRef.child(gameId).child('slot').set(slotResult.slotName);
-
-        // 4) notify & join
-        Swal.fire({
-            title: 'Game Created!',
-            html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>`,
-            icon: 'success',
-            confirmButtonText: 'Join Game'
-        }).then(res => {
-            if (res.isConfirmed) {
-               // nice
-            } else {
-                // nice
-            }
-        });
-
-    } catch (error) {
-        console.error("Error creating game:", error);
-        Swal.fire('Error','Could not create game: ' + error.message,'error');
-    }
+  } catch (error) {
+    console.error("Error creating game:", error);
+    Swal.fire('Error', 'Could not create game: ' + error.message, 'error');
+  }
 }
 
 
 async function gamesButtonHit() {
-    clearMenuCanvas();
-    add(logo);
-    let loadingText = new Text("Loading games...", "30pt Arial");
-    loadingText.setColor("#ffffff");
-    loadingText.setPosition(getWidth() / 2, getHeight() / 2);
-    add(loadingText);
-    currentMenuObjects.push(loadingText);
+  const versionOk = await checkGameVersion();
+  if (!versionOk) {
+    return; // Stop if version doesn't match
+  }
 
-    try {
-        const snapshot = await gamesRef.once('value');
-        const gamesObj = snapshot.val() || {};
+  clearMenuCanvas();
+  add(logo);
+  let loadingText = new Text("Loading games...", "30pt Arial");
+  loadingText.setColor("#ffffff");
+  loadingText.setPosition(getWidth() / 2, getHeight() / 2);
+  add(loadingText);
+  currentMenuObjects.push(loadingText);
 
-        const activeSlots = Object.entries(gamesObj)
-            .filter(([id, game]) => game.status === "waiting" || game.status === "starting")
-            .map(([id, game]) => ({
-                id,
-                gameName: game.gameName,    // ← include gameName
-                host:     game.host,
-                map:      game.map,
-                createdAt: game.createdAt,
-                slot:     game.slot
-            }))
-            .sort((a, b) => b.createdAt - a.createdAt);
+  try {
+    const snapshot = await gamesRef.once('value');
+    const gamesObj = snapshot.val() || {};
 
-        remove(loadingText);
+    const activeSlots = Object.entries(gamesObj)
+      .filter(([id, game]) => {
+        // Only show games that are "waiting" or "starting" AND match the client's version
+        return (game.status === "waiting" || game.status === "starting") &&
+               game.gameVersion === CLIENT_GAME_VERSION; // Check game version
+      })
+      .map(([id, game]) => ({
+        id,
+        gameName: game.gameName,
+        host: game.host,
+        map: game.map,
+        createdAt: game.createdAt,
+        slot: game.slot,
+        gameVersion: game.gameVersion // Include game version for display/debugging
+      }))
+      .sort((a, b) => b.createdAt - a.createdAt);
 
-        if (activeSlots.length === 0) {
-            let none = new Text("No active games available. Create one!", "30pt Arial");
-            none.setColor("#ffffff");
-            none.setPosition(getWidth() / 2, getHeight() / 2);
-            add(none);
-            currentMenuObjects.push(none);
-            addBackButton(playButtonHit);
-            return;
-        }
+    remove(loadingText);
 
-        const GAMES_PER_PAGE = 4;
-        const startIndex = currentPage * GAMES_PER_PAGE;
-        const pageSlots = activeSlots.slice(startIndex, startIndex + GAMES_PER_PAGE);
-
-        let yStart = 200;
-        const entryHeight = 150;
-
-        for (let i = 0; i < pageSlots.length; i++) {
-            const slotInfo = pageSlots[i];
-            const gameId   = slotInfo.id;
-            const mapName  = slotInfo.map;
-            const y = yStart + i * entryHeight;
-
-            // Background hitbox
-            let gameBg = createClickableRectangle(
-                getWidth() * 0.1,
-                y - 50,
-                getWidth() * 0.8,
-                100,
-                "rgba(50,50,50,0.7)",
-                () => {
-                    console.log(`Joining game ${slotInfo.gameName} on map ${mapName}`);
-                    setActiveGameId(gameId);
-                    initAndStartGame(username, mapName, gameId);
-                }
-            );
-            add(gameBg);
-            currentMenuObjects.push(gameBg);
-
-            // Game name
-            let titleText = new Text(`${slotInfo.gameName}`, "25pt Arial");
-            titleText.setColor("#55eeff");
-            titleText.setPosition(getWidth() * 0.5, y);
-            add(titleText);
-            currentMenuObjects.push(titleText);
-
-            // Map details
-            let detailsText = new Text(`Map: ${slotInfo.map}`, "15pt Arial");
-            detailsText.setColor("#999999");
-            detailsText.setPosition(getWidth() * 0.5, y + 30);
-            add(detailsText);
-            currentMenuObjects.push(detailsText);
-        }
-
-        const maxPages = Math.ceil(activeSlots.length / GAMES_PER_PAGE);
-        const paginationY = getHeight() - 100;
-
-        if (currentPage > 0) {
-            let leftArrow = createAndAddButton(
-                "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d",
-                getWidth() / 2 - 150, paginationY,
-                70, 70,
-                () => { currentPage--; gamesButtonHit(); },
-                ""
-            );
-            leftArrow.image.setLayer(4);
-            leftArrow.hitbox.setLayer(16);
-            currentMenuObjects.push(leftArrow.image, leftArrow.hitbox);
-        }
-
-        if (currentPage < maxPages - 1) {
-            let rightArrow = createAndAddButton(
-                "https://codehs.com/uploads/1bb4c45ae81aae1da5cebb8bb0713748",
-                getWidth() / 2 + 80, paginationY,
-                70, 70,
-                () => { currentPage++; gamesButtonHit(); },
-                ""
-            );
-            rightArrow.image.setLayer(4);
-            rightArrow.hitbox.setLayer(16);
-            currentMenuObjects.push(rightArrow.image, rightArrow.hitbox);
-        }
-
-        if (maxPages > 0) {
-            let pageText = new Text(`Page ${currentPage + 1} of ${maxPages}`, "20pt Arial");
-            pageText.setColor("#ffffff");
-            pageText.setPosition(getWidth() / 2, paginationY + 15);
-            add(pageText);
-            currentMenuObjects.push(pageText);
-        }
-
-        addBackButton(playButtonHit);
-
-    } catch (error) {
-        console.error("Error fetching slots:", error);
-        remove(loadingText);
-        let errorText = new Text("Error loading games: " + error.message, "20pt Arial");
-        errorText.setColor("#ff0000");
-        errorText.setPosition(getWidth() / 2, getHeight() / 2);
-        add(errorText);
-        currentMenuObjects.push(errorText);
-        addBackButton(playButtonHit);
+    if (activeSlots.length === 0) {
+      let none = new Text("No active games available. Create one!", "30pt Arial");
+      none.setColor("#ffffff");
+      none.setPosition(getWidth() / 2, getHeight() / 2);
+      add(none);
+      currentMenuObjects.push(none);
+      addBackButton(playButtonHit);
+      return;
     }
+
+    const GAMES_PER_PAGE = 4;
+    const startIndex = currentPage * GAMES_PER_PAGE;
+    const pageSlots = activeSlots.slice(startIndex, startIndex + GAMES_PER_PAGE);
+
+    let yStart = 200;
+    const entryHeight = 150;
+
+    for (let i = 0; i < pageSlots.length; i++) {
+      const slotInfo = pageSlots[i];
+      const gameId = slotInfo.id;
+      const mapName = slotInfo.map;
+      const y = yStart + i * entryHeight;
+
+      // Background hitbox
+      let gameBg = createClickableRectangle(
+        getWidth() * 0.1,
+        y - 50,
+        getWidth() * 0.8,
+        100,
+        "rgba(50,50,50,0.7)",
+        async () => { // Changed to async to await version check
+          const versionOkForJoin = await checkGameVersion();
+          if (!versionOkForJoin) {
+            return; // Stop if version doesn't match
+          }
+          console.log(`Joining game ${slotInfo.gameName} on map ${mapName}`);
+          setActiveGameId(gameId);
+          initAndStartGame(username, mapName, gameId);
+        }
+      );
+      add(gameBg);
+      currentMenuObjects.push(gameBg);
+
+      // Game name
+      let titleText = new Text(`${slotInfo.gameName}`, "25pt Arial");
+      titleText.setColor("#55eeff");
+      titleText.setPosition(getWidth() * 0.5, y);
+      add(titleText);
+      currentMenuObjects.push(titleText);
+
+      // Map details and version
+      let detailsText = new Text(`Map: ${slotInfo.map} | Version: ${slotInfo.gameVersion || 'N/A'}`, "15pt Arial"); // Display game version
+      detailsText.setColor("#999999");
+      detailsText.setPosition(getWidth() * 0.5, y + 30);
+      add(detailsText);
+      currentMenuObjects.push(detailsText);
+    }
+
+    const maxPages = Math.ceil(activeSlots.length / GAMES_PER_PAGE);
+    const paginationY = getHeight() - 100;
+
+    if (currentPage > 0) {
+      let leftArrow = createAndAddButton(
+        "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d",
+        getWidth() / 2 - 150, paginationY,
+        70, 70,
+        () => { currentPage--; gamesButtonHit(); },
+        ""
+      );
+      leftArrow.image.setLayer(4);
+      leftArrow.hitbox.setLayer(16);
+      currentMenuObjects.push(leftArrow.image, leftArrow.hitbox);
+    }
+
+    if (currentPage < maxPages - 1) {
+      let rightArrow = createAndAddButton(
+        "https://codehs.com/uploads/1bb4c45ae81aae1da5cebb8bb0713748",
+        getWidth() / 2 + 80, paginationY,
+        70, 70,
+        () => { currentPage++; gamesButtonHit(); },
+        ""
+      );
+      rightArrow.image.setLayer(4);
+      rightArrow.hitbox.setLayer(16);
+      currentMenuObjects.push(rightArrow.image, rightArrow.hitbox);
+    }
+
+    if (maxPages > 0) {
+      let pageText = new Text(`Page ${currentPage + 1} of ${maxPages}`, "20pt Arial");
+      pageText.setColor("#ffffff");
+      pageText.setPosition(getWidth() / 2, paginationY + 15);
+      add(pageText);
+      currentMenuObjects.push(pageText);
+    }
+
+    addBackButton(playButtonHit);
+
+  } catch (error) {
+    console.error("Error fetching slots:", error);
+    remove(loadingText);
+    let errorText = new Text("Error loading games: " + error.message, "20pt Arial");
+    errorText.setColor("#ff0000");
+    errorText.setPosition(getWidth() / 2, getHeight() / 2);
+    add(errorText);
+    currentMenuObjects.push(errorText);
+    addBackButton(playButtonHit);
+  }
 }
 /**
  * Adds a "Back to Menu" button to the current screen.
