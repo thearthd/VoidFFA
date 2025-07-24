@@ -611,12 +611,7 @@ export async function fullCleanup(gameId) {
         await endGameCleanup();
         console.log("[fullCleanup] ✓ endGameCleanup complete");
 
-        // Use the captured initialSlotName for operations that require it
-        if (!initialSlotName) {
-            console.warn("[fullCleanup] No initial active game slot found during fullCleanup, skipping slot-specific database removal.");
-            // We can still proceed with other cleanup steps, just skip the slot-specific ones.
-            // DO NOT THROW AN ERROR HERE, as endGameCleanup already did its job.
-        } else {
+
             const slotApp = firebase.app(initialSlotName + "App");
             const rootRef = slotApp.database().ref();
             console.log("[fullCleanup] ✓ slot rootRef acquired for", initialSlotName);
@@ -634,17 +629,6 @@ export async function fullCleanup(gameId) {
                 rootRef.child("sounds").remove(),
                 rootRef.child("gameConfig").remove(),
             ]);
-            console.log("[fullCleanup] ✓ cleared players, chat, kills, mapState, tracers, sounds, gameConfig from slot DB");
-
-            // 3) Free the slot in slotsRef (if endGameCleanup didn't already handle it, which it should have)
-            // This call is redundant if endGameCleanup correctly releases the slot.
-            // Consider if `releaseGameSlot` should ONLY be in `endGameCleanup`.
-            // If `releaseGameSlot` is robust and handles being called multiple times, it's fine.
-            // If not, you might remove this line here.
-            // For now, let's assume endGameCleanup already released it.
-            // await releaseGameSlot(initialSlotName);
-            // console.log(`[fullCleanup] ✓ releaseGameSlot(${initialSlotName}) complete (might be redundant)`);
-        }
 
         // 4) Remove from lobby (this is on the *main* gamesRef, not slot-specific)
         if (gameId) {
