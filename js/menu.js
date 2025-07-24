@@ -1131,6 +1131,10 @@ disclaimerText.setColor("#ffffff");
 disclaimerText.setPosition(getWidth()/2, getHeight()-100);
 
 
+let escMenu = new ImageShape("https://codehs.com/uploads/badb165ef3d765a60258ba9db41f3f28");
+escMenu.setPosition(getWidth()/2, getHeight()/2);
+escMenu.setSize(1920/2, 1080/2);
+
 
 function playerCardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
@@ -1265,7 +1269,6 @@ function showMenuOverlay() {
 }
 
 async function initAndStartGame(username, mapName, gameId = null) {
-     clearMenuCanvas();
      dontyetpls = 0;
      hud.style.display = "block";
   // Read your UI flags up front
@@ -1341,11 +1344,10 @@ export async function createGameButtonHit() {
     if (!username || !username.trim()) {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
-     console.log(requiredGameVersion);
     // Version check before creating a game
     // This uses the dynamically loaded `requiredGameVersion` from firebase-config.js
     if (CLIENT_GAME_VERSION !== requiredGameVersion) {
-        return Swal.fire('Update Required', `Your game version (${CLIENT_GAME_VERSION}) does not match the required version (${requiredGameVersion}). Please update your game to create games.`, 'error');
+        return Swal.fire('Update Required', `Your game version (${CLIENT_GAME_VERSION}) does not match the required version (${requiredGameVersion}). Please refresh your tab to create games.`, 'error');
     }
 
     const {
