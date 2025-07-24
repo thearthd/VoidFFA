@@ -1137,7 +1137,7 @@ escMenu.setPosition(getWidth()/2, getHeight()/2);
 escMenu.setSize(1920/2, 1080/2);
 
 // Make sure the pause menu is initially hidden
-escMenu.setVisibility(false);
+escMenu.setOpacity(0);
 
 // Variable to track if the pause menu is open
 let isPaused = false;
@@ -1152,7 +1152,7 @@ window.addEventListener("keydown", e => {
     if (checkInGame && e.key.toLowerCase() === 'p') {
         if (!isPaused) {
             // If not paused, show the menu and pause
-            escMenu.setVisibility(true);
+          escMenu.setOpacity(100);
             add(escMenu); // Add the menu to the canvas if not already added
 
             // Layer the canvas on top by increasing its z-index
@@ -1164,7 +1164,7 @@ window.addEventListener("keydown", e => {
             isPaused = true;
         } else {
             // If paused, hide the menu and unpause
-            escMenu.setVisibility(false);
+           escMenu.setOpacity(0);
             
             // Reset canvas z-index
             document.getElementById('gameCanvas').style.zIndex = ''; 
