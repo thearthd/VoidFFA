@@ -1156,7 +1156,7 @@ window.addEventListener("keydown", e => {
             add(escMenu); // Add the menu to the canvas if not already added
 
             // Layer the canvas on top by increasing its z-index
-            document.getElementById('gameCanvas').style.zIndex = '1000'; 
+            document.getElementById('menuCanvas').style.zIndex = '1000'; 
 
             // Show and unlock the cursor
             document.body.style.cursor = 'auto'; 
@@ -1167,7 +1167,7 @@ window.addEventListener("keydown", e => {
            escMenu.setOpacity(0);
             
             // Reset canvas z-index
-            document.getElementById('gameCanvas').style.zIndex = ''; 
+            document.getElementById('menuCanvas').style.zIndex = ''; 
 
             // Hide and lock the cursor
             document.body.style.cursor = 'none'; 
