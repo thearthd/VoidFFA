@@ -400,6 +400,8 @@ export async function endGameCleanup() {
         console.log("Kills listener detached.");
     }
     if (mapStateListener && dbRefs.mapStateRef) {
+        // Note: The original code was only detaching from 'bullets'.
+        // Ensure this is the correct behavior or adjust if other mapState children need detaching.
         dbRefs.mapStateRef.child("bullets").off("child_added", mapStateListener);
         mapStateListener = null;
         console.log("MapState/bullets listener detached.");
@@ -422,41 +424,39 @@ export async function endGameCleanup() {
 
     if (audioManagerInstance) {
         audioManagerInstance.stopAll();
+        console.log("Audio manager stopped all sounds.");
     }
 
     if (dbRefs.playersRef && localPlayerId) {
         try {
+            // Remove the local player's entry from the Firebase database
             await dbRefs.playersRef.child(localPlayerId).remove();
             console.log(`Local player '${localPlayerId}' explicitly removed from Firebase.`);
-          //  dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel();
+            // The onDisconnect().cancel() was commented out, if it's needed, uncomment it here.
+            // dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel();
         } catch (error) {
             console.error(`Error removing local player '${localPlayerId}' from Firebase during cleanup:`, error);
         }
     }
 
     // Release the game slot and remove the lobby entry
+    // This function is responsible for setting activeGameSlotName to null
     if (activeGameSlotName) {
         await releaseGameSlot(activeGameSlotName);
         console.log(`Game slot '${activeGameSlotName}' released AND lobby entry removed.`);
         localStorage.removeItem(`playerId-${activeGameSlotName}`);
-        activeGameSlotName = null;
+        activeGameSlotName = null; // Ensure it's nullified here
     }
-   const initialSlotName = activeGameSlotName; // Capture it here
-            const slotApp = firebase.app(initialSlotName + "App");
-            const rootRef = slotApp.database().ref();
-            console.log("[fullCleanup] ✓ slot rootRef acquired for", initialSlotName);
 
-            // 2) Delete game data from the specific slot's database
-            await rootRef.child("game").remove();
-            console.log("[fullCleanup] ✓ removed /game node");
-
+    // Clear local state variables
+    localPlayerId = null; // Ensure localPlayerId is also nullified
+    dbRefs = {}; // Clear all database references
     
-    localPlayerId = null;
-
-    dbRefs = {};
+    // Clear remote player models and data
     for (const id in remotePlayers) {
-        removeRemotePlayerModel(id);
+        removeRemotePlayerModel(id); // Assuming this function disposes Three.js objects
     }
+    // Clear the remotePlayers object itself
     for (const key in remotePlayers) {
         delete remotePlayers[key];
     }
@@ -465,6 +465,7 @@ export async function endGameCleanup() {
 
     console.log("[network.js] Game cleanup complete. All listeners detached and data cleared.");
 }
+
 
 
 /**
