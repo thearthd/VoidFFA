@@ -7,7 +7,7 @@ import { updateCrosshair } from "./game.js";
 import { getSpreadMultiplier, getSpreadDirection, getRecoilAngle, ADS_FOV } from './cs2_logic.js';
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { sendTracer, sendSoundEvent } from "./network.js";
-import { updateAmmoDisplay } from "./ui.js";
+import { updateAmmoDisplay, updateInventory } from "./ui.js";
 import { mergeBufferGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { sendBulletHole } from "./network.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -271,214 +271,221 @@ export class WeaponController {
   }
 
 equipWeapon(weaponKey) {
-  if (!WeaponController.WEAPONS[weaponKey]) {
-    console.warn(`[WeaponController] Unknown weapon: ${weaponKey}`);
-    return;
-  }
+    if (!WeaponController.WEAPONS[weaponKey]) {
+        console.warn(`[WeaponController] Unknown weapon: ${weaponKey}`);
+        return;
+    }
 
-  // 1) Save current ammo
-  if (this.currentKey) {
-    this.ammoStore[this.currentKey] = this.ammoInMagazine;
-  }
+    // 1) Save current ammo
+    if (this.currentKey) {
+        this.ammoStore[this.currentKey] = this.ammoInMagazine;
+    }
 
-  // 2) Clear any tracer lines
-  if (this.state.tracerObjects) {
-    this.state.tracerObjects.forEach(entry => {
-      if (entry.lineMesh.parent) {
-        entry.lineMesh.parent.remove(entry.lineMesh);
-      }
-    });
-  }
+    // 2) Clear any tracer lines
+    if (this.state.tracerObjects) {
+        this.state.tracerObjects.forEach(entry => {
+            if (entry.lineMesh.parent) {
+                entry.lineMesh.parent.remove(entry.lineMesh);
+            }
+        });
+    }
 
-  // 3) Remove old viewModel from camera
-  if (this.viewModel && this.viewModel.parent === this.camera) {
-    this.camera.remove(this.viewModel);
-  }
+    // 3) Remove old viewModel from camera
+    if (this.viewModel && this.viewModel.parent === this.camera) {
+        this.camera.remove(this.viewModel);
+    }
 
-  // 4) Reset core state
-  this.currentKey      = weaponKey;
-  this.stats           = WeaponController.WEAPONS[weaponKey];
-  this.isReloadingFlag = false;
-  this.lastShotTime    = 0;
-  this.burstCount      = 0;
-  this.speedModifier   = this.stats.speedModifier;
-  this.ammoInMagazine  = this.ammoStore[weaponKey] != null
-                        ? this.ammoStore[weaponKey]
-                        : this.stats.magazineSize;
-  this.state = {
-    pulling:          false,
-    pullStart:        0,
-    pullFrom:         new THREE.Vector3(),
-    pullTo:           new THREE.Vector3(),
-    recoiling:        false,
-    recoilStart:      0,
-    reloading:        false,
-    reloadStart:      0,
-    knifeSwing:       false,
-    knifeSwingStart:  0,
-    knifeHeavy:       false,
-    tracerObjects:    []
-  };
+    // 4) Reset core state
+    this.currentKey = weaponKey; // <--- THIS IS WHERE THE WEAPON KEY IS SET
+    this.stats = WeaponController.WEAPONS[weaponKey];
+    this.isReloadingFlag = false;
+    this.lastShotTime = 0;
+    this.burstCount = 0;
+    this.speedModifier = this.stats.speedModifier;
+    this.ammoInMagazine = this.ammoStore[weaponKey] != null
+        ? this.ammoStore[weaponKey]
+        : this.stats.magazineSize;
+    this.state = {
+        pulling: false,
+        pullStart: 0,
+        pullFrom: new THREE.Vector3(),
+        pullTo: new THREE.Vector3(),
+        recoiling: false,
+        recoilStart: 0,
+        reloading: false,
+        reloadStart: 0,
+        knifeSwing: false,
+        knifeSwingStart: 0,
+        knifeHeavy: false,
+        tracerObjects: []
+    };
 
-  // 5) Create a fresh ViewModel container
-  this.viewModel = new THREE.Group();
-  this.viewModel.name = "ViewModelRoot";
-  this.createPlayerArm();
+    // 5) Create a fresh ViewModel container
+    this.viewModel = new THREE.Group();
+    this.viewModel.name = "ViewModelRoot";
+    this.createPlayerArm();
 
-  // 6) Try to clone the preloaded prototype
-  const key   = weaponKey.replace(/-/g, "").toLowerCase();
-  const proto = _prototypeModels[key];
+    // 6) Try to clone the preloaded prototype
+    const key = weaponKey.replace(/-/g, "").toLowerCase();
+    const proto = _prototypeModels[key];
 
-  // ensure we clear out any old `parts`
-  this.parts = {};
+    // ensure we clear out any old `parts`
+    this.parts = {};
 
-  const onModelReady = (modelGroup) => {
-    // 6.a) Attach into viewModel
-    this.viewModel.add(modelGroup);
+    const onModelReady = (modelGroup) => {
+        // 6.a) Attach into viewModel
+        this.viewModel.add(modelGroup);
 
-    // — keep a direct reference for update() swings/recoils —
-    this.weaponModel = modelGroup;
+        // — keep a direct reference for update() swings/recoils —
+        this.weaponModel = modelGroup;
 
-    // 6.b) Look for a child named "Muzzle" anywhere under modelGroup
-    let muzzle = null;
-    modelGroup.traverse(child => {
-      if (child.name === "Muzzle") muzzle = child;
-    });
-    if (muzzle) {
-      this.parts.muzzle = muzzle;
-     // console.log(`[WeaponController] ${key}: found muzzle at`, muzzle.position);
+        // 6.b) Look for a child named "Muzzle" anywhere under modelGroup
+        let muzzle = null;
+        modelGroup.traverse(child => {
+            if (child.name === "Muzzle") muzzle = child;
+        });
+        if (muzzle) {
+            this.parts.muzzle = muzzle;
+            // console.log(`[WeaponController] ${key}: found muzzle at`, muzzle.position);
+        } else {
+            // console.warn(`[WeaponController] ${key}: no "Muzzle" object found in model`);
+        }
+
+        // 7) Do animation‑in
+        this.viewModel.position.copy(this.offPos);
+        this.viewModel.rotation.copy(this.readyRot);
+        this.camera.add(this.viewModel);
+        this.state.pulling = true;
+        this.state.pullStart = performance.now() / 1000;
+        this.state.pullFrom.copy(this.offPos);
+        this.state.pullTo.copy(this.readyPos);
+
+        // 8) Play the pull sound
+        const pullSnd = this.audio[this.currentKey].pull;
+        if (pullSnd) {
+            pullSnd.currentTime = 0;
+            pullSnd.play();
+            const pos = new THREE.Vector3();
+            this.camera.getWorldPosition(pos);
+            sendSoundEvent(this.currentKey, "pull", pos);
+        }
+
+        // 9) Update UI
+        // This is the ideal place for UI updates related to weapon change
+        updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
+        
+        // ***************************************************************
+        // ADD THIS LINE HERE: UPDATE THE INVENTORY HIGHLIGHT
+        updateInventory(this.currentKey); // Pass the newly equipped weapon key
+        // ***************************************************************
+
+        // console.log(
+        // `Equipped (key="${weaponKey}") → speedModifier =`,
+        // this.speedModifier
+        // );
+    };
+
+    if (proto) {
+        const clone = proto.clone(true);
+        clone.visible = true;
+
+        // Apply baked‐in transforms for each weapon
+        switch (key) {
+            case "knife":
+                clone.scale.set(0.001, 0.001, 0.001);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(90),
+                    THREE.MathUtils.degToRad(160),
+                    0
+                );
+                clone.position.set(0.5, -0.1, -0.7);
+                break;
+            case "deagle":
+                clone.scale.set(0.3, 0.3, 0.3);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(7),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(
+                    0.15 * (window.innerWidth / 1920),
+                    0.10 * (window.innerHeight / 1080),
+                    -0.1 * (window.innerWidth / 1920)
+                );
+                break;
+            case "ak47":
+                clone.scale.set(0.4, 0.4, 0.4);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(4),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(
+                    0.35 * (window.innerWidth / 1920),
+                    -0.15 * (window.innerHeight / 1080),
+                    -0.3 * (window.innerWidth / 1920)
+                );
+                break;
+            case "marshal":
+                clone.scale.set(1, 1, 1);
+                clone.rotation.set(0, 0, 0);
+                clone.position.set(
+                    0.15 * (window.innerWidth / 1920),
+                    0.15 * (window.innerHeight / 1080),
+                    -0.1 * (window.innerWidth / 1920)
+                );
+                break;
+            case "m79":
+                clone.scale.set(0.3, 0.3, 0.3);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(7),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(
+                    0.15 * (window.innerWidth / 1920),
+                    0.10 * (window.innerHeight / 1080),
+                    -0.1 * (window.innerWidth / 1920)
+                );
+                break;
+            default:
+                console.warn(`[WeaponController] No transform logic for "${key}"`);
+        }
+
+        // console.log(`[WeaponController] equipWeapon(): cloned "${key}" prototype`);
+        onModelReady(clone);
+
     } else {
-     // console.warn(`[WeaponController] ${key}: no "Muzzle" object found in model`);
+        // Fallback to buildX methods, which themselves populate this.parts.muzzle
+        console.warn(`[WeaponController] Prototype for "${key}" missing → running build${capitalize(key)}()`);
+        const originalOnLoaded = (weaponGroup) => onModelReady(weaponGroup);
+
+        switch (key) {
+            case "knife":
+                this.buildKnife();
+                onModelReady(this.weaponModel);
+                break;
+            case "deagle":
+                this.buildDeagle();
+                onModelReady(this.weaponModel);
+                break;
+            case "ak47":
+                this.buildAK47();
+                onModelReady(this.weaponModel);
+                break;
+            case "marshal":
+                this.buildMarshal();
+                onModelReady(this.weaponModel);
+                break;
+            case "m79":
+                this.buildM79();
+                onModelReady(this.weaponModel);
+                break;
+            default:
+                console.error(`[WeaponController] No build method for "${key}"`);
+                break;
+        }
     }
-
-    // 7) Do animation‑in
-    this.viewModel.position.copy(this.offPos);
-    this.viewModel.rotation.copy(this.readyRot);
-    this.camera.add(this.viewModel);
-    this.state.pulling       = true;
-    this.state.pullStart     = performance.now() / 1000;
-    this.state.pullFrom.copy(this.offPos);
-    this.state.pullTo.copy(this.readyPos);
-
-    // 8) Play the pull sound
-    const pullSnd = this.audio[this.currentKey].pull;
-    if (pullSnd) {
-      pullSnd.currentTime = 0;
-      pullSnd.play();
-      const pos = new THREE.Vector3();
-      this.camera.getWorldPosition(pos);
-      sendSoundEvent(this.currentKey, "pull", pos);
-    }
-
-    // 9) Update UI
-    updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
-   // console.log(
-  //    `Equipped (key="${weaponKey}") → speedModifier =`,
-  //    this.speedModifier
-//    );
-  };
-
-  if (proto) {
-    const clone = proto.clone(true);
-    clone.visible = true;
-
-    // Apply baked‐in transforms for each weapon
-    switch (key) {
-      case "knife":
-        clone.scale.set(0.001, 0.001, 0.001);
-        clone.rotation.set(
-          THREE.MathUtils.degToRad(90),
-          THREE.MathUtils.degToRad(160),
-          0
-        );
-        clone.position.set(0.5, -0.1, -0.7);
-        break;
-      case "deagle":
-        clone.scale.set(0.3, 0.3, 0.3);
-        clone.rotation.set(
-          THREE.MathUtils.degToRad(7),
-          THREE.MathUtils.degToRad(180),
-          0
-        );
-        clone.position.set(
-          0.15 * (window.innerWidth  / 1920),
-          0.10 * (window.innerHeight / 1080),
-          -0.1 * (window.innerWidth  / 1920)
-        );
-        break;
-      case "ak47":
-        clone.scale.set(0.4, 0.4, 0.4);
-        clone.rotation.set(
-          THREE.MathUtils.degToRad(4),
-          THREE.MathUtils.degToRad(180),
-          0
-        );
-        clone.position.set(
-          0.35 * (window.innerWidth  / 1920),
-         -0.15 * (window.innerHeight / 1080),
-          -0.3  * (window.innerWidth  / 1920)
-        );
-        break;
-      case "marshal":
-        clone.scale.set(1, 1, 1);
-        clone.rotation.set(0, 0, 0);
-        clone.position.set(
-          0.15 * (window.innerWidth  / 1920),
-          0.15 * (window.innerHeight / 1080),
-          -0.1  * (window.innerWidth  / 1920)
-        );
-        break;
-              case "m79":
-        clone.scale.set(0.3, 0.3, 0.3);
-        clone.rotation.set(
-          THREE.MathUtils.degToRad(7),
-          THREE.MathUtils.degToRad(180),
-          0
-        );
-        clone.position.set(
-          0.15 * (window.innerWidth  / 1920),
-          0.10 * (window.innerHeight / 1080),
-          -0.1 * (window.innerWidth  / 1920)
-        );
-        break;
-      default:
-        console.warn(`[WeaponController] No transform logic for "${key}"`);
-    }
-
-  //  console.log(`[WeaponController] equipWeapon(): cloned "${key}" prototype`);
-    onModelReady(clone);
-
-  } else {
-    // Fallback to buildX methods, which themselves populate this.parts.muzzle
-    console.warn(`[WeaponController] Prototype for "${key}" missing → running build${capitalize(key)}()`);
-    const originalOnLoaded = (weaponGroup) => onModelReady(weaponGroup);
-
-    switch (key) {
-      case "knife":
-        this.buildKnife();
-        onModelReady(this.weaponModel);
-        break;
-      case "deagle":
-        this.buildDeagle();
-        onModelReady(this.weaponModel);
-        break;
-      case "ak47":
-        this.buildAK47();
-        onModelReady(this.weaponModel);
-        break;
-      case "marshal":
-        this.buildMarshal();
-        onModelReady(this.weaponModel);
-        break;
-      case "m79":
-        this.buildM79();
-        onModelReady(this.weaponModel);
-        break;
-      default:
-        console.error(`[WeaponController] No build method for "${key}"`);
-        break;
-    }
-  }
 }
 
 
