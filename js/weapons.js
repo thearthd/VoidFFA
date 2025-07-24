@@ -1089,7 +1089,7 @@ checkMeleeHit(collidables) {
 }
 
 
-  buildKnife(onProgressRegistrar) {
+buildKnife(onProgressRegistrar) {
     const loader = new GLTFLoader();
     const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/karambitf.glb';
     let prog = () => {};
@@ -1101,32 +1101,43 @@ checkMeleeHit(collidables) {
           this.parts = {};
           if (this.viewModel) this.viewModel.add(this.weaponModel);
           const model = gltf.scene;
+
+          // Remove or comment out all the material creation and assignment:
+          // const bladeMat = createMetalMaterial(0xffffff);
+          // const handleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+          // const fingerRestMat = createMetalMaterial(0xffffff);
+          // const decoMat = createMetalMaterial(0xff0000);
+          // const defaultMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
+
+          model.traverse(child => {
+            if (!child.isMesh) return;
+
+            // Remove or comment out this entire block that reassigns materials
+            // const name = child.name.toLowerCase();
+            // let mat = defaultMat;
+            // if (name.includes('ahva')) mat = handleMat;
+            // else if (name.includes('koriste')) mat = decoMat;
+            // else if (name.includes('sormensi')) mat = fingerRestMat;
+            // else if (name.includes('ater')) mat = bladeMat;
+            // child.material = mat; // This line is the one overriding the GLB's material
+            // child.geometry.computeVertexNormals(); // May still be useful, but related to geometry not material
+            // child.material.needsUpdate = true; // This is only needed if you change the material
+
+            // Keep these lines to assign parts if needed for other logic (e.g., animations)
+            const name = child.name.toLowerCase(); // Keep this to identify parts
+            if (name.includes('ater')) this.parts.blade = child;
+            if (name.includes('sormensi')) this.parts.ring = child;
+            if (name.includes('ahva')) this.parts.handle = child;
+          });
+
+          // The rest of your code remains largely the same for positioning and scaling
           const bbox = new THREE.Box3().setFromObject(model);
           const center = bbox.getCenter(new THREE.Vector3());
           model.position.sub(center);
           const size = bbox.getSize(new THREE.Vector3());
           const s = 0.5 / Math.max(size.x, size.y, size.z);
           this.weaponModel.scale.set(s, s, s);
-          const bladeMat = createMetalMaterial(0xffffff);
-          const handleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-          const fingerRestMat = createMetalMaterial(0xffffff);
-          const decoMat = createMetalMaterial(0xff0000);
-          const defaultMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
-          model.traverse(child => {
-            if (!child.isMesh) return;
-            const name = child.name.toLowerCase();
-            let mat = defaultMat;
-            if (name.includes('ahva')) mat = handleMat;
-            else if (name.includes('koriste')) mat = decoMat;
-            else if (name.includes('sormensi')) mat = fingerRestMat;
-            else if (name.includes('ater')) mat = bladeMat;
-            child.material = mat;
-            child.geometry.computeVertexNormals();
-            child.material.needsUpdate = true;
-            if (name.includes('ater')) this.parts.blade = child;
-            if (name.includes('sormensi')) this.parts.ring = child;
-            if (name.includes('ahva')) this.parts.handle = child;
-          });
+
           this.weaponModel.traverse(child => {
             if (child.isMesh) {
               child.castShadow = true;
@@ -1147,7 +1158,7 @@ checkMeleeHit(collidables) {
       );
     });
     return { promise, register: cb => prog = cb };
-  }
+}
 
 addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
         const geometry = new THREE.SphereGeometry(dotSize, 8, 8); // Small sphere
