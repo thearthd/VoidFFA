@@ -1121,6 +1121,12 @@ settingsMenu.setSize(1920, 1080);
 settingsMenu.setPosition(getWidth()/2 - 1920/2, getHeight()/2 - 1080/2);
 
 
+
+let disclaimerText = new Text("⚠️ GAMES DO NOT AUTOCLEAR ⚠️", "30pt Arial");
+disclaimerText.setPosition(getWidth()/2, getHeight()/2);
+
+
+
 function playerCardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
     const style = document.createElement('style');
@@ -1200,6 +1206,7 @@ function updateBoardHit() {
 function menu() {
      if(dontyetpls == 0){  menuSong.play(); }
      dontyetpls = 1;
+     add(disclaimerText);
     clearMenuCanvas(); // Clear anything previously on canvas
     // add(background); // REMOVED BACKGROUND
     sensitivitySliderContainer.style.display = "none"; // Or "block", depending on your CSS layout
