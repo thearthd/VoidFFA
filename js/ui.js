@@ -144,7 +144,7 @@ export function createGameUI(gameWrapper) {
     healthShieldDisplay.id = 'health-shield-display';
     Object.assign(healthShieldDisplay.style, {
         position: 'absolute',
-        bottom: '60px', // Positioned above inventory, adjust as needed
+        bottom: '40px', // Positioned above inventory, adjust as needed
         left: '50%',
         transform: 'translateX(-50%)',
         display: 'flex',
@@ -160,11 +160,11 @@ export function createGameUI(gameWrapper) {
 
     // Modified: Health and Shield text inside their bars, removed labels
     healthShieldDisplay.innerHTML = `
-        <div style="width: 120px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative; margin-bottom: 5px;">
+        <div style="width: 200px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative; margin-bottom: 5px;">
             <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #0f0; transition: width 0.1s linear;"></div>
             <span id="health-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em;">100 / 100</span>
         </div>
-        <div style="width: 120px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
+        <div style="width: 200px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
             <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #00f; transition: width 0.1s linear;"></div>
             <span id="shield-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em;">50 / 50</span>
         </div>
