@@ -1203,6 +1203,7 @@ window.addEventListener("keydown", e => {
         } else {
           clearMenuCanvas();
      settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
+    sensitivitySliderContainer.style.display = "none";
             // Revert overlay styles when unpaused
             canvas.style.display = 'none';
             canvas.style.position = '';
