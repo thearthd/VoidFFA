@@ -123,93 +123,78 @@ export function createGameUI(gameWrapper) {
     `;
     hud.appendChild(scoreboard);
 
-    // --- Create and append Ammo Display to HUD (Positioned top-right for now) ---
-    // Moved up to be visually distinct from health/inventory area
-    const ammoDiv = document.createElement("div");
-    ammoDiv.id = "ammo-display";
-    Object.assign(ammoDiv.style, {
-        position: "absolute",
-        bottom: "90px", // Adjusted to be above health/shield and inventory
-        right: "20px",
-        color: "white",
-        fontSize: "1.2rem",
-        fontFamily: "Arial, sans-serif",
-        textShadow: "1px 1px 2px black",
-        zIndex: "1000",
-        pointerEvents: "none",
-    });
-    hud.appendChild(ammoDiv);
-
-    // --- Create and append Health and Shield Display to HUD (Above Inventory) ---
-    const healthShieldDisplay = document.createElement('div');
-    healthShieldDisplay.id = 'health-shield-display';
-    Object.assign(healthShieldDisplay.style, {
-        position: 'absolute',
-        bottom: '60px', // Positioned above inventory, leaving space for ammo or other elements
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center', // Center align the bars
-        zIndex: '1000',
-        pointerEvents: 'none',
-        color: 'white',
-        fontFamily: 'Arial, sans-serif',
-        textShadow: '1px 1px 2px black',
-        backgroundColor: 'rgba(0,0,0,0.5)', // Subtle background for the bar container
-        padding: '5px 10px',
-        borderRadius: '5px',
-        gap: '5px', // Space between health and shield bars
-    });
-
-    healthShieldDisplay.innerHTML = `
-        <div style="display: flex; align-items: center; width: 100%;">
-            <span style="margin-right: 5px; min-width: 40px; text-align: right;">HP:</span>
-            <div style="flex-grow: 1; height: 18px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
-                <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #0f0; transition: width 0.1s linear;"></div>
-            </div>
-            <span id="health-text" style="margin-left: 5px; min-width: 60px;">100 / 100</span>
-        </div>
-        <div style="display: flex; align-items: center; width: 100%;">
-            <span style="margin-right: 5px; min-width: 40px; text-align: right;">SHLD:</span>
-            <div style="flex-grow: 1; height: 18px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
-                <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #00f; transition: width 0.1s linear;"></div>
-            </div>
-            <span id="shield-text" style="margin-left: 5px; min-width: 60px;">50 / 50</span>
-        </div>
-    `;
-    hud.appendChild(healthShieldDisplay);
 
     // --- Append Inventory to HUD ---
     const inventory = document.createElement('div');
     inventory.id = 'inventory';
     Object.assign(inventory.style, {
         position: 'absolute',
-        bottom: '20px', // Base position at the bottom
+        bottom: '20px',
         left: '50%',
         transform: 'translateX(-50%)',
         display: 'flex',
         gap: '5px',
         zIndex: '1000',
-        pointerEvents: 'none',
+        pointerEvents: 'none', // Inventory elements should not block interaction
     });
-    hud.appendChild(inventory);
+    hud.appendChild(inventory); // Append to hud
 
+    // --- Create and append Health and Shield Display to HUD ---
+    const healthShieldDisplay = document.createElement('div');
+    healthShieldDisplay.id = 'health-shield-display';
+    Object.assign(healthShieldDisplay.style, {
+        position: 'absolute',
+        bottom: '60px', // Positioned above inventory, adjust as needed
+        left: '50%',
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start', // Align items to the start for bars
+        zIndex: '1000',
+        pointerEvents: 'none',
+        color: 'white',
+        fontFamily: 'Arial, sans-serif',
+        textShadow: '1px 1px 2px black',
+    });
 
-    // --- Create and append Respawn Overlay ---
-    createRespawnOverlay(gameWrapper);
+    // Reverted to original bar structure
+    healthShieldDisplay.innerHTML = `
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <span style="margin-right: 5px;">HP:</span>
+            <div style="width: 100px; height: 15px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
+                <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #0f0; transition: width 0.1s linear;"></div>
+            </div>
+            <span id="health-text" style="margin-left: 5px;">100 / 100</span>
+        </div>
+        <div style="display: flex; align-items: center;">
+            <span style="margin-right: 5px;">SHIELD:</span>
+            <div style="width: 100px; height: 15px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
+                <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #00f; transition: width 0.1s linear;"></div>
+            </div>
+            <span id="shield-text" style="margin-left: 5px;">50 / 50</span>
+        </div>
+    `;
+    hud.appendChild(healthShieldDisplay);
 
-    // --- Create and append Loading Progress ---
-    const loadingProgress = document.createElement('div');
-    loadingProgress.id = 'loading-progress';
-    loadingProgress.classList.add('hidden'); // Start hidden
-    loadingProgress.textContent = 'Loading... 0%';
-    gameWrapper.appendChild(loadingProgress);
-
-    // --- Create and append Damage Overlay ---
-    const damageOverlay = document.createElement('div');
-    damageOverlay.id = 'damage-overlay';
-    gameWrapper.appendChild(damageOverlay);
+    // --- Create and append Ammo Display to HUD ---
+    const ammoDiv = document.createElement("div");
+    ammoDiv.id = "ammo-display";
+    Object.assign(ammoDiv.style, {
+        position: "absolute",
+        bottom: "20px", // Same bottom as inventory to be on its right
+        // Left positioning will be relative to inventory
+        color: "white",
+        fontSize: "1.2rem",
+        fontFamily: "Arial, sans-serif",
+        textShadow: "1px 1px 2px black",
+        zIndex: "1000",
+        pointerEvents: "none",
+        // Added some padding/background for clarity
+        padding: '5px 10px',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: '5px'
+    });
+    hud.appendChild(ammoDiv); // Append to hud
 
 
     // Initialize listeners for interactive UI elements
@@ -780,17 +765,32 @@ export function initBulletHoles() {
     ————————————————————————————————————————————————————————————————————— */
 let ammoDiv = null;
 export function initAmmoDisplay(weaponKey, maxAmmo) {
-    // AmmoDiv is now created dynamically within createGameUI.
-    // We just need to get the reference here.
     ammoDiv = document.getElementById("ammo-display");
     if (!ammoDiv) {
         console.warn("Ammo display div not found after UI creation.");
         return;
     }
-    ammoDiv.innerText = `Ammo: ${maxAmmo} / ${maxAmmo}`;
+    // Only display numbers
+    ammoDiv.innerText = `${maxAmmo} / ${maxAmmo}`;
+    // Position it to the right of the inventory
+    positionAmmoDisplay();
 }
 
 export function updateAmmoDisplay(currentAmmo, maxAmmo) {
     if (!ammoDiv) return;
-    ammoDiv.innerText = `Ammo: ${currentAmmo} / ${maxAmmo}`;
+    // Only display numbers
+    ammoDiv.innerText = `${currentAmmo} / ${maxAmmo}`;
+    // Re-position in case inventory shifts (though unlikely in real-time)
+    positionAmmoDisplay();
+}
+
+function positionAmmoDisplay() {
+    const inventory = document.getElementById('inventory');
+    const ammoDisplay = document.getElementById('ammo-display');
+    if (inventory && ammoDisplay) {
+        const invRect = inventory.getBoundingClientRect();
+        // Calculate position based on inventory's right edge + a small gap
+        ammoDisplay.style.left = `${invRect.right + 10}px`; // 10px gap
+        ammoDisplay.style.transform = `translateX(0)`; // Remove transform if it was centered
+    }
 }
