@@ -165,13 +165,12 @@ export async function releaseGameSlot(slotName) {
 
   // 2) Clear the per‑slot game data
   const app = gameApps[slotName];
-  if (app) {
-    await app.database().ref("game").remove();
-  }
+
+  await app.database().ref("game").remove();
+
 
   // 3) Also remove the lobby node under /games/{activeGameId}
-  if (activeGameId) {
-    await gamesRef.child(activeGameId).remove();
-    activeGameId = null;
-  }
+
+  await gamesRef.child(activeGameId).remove();
+  activeGameId = null;
 }
