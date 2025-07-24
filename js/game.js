@@ -93,6 +93,8 @@ let respawnButton  = null;
 let fadeOverlay    = null;
 let playersKillsListener = null;
 let sceneNum = 0;
+export const maxKills = 10;
+const updateInterval = 50; // Milliseconds for network updates
 
 let deathTheme = new Audio("https://codehs.com/uploads/720078943b931e7eb258b01fb10f1fba");
 deathTheme.loop = true;
@@ -478,15 +480,13 @@ delete pendingRestore[victimId];
 
 
 // Game Start
-async function determineWinnerAndEndGame(gameId) {
+export async function determineWinnerAndEndGame(gameId) {
     console.log("Determining winner and ending game...");
-    // dbRefs.playersRef should be populated by initNetwork
     if (!dbRefs || !dbRefs.playersRef) {
         console.error("determineWinnerAndEndGame: dbRefs or playersRef is NULL. Cannot determine winner.");
         return;
     }
 
-    // Set the gameIsEnding flag to prevent re-triggering and ensure smooth shutdown
     window.gameIsEnding = true;
 
     const playersSnapshot = await dbRefs.playersRef.once("value");
@@ -506,10 +506,10 @@ async function determineWinnerAndEndGame(gameId) {
     if (allStats.length === 0) {
         console.log("No players found");
     } else {
-        const maxKills = Math.max(...allStats.map(s => s.kills));
-        if (maxKills > 0) {
+        const maxKillsAchieved = Math.max(...allStats.map(s => s.kills)); // Use a different name to avoid confusion with module-level maxKills
+        if (maxKillsAchieved > 0) {
             const winners = Object.entries(statsByUser)
-                .filter(([_, s]) => s.kills === maxKills)
+                .filter(([_, s]) => s.kills === maxKillsAchieved)
                 .map(([u]) => u);
             for (const username of winners) {
                 statsByUser[username].win = 1;
@@ -520,16 +520,14 @@ async function determineWinnerAndEndGame(gameId) {
                 }
             }
             const display = winners.length > 1 ? winners.join(", ") : winners[0];
-            console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
-            localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
+            console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKillsAchieved} kills)`);
+            localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKillsAchieved }));
             localStorage.setItem('gameEndedTimestamp', Date.now().toString());
 
-            // Assuming gameTimerElement is globally accessible or passed.
-            // In a real scenario, you'd likely pass it or have a more robust UI update system.
             const gameTimerEl = document.getElementById("game-timer");
             if (gameTimerEl) {
                 gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
-                gameTimerEl.style.display = "block"; // Ensure it's visible to show the winner
+                gameTimerEl.style.display = "block";
             }
         } else {
             console.log("No kills recorded, no winners or losers");
@@ -539,20 +537,15 @@ async function determineWinnerAndEndGame(gameId) {
     }
 
     const statUpdates = [];
-    // Assuming `incrementUserStat` is available in this scope (e.g., imported or defined nearby)
     for (const [username, { win, loss }] of Object.entries(statsByUser)) {
         if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
         if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
     }
     await Promise.all(statUpdates);
 
-    // After determining winner and updating stats, clean up the game.
-    // The `disposeGame` function from network.js handles all Firebase listener detachment
-    // and calls `releaseGameSlot` which in turn removes the game from the lobby's /games node.
-    await disposeGame(); // This replaces the explicit `gameConfigRef.remove()` and `fullCleanup(gameId)`
+    await disposeGame();
     console.log("Game cleanup initiated after winner determination.");
 
-    // Reset the flag
     window.gameIsEnding = false;
 }
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
@@ -561,46 +554,29 @@ window.determineWinnerAndEndGame = determineWinnerAndEndGame;
 export async function startGame(username, mapName, initialDetailsEnabled, ffaEnabled, gameId) {
     console.log("[game.js] startGame for", username, mapName, gameId, ffaEnabled);
 
-    // Call setActiveGameId as early as possible.
-    // This function should be imported from network.js.
     setActiveGameId(gameId);
 
-    // `initNetwork` handles claiming the slot, setting up Firebase app for the slot,
-    // populating `dbRefs` (e.g., dbRefs.playersRef, dbRefs.gameConfigRef),
-    // and attaching basic player/chat/kills/tracers/sounds listeners.
+    // initNetwork populates dbRefs and sets up basic listeners
     const networkOk = await initNetwork(username, mapName, gameId, ffaEnabled);
     if (!networkOk) {
         console.error("[game.js] Network initialization failed. Aborting game start.");
         return;
     }
 
-    // Now that initNetwork has completed, dbRefs should be fully populated by network.js
-    // We can now use dbRefs.playersRef and dbRefs.gameConfigRef directly from the `dbRefs` object.
-    // You no longer need `playersRef = dbRefs.playersRef;` etc. if you directly use `dbRefs.playersRef`.
-
-    const gameTimerElement = document.getElementById('game-timer'); // Assuming this exists in your HTML
+    const gameTimerElement = document.getElementById('game-timer');
 
     if (ffaEnabled) {
         gameTimerElement.style.display = 'block';
 
-        // --- DELEGATE GAME CONFIG AND TIMER LOGIC TO NETWORK.JS ---
-        // Call the setupGameConfigListener from network.js.
-        // It will handle:
-        // - Initializing gameDuration if needed
-        // - Owner election
-        // - Decrementing the timer (if host)
-        // - Listening for 'ended' flag to call determineWinnerAndEndGame
-        // - Updating the UI timer (gameTimerElement)
-        // - Detaching its own listeners on game end
+        // Delegate game config and timer logic to network.js
         setupGameConfigListener(dbRefs.gameConfigRef, gameTimerElement, determineWinnerAndEndGame);
 
         // Kills listener for ending game based on kill count
-        // This listener is still managed in game.js as it directly pertains to game rules.
         if (playersKillsListener) {
             dbRefs.playersRef.off('value', playersKillsListener);
         }
         playersKillsListener = dbRefs.playersRef.on('value', snap => {
-            if (window.gameIsEnding) return; // Prevent re-trigger if game is already ending
+            if (window.gameIsEnding) return;
             let reached = false;
             snap.forEach(childSnap => {
                 if (childSnap.val() && typeof childSnap.val().kills === 'number' && childSnap.val().kills >= maxKills) {
@@ -609,19 +585,13 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
             });
             if (reached) {
                 console.log(`[startGame] Kill limit (${maxKills} kills) reached. Setting game ended flag in Firebase.`);
-                // Set the 'ended' flag in Firebase.
-                // The `setupGameConfigListener` in `network.js` will detect this
-                // and then call `determineWinnerAndEndGame`.
                 dbRefs.gameConfigRef.child('ended').set(true)
                     .catch(err => console.error("Failed to set game ended flag via kill limit:", err));
             }
         });
 
     } else {
-        // If FFA is not enabled, hide timer and clear any FFA-specific game config
         gameTimerElement.style.display = 'none';
-        // Clear any lingering FFA game config specific to this slot
-        // This is important if a previous game in this slot was FFA
         if (dbRefs.gameConfigRef) {
             dbRefs.gameConfigRef.child('owner').remove().catch(console.error);
             dbRefs.gameConfigRef.child('gameDuration').remove().catch(console.error);
@@ -629,38 +599,8 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         }
     }
 
-    // --- Rest of startGame function (initialization of game, player, UI, etc.) ---
-    // These parts remain largely the same, assuming their dependencies are met
-    // (e.g., `scene`, `camera`, `controls`, `player` objects, `PhysicsController`, `WeaponController`).
-
-    // Initialize core Three.js components (assuming `scene`, `camera`, `renderer`, `controls` are handled globally or outside)
-    // You'd typically have `initThreeJS()`, `setupCameraControls()`, etc. here if they are part of `startGame`.
-
-    // Example placeholder for scene setup based on mapName
-    if (mapName === 'CrocodilosConstruction') {
-        // This function should create `scene` and set `window.collidableObjects`
-        await initSceneCrocodilosConstruction();
-    } else if (mapName === 'SigmaCity') {
-        await initSceneSigmaCity();
-    } else if (mapName === 'DiddyDunes') {
-        await initSceneDiddyDunes();
-    } else {
-        console.warn(`[game.js] Unknown map: ${mapName}. Defaulting to basic scene.`);
-        // Fallback or error handling for unknown map
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB);
-        window.collidableObjects = []; // Ensure it's defined
-    }
-
-
-    // Ensure scene and camera are ready for other initializations
-    // If camera and scene are global, ensure they are set up before these calls.
-    if (!window.camera || !scene) {
-        console.error("Camera or scene not initialized before attempting to use them.");
-        // Potentially handle by creating basic camera/scene or throwing error
-    }
-
-    // Set other global game flags/states
+    // --- Start of Three.js and game scene setup ---
+    initGlobalFogAndShadowParams();
     window.isGamePaused = false;
 
     // UI visibility
@@ -675,30 +615,62 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         return;
     }
 
-    // Physics and Weapon Controllers
-    // Ensure `window.camera`, `scene`, `localPlayerId`, `dbRefs` are accessible
-    window.physicsController = new PhysicsController(window.camera, scene);
-    // Assuming `weaponController` is a module-level variable to be assigned
-    window.weaponController = new WeaponController(
+    // Initialize PhysicsController and WeaponController
+    // These need `scene` and `camera` to be defined by initScene functions.
+    // Ensure you have a `renderer` and `camera` defined in your global scope or passed to startGame,
+    // and that `controls` (PointerLockControls) is also set up for camera rotation.
+    // For example, you might have an initThreeJS() function that sets these up globally.
+    if (!window.camera || !scene) {
+        console.error("Camera or scene not initialized before attempting to use them for physics/weapons.");
+        // Consider throwing an error or having a fallback.
+        return;
+    }
+
+    physicsController = new PhysicsController(window.camera, scene);
+    window.physicsController = physicsController; // Assign to window for global access if needed
+
+    weaponController = new WeaponController(
         window.camera,
-        dbRefs.playersRef, // Pass playersRef directly from dbRefs
-        dbRefs.mapStateRef ? dbRefs.mapStateRef.child('bullets') : null, // Ensure mapStateRef exists
-        sendTracer, // This function should be imported from network.js
+        dbRefs.playersRef,
+        dbRefs.mapStateRef ? dbRefs.mapStateRef.child('bullets') : null,
+        sendTracer, // Imported from network.js
         localPlayerId,
-        window.physicsController
+        physicsController
     );
+    window.weaponController = weaponController; // Assign to window for global access if needed
+
+    // Initialize scene based on mapName (these functions should populate `scene` and `window.collidableObjects`)
+    if (mapName === 'CrocodilosConstruction') {
+        await initSceneCrocodilosConstruction();
+    } else if (mapName === 'SigmaCity') {
+        await initSceneSigmaCity();
+    } else if (mapName === 'DiddyDunes') {
+        await initSceneDiddyDunes();
+    } else {
+        console.warn(`[game.js] Unknown map: ${mapName}. Defaulting to basic scene.`);
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        window.collidableObjects = [];
+    }
+
+    // Now that scene is set up, ensure physics controller has collidable objects.
+    // Your PhysicsController.js should have a way to process `window.collidableObjects`.
+    // This is where the 'setCollider' error likely comes from if collidableObjects
+    // are not correctly processed by the physics controller.
+    // Example: physicsController.addColliders(window.collidableObjects);
+    // (This line is not provided in your original snippets, but likely crucial for your physics setup)
 
 
-    // Initializations that rely on network and Three.js setup
-    initInput(); // Sets up mouse lock, keyboard events
-    initChatUI(); // Sets up chat listeners and UI
-    initBulletHoles(); // Initializes client-side bullet hole management
-    // Initialize AudioManager, passes camera and scene. Imported from network.js.
+    // Input, Chat, Bullet Holes, Audio
+    initInput();
+    initChatUI();
+    initBulletHoles();
+    // Initialize AudioManager from network.js (passing scene and camera)
     initializeAudioManager(window.camera, scene);
-    startSoundListener(); // Now called from network.js after AudioManager is initialized
+    startSoundListener(); // Start the network sound listener
 
     // Local Player Setup
-    const spawn = findFurthestSpawn(); // This should return a THREE.Vector3
+    const spawn = findFurthestSpawn();
     window.localPlayer = {
         id: localPlayerId,
         username,
@@ -715,9 +687,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         bodyColor: Math.floor(Math.random() * 0xffffff),
         isDead: false
     };
-    // Position the camera for the local player
-    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-
+    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0)); // Position camera at player spawn
 
     // Update Firebase with local player's initial state
     await dbRefs.playersRef.child(localPlayerId).set({
@@ -725,30 +695,27 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
         lastUpdate: Date.now()
     }).catch(err => {
         console.error("Failed to set local player initial state in Firebase:", err);
-        // Consider handling error here, e.g., show error to user and exit game
     });
 
     // Update UI elements related to the player
-    updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield); // From ui.js
-    window.weaponController.equipWeapon(window.localPlayer.weapon);
-    initInventory(window.localPlayer.weapon); // From ui.js
-    initAmmoDisplay(window.localPlayer.weapon, window.weaponController.getMaxAmmo()); // From ui.js
-    updateInventory(window.localPlayer.weapon); // From ui.js
-    updateAmmoDisplay(window.weaponController.ammoInMagazine, window.weaponController.stats.magazineSize); // From ui.js
+    updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+    weaponController.equipWeapon(window.localPlayer.weapon);
+    initInventory(window.localPlayer.weapon);
+    initAmmoDisplay(window.localPlayer.weapon, weaponController.getMaxAmmo());
+    updateInventory(window.localPlayer.weapon);
+    updateAmmoDisplay(weaponController.ammoInMagazine, weaponController.stats.magazineSize);
 
-    // Create game overlays (assuming these are in ui.js and add elements to DOM)
+    // Create game overlays
     createRespawnOverlay();
     createFadeOverlay();
     createLeaderboardOverlay();
 
     // Start the animation loop
-    // Assuming `animate()` is your main Three.js render loop.
-    // It should handle `requestAnimationFrame` and `renderer.render(scene, camera)`.
-    if (window._animationId) cancelAnimationFrame(window._animationId); // Clear any old animation loop
-    animate(); // Start the main game loop
+    if (animationId) cancelAnimationFrame(animationId);
+    animate();
 
     console.log("[game.js] startGame completed successfully.");
-    isGameActive = true; // Set game active flag
+    isGameActive = true;
 }
 
 
