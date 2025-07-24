@@ -621,14 +621,15 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
     // and that `controls` (PointerLockControls) is also set up for camera rotation.
     // For example, you might have an initThreeJS() function that sets these up globally.
 
-    physicsController = new PhysicsController(window.camera, scene);
-    window.physicsController = physicsController; // Assign to window for global access if needed
+    window.physicsController = new PhysicsController(window.camera, scene);
+    physicsController = window.physicsController;
+
 
     weaponController = new WeaponController(
         window.camera,
         dbRefs.playersRef,
-        dbRefs.mapStateRef ? dbRefs.mapStateRef.child('bullets') : null,
-        sendTracer, // Imported from network.js
+        dbRefs.mapStateRef.child("bullets"),
+        createTracer,
         localPlayerId,
         physicsController
     );
