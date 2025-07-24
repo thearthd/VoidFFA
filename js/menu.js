@@ -1178,7 +1178,6 @@ function inGameSettingsButtonHit() {
     // You'll need to define a function for this back button's click handler.
     // For example, a function that removes settings elements and re-adds escMenu and inGameSettingsBtn.
     addBackButton(escMenu); // Passing escMenu or a specific function to return to the esc menu state
-makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
 }
 
 // Make the inGameSettingsBtn clickable using your makeButton function
@@ -1193,8 +1192,8 @@ window.addEventListener("keydown", e => {
         if (!isPaused) {
             // If not paused, show the menu and pause
             add(escMenu); // Add the menu to the canvas if not already added
-            add(inGameSettingsBtn); // Add the settings button when the escape menu appears
-
+            add(inGameSettingsBtn.image); // Add the settings button when the escape menu appears
+          makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
             // Apply overlay styles when paused
             canvas.style.display = 'block';
             canvas.style.position = 'fixed';
