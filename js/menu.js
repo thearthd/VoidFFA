@@ -1322,6 +1322,7 @@ function showMenuOverlay() {
 }
 
 async function initAndStartGame(username, mapName, gameId = null) {
+     clearMenuCanvas();
      checkInGame = true; 
      dontyetpls = 0;
      hud.style.display = "block";
