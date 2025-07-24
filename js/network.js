@@ -7,7 +7,8 @@ import {
     claimGameSlot,
     releaseGameSlot,
     gamesRef,
-    gameDatabaseConfigs
+    gameDatabaseConfigs,
+    CLIENT_GAME_VERSION
 } from "./firebase-config.js";
 
 // Re-importing existing functions from game.js and ui.js
@@ -576,7 +577,8 @@ activeGameId = gameId;
         ks: 0,
         isDead: false,
         bodyColor: Math.floor(Math.random() * 0xffffff),
-        lastUpdate: Date.now()
+        lastUpdate: Date.now(),
+        gameVersion: CLIENT_GAME_VERSION
     };
 
     try {
