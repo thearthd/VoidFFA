@@ -1139,9 +1139,9 @@ escMenu.setPosition(getWidth()/2 - (1920/4), getHeight()/2 - (1080/4));
 
 let inGameSettingsBtn = createAnimatedButton(
     "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
-    1920/4, 1080/4,
-    getWidth()/2 - (1920/4), getHeight()/2 - (1080/4),
-    getWidth()/2 - (1920/4), getHeight()/2 - (1080/4),
+    1920/8, 1080/8,
+    getWidth()/2 - (1920/8)/2, getHeight()/2 - (1080/8)/2,
+    getWidth()/2 - (1920/8)/2, getHeight()/2 - (1080/8)/2,
     () => {
         console.log("inGameSettingsBtn hit");
           inGameSettingsButtonHit();
