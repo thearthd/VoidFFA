@@ -1,5 +1,8 @@
 // firebase-config.js
 
+import { startStaleGameCleanupMonitor } from './network.js';
+
+
 // Configuration for your Firebase projects
 // Make sure these match your actual Firebase project configurations
 export const menuConfig = {
@@ -72,8 +75,6 @@ export let gamesRef = null;
 export let usersRef = null;
 // Import the cleanup monitor function
 // Make sure the path to network.js is correct relative to firebase-config.js
-import { startStaleGameCleanupMonitor } from './network.js';
-
 
 export function initializeMenuFirebase() {
   if (menuApp) return;
