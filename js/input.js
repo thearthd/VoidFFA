@@ -87,6 +87,7 @@ export function initInput() {
 
   // Event listener for requesting pointer lock
   // This typically happens on the first click to start the game
+  /*
   elementToLock.addEventListener("mousedown", (e) => {
     // Always prevent default actions for clicks on the element meant for pointer lock
     e.preventDefault();
@@ -112,7 +113,7 @@ export function initInput() {
         });
     }
   });
-
+*/
   // Event listener for changes in pointer lock status
   document.addEventListener("pointerlockchange", () => {
     const locked = document.pointerLockElement === elementToLock;
