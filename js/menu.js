@@ -1164,7 +1164,6 @@ function inGameSettingsButtonHit() {
     // Make sure these variables (sensitivitySliderContainer, settingsBox)
     // are accessible in this scope, likely defined globally or passed in.
     const sensitivitySliderContainer = document.getElementById('sensitivitySliderContainer'); // Example ID
-    const settingsBox = document.getElementById('settingsBox'); // Example ID
 
     // Show these elements
     if (sensitivitySliderContainer) {
