@@ -79,12 +79,19 @@ export function initializeAudioManager(camera, scene) {
 
 export let activeGameId = null;
 
-window.addEventListener("beforeunload", async () => {
+window.addEventListener('beforeunload', async () => {
   try {
-    await removeSelf();
-    await attemptFullCleanup();
+    // detach your listeners
+    if (playersListener) playersRef.off('value', playersListener);
+
+    // delete your own record
+    if (localPlayerId) {
+      await playersRef.child(localPlayerId).remove();
+      console.log(`Player ${localPlayerId} removed`);
+    }
+    // NO need to call full cleanup here
   } catch (e) {
-    console.error("Error in unload cleanup", e);
+    console.error("Error in unload cleanup:", e);
   }
 });
 
