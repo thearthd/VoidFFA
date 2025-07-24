@@ -1148,29 +1148,40 @@ let isPaused = false;
 let checkInGame = false; 
 
 window.addEventListener("keydown", e => {
-    // Only proceed if checkInGame is true AND the 'p' key is pressed
     if (checkInGame && e.key.toLowerCase() === 'p') {
         if (!isPaused) {
             // If not paused, show the menu and pause
-          escMenu.setOpacity(1);
+            escMenu.setOpacity(1);
             add(escMenu); // Add the menu to the canvas if not already added
-          canvas.style.display = 'block';
-            // Layer the canvas on top by increasing its z-index
-            document.getElementById('menuCanvas').style.zIndex = '1000'; 
+
+            // Apply overlay styles when paused
+            canvas.style.display = 'block'; // Make sure it's visible
+            canvas.style.position = 'fixed'; // Key change: Position it relative to the viewport
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            canvas.style.zIndex = '1000'; // Ensure it's on top
 
             // Show and unlock the cursor
-            document.body.style.cursor = 'auto'; 
-            
+            document.body.style.cursor = 'auto';
+
             isPaused = true;
         } else {
             // If paused, hide the menu and unpause
-           escMenu.setOpacity(0);
-            
-            // Reset canvas z-index
-            document.getElementById('menuCanvas').style.zIndex = ''; 
-           canvas.style.display = 'none';
+            escMenu.setOpacity(0);
+
+            // Revert overlay styles when unpaused
+            canvas.style.display = 'none'; // Hide it
+            canvas.style.position = ''; // Remove fixed positioning
+            canvas.style.top = '';
+            canvas.style.left = '';
+            canvas.style.width = '';
+            canvas.style.height = '';
+            canvas.style.zIndex = ''; // Reset z-index
+
             // Hide and lock the cursor
-            document.body.style.cursor = 'none'; 
+            document.body.style.cursor = 'none';
 
             isPaused = false;
         }
