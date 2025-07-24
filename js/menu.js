@@ -1133,8 +1133,8 @@ disclaimerText.setPosition(getWidth()/2, getHeight()-100);
 
 
 let escMenu = new ImageShape("https://codehs.com/uploads/badb165ef3d765a60258ba9db41f3f28");
-escMenu.setPosition(getWidth()/2, getHeight()/2);
 escMenu.setSize(1920/2, 1080/2);
+escMenu.setPosition(getWidth()/2 - (1920/2), getHeight()/2 - (1080/2));
 
 // Make sure the pause menu is initially hidden
 
