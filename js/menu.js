@@ -1152,7 +1152,7 @@ window.addEventListener("keydown", e => {
     if (checkInGame && e.key.toLowerCase() === 'p') {
         if (!isPaused) {
             // If not paused, show the menu and pause
-          escMenu.setOpacity(100);
+          escMenu.setOpacity(1);
             add(escMenu); // Add the menu to the canvas if not already added
 
             // Layer the canvas on top by increasing its z-index
