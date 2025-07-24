@@ -1178,6 +1178,9 @@ function inGameSettingsButtonHit() {
 // The onClick handler for inGameSettingsBtn will be inGameSettingsButtonHit.
 function inGameBack(){
      clearMenuCanvas();
+     settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
+    sensitivitySliderContainer.style.display = "none";
+     
           add(escMenu); // Add the menu to the canvas if not already added
        add(inGameSettingsBtn.image); // Add the settings button when the escape menu appears
      makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
