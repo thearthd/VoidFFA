@@ -1382,7 +1382,7 @@ const gameData = {
             // 🔥 Dispose of the just-created game
             await newGameRef.remove();
             Swal.fire('Error', 'No free slots available. Game discarded.', 'error');
-            return menu();
+            return;
         }
 
         // 3) store claimed slot
@@ -1398,14 +1398,13 @@ const gameData = {
             if (res.isConfirmed) {
                // nice
             } else {
-                menu();
+                // nice
             }
         });
 
     } catch (error) {
         console.error("Error creating game:", error);
         Swal.fire('Error','Could not create game: ' + error.message,'error');
-        menu();
     }
 }
 
