@@ -70,7 +70,6 @@ export const gameDatabaseConfigs = {
 let menuApp = null;
 export let gamesRef = null;
 export let usersRef = null;
-let staleGameCleanupInterval = null;
 // Import the cleanup monitor function
 // Make sure the path to network.js is correct relative to firebase-config.js
 import { startStaleGameCleanupMonitor } from './network.js';
