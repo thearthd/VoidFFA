@@ -134,7 +134,7 @@ export function createGameUI(gameWrapper) {
         transform: 'translateX(-50%)',
         display: 'flex',
         gap: '5px',
-        zIndex: '1000',
+        zIndex: '4',
         pointerEvents: 'none', // Inventory elements should not block interaction
     });
     hud.appendChild(inventory); // Append to hud
