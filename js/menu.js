@@ -1553,48 +1553,45 @@ export async function createGameButtonHit() {
     username = localStorage.getItem("username");
 
     // Assign the player's current version when they attempt to create a game
-    // Store it in localStorage for consistency across different parts of the menu
     localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
     await assignPlayerVersion(username, CLIENT_GAME_VERSION);
-
 
     if (!username || !username.trim()) {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
-    // Version check before creating a game
-    // This uses the dynamically loaded `requiredGameVersion` from firebase-config.js
+
     if (CLIENT_GAME_VERSION !== requiredGameVersion) {
-        return Swal.fire('Update Required', `Your game version (${CLIENT_GAME_VERSION}) does not match the required version (${requiredGameVersion}). Please refresh your tab to create games.`, 'error');
+        return Swal.fire(
+            'Update Required',
+            `Your game version (${CLIENT_GAME_VERSION}) does not match the required version (${requiredGameVersion}). Please refresh your tab to create games.`,
+            'error'
+        );
     }
 
-    const {
-        value: formValues
-    } = await Swal.fire({
+    const { value: formValues } = await Swal.fire({
         title: 'Create New Game',
-        html: `<input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">` +
-            '<select id="swal-input2" class="swal2-select">' +
-            '<option value="">Select Map</option>' +
-            '<option value="DiddyDunes">DiddyDunes</option>' +
-            '<option value="SigmaCity">SigmaCity</option>' +
-            '<option value="CrocodilosConstruction">CrocodilosConstruction</option>' +
-            '</select>' +
-            '<select id="swal-input3" class="swal2-select">' +
-            '<option value="FFA">FFA</option>' +
-            '</select>',
+        html: `
+            <input id="swal-input1" class="swal2-input" placeholder="Game Name" value="${username}'s Game">
+            <select id="swal-input2" class="swal2-select">
+                <option value="">Select Map</option>
+                <option value="DiddyDunes">DiddyDunes</option>
+                <option value="SigmaCity">SigmaCity</option>
+                <option value="CrocodilosConstruction">CrocodilosConstruction</option>
+            </select>
+            <select id="swal-input3" class="swal2-select">
+                <option value="FFA">FFA</option>
+            </select>
+        `,
         focusConfirm: false,
         preConfirm: () => {
             const gameName = document.getElementById('swal-input1').value;
             const map = document.getElementById('swal-input2').value;
             const mode = document.getElementById('swal-input3').value;
             if (!gameName || !map || !mode) {
-                Swal.showValidationValidationMessage(`Please fill all fields`);
+                Swal.showValidationMessage(`Please fill all fields`);
                 return false;
             }
-            return {
-                gameName,
-                map,
-                gamemode: mode
-            };
+            return { gameName, map, gamemode: mode };
         }
     });
 
@@ -1602,36 +1599,38 @@ export async function createGameButtonHit() {
         return;
     }
 
-    const gameData = {
-        gameName: formValues.gameName,
-        map: formValues.map,
-        gamemode: formValues.gamemode,
-        host: username,
-        createdAt: firebase.database.ServerValue.TIMESTAMP,
-        status: "waiting",
-        gameVersion: CLIENT_GAME_VERSION // Add the game version to the lobby entry
-    };
-
     try {
-        // 1) push to games list
+        // 🔍 Check if a game with the same name already exists
+        const snapshot = await gamesRef.orderByChild("gameName").equalTo(formValues.gameName).once("value");
+        if (snapshot.exists()) {
+            return Swal.fire('Error', `A game named "${formValues.gameName}" already exists. Please choose a different name.`, 'error');
+        }
+
+        const gameData = {
+            gameName: formValues.gameName,
+            map: formValues.map,
+            gamemode: formValues.gamemode,
+            host: username,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            status: "waiting",
+            gameVersion: CLIENT_GAME_VERSION
+        };
+
         const newGameRef = gamesRef.push();
-        await newGameRef.set(gameData);
         const gameId = newGameRef.key;
         let ffaEnabled = true;
-        // 2) try to claim a slot
+
         const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
         await gamesRef.child(gameId).child('status').set("starting");
+
         if (!slotResult) {
-            // 🔥 Dispose of the just-created game
             await newGameRef.remove();
             Swal.fire('Error', 'No free slots available or version mismatch. Game discarded.', 'error');
             return;
         }
 
-        // 3) store claimed slot
         await gamesRef.child(gameId).child('slot').set(slotResult.slotName);
 
-        // 4) notify & join
         Swal.fire({
             title: 'Game Created!',
             html: `Game: <b>${formValues.gameName}</b><br>Map: <b>${formValues.map}</b><br>ID: <b>${gameId}</b>`,
