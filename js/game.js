@@ -1760,6 +1760,7 @@ window.pulseScreenRed = pulseScreenRed;
 // NEW: Create the respawn overlay and button
 function createRespawnOverlay() {
 if (respawnOverlay) return; // Only create once
+    /*
 respawnOverlay = document.createElement("div");
 respawnOverlay.id = "respawn-overlay";
 Object.assign(respawnOverlay.style, {
@@ -1792,7 +1793,9 @@ color: "#fff",
 respawnOverlay.appendChild(respawnButton);
 document.body.appendChild(respawnOverlay);
 // console.log("[createRespawnOverlay] Respawn overlay added to DOM.");
-
+*/
+respawnOverlay = document.getElementById("respawn-overlay");
+    
 respawnButton.addEventListener("click", () => {
 respawnPlayer();
 });
