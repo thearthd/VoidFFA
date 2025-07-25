@@ -66,6 +66,9 @@ const ctx = canvas.getContext('2d');
 const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
 const settingsBox = document.getElementById("settings-box");
 
+    const sensitivityRange = document.getElementById("sensitivity-range");
+    const sensitivityInput = document.getElementById("sensitivity-input");
+
 const menuBG = document.getElementById("animatedBG");
   const hud = document.getElementById("hud");
 
@@ -1893,8 +1896,6 @@ export function initMenuUI() {
     const saveUsernameBtn = document.getElementById("save-username-btn");
     const usernameInput = document.getElementById("username-input");
 
-    const sensitivityRange = document.getElementById("sensitivity-range");
-    const sensitivityInput = document.getElementById("sensitivity-input");
     const toggleDetailsBtn = document.getElementById("toggle-details-btn");
 
     const mapButtons = document.querySelectorAll(".map-btn"); // HTML map selection buttons
