@@ -1139,6 +1139,40 @@ let escMenu = new ImageShape("https://codehs.com/uploads/ce8d9753693664ff70af6b3
 escMenu.setSize(1080 / 2, 1920 / 2);
 escMenu.setPosition(getWidth() / 2 - (1080 / 4), getHeight() / 2 - (1920 / 4));
 
+let inGameResumeBtn = createAnimatedButton(
+    "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
+    330, 100,
+    getWidth() / 2 - 330 / 2, getHeight() / 2 - 100 / 2 + 107 - 130,
+    330, 100,
+    () => {
+        console.log("inGameSettingsBtn hit");
+        inGameSettingsButtonHit();
+        playButtonClick();
+    }
+);
+
+function inGameResumeButtonHit() {
+        clearMenuCanvas(); // Clears escMenu, settingsMenu, etc.
+        settingsBox.style.display = "none";
+        sensitivitySliderContainer.style.display = "none";
+
+        // Revert canvas overlay styles
+        canvas.style.display = 'none'; // Or 'block' if it's the game itself, but usually hidden when not in use as overlay
+        canvas.style.position = '';
+        canvas.style.top = '';
+        canvas.style.left = '';
+        canvas.style.width = '';
+        canvas.style.height = '';
+        canvas.style.zIndex = '';
+
+        // Hide and lock the cursor (if pointer lock is used for gameplay)
+        document.body.style.cursor = 'none';
+
+        // Set the global game unpause state
+        setPauseState(false);
+}
+
+
 let inGameSettingsBtn = createAnimatedButton(
     "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
     330, 100,
@@ -1151,10 +1185,6 @@ let inGameSettingsBtn = createAnimatedButton(
     }
 );
 
-/**
- * Handles the display of the in-game settings menu.
- * This function should be called when the settings button is clicked from the main escape menu.
- */
 function inGameSettingsButtonHit() {
     clearMenuCanvas(); // Clear current menu elements
     add(settingsMenu); // Add the settings UI container
@@ -1166,6 +1196,7 @@ function inGameSettingsButtonHit() {
     addBackButton(inGameBack); // Add a back button to return to the escape menu
 
 }
+
 
 /**
  * Handles returning from the settings menu back to the main escape menu.
@@ -1192,9 +1223,13 @@ function togglePauseMenuUI(shouldPause) {
     if (shouldPause) {
         // Show the escape menu and its elements
         add(escMenu);
+
+          add(inGameResumeBtn.image);
+        makeButton(inGameResumeBtn.hitbox, inGameResumeBtn.hitbox.onClick);
+         
         add(inGameSettingsBtn.image);
         makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
-
+         
         // Apply overlay styles to the canvas
         // Assuming 'canvas' is your main game rendering element, this makes it an overlay.
         canvas.style.display = 'block';
