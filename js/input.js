@@ -355,10 +355,17 @@ export function setPauseState(paused) {
   }
 }
 
+// Function to check if the player is dead and pause the game
+function checkPlayerDeadAndPause() {
+  if (window.localPlayer && window.localPlayer.isDead) {
+    setPauseState(true);
+  }
+}
+
 export function initInput() {
   // These listeners are *always* active because they control fundamental
   // aspects like pausing, chat, and initial pointer lock requests.
-  // Their internal logic handles the `inputState.isPaused` check.
+  // Their internal logic handles the inputState.isPaused check.
   elementToLock.addEventListener("mousedown", onMouseDownGlobal, true); // Capture phase
   document.addEventListener("pointerlockchange", onPointerLockChange);
   document.addEventListener("pointerlockerror", onPointerLockError);
@@ -371,6 +378,17 @@ export function initInput() {
 
   // Initially add all game listeners, as the game starts unpaused
   addGameEventListeners();
+
+  // Add a listener or a periodic check for player death
+  // The best approach depends on how window.localPlayer.isDead is updated.
+  // If `isDead` is updated by an event, you can listen to that event.
+  // If it's just a property that changes, you might need to check it regularly
+  // in your game loop or whenever `localPlayer`'s state is updated.
+
+  // For demonstration, let's add a simple interval check.
+  // In a real game, you'd likely integrate this into your game loop
+  // or respond to a 'playerDied' event if one exists.
+  setInterval(checkPlayerDeadAndPause, 100); // Check every 100 milliseconds
 }
 
 export function initDebugCursor() {
@@ -419,9 +437,7 @@ export function updateDebugCursor() {
   debugCursor.style.left = debugX + "px";
   debugCursor.style.top = debugY + "px";
 
-  debugText.innerText =
-    `∆X: ${inputState.mouseDX}  ∆Y: ${inputState.mouseDY}\n` +
-    `X: ${Math.round(debugX)}  Y: ${Math.round(debugY)}`;
+  debugText.innerText = `∆X: ${inputState.mouseDX}  ∆Y: ${inputState.mouseDY}\n X: ${Math.round(debugX)}  Y: ${Math.round(debugY)}`;
 }
 
 export function postFrameCleanup() {
