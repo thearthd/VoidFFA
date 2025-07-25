@@ -90,15 +90,19 @@ export function initInput() {
       // e.preventDefault(); // uncomment if you specifically want to prevent default for chat input mousedown too
       return;
     }
-/*
+
     if (document.pointerLockElement !== elementToLock) {
       elementToLock.requestPointerLock();
     }
-    */
+
     e.preventDefault(); // Crucial: Prevent default browser action like focus or selection
   });
 
   document.addEventListener("pointerlockchange", () => {
+        if (inputState.isPaused) {
+      e.preventDefault(); // Prevent default browser action like focus or selection
+      return;
+    }
     const locked = document.pointerLockElement === elementToLock;
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
