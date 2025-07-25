@@ -1,4 +1,4 @@
-import Swal from 'sweetalert2';
+
 import { updateInventory } from "./ui.js";
 
 const originalRequestPointerLock = Element.prototype.requestPointerLock;
