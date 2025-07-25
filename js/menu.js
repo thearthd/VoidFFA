@@ -1166,17 +1166,6 @@ function inGameSettingsButtonHit() {
 
     addBackButton(inGameBack); // Add a back button to return to the escape menu
 
-        setSensitivity(parseFloat(savedSens));
-        sensitivityRange.addEventListener('input', () => {
-             console.log("test")
-            setSensitivity(sensitivityRange.value);
-        });
-        sensitivityInput.addEventListener('change', () => {
-             console.log("test")
-            setSensitivity(parseFloat(sensitivityInput.value));
-        });
-
-     
 }
 
 /**
