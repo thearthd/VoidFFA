@@ -1,3 +1,5 @@
+import { initInventory, } from "./ui.js";
+
 const DEFAULT_PRIMARY   = 'ak-47';
 const DEFAULT_SECONDARY = 'm79';
 
