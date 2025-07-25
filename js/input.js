@@ -96,47 +96,17 @@ export function initInput() {
   const elementToLock = document.body;
   const chatInput = document.getElementById("chat-input");
 
-function onBodyMouseDown(e) {
-  const uiClicked = !!e.target.closest('#settings-box');
-  if (inputState.isPaused) {
-    if (uiClicked) {
-      // 1) You’re paused, but clicked on UI → let it through
-      return;      // no preventDefault(), no stopPropagation(), no pointer‑lock
-    }
-    // 2) You’re paused, clicked outside UI → block everything
-    e.preventDefault();
-    e.stopPropagation();
-    return;
-  }
-
-  // 3) You’re not paused
-  if (!uiClicked) {
-    // a) Click in game area → request pointer lock
-    if (document.pointerLockElement !== elementToLock) {
-      elementToLock.requestPointerLock();
-    }
-    e.preventDefault(); // stop text‑selection etc.
-  }
-  // b) Click on UI while unpaused → let it through (e.g. chat input)
-}
-
-// Attach in capture phase so we stop pointer‑lock before other handlers run
-elementToLock.addEventListener('mousedown', onBodyMouseDown, true);
-  
   // Changed to capture phase to prevent default behavior earlier,
   // potentially mitigating "crazy" reasons like rogue event listeners
   // or competing default browser actions trying to grab focus/pointer lock.
   elementToLock.addEventListener("mousedown", (e) => {
     // Normal Reason: Prevent pointer lock requests if paused.
     // Crazy Reason: Prevent any rogue script from re-locking the pointer if we're paused.
-  if (inputState.isPaused 
-      && !e.target.closest("#settings-box") 
-      && !e.target.closest("#sensitivity-slider-container")
-  ) {
-    e.preventDefault();
-    e.stopPropagation();
-    return;
-  }
+    if (inputState.isPaused) {
+      e.preventDefault();
+     // e.stopPropagation(); // Stop propagation to prevent any other listeners from acting
+      return;
+    }
 
     // Normal Reason: Allow chat input to function normally.
     if (document.activeElement === chatInput) {
