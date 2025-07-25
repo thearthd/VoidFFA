@@ -80,7 +80,7 @@ export function initInput() {
   elementToLock.addEventListener("mousedown", (e) => {
     // Block game input when paused
     if (inputState.isPaused) {
-    //  e.preventDefault(); // Prevent default browser action like focus or selection
+      e.preventDefault(); // Prevent default browser action like focus or selection
       return;
     }
 
@@ -90,10 +90,11 @@ export function initInput() {
       // e.preventDefault(); // uncomment if you specifically want to prevent default for chat input mousedown too
       return;
     }
-
+/*
     if (document.pointerLockElement !== elementToLock) {
       elementToLock.requestPointerLock();
     }
+    */
     e.preventDefault(); // Crucial: Prevent default browser action like focus or selection
   });
 
