@@ -1853,29 +1853,6 @@ function loadoutButtonHit() {
 }
 
 
-    function setSensitivity(newVal) {
-        const v = Math.min(parseFloat(sensitivityRange.max), Math.max(parseFloat(sensitivityRange.min), newVal)).toFixed(2);
-        sensitivityRange.value = v;
-        sensitivityInput.value = v;
-        localStorage.setItem("sensitivity", v);
-        document.dispatchEvent(new CustomEvent("updateSensitivity", { detail: parseFloat(v) }));
-    }
-
-
-    const savedSens = localStorage.getItem("sensitivity") || "5.00";
-
-        setSensitivity(parseFloat(savedSens));
-        sensitivityRange.addEventListener('input', () => {
-             console.log("test")
-            setSensitivity(sensitivityRange.value);
-        });
-        sensitivityInput.addEventListener('change', () => {
-             console.log("test")
-            setSensitivity(parseFloat(sensitivityInput.value));
-        });
-    
-
-
 /**
  * Initializes the main menu UI, handling username entry, map selection,
  * sensitivity settings, and the details toggle. This function primarily
@@ -2037,8 +2014,26 @@ if (saveUsernameBtn) {
   });
 }
     // --- Sensitivity Slider Logic ---
+    function setSensitivity(newVal) {
+        const v = Math.min(parseFloat(sensitivityRange.max), Math.max(parseFloat(sensitivityRange.min), newVal)).toFixed(2);
+        sensitivityRange.value = v;
+        sensitivityInput.value = v;
+        localStorage.setItem("sensitivity", v);
+        document.dispatchEvent(new CustomEvent("updateSensitivity", { detail: parseFloat(v) }));
+    }
 
-
+    const savedSens = localStorage.getItem("sensitivity") || "5.00";
+    if (sensitivityRange && sensitivityInput) {
+        setSensitivity(parseFloat(savedSens));
+        sensitivityRange.addEventListener('input', () => {
+             console.log("test")
+            setSensitivity(sensitivityRange.value);
+        });
+        sensitivityInput.addEventListener('change', () => {
+             console.log("test")
+            setSensitivity(parseFloat(sensitivityInput.value));
+        });
+    }
 
     // --- Details Toggle Logic ---
     if (toggleDetailsBtn) {
