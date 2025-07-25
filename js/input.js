@@ -839,3 +839,29 @@ function getSavedLoadout() {
 }
 
 loadKeybinds();
+
+if (keybindsContainer) populateKeybindSettings();
+
+// Immediately bind reset keybinds button
+if (resetKeybindsBtn) {
+    resetKeybindsBtn.addEventListener('click', () => {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "This will reset all your keybinds to their default settings.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, reset them!',
+            customClass: {
+                popup: 'swal-custom-popup',
+                confirmButton: 'swal-custom-button',
+                cancelButton: 'swal-custom-button'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                resetKeybinds();
+            }
+        });
+    });
+}
