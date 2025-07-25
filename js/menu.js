@@ -1168,27 +1168,6 @@ function inGameSettingsButtonHit() {
 
 
 
-    function setSensitivity(newVal) {
-        const v = Math.min(parseFloat(sensitivityRange.max), Math.max(parseFloat(sensitivityRange.min), newVal)).toFixed(2);
-        sensitivityRange.value = v;
-        sensitivityInput.value = v;
-        localStorage.setItem("sensitivity", v);
-        document.dispatchEvent(new CustomEvent("updateSensitivity", { detail: parseFloat(v) }));
-    }
-
-    const savedSens = localStorage.getItem("sensitivity") || "5.00";
-    if (sensitivityRange && sensitivityInput) {
-        setSensitivity(parseFloat(savedSens));
-        sensitivityRange.addEventListener('input', () => {
-            setSensitivity(sensitivityRange.value);
-        });
-        sensitivityInput.addEventListener('change', () => {
-            setSensitivity(parseFloat(sensitivityInput.value));
-        });
-    }
-
-
-
 
      
 }
