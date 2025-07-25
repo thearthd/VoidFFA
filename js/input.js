@@ -1,7 +1,7 @@
 import { updateInventory } from "./ui.js";
 
 const chatInput = document.getElementById("chat-input");
-// f
+
 export const inputState = {
   forward: false,
   backward: false,
@@ -17,12 +17,13 @@ export const inputState = {
   weaponSwitch: null,
   mouseDX: 0,
   mouseDY: 0,
-  isPaused: false,
+  isPaused: false, // Added for pause functionality
 };
 
 let debugCursor, debugX, debugY;
 let debugText;
 
+// threshold to drop spurious mouse movements
 const MAX_DELTA = 200;
 
 const DEFAULT_PRIMARY = 'ak-47';
@@ -52,13 +53,9 @@ export function handleWeaponSwitch() {
 export function setPauseState(paused) {
   inputState.isPaused = paused;
   if (paused) {
-    // When pausing, *explicitly* exit pointer lock if it's active.
-    // This is crucial because pressing Escape typically exits pointer lock automatically,
-    // and we want our state to match the browser's state.
     if (document.pointerLockElement) {
       document.exitPointerLock();
     }
-    // Reset all current input states
     inputState.forward = false;
     inputState.backward = false;
     inputState.left = false;
@@ -73,73 +70,44 @@ export function setPauseState(paused) {
     inputState.weaponSwitch = null;
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
-  } else {
-    // When unpausing, you might want to re-request pointer lock
-    // This should ideally be triggered by an explicit "Resume" button click,
-    // not automatically on unpause, to give the user control.
-    // document.body.requestPointerLock(); // Only if you want immediate re-lock
   }
 }
 
 export function initInput() {
-  const elementToLock = document.body; // Or your specific game canvas element
+  const elementToLock = document.body;
   const chatInput = document.getElementById("chat-input");
 
-  // Event listener for requesting pointer lock
-  // This typically happens on the first click to start the game
-  /*
   elementToLock.addEventListener("mousedown", (e) => {
-    // Always prevent default actions for clicks on the element meant for pointer lock
-    e.preventDefault();
-
-    // If game is paused, or chat is active, don't try to get pointer lock
-    if (inputState.isPaused || document.activeElement === chatInput) {
+    // Block game input when paused
+    if (inputState.isPaused) {
+      e.preventDefault(); // Prevent default browser action like focus or selection
       return;
     }
 
-    // Only request pointer lock if it's not already active
-    if (document.pointerLockElement !== elementToLock) {
-      elementToLock.requestPointerLock()
-        .then(() => {
-          // Pointer lock successfully engaged
-          // You might not need to do anything here if pointerlockchange handles it
-        })
-        .catch((error) => {
-          // Handle cases where pointer lock request fails (e.g., user denied, security issues)
-          console.warn("Pointer Lock Request Failed:", error);
-          // If the error is "SecurityError: The user has exited the lock...",
-          // it means the user already pressed Escape. We should not try to re-lock immediately.
-          // Ensure your UI state reflects that pointer lock isn't active.
-        });
+    if (document.activeElement === chatInput) {
+      // If chat is active, allow its default mousedown behavior (e.g., cursor positioning)
+      // but prevent propagation if you want to prevent pointer lock
+      // e.preventDefault(); // uncomment if you specifically want to prevent default for chat input mousedown too
+      return;
     }
+
+    if (document.pointerLockElement !== elementToLock) {
+      elementToLock.requestPointerLock();
+    }
+    e.preventDefault(); // Crucial: Prevent default browser action like focus or selection
   });
-*/
-  // Event listener for changes in pointer lock status
-  /*
+
   document.addEventListener("pointerlockchange", () => {
     const locked = document.pointerLockElement === elementToLock;
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
-
-    // We only attach/detach mousemove listener if the element we care about is locked
-    // AND the game is not paused (as the cursor needs to be visible for menus).
     if (locked && !inputState.isPaused) {
       document.body.style.cursor = "none";
       document.addEventListener("mousemove", onMouseMove, false);
     } else {
       document.body.style.cursor = "default";
       document.removeEventListener("mousemove", onMouseMove, false);
-      // If pointer lock is lost (e.g., by pressing Escape), and the game isn't explicitly paused,
-      // it might indicate the user wants to pause or interact with a menu.
-      // You could potentially trigger your pause menu here if `!inputState.isPaused`
-      // and pointer lock was just lost.
-      // Example: if (!inputState.isPaused) setPauseState(true);
     }
-  });
-*/
-  // Handle pointerlockerror (optional, but good for debugging)
-  document.addEventListener("pointerlockerror", (e) => {
-    console.error("Pointer Lock Error:", e);
   });
 
   window.addEventListener("keydown", (e) => {
@@ -157,7 +125,6 @@ export function initInput() {
 
     // Handle Escape key for pausing/unpausing
     if (e.code === "Escape") {
-      // Toggle pause state. setPauseState will handle exiting pointer lock.
       setPauseState(!inputState.isPaused);
       e.preventDefault();
       return;
@@ -223,7 +190,7 @@ export function initInput() {
   });
 
   window.addEventListener("keyup", (e) => {
-    // Always allow Backquote for chat, or Escape (no action on keyup)
+    // Always allow Backquote for chat, or Escape to unpause (no action on keyup)
     if (e.code === "Backquote" || e.code === "Escape") return;
 
     // If game is paused or chat is focused, ignore other game keys
@@ -277,14 +244,16 @@ export function initInput() {
   });
 
   window.addEventListener("mousedown", (e) => {
-    // Prevent default browser actions for game-related clicks
-    e.preventDefault();
-
-    // Block game input when paused or chat is active
-    if (inputState.isPaused || document.activeElement === chatInput) {
+    // Block game input when paused
+    if (inputState.isPaused) {
+      e.preventDefault(); // Prevent default browser action like focus or selection
       return;
     }
-
+    if (document.activeElement === chatInput) {
+      // If chat is active, allow its default mousedown behavior
+      // e.preventDefault(); // uncomment if you specifically want to prevent default for chat input mousedown too
+      return;
+    }
     switch (e.button) {
       case 0: // Left click
         inputState.fire = true;
@@ -294,17 +263,18 @@ export function initInput() {
         inputState.aim = true;
         break;
     }
+    e.preventDefault(); // Crucial: Prevent default browser action like focus or selection
   });
 
   window.addEventListener("mouseup", (e) => {
-    // Prevent default browser actions for game-related clicks
-    e.preventDefault();
-
-    // Block game input when paused or chat is active
-    if (inputState.isPaused || document.activeElement === chatInput) {
+    // Block game input when paused
+    if (inputState.isPaused) {
+      e.preventDefault(); // Prevent default browser action if click occurred while paused
       return;
     }
-
+    if (document.activeElement === chatInput) {
+      return;
+    }
     switch (e.button) {
       case 0: // Left click
         inputState.fire = false;
@@ -313,16 +283,19 @@ export function initInput() {
         inputState.aim = false;
         break;
     }
+    e.preventDefault(); // Prevent default browser action
   });
-/*
+
   window.addEventListener("contextmenu", (e) => {
-    // Prevent default context menu from appearing if pointer is locked
-    // or if the game is paused (where you might have your own menu)
-    if (document.pointerLockElement === elementToLock || inputState.isPaused) {
+    // Block game input when paused
+    if (inputState.isPaused) {
       e.preventDefault();
+      return;
+    }
+    if (document.pointerLockElement === elementToLock) {
+      e.preventDefault(); // Prevent default context menu from appearing when pointer locked
     }
   });
-  */
 }
 
 export function initDebugCursor() {
