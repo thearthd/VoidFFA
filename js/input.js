@@ -19,7 +19,7 @@ export const inputState = {
   weaponSwitch: null,
   mouseDX: 0,
   mouseDY: 0,
-  isPaused: false, // Added for pause functionality
+  isPaused: false, // Added for pause functionality f
 };
 
 let debugCursor, debugX, debugY;
