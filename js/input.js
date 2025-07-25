@@ -1,6 +1,16 @@
 import { updateInventory } from "./ui.js";
 
 const chatInput = document.getElementById("chat-input");
+// ---
+// Add this line to get your game container element
+const gameContainer = document.getElementById("game-container");
+if (!gameContainer) {
+  console.error(
+    "Error: Could not find element with ID 'game-container'. Pointer lock will not function correctly."
+  );
+  // You might want to throw an error or handle this more gracefully depending on your application.
+}
+// ---
 
 export const inputState = {
   forward: false,
@@ -26,17 +36,17 @@ let debugText;
 // threshold to drop spurious mouse movements
 const MAX_DELTA = 200;
 
-const DEFAULT_PRIMARY = 'ak-47';
-const DEFAULT_SECONDARY = 'm79';
+const DEFAULT_PRIMARY = "ak-47";
+const DEFAULT_SECONDARY = "m79";
 
 function getSavedLoadout() {
   return {
-    primary: localStorage.getItem('loadout_primary') || DEFAULT_PRIMARY,
-    secondary: localStorage.getItem('loadout_secondary') || DEFAULT_SECONDARY,
+    primary: localStorage.getItem("loadout_primary") || DEFAULT_PRIMARY,
+    secondary: localStorage.getItem("loadout_secondary") || DEFAULT_SECONDARY,
   };
 }
 
-let currentPlayerWeaponKey = 'knife';
+let currentPlayerWeaponKey = "knife";
 
 export function handleWeaponSwitch() {
   if (inputState.weaponSwitch !== null) {
@@ -80,12 +90,14 @@ export function setPauseState(paused) {
     // without waiting for pointerlockchange event, for faster feedback.
     document.body.style.cursor = "default";
     document.removeEventListener("mousemove", onMouseMove, false);
-
   } else {
     // If unpausing, and if the user previously had pointer lock, try to re-acquire.
     // This handles scenarios where the user exits pointer lock manually during pause
     // (e.g., by pressing Esc) but then wants it back on unpause.
-    const elementToLock = document.body;
+    // ---
+    // Use gameContainer instead of document.body
+    const elementToLock = gameContainer;
+    // ---
     if (document.pointerLockElement !== elementToLock) {
       elementToLock.requestPointerLock();
     }
@@ -93,39 +105,54 @@ export function setPauseState(paused) {
 }
 
 export function initInput() {
-  const elementToLock = document.body;
+  // ---
+  // Use gameContainer instead of document.body
+  const elementToLock = gameContainer;
+  // ---
   const chatInput = document.getElementById("chat-input");
 
   // Changed to capture phase to prevent default behavior earlier,
   // potentially mitigating "crazy" reasons like rogue event listeners
   // or competing default browser actions trying to grab focus/pointer lock.
-  elementToLock.addEventListener("mousedown", (e) => {
-    // Normal Reason: Prevent pointer lock requests if paused.
-    // Crazy Reason: Prevent any rogue script from re-locking the pointer if we're paused.
-    if (inputState.isPaused) {
-      e.preventDefault();
-      e.stopPropagation(); // Stop propagation to prevent any other listeners from acting
-      return;
-    }
+  // ---
+  // Add an initial check for elementToLock (gameContainer) before adding event listener
+  if (elementToLock) {
+    elementToLock.addEventListener(
+      "mousedown",
+      (e) => {
+        // Normal Reason: Prevent pointer lock requests if paused.
+        // Crazy Reason: Prevent any rogue script from re-locking the pointer if we're paused.
+        if (inputState.isPaused) {
+          e.preventDefault();
+          e.stopPropagation(); // Stop propagation to prevent any other listeners from acting
+          return;
+        }
 
-    // Normal Reason: Allow chat input to function normally.
-    if (document.activeElement === chatInput) {
-      return;
-    }
+        // Normal Reason: Allow chat input to function normally.
+        if (document.activeElement === chatInput) {
+          return;
+        }
 
-    // Normal Reason: Request pointer lock if not already locked.
-    // Crazy Reason: A rapid click could trigger this while pointer lock is in a transitional state.
-    // The pointerlockchange event listener will handle the actual state.
-    if (document.pointerLockElement !== elementToLock) {
-      elementToLock.requestPointerLock();
-    }
+        // Normal Reason: Request pointer lock if not already locked.
+        // Crazy Reason: A rapid click could trigger this while pointer lock is in a transitional state.
+        // The pointerlockchange event listener will handle the actual state.
+        if (document.pointerLockElement !== elementToLock) {
+          elementToLock.requestPointerLock();
+        }
 
-    // Normal Reason: Prevent default browser actions (like text selection).
-    e.preventDefault();
-  }, true); // Use capture phase for mousedown on elementToLock
+        // Normal Reason: Prevent default browser actions (like text selection).
+        e.preventDefault();
+      },
+      true
+    ); // Use capture phase for mousedown on elementToLock
+  }
+  // ---
 
   document.addEventListener("pointerlockchange", () => {
-    const locked = document.pointerLockElement === elementToLock;
+    // ---
+    // Use gameContainer instead of document.body
+    const locked = document.pointerLockElement === gameContainer;
+    // ---
 
     // Normal Reason: Reset mouse deltas whenever pointer lock state changes
     // to prevent accumulated movement from an old lock.
@@ -150,11 +177,10 @@ export function initInput() {
     // Crazy Reason: Log errors to understand if external factors or browser quirks are preventing lock.
     // You might want to display a message to the user here.
     if (inputState.isPaused) {
-        // If an error occurs while trying to acquire lock during unpause, ensure we remain in a paused state.
-        setPauseState(true);
+      // If an error occurs while trying to acquire lock during unpause, ensure we remain in a paused state.
+      setPauseState(true);
     }
   });
-
 
   window.addEventListener("keydown", (e) => {
     // Always allow Backquote for chat
@@ -164,7 +190,12 @@ export function initInput() {
       } else {
         chatInput.focus();
         // Normal Reason: Clear movement inputs immediately when chat is opened.
-        inputState.forward = inputState.backward = inputState.left = inputState.right = inputState.fire = false;
+        inputState.forward =
+          inputState.backward =
+          inputState.left =
+          inputState.right =
+          inputState.fire =
+            false;
       }
       e.preventDefault();
       return;
@@ -305,6 +336,17 @@ export function initInput() {
     if (document.activeElement === chatInput) {
       return;
     }
+    // ---
+    // Only fire if the click originated inside the game container when pointer lock is not active
+    // This allows UI elements outside the game container to be clicked without triggering fire/aim
+    if (
+      !document.pointerLockElement &&
+      elementToLock &&
+      !elementToLock.contains(e.target)
+    ) {
+      return;
+    }
+    // ---
     switch (e.button) {
       case 0: // Left click
         inputState.fire = true;
@@ -340,7 +382,10 @@ export function initInput() {
   window.addEventListener("contextmenu", (e) => {
     // Normal Reason: Block context menu when paused, or when pointer locked.
     // Crazy Reason: Prevents context menu from breaking pointer lock or revealing cursor unexpectedly.
-    if (inputState.isPaused || document.pointerLockElement === elementToLock) {
+    // ---
+    // Use gameContainer for the pointerLockElement check
+    if (inputState.isPaused || document.pointerLockElement === gameContainer) {
+      // ---
       e.preventDefault();
     }
   });
