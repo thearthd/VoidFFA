@@ -67,13 +67,10 @@ function onMouseDownGlobal(e) {
   if (document.activeElement === chatInput) {
     return;
   }
-  // Only request pointer lock if not paused OR if paused by death (to allow re-acquiring on unpause)
-  // Or if it's currently paused but *not* by death (i.e., manually paused),
-  // we still want to try to acquire lock if the user clicks.
-  if (document.pointerLockElement !== elementToLock && !inputState.isPaused) { // Only attempt lock if game is not paused at all
+  // Only request pointer lock if the game is *not* currently paused by any means.
+  if (document.pointerLockElement !== elementToLock && !inputState.isPaused) {
     elementToLock.requestPointerLock();
   }
-  // No e.preventDefault() here anymore. It's handled by specific game listeners when active.
 }
 
 function onPointerLockChange() {
@@ -117,17 +114,21 @@ function onKeyDown(e) {
     return;
   }
 
-  // Handle Escape key for pausing/unpausing - this should ALWAYS work, regardless of death status
+  // Handle Escape key for pausing/unpausing
+  // This should call your main UI toggle function if you want it to be the same behavior as 'P'
   if (e.code === "Escape") {
-    // Manually toggling pause: This pause is NOT due to death
-    // Allow manual pause/unpause regardless of localPlayer.isDead
-    setPauseState(!inputState.isPaused, false);
+    // If you want Escape to also trigger the UI (like 'P' does), uncomment this:
+    // togglePauseMenuUI(!inputState.isPaused); // Use inputState.isPaused from input.js for current state
+    // e.preventDefault();
+    // return;
+
+    // If Escape is *only* meant to toggle the setPauseState internally without UI:
+    setPauseState(!inputState.isPaused, false); // Manual pause, not by death
     e.preventDefault();
     return;
   }
 
   // If game is paused or chat is focused, ignore other game keys.
-  // This check should *only* apply to game controls, not the pause menu.
   if (inputState.isPaused || document.activeElement === chatInput) return;
 
   const { primary, secondary } = getSavedLoadout();
@@ -274,8 +275,7 @@ function onMouseUpGame(e) {
 }
 
 function onContextMenu(e) {
-  // Block context menu when pointer locked AND game is not paused (or if paused but not by death)
-  // This prevents context menu even when manually paused, which is usually desired.
+  // Block context menu when pointer locked AND game is not paused
   if (document.pointerLockElement === elementToLock && !inputState.isPaused) {
     e.preventDefault();
   }
@@ -329,26 +329,18 @@ function removeGameEventListeners() {
   });
 }
 
-// Modified setPauseState to accept a parameter indicating if it's a death-related pause
 export function setPauseState(paused, byDeath = false) {
-  // If the game is currently paused due to death, and a manual unpause is attempted,
-  // we might want to prevent it or handle it specifically.
-  // However, the request is to *allow* manual pause while dead, so the current logic for `byDeath` is crucial.
-  // The byDeath flag primarily affects *automatic* unpausing.
-
-  // Only proceed if the state is actually changing to avoid unnecessary side effects.
   if (inputState.isPaused === paused && inputState.wasPausedByDeath === byDeath) {
     return;
   }
 
   inputState.isPaused = paused;
-  inputState.wasPausedByDeath = byDeath; // Set the flag indicating if this pause was due to death
+  inputState.wasPausedByDeath = byDeath;
 
   if (paused) {
     if (document.pointerLockElement) {
       document.exitPointerLock();
     }
-    // Clear all input states when paused to prevent ghost inputs.
     inputState.forward = false;
     inputState.backward = false;
     inputState.left = false;
@@ -366,65 +358,56 @@ export function setPauseState(paused, byDeath = false) {
 
     document.body.style.cursor = "default";
 
-    // *** Remove game-specific input listeners when paused ***
     removeGameEventListeners();
     document.removeEventListener("mousemove", onMouseMove, false);
   } else {
-    // If unpausing, and if the user previously had pointer lock, try to re-acquire.
     const elementToLock = document.body;
-    // We only request pointer lock if the pause was NOT by death, or if it was by death AND the player is now alive.
-    // This is to prevent re-acquiring lock if the player is still dead and manually unpaused.
-    if (document.pointerLockElement !== elementToLock && (!inputState.wasPausedByDeath || (inputState.wasPausedByDeath && !window.localPlayer.isDead))) {
-        elementToLock.requestPointerLock();
+    // Only attempt pointer lock if player is alive AND game is unpausing.
+    if (!window.localPlayer || !window.localPlayer.isDead) {
+        if (document.pointerLockElement !== elementToLock) {
+            elementToLock.requestPointerLock();
+        }
+    } else {
+        // If player is dead and unpausing manually, ensure cursor is default.
+        document.body.style.cursor = "default";
     }
-    // *** Re-add game-specific input listeners when unpaused ***
+
     addGameEventListeners();
-    // mousemove will be re-added by pointerlockchange if successful
   }
 }
 
 // Function to check player's death state and manage pause
 function checkPlayerDeadAndPause() {
-  // Check if localPlayer exists to prevent errors
   if (window.localPlayer) {
     if (window.localPlayer.isDead) {
-      // Player is dead. If not already paused by death, pause the game.
-      // This allows manual unpause (via Escape) to override the death pause.
-      if (!inputState.isPaused && !inputState.wasPausedByDeath) {
+      // Player is dead. If game is NOT currently paused, or if it's paused
+      // but NOT specifically by death (i.e., it's manually unpaused after death),
+      // then we should enforce the "paused by death" state.
+      if (!inputState.isPaused || !inputState.wasPausedByDeath) {
         setPauseState(true, true); // Pause and mark as paused by death
       }
-      // If player is dead AND game is manually paused (inputState.wasPausedByDeath is false),
-      // we don't automatically unpause here. The manual pause takes precedence.
     } else {
-      // Player is alive. If game is paused AND it was paused due to death, then unpause.
+      // Player is alive. If game is paused AND it was paused specifically due to death, then unpause.
       if (inputState.isPaused && inputState.wasPausedByDeath) {
         setPauseState(false, false); // Unpause and clear the death pause flag
       }
-      // If player is alive AND game is manually paused (inputState.wasPausedByDeath is false),
-      // we don't automatically unpause here. The manual pause takes precedence.
     }
   }
 }
 
 export function initInput() {
-  // These listeners are *always* active because they control fundamental
-  // aspects like pausing, chat, and initial pointer lock requests.
-  // Their internal logic handles the inputState.isPaused check.
-  elementToLock.addEventListener("mousedown", onMouseDownGlobal, true); // Capture phase
+  elementToLock.addEventListener("mousedown", onMouseDownGlobal, true);
   document.addEventListener("pointerlockchange", onPointerLockChange);
   document.addEventListener("pointerlockerror", onPointerLockError);
-  window.addEventListener("keydown", onKeyDown); // Keydown needs to be always active for Backquote and Escape
-  window.addEventListener("keyup", onKeyUp); // Keyup needs to be always active for Backquote and Escape
-  window.addEventListener("mousedown", onMouseDownGame); // These specific mouse listeners are removed/added
-  window.addEventListener("mouseup", onMouseUpGame); // by setPauseState
-  window.addEventListener("contextmenu", onContextMenu); // Context menu listener is also removed/added
-  window.addEventListener("keydown", onChatKeyC); // For 'C' key to toggle chat
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("mousedown", onMouseDownGame);
+  window.addEventListener("mouseup", onMouseUpGame);
+  window.addEventListener("contextmenu", onContextMenu);
+  window.addEventListener("keydown", onChatKeyC);
 
-  // Initially add all game listeners, as the game starts unpaused
   addGameEventListeners();
-
-  // Set up a periodic check for player death state
-  setInterval(checkPlayerDeadAndPause, 100); // Check every 100 milliseconds
+  setInterval(checkPlayerDeadAndPause, 100);
 }
 
 export function initDebugCursor() {
@@ -461,7 +444,6 @@ export function initDebugCursor() {
 }
 
 export function updateDebugCursor() {
-  // Only update debug cursor if not paused.
   if (inputState.isPaused) return;
 
   debugX += inputState.mouseDX;
@@ -479,7 +461,6 @@ export function updateDebugCursor() {
 export function postFrameCleanup() {
   inputState.weaponSwitch = null;
   inputState.fireJustPressed = false;
-  // Reset mouse deltas after each frame, regardless of pause state.
   inputState.mouseDX = 0;
   inputState.mouseDY = 0;
 }
