@@ -104,7 +104,7 @@ export function initInput() {
     // Crazy Reason: Prevent any rogue script from re-locking the pointer if we're paused.
     if (inputState.isPaused) {
       e.preventDefault();
-     // e.stopPropagation(); // Stop propagation to prevent any other listeners from acting
+      e.stopPropagation(); // Stop propagation to prevent any other listeners from acting
       return;
     }
 
