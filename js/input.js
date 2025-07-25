@@ -60,7 +60,7 @@ export function handleWeaponSwitch() {
     }
   }
 }
-
+/*
 // --- Event Listener Functions (now named for easy removal) ---
 function onMouseDownGlobal(e) {
   if (document.activeElement === chatInput) {
@@ -71,7 +71,7 @@ function onMouseDownGlobal(e) {
   }
   // No e.preventDefault() here anymore. It's handled by specific game listeners when active.
 }
-
+*/
 function onPointerLockChange() {
   const locked = document.pointerLockElement === elementToLock;
 
