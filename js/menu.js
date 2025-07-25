@@ -1142,7 +1142,7 @@ escMenu.setPosition(getWidth() / 2 - (1080 / 4), getHeight() / 2 - (1920 / 4));
 let inGameResumeBtn = createAnimatedButton(
     "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
     330, 100,
-    getWidth() / 2 - 330 / 2, getHeight() / 2 - 100 / 2 + 107 - 130,
+    getWidth() / 2 - 330 / 2, getHeight() / 2 - 100 / 2 + 107 - 130*2,
     330, 100,
     () => {
         console.log("inGameSettingsBtn hit");
