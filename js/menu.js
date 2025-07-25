@@ -1148,19 +1148,19 @@ let inGameResumeBtn = createAnimatedButton(
     getWidth() / 2 - 330 / 2, getHeight() / 2 - 100 / 2 + 107 - 130*2,
     330, 100,
     () => {
-        console.log("inGameSettingsBtn hit");
+        console.log("inGameResumeBtn hit"); // Corrected console log
         inGameResumeButtonHit();
         playButtonClick();
     }
 );
 
 function inGameResumeButtonHit() {
-    clearMenuCanvas(); // Clears escMenu, settingsMenu, etc.
+    clearMenuCanvas();
     settingsBox.style.display = "none";
     sensitivitySliderContainer.style.display = "none";
 
     // Revert canvas overlay styles
-    canvas.style.display = 'none'; // Or 'block' if it's the game itself, but usually hidden when not in use as overlay
+    canvas.style.display = 'none';
     canvas.style.position = '';
     canvas.style.top = '';
     canvas.style.left = '';
@@ -1189,16 +1189,14 @@ let inGameSettingsBtn = createAnimatedButton(
 );
 
 function inGameSettingsButtonHit() {
-    clearMenuCanvas(); // Clear current menu elements
-    add(settingsMenu); // Add the settings UI container
+    clearMenuCanvas();
+    add(settingsMenu);
     // When going to settings, you are maintaining a manual pause state
     setPauseState(true, false); // Explicitly set byDeath to false
     
-    // Show settings-specific elements
-    sensitivitySliderContainer.style.display = "flex"; // Or "block"
     settingsBox.style.display = 'block';
-    addBackButton(inGameBack); // Add a back button to return to the escape menu
-
+    sensitivitySliderContainer.style.display = "flex";
+    addBackButton(inGameBack);
 }
 
 let inGameLoadoutBtn = createAnimatedButton(
@@ -1207,45 +1205,44 @@ let inGameLoadoutBtn = createAnimatedButton(
     getWidth() / 2 - 330 / 2, getHeight() / 2 - 100 / 2 + 107 + 0,
     330, 100,
     () => {
-        console.log("inGameSettingsBtn hit");
+        console.log("inGameLoadoutBtn hit"); // Corrected console log
         inGameLoadoutButtonHit();
         playButtonClick();
     }
 );
 
 function inGameLoadoutButtonHit() {
-  // Allow loadout change always, even if not dead, but show warning if not dead.
-  // The crucial part is that clicking Loadout should put the game in a manual pause state.
-  clearMenuCanvas(); // Clear current menu elements
-  setPauseState(true, false); // Explicitly set byDeath to false, this is a manual pause for the menu
-  add(loadoutMenu);
-  showLoadoutScreen(); // Show our DOM loadout overlay
-  addBackButton(inGameBack); // Add a back button to return to the escape menu
+    clearMenuCanvas();
+    // This is always a manual pause for the menu, regardless of player death status
+    setPauseState(true, false);
+    add(loadoutMenu);
+    showLoadoutScreen();
+    addBackButton(inGameBack);
 
-  if (!window.localPlayer.isDead) { // Warning only if not dead
-    Swal.fire({
-      icon: 'warning',
-      title: 'Heads up!',
-      text: 'You can change loadouts, but your actual in-game weapon will only update if you respawn or if the game handles mid-life changes.',
-      confirmButtonText: 'Got it',
-      background: '#1e1e1e',
-      color: '#ffffff',
-      confirmButtonColor: '#ff4444',
-    });
-  }
+    if (!window.localPlayer.isDead) { // Warning only if not dead
+        Swal.fire({
+            icon: 'warning',
+            title: 'Heads up!',
+            text: 'You can change loadouts, but your actual in-game weapon will only update if you respawn or if the game handles mid-life changes.',
+            confirmButtonText: 'Got it',
+            background: '#1e1e1e',
+            color: '#ffffff',
+            confirmButtonColor: '#ff4444',
+        });
+    }
 }
 
 /**
  * Handles returning from the settings menu back to the main escape menu.
  */
 function inGameBack() {
-    clearMenuCanvas(); // Clear current menu elements (settings)
+    clearMenuCanvas();
     settingsBox.style.display = "none";
     sensitivitySliderContainer.style.display = "none";
-    setPauseState(true, false); // Returning to main menu is still a manual pause
+    // Returning to main menu is still a manual pause, don't re-trigger auto-unpause logic
+    setPauseState(true, false);
     hideLoadoutScreen();
     
-    // Re-add the main escape menu and its buttons
     add(escMenu);
     add(inGameResumeBtn.image);
     makeButton(inGameResumeBtn.hitbox, inGameResumeBtn.hitbox.onClick);
@@ -1263,7 +1260,6 @@ function inGameBack() {
  */
 function togglePauseMenuUI(shouldPause) {
     if (shouldPause) {
-        // Show the escape menu and its elements
         add(escMenu);
 
         add(inGameResumeBtn.image);
@@ -1275,7 +1271,6 @@ function togglePauseMenuUI(shouldPause) {
         add(inGameLoadoutBtn.image);
         makeButton(inGameLoadoutBtn.hitbox, inGameLoadoutBtn.hitbox.onClick);
             
-        // Apply overlay styles to the canvas
         canvas.style.display = 'block';
         canvas.style.position = 'fixed';
         canvas.style.top = '0';
@@ -1284,18 +1279,15 @@ function togglePauseMenuUI(shouldPause) {
         canvas.style.height = '100%';
         canvas.style.zIndex = '20';
 
-        // Show and unlock the cursor
         document.body.style.cursor = 'auto';
 
-        // Set the global game pause state - this is a MANUAL pause from the UI
+        // When toggling the UI ON, it's always a manual pause.
         setPauseState(true, false); // Explicitly set byDeath to false
     } else {
-        // Hide all menu-related elements
         clearMenuCanvas();
         settingsBox.style.display = "none";
         sensitivitySliderContainer.style.display = "none";
 
-        // Revert canvas overlay styles
         canvas.style.display = 'none';
         canvas.style.position = '';
         canvas.style.top = '';
@@ -1304,27 +1296,27 @@ function togglePauseMenuUI(shouldPause) {
         canvas.style.height = '';
         canvas.style.zIndex = '';
 
-        // Hide and lock the cursor (if pointer lock is used for gameplay)
         document.body.style.cursor = 'none';
 
-        // Set the global game unpause state - this is a MANUAL unpause from the UI
+        // When toggling the UI OFF, it's always a manual unpause.
         setPauseState(false, false); // Explicitly set byDeath to false
     }
 }
 
 // Global variable to track if the game is "in-game" and therefore eligible for pausing.
-let checkInGame = false; // Renamed from checkInGame for clarity
+let checkInGame = false;
 
 // Expose togglePauseMenuUI globally if it needs to be called from input.js or other modules
-window.togglePauseMenuUI = togglePauseMenuUI;
+window.togglePauseMenuUI = togglePauseMenuUI; // This makes it accessible from input.js
 
 // Listen for the 'P' key press to toggle the pause menu
 window.addEventListener("keydown", e => {
     // Only respond to 'P' key if the game is active and not chat-focused.
     if (checkInGame && e.key.toLowerCase() === 'p') {
-        // Use the inputState.isPaused from input.js to get the current state
-        togglePauseMenuUI(!inputState.isPaused);
-        e.preventDefault(); // Prevent default browser action for 'P'
+        // Here, we explicitly toggle the visual pause state.
+        // The `setPauseState` call inside `togglePauseMenuUI` will handle the `byDeath` flag correctly.
+        window.togglePauseMenuUI(!inputState.isPaused); // Access inputState from the imported module if not global
+        e.preventDefault();
     }
 });
 function playerCardHit() {
