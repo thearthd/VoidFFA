@@ -127,6 +127,11 @@ export function populateKeybindSettings() {
 
 // Helper to get a readable name for the key code
 function getDisplayNameForCode(code) {
+    // Ensure 'code' is a string before proceeding
+    if (typeof code !== 'string' || code === null || code === undefined) {
+        return 'Unassigned'; // Or 'N/A', 'None', etc. - a clear placeholder
+    }
+
     if (code === 'Space') return 'Spacebar';
     if (code === 'ShiftLeft') return 'Left Shift';
     if (code === 'ShiftRight') return 'Right Shift';
@@ -140,7 +145,11 @@ function getDisplayNameForCode(code) {
     if (code === 'Mouse2') return 'Right Click';
     if (code.startsWith('Key')) return code.substring(3); // e.g., 'KeyW' -> 'W'
     if (code.startsWith('Digit')) return code.substring(5); // e.g., 'Digit1' -> '1'
-    return code; // Fallback for other codes
+
+    // Handle empty string after a conflict resolution if that's your intention
+    if (code === '') return 'Unassigned';
+
+    return code; // Fallback for other codes (e.g., F1, ArrowUp, etc.)
 }
 
 // Helper to get a key code from a display name or user input
