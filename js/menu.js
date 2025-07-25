@@ -33,7 +33,7 @@ import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
 import { initNetwork, setActiveGameId } from "./network.js";
 import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, requiredGameVersion, assignPlayerVersion, } from './firebase-config.js';
-import { setPauseState, inputState } from "./input.js";
+import { setPauseState, inputState, populateKeybindSettings } from "./input.js";
 import {  showLoadoutScreen, hideLoadoutScreen } from "./loadout.js";
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
 // <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
