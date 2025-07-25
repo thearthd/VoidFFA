@@ -314,111 +314,111 @@ export class PhysicsController {
      * @param {number} delta The fixed time step for this physics update.
      */
 _updatePlayerPhysics(delta) {
-    // Reset grounded; we’ll detect contact this frame
-    this.isGrounded = false;
+  // Reset grounded; we’ll detect contact this frame
+  this.isGrounded = false;
 
-    // Apply gravity
-    this.playerVelocity.y -= GRAVITY * delta;
+  // Apply gravity
+  this.playerVelocity.y -= GRAVITY * delta;
 
-    // Cap horizontal speed
-    const horizSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-    const maxHoriz = MAX_SPEED * this.speedModifier;
-    if (horizSpeed > maxHoriz) {
-        const s = maxHoriz / horizSpeed;
-        this.playerVelocity.x *= s;
-        this.playerVelocity.z *= s;
+  // Cap horizontal speed
+  const horizSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+  const maxHoriz   = MAX_SPEED * this.speedModifier;
+  if (horizSpeed > maxHoriz) {
+    const scale = maxHoriz / horizSpeed;
+    this.playerVelocity.x *= scale;
+    this.playerVelocity.z *= scale;
+  }
+
+  // Crouch/stand interpolation
+  const curScaleY = this.player.scale.y;
+  const targetScaleY = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
+  if (Math.abs(curScaleY - targetScaleY) > 0.001) {
+    const newScaleY = THREE.MathUtils.lerp(curScaleY, targetScaleY, CROUCH_SPEED * delta);
+    const oldHeight = PLAYER_TOTAL_HEIGHT * curScaleY;
+    const newHeight = PLAYER_TOTAL_HEIGHT * newScaleY;
+    // adjust position so bottom of capsule stays fixed
+    this.player.scale.y = newScaleY;
+    this.player.position.y -= (oldHeight - newHeight);
+    // update capsule segment length
+    this.player.capsuleInfo.segment.end.y = -this.originalCapsuleSegmentLength * newScaleY;
+  }
+
+  // Move the player by velocity
+  this.player.position.addScaledVector(this.playerVelocity, delta);
+  this.player.updateMatrixWorld();
+
+  // --- COLLISION TEST ---
+  // Build world‑space capsule segment
+  const cap    = this.player.capsuleInfo;
+  const radius = cap.radius + 0.001;
+  this.tempSegment.copy(cap.segment)
+    .applyMatrix4(this.player.matrixWorld)
+    .applyMatrix4(this.colliderMatrixWorldInverse);
+
+  // Build AABB around that segment
+  this.tempBox.makeEmpty()
+    .expandByPoint(this.tempSegment.start)
+    .expandByPoint(this.tempSegment.end)
+    .min.addScalar(-radius)
+    .max.addScalar(radius);
+
+  // Track the largest penetration and its normal
+  let bestDepth  = 0;
+  let bestNormal = null;
+
+  // Shapecast to find collisions
+  this.collider.geometry.boundsTree.shapecast({
+    intersectsBounds: box => box.intersectsBox(this.tempBox),
+    intersectsTriangle: tri => {
+      const closestOnTri = this.tempVector;
+      const closestOnSeg = this.tempVector2;
+      const dist = tri.closestPointToSegment(this.tempSegment, closestOnTri, closestOnSeg);
+      if (dist < radius) {
+        const depth = radius - dist;
+        if (depth > bestDepth) {
+          bestDepth  = depth;
+          bestNormal = tri.getNormal(new THREE.Vector3());
+        }
+      }
+    }
+  });
+
+  // If we hit something…
+  if (bestNormal) {
+    // World‑space push vector
+    const pushWorld = bestNormal.clone().multiplyScalar(bestDepth);
+    this.player.position.add(pushWorld);
+
+    // Decompose the push
+    const verticalDelta   = pushWorld.y;
+    const horizontalDelta = new THREE.Vector3(pushWorld.x, 0, pushWorld.z);
+
+    // Decide slope vs wall by face normal
+    const upDot      = bestNormal.dot(this.upVector);
+    const slopeLimit = Math.cos(THREE.MathUtils.degToRad(45));  // allow up to 45°
+
+    if (upDot >= slopeLimit) {
+      // floor or gentle slope
+      this.playerVelocity.y = 0;
+      this.isGrounded = true;
+
+    } else {
+      // too steep: allow small steps
+      const MAX_STEP = 0.2;
+      if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
+        this.playerVelocity.y = 0;
+        this.isGrounded = true;
+      } else {
+        // slide along wall: remove velocity into the wall
+        const n    = bestNormal.clone().normalize();
+        const proj = this.playerVelocity.dot(n);
+        this.playerVelocity.addScaledVector(n, -proj);
+      }
     }
 
-    // Crouch/stand interpolation (unchanged)
-    /* … your existing crouch/scale code … */
-
-    // Move by velocity
-    this.player.position.addScaledVector(this.playerVelocity, delta);
-    this.player.updateMatrixWorld();
-
-    // Prepare capsule shapecast
-    const cap = this.player.capsuleInfo;
-    const r = cap.radius + 0.001;
-    this.tempBox.makeEmpty();
-    this.tempSegment.copy(cap.segment)
-        .applyMatrix4(this.player.matrixWorld)
-        .applyMatrix4(this.colliderMatrixWorldInverse);
-    this.tempBox.expandByPoint(this.tempSegment.start);
-    this.tempBox.expandByPoint(this.tempSegment.end);
-    this.tempBox.min.addScalar(-r);
-    this.tempBox.max.addScalar(r);
-
-    let hitNormal = null;
-    let pushOut = 0;
-
-    // Perform shapecast
-    this.collider.geometry.boundsTree.shapecast({
-        intersectsBounds: box => box.intersectsBox(this.tempBox),
-        intersectsTriangle: tri => {
-            // find closest point between tri and capsule segment
-            const tp = this.tempVector;
-            const cp = this.tempVector2;
-            const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
-            if (dist < r) {
-                // compute penetration depth and normal
-                const depth = r - dist;
-                const normal = tri.getNormal(new THREE.Vector3());
-                // accumulate the deepest penetration/normal
-                if (depth > pushOut) {
-                    pushOut = depth;
-                    hitNormal = normal.clone();
-                    // also push the capsule segment out
-                    this.tempSegment.start.addScaledVector(tp.clone().sub(cp).normalize(), depth);
-                    this.tempSegment.end .addScaledVector(tp.clone().sub(cp).normalize(), depth);
-                }
-            }
-        }
-    });
-
-    if (hitNormal) {
-        // compute world‐space delta
-        const newStart = this.tempVector
-            .copy(this.tempSegment.start)
-            .applyMatrix4(this.collider.matrixWorld);
-        const deltaVec = newStart.sub(this.player.position);
-
-        // classify by face normal instead of pure Y
-        const upDot = hitNormal.dot(this.upVector);
-        const slopeLimit = Math.cos(THREE.MathUtils.degToRad(45)); // allow up to 45°
-
-        // decompose movement
-        const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
-        const verticalDelta   = deltaVec.y;
-
-        if (upDot >= slopeLimit) {
-            // gentle slope or floor
-            // zero out vertical velocity
-            this.playerVelocity.y = 0;
-            this.player.position.add(horizontalDelta);
-            this.player.position.y += verticalDelta;
-            this.isGrounded = true;
-        } else {
-            // too steep: treat as wall but allow small steps
-            const MAX_STEP = 0.2; // adjust to taste
-            if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
-                // small step up
-                this.playerVelocity.y = 0;
-                this.player.position.add(horizontalDelta);
-                this.player.position.y += verticalDelta;
-                this.isGrounded = true;
-            } else {
-                // slide along wall
-                // remove velocity component into the wall
-                const n = deltaVec.clone().normalize();
-                const proj = deltaVec.dot(this.playerVelocity);
-                this.playerVelocity.addScaledVector(n, -proj);
-                this.player.position.add(horizontalDelta);
-            }
-        }
-
-        // sync camera
-        this.camera.position.copy(this.player.position);
-    }
+    // Sync camera
+    this.camera.position.copy(this.player.position);
+  }
 }
 
 
