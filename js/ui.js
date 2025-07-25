@@ -624,55 +624,40 @@ let lastValidHp = 100;
 let lastValidShield = 50;
 
 export function updateHealthShieldUI(hp, shield) {
-    const validHp = typeof hp === 'number' && !Number.isNaN(hp);
-    const validShield = typeof shield === 'number' && !Number.isNaN(shield);
+    const validHp = typeof hp === 'number' && !Number.isNaN(hp);
+    const validShield = typeof shield === 'number' && !Number.isNaN(shield);
 
-    const rawHp = validHp ? hp : lastValidHp;
-    const rawShield = validShield ? shield : lastValidShield;
+    const rawHp = validHp ? hp : lastValidHp;
+    const rawShield = validShield ? shield : lastValidShield;
 
-    // --- MODIFICATION STARTS HERE ---
-    // Remove the Math.min(rawHp, 100) to allow HP to go above 100.
-    // We still keep Math.max(0, rawHp) to ensure HP doesn't go below 0.
-    const clampedHp = Math.max(0, rawHp); 
-    // --- MODIFICATION ENDS HERE ---
+    const clampedHp = Math.max(0, Math.min(rawHp, 100));
+    const clampedShield = Math.max(0, Math.min(rawShield, 50));
 
-    const clampedShield = Math.max(0, Math.min(rawShield, 50));
+    lastValidHp = clampedHp;
+    lastValidShield = clampedShield;
 
-    lastValidHp = clampedHp;
-    lastValidShield = clampedShield;
+    const healthFrac = clampedHp / 100;
+    const shieldFrac = clampedShield / 50;
 
-    // --- ADDITIONAL MODIFICATION FOR DISPLAY ---
-    // You'll likely want to change the divisor for healthFrac and healthText
-    // if you want the bar to represent a new maximum or if you want to show
-    // current HP / new max HP. For now, it will just show current HP / 100.
-    // If you want the bar to accurately reflect values above 100, you'll need
-    // to define a new 'maximum health' variable. For demonstration, let's assume
-    // a new maximum for the bar's visual representation, e.g., 200.
-    const maxHealthForDisplay = 200; // Define your new max for the visual bar if needed
-    const healthFrac = clampedHp / maxHealthForDisplay; // Adjust divisor for bar width
-    // --- END ADDITIONAL MODIFICATION ---
+    const healthFill = document.getElementById("health-bar-fill");
+    const healthText = document.getElementById("health-text");
+    if (healthFill) {
+        healthFill.style.width = `${healthFrac * 100}%`;
+    }
+    if (healthText) {
+        healthText.textContent = `${clampedHp} / 100`;
+    }
 
-
-    const healthFill = document.getElementById("health-bar-fill");
-    const healthText = document.getElementById("health-text");
-    if (healthFill) {
-        // Ensure the bar doesn't exceed 100% visually, even if HP is very high
-        healthFill.style.width = `${Math.min(healthFrac * 100, 100)}%`; 
-    }
-    if (healthText) {
-        // Display current HP, you might want to change the " / 100" part too
-        healthText.textContent = `${clampedHp} / ${maxHealthForDisplay}`; 
-    }
-
-    const shieldFill = document.getElementById("shield-bar-fill");
-    const shieldText = document.getElementById("shield-text");
-    if (shieldFill) {
-        shieldFill.style.width = `${shieldFrac * 100}%`;
-    }
-    if (shieldText) {
-        shieldText.textContent = `${clampedShield} / 50`;
-    }
+    const shieldFill = document.getElementById("shield-bar-fill");
+    const shieldText = document.getElementById("shield-text");
+    if (shieldFill) {
+        shieldFill.style.width = `${shieldFrac * 100}%`;
+    }
+    if (shieldText) {
+        shieldText.textContent = `${clampedShield} / 50`;
+    }
 }
+
 const activeTracers = {};
 const bulletHoles = {}; // Keep this map to track active bullet hole meshes
 
