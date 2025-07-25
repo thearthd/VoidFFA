@@ -73,7 +73,7 @@ function saveLoadout() {
   if (sBtn) localStorage.setItem('loadout_secondary', sBtn.dataset.key);
 }
 
-function updateHUD() {
+export function updateHUD() {
   const hud = document.getElementById('hud-weapons');
   hud.innerHTML = ''; // clear old
   const { primary, secondary } = loadLoadout();
