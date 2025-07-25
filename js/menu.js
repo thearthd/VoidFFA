@@ -1155,7 +1155,7 @@ let inGameSettingsBtn = createAnimatedButton(
 function inGameSettingsButtonHit() {
     clearMenuCanvas(); // Clear current menu elements
     add(settingsMenu); // Add the settings UI container
-
+        setPauseState(true);
     // Show settings-specific elements
     sensitivitySliderContainer.style.display = "flex"; // Or "block"
     settingsBox.style.display = 'block';
@@ -1170,7 +1170,7 @@ function inGameBack() {
     clearMenuCanvas(); // Clear current menu elements (settings)
     settingsBox.style.display = "none";
     sensitivitySliderContainer.style.display = "none";
-
+        setPauseState(true);
     // Re-add the main escape menu and its buttons
     add(escMenu);
     add(inGameSettingsBtn.image);
