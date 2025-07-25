@@ -330,16 +330,14 @@ _updatePlayerPhysics(delta) {
   }
 
   // Crouch/stand interpolation
-  const curScaleY = this.player.scale.y;
+  const curScaleY    = this.player.scale.y;
   const targetScaleY = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
   if (Math.abs(curScaleY - targetScaleY) > 0.001) {
-    const newScaleY = THREE.MathUtils.lerp(curScaleY, targetScaleY, CROUCH_SPEED * delta);
-    const oldHeight = PLAYER_TOTAL_HEIGHT * curScaleY;
-    const newHeight = PLAYER_TOTAL_HEIGHT * newScaleY;
-    // adjust position so bottom of capsule stays fixed
+    const newScaleY   = THREE.MathUtils.lerp(curScaleY, targetScaleY, CROUCH_SPEED * delta);
+    const oldHeight   = PLAYER_TOTAL_HEIGHT * curScaleY;
+    const newHeight   = PLAYER_TOTAL_HEIGHT * newScaleY;
     this.player.scale.y = newScaleY;
     this.player.position.y -= (oldHeight - newHeight);
-    // update capsule segment length
     this.player.capsuleInfo.segment.end.y = -this.originalCapsuleSegmentLength * newScaleY;
   }
 
@@ -356,11 +354,12 @@ _updatePlayerPhysics(delta) {
     .applyMatrix4(this.colliderMatrixWorldInverse);
 
   // Build AABB around that segment
-  this.tempBox.makeEmpty()
-    .expandByPoint(this.tempSegment.start)
-    .expandByPoint(this.tempSegment.end)
-    .min.addScalar(-radius)
-    .max.addScalar(radius);
+  this.tempBox.makeEmpty();
+  this.tempBox.expandByPoint(this.tempSegment.start);
+  this.tempBox.expandByPoint(this.tempSegment.end);
+  // now adjust min and max separately
+  this.tempBox.min.addScalar(-radius);
+  this.tempBox.max.addScalar( radius);
 
   // Track the largest penetration and its normal
   let bestDepth  = 0;
@@ -391,11 +390,9 @@ _updatePlayerPhysics(delta) {
 
     // Decompose the push
     const verticalDelta   = pushWorld.y;
-    const horizontalDelta = new THREE.Vector3(pushWorld.x, 0, pushWorld.z);
-
     // Decide slope vs wall by face normal
     const upDot      = bestNormal.dot(this.upVector);
-    const slopeLimit = Math.cos(THREE.MathUtils.degToRad(45));  // allow up to 45°
+    const slopeLimit = Math.cos(THREE.MathUtils.degToRad(45));  // 45°
 
     if (upDot >= slopeLimit) {
       // floor or gentle slope
