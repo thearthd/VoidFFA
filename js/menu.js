@@ -1200,6 +1200,31 @@ function inGameSettingsButtonHit() {
 
 }
 
+let inGameLoadoutBtn = createAnimatedButton(
+    "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
+    330, 100,
+    getWidth() / 2 - 330 / 2, getHeight() / 2 - 100 / 2 + 107 + 0,
+    330, 100,
+    () => {
+        console.log("inGameSettingsBtn hit");
+        inGameLoadoutButtonHit();
+        playButtonClick();
+    }
+);
+
+function inGameLoadoutButtonHit() {
+    clearMenuCanvas(); // Clear current menu elements
+
+        setPauseState(true);
+     
+add(loadoutMenu);
+  // show our DOM loadout overlay
+  showLoadoutScreen();
+
+
+    addBackButton(inGameBack); // Add a back button to return to the escape menu
+
+}
 
 /**
  * Handles returning from the settings menu back to the main escape menu.
@@ -1209,6 +1234,9 @@ function inGameBack() {
     settingsBox.style.display = "none";
     sensitivitySliderContainer.style.display = "none";
         setPauseState(true);
+
+     hideLoadoutScreen();
+     
     // Re-add the main escape menu and its buttons
     add(escMenu);
     add(inGameResumeBtn.image);
@@ -1216,6 +1244,9 @@ function inGameBack() {
 
         add(inGameSettingsBtn.image);
         makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
+
+        add(inGameLoadoutBtn.image);
+        makeButton(inGameLoadoutBtn.hitbox, inGameLoadoutBtn.hitbox.onClick);
     // The canvas display and cursor state should be managed by the `togglePauseMenuUI`
     // function, not directly by `inGameBack`, to ensure consistency.
 }
