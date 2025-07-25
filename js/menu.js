@@ -1231,6 +1231,22 @@ function inGameLoadoutButtonHit() {
   }
 }
 
+let inGameLeaveBtn = createAnimatedButton(
+    "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
+    330, 100,
+    getWidth() / 2 - 330 / 2, getHeight() / 2 - 100 / 2 + 107 + 130,
+    330, 100,
+    () => {
+        console.log("inGameLeaveBtn hit"); // Corrected console log
+        inGameLeaveButtonHit();
+        playButtonClick();
+    }
+);
+
+function inGameLeaveButtonHit() {
+     location.reload();
+}
+
 /**
  * Handles returning from the settings menu back to the main escape menu.
  */
@@ -1251,6 +1267,9 @@ function inGameBack() {
 
     add(inGameLoadoutBtn.image);
     makeButton(inGameLoadoutBtn.hitbox, inGameLoadoutBtn.hitbox.onClick);
+
+        add(inGameLeaveBtn.image);
+        makeButton(inGameLeaveBtn.hitbox, inGameLeaveBtn.hitbox.onClick);
 }
 
 /**
@@ -1269,6 +1288,9 @@ function togglePauseMenuUI(shouldPause) {
 
         add(inGameLoadoutBtn.image);
         makeButton(inGameLoadoutBtn.hitbox, inGameLoadoutBtn.hitbox.onClick);
+
+        add(inGameLeaveBtn.image);
+        makeButton(inGameLeaveBtn.hitbox, inGameLeaveBtn.hitbox.onClick);
             
         canvas.style.display = 'block';
         canvas.style.position = 'fixed';
@@ -1320,6 +1342,14 @@ if (checkInGame && e.key.toLowerCase() === 'p') {
     }
     e.preventDefault();
 }
+
+
+
+
+
+
+
+
 });
 function playerCardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
