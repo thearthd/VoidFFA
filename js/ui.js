@@ -77,7 +77,7 @@ export function createGameUI(gameWrapper) {
         width: '100%',
         height: '100%',
         pointerEvents: 'none', // Allow clicks to pass through by default
-        zIndex: '500',
+        zIndex: '10',
     });
     gameWrapper.appendChild(hud);
 
