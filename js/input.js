@@ -53,9 +53,14 @@ export function handleWeaponSwitch() {
 export function setPauseState(paused) {
   inputState.isPaused = paused;
   if (paused) {
+    // Normal Reason: Ensure pointer lock is always exited when pausing.
+    // Sometimes, the browser might not immediately release it or another part of the code
+    // might have tried to re-acquire it. Explicitly call it here.
     if (document.pointerLockElement) {
       document.exitPointerLock();
     }
+    // Normal Reason: Clear all input states when paused to prevent ghost inputs.
+    // This is already well-handled in your original code.
     inputState.forward = false;
     inputState.backward = false;
     inputState.left = false;
@@ -70,6 +75,20 @@ export function setPauseState(paused) {
     inputState.weaponSwitch = null;
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
+
+    // Normal Reason: Immediately update cursor visibility to default
+    // without waiting for pointerlockchange event, for faster feedback.
+    document.body.style.cursor = "default";
+    document.removeEventListener("mousemove", onMouseMove, false);
+
+  } else {
+    // If unpausing, and if the user previously had pointer lock, try to re-acquire.
+    // This handles scenarios where the user exits pointer lock manually during pause
+    // (e.g., by pressing Esc) but then wants it back on unpause.
+    const elementToLock = document.body;
+    if (document.pointerLockElement !== elementToLock) {
+      elementToLock.requestPointerLock();
+    }
   }
 }
 
@@ -77,40 +96,65 @@ export function initInput() {
   const elementToLock = document.body;
   const chatInput = document.getElementById("chat-input");
 
+  // Changed to capture phase to prevent default behavior earlier,
+  // potentially mitigating "crazy" reasons like rogue event listeners
+  // or competing default browser actions trying to grab focus/pointer lock.
   elementToLock.addEventListener("mousedown", (e) => {
-    // Block game input when paused
+    // Normal Reason: Prevent pointer lock requests if paused.
+    // Crazy Reason: Prevent any rogue script from re-locking the pointer if we're paused.
     if (inputState.isPaused) {
-      e.preventDefault(); // Prevent default browser action like focus or selection
+      e.preventDefault();
+      e.stopPropagation(); // Stop propagation to prevent any other listeners from acting
       return;
     }
 
+    // Normal Reason: Allow chat input to function normally.
     if (document.activeElement === chatInput) {
-      // If chat is active, allow its default mousedown behavior (e.g., cursor positioning)
-      // but prevent propagation if you want to prevent pointer lock
-      // e.preventDefault(); // uncomment if you specifically want to prevent default for chat input mousedown too
       return;
     }
 
+    // Normal Reason: Request pointer lock if not already locked.
+    // Crazy Reason: A rapid click could trigger this while pointer lock is in a transitional state.
+    // The pointerlockchange event listener will handle the actual state.
     if (document.pointerLockElement !== elementToLock) {
       elementToLock.requestPointerLock();
     }
 
-    e.preventDefault(); // Crucial: Prevent default browser action like focus or selection
-  });
+    // Normal Reason: Prevent default browser actions (like text selection).
+    e.preventDefault();
+  }, true); // Use capture phase for mousedown on elementToLock
 
   document.addEventListener("pointerlockchange", () => {
-    
     const locked = document.pointerLockElement === elementToLock;
+
+    // Normal Reason: Reset mouse deltas whenever pointer lock state changes
+    // to prevent accumulated movement from an old lock.
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
+
+    // Normal Reason: Only attach mousemove listener if locked AND not paused.
+    // This is a key fix to ensure mouse movement stops when paused.
     if (locked && !inputState.isPaused) {
       document.body.style.cursor = "none";
       document.addEventListener("mousemove", onMouseMove, false);
     } else {
+      // Normal Reason: Always restore default cursor and remove listener when not locked
+      // or when paused, regardless of how pointer lock was lost.
       document.body.style.cursor = "default";
       document.removeEventListener("mousemove", onMouseMove, false);
     }
   });
+
+  document.addEventListener("pointerlockerror", (e) => {
+    console.error("Pointer lock error:", e);
+    // Crazy Reason: Log errors to understand if external factors or browser quirks are preventing lock.
+    // You might want to display a message to the user here.
+    if (inputState.isPaused) {
+        // If an error occurs while trying to acquire lock during unpause, ensure we remain in a paused state.
+        setPauseState(true);
+    }
+  });
+
 
   window.addEventListener("keydown", (e) => {
     // Always allow Backquote for chat
@@ -119,6 +163,7 @@ export function initInput() {
         chatInput.blur();
       } else {
         chatInput.focus();
+        // Normal Reason: Clear movement inputs immediately when chat is opened.
         inputState.forward = inputState.backward = inputState.left = inputState.right = inputState.fire = false;
       }
       e.preventDefault();
@@ -132,7 +177,8 @@ export function initInput() {
       return;
     }
 
-    // If game is paused or chat is focused, ignore other game keys
+    // Normal Reason: If game is paused or chat is focused, ignore other game keys.
+    // This is crucial for preventing input when intended to be paused.
     if (inputState.isPaused || document.activeElement === chatInput) return;
 
     const { primary, secondary } = getSavedLoadout();
@@ -179,6 +225,7 @@ export function initInput() {
         if (secondary) inputState.weaponSwitch = secondary;
         break;
       case "KeyX":
+        // Normal Reason: Ensure key-based fire updates these states.
         inputState.fire = true;
         inputState.fireJustPressed = true;
         break;
@@ -195,7 +242,7 @@ export function initInput() {
     // Always allow Backquote for chat, or Escape to unpause (no action on keyup)
     if (e.code === "Backquote" || e.code === "Escape") return;
 
-    // If game is paused or chat is focused, ignore other game keys
+    // Normal Reason: If game is paused or chat is focused, ignore other game keys.
     if (inputState.isPaused || document.activeElement === chatInput) return;
 
     let handled = true;
@@ -245,15 +292,17 @@ export function initInput() {
     }
   });
 
+  // Using window.addEventListener for mousedown/mouseup to ensure they're caught regardless of target.
+  // Normal Reason: Consistent mouse input handling.
+  // Crazy Reason: Prevents any default browser actions (like context menus) from interfering.
   window.addEventListener("mousedown", (e) => {
-    // Block game input when paused
+    // Normal Reason: Block game input when paused.
+    // Crazy Reason: Prevents phantom clicks from activating weapons.
     if (inputState.isPaused) {
-      e.preventDefault(); // Prevent default browser action like focus or selection
+      e.preventDefault();
       return;
     }
     if (document.activeElement === chatInput) {
-      // If chat is active, allow its default mousedown behavior
-      // e.preventDefault(); // uncomment if you specifically want to prevent default for chat input mousedown too
       return;
     }
     switch (e.button) {
@@ -269,7 +318,7 @@ export function initInput() {
   });
 
   window.addEventListener("mouseup", (e) => {
-    // Block game input when paused
+    // Normal Reason: Block game input when paused.
     if (inputState.isPaused) {
       e.preventDefault(); // Prevent default browser action if click occurred while paused
       return;
@@ -289,13 +338,10 @@ export function initInput() {
   });
 
   window.addEventListener("contextmenu", (e) => {
-    // Block game input when paused
-    if (inputState.isPaused) {
+    // Normal Reason: Block context menu when paused, or when pointer locked.
+    // Crazy Reason: Prevents context menu from breaking pointer lock or revealing cursor unexpectedly.
+    if (inputState.isPaused || document.pointerLockElement === elementToLock) {
       e.preventDefault();
-      return;
-    }
-    if (document.pointerLockElement === elementToLock) {
-      e.preventDefault(); // Prevent default context menu from appearing when pointer locked
     }
   });
 }
@@ -334,6 +380,9 @@ export function initDebugCursor() {
 }
 
 export function updateDebugCursor() {
+  // Normal Reason: Only update debug cursor if not paused.
+  if (inputState.isPaused) return;
+
   debugX += inputState.mouseDX;
   debugY += inputState.mouseDY;
 
@@ -351,11 +400,17 @@ export function updateDebugCursor() {
 export function postFrameCleanup() {
   inputState.weaponSwitch = null;
   inputState.fireJustPressed = false;
+  // Normal Reason: Reset mouse deltas after each frame, regardless of pause state.
+  // This prevents accumulation if movement happens briefly while paused or during a state change.
   inputState.mouseDX = 0;
   inputState.mouseDY = 0;
 }
 
 function onMouseMove(e) {
+  // Normal Reason: Only process mouse movement if not paused.
+  // Crazy Reason: Prevents spurious events when browser is in a weird state.
+  if (inputState.isPaused) return;
+
   if (Math.abs(e.movementX) > MAX_DELTA || Math.abs(e.movementY) > MAX_DELTA) {
     return;
   }
