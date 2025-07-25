@@ -1,5 +1,14 @@
 import { updateInventory } from "./ui.js";
 
+const originalRequestPointerLock = Element.prototype.requestPointerLock;
+
+Element.prototype.requestPointerLock = function() {
+    console.warn('!!! Suspicious requestPointerLock called on element:', this);
+    console.trace('!!! Full call stack for requestPointerLock:');
+    return originalRequestPointerLock.apply(this, arguments);
+};
+
+
 const chatInput = document.getElementById("chat-input");
 const chatContainer = document.getElementById("chat-box");
 const elementToLock = document.body; // Define elementToLock globally for easier access
