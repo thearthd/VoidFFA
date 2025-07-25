@@ -121,7 +121,7 @@ export class PhysicsController {
         this.collider = null;
 
         // Input and camera setup
-        this.mouseTime = 0;=
+        this.mouseTime = 0;
         this.camera.rotation.order = 'YXZ'; // Ensure correct camera rotation order
 
         // Audio setup
