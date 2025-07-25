@@ -524,6 +524,7 @@ export class ImageShape extends Shape {
         this.height = 100;
         this.anchorX = 0;    // Default: top-left (0 for horizontal)
         this.anchorY = 0;
+         this.opacity = 1.0;
     }
 
     /**
@@ -570,6 +571,8 @@ export class ImageShape extends Shape {
     /** @returns {number} The height of the image. */
     getHeight() { return this.height; }
 
+    setOpacity(o) { this.opacity = o; }
+     
     /**
      * Draws the image on the canvas context.
      * @param {CanvasRenderingContext2D} ctx - The canvas rendering context.
