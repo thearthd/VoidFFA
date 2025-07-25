@@ -1876,10 +1876,9 @@ function careerButtonHit() {
  * Clears the current menu and displays a placeholder loadout screen.
  */
 function loadoutButtonHit() {
-add(loadoutMenu);
   // first clear out any canvas‑drawn menu items
   clearMenuCanvas();
-
+add(loadoutMenu);
   // show our DOM loadout overlay
   showLoadoutScreen();
 
