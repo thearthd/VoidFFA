@@ -1617,6 +1617,7 @@ export async function createGameButtonHit() {
         };
 
         const newGameRef = gamesRef.push();
+          await newGameRef.set(gameData);
         const gameId = newGameRef.key;
         let ffaEnabled = true;
 
