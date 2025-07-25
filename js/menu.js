@@ -1146,7 +1146,7 @@ let inGameResumeBtn = createAnimatedButton(
     330, 100,
     () => {
         console.log("inGameSettingsBtn hit");
-        inGameSettingsButtonHit();
+        inGameResumeButtonHit();
         playButtonClick();
     }
 );
@@ -1211,6 +1211,8 @@ function inGameBack() {
     add(inGameSettingsBtn.image);
     makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
 
+        add(inGameSettingsBtn.image);
+        makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
     // The canvas display and cursor state should be managed by the `togglePauseMenuUI`
     // function, not directly by `inGameBack`, to ensure consistency.
 }
