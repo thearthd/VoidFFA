@@ -101,7 +101,7 @@ function resetKeybinds() {
 }
 
 // --- Populate Keybind Settings UI ---
-function populateKeybindSettings() {
+export function populateKeybindSettings() {
     if (!keybindsContainer) return;
 
     keybindsContainer.innerHTML = ''; // Clear existing
