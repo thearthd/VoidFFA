@@ -196,76 +196,60 @@ export class PhysicsController {
      * @param {number} deltaTime The time elapsed since the last frame.
      * @param {object} input An object containing input states (e.g., forward, backward, jump, crouch, slow, aim).
      */
-    _applyControls(deltaTime, input) {
-        // Calculate desired movement speed based on MAX_SPEED and modifiers
-        const baseSpeed = MAX_SPEED;
-        const currentMoveSpeed = baseSpeed * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
+_applyControls(deltaTime, input) {
+    // Calculate desired movement speed based on MAX_SPEED and modifiers
+    const baseSpeed = MAX_SPEED;
+    const currentMoveSpeed = baseSpeed * this.speedModifier * (input.crouch ? 0.3 : input.slow ? 0.5 : this.isAim ? 0.65 : 1);
 
-        const moveDirection = new THREE.Vector3();
-        if (input.forward) {
-            moveDirection.add(this.getForwardVector());
-        }
-        if (input.backward) {
-            moveDirection.add(this.getForwardVector().multiplyScalar(-1));
-        }
-        if (input.left) {
-            moveDirection.add(this.getSideVector().multiplyScalar(-1));
-        }
-        if (input.right) {
-            moveDirection.add(this.getSideVector());
-        }
+    const moveDirection = new THREE.Vector3();
+    if (input.forward)  moveDirection.add(this.getForwardVector());
+    if (input.backward) moveDirection.add(this.getForwardVector().multiplyScalar(-1));
+    if (input.left)     moveDirection.add(this.getSideVector().multiplyScalar(-1));
+    if (input.right)    moveDirection.add(this.getSideVector());
 
-        // Normalize the movement direction if there's input
-        if (moveDirection.lengthSq() > 0) {
-            moveDirection.normalize();
-        }
+    if (moveDirection.lengthSq() > 0) moveDirection.normalize();
 
-        // Calculate the target horizontal velocity
-        const targetVelocityX = moveDirection.x * currentMoveSpeed;
-        const targetVelocityZ = moveDirection.z * currentMoveSpeed;
+    // Horizontal target velocities
+    const targetVelocityX = moveDirection.x * currentMoveSpeed;
+    const targetVelocityZ = moveDirection.z * currentMoveSpeed;
 
-        // Determine acceleration/deceleration rate based on grounded state and input
-        let accelRateX, accelRateZ;
+    // Choose accel/decel rates
+    let accelRate = this.isGrounded
+        ? (input.forward || input.backward || input.left || input.right ? PLAYER_ACCEL_GROUND : PLAYER_DECEL_GROUND)
+        : (input.forward || input.backward || input.left || input.right ? PLAYER_ACCEL_AIR    : PLAYER_DECEL_AIR);
 
-        if (this.isGrounded) {
-            accelRateX = input.forward || input.backward || input.left || input.right ? PLAYER_ACCEL_GROUND : PLAYER_DECEL_GROUND;
-            accelRateZ = input.forward || input.backward || input.left || input.right ? PLAYER_ACCEL_GROUND : PLAYER_DECEL_GROUND;
+    // Lerp current velocity toward target
+    this.playerVelocity.x = THREE.MathUtils.lerp(this.playerVelocity.x, targetVelocityX, accelRate * deltaTime);
+    this.playerVelocity.z = THREE.MathUtils.lerp(this.playerVelocity.z, targetVelocityZ, accelRate * deltaTime);
+
+    // Jump
+    if (this.isGrounded && input.jump) {
+        this.playerVelocity.y = JUMP_VELOCITY;
+        this.isGrounded = false;
+        this.jumpTriggered = true;
+    }
+
+    // --- Crouch / stand with ceiling check ---
+    const crouchHeight  = PLAYER_TOTAL_HEIGHT * CROUCH_HEIGHT_RATIO;
+    const standingHeight = PLAYER_TOTAL_HEIGHT;
+
+    if (input.crouch) {
+        // Always allow entering crouch
+        this.isCrouching = true;
+        this.targetPlayerHeight = crouchHeight;
+    } else {
+        // Attempt to stand: only if no ceiling above
+        const canStand = this._checkCeilingCollision(standingHeight);
+        if (canStand) {
+            this.isCrouching = false;
+            this.targetPlayerHeight = standingHeight;
         } else {
-            accelRateX = input.forward || input.backward || input.left || input.right ? PLAYER_ACCEL_AIR : PLAYER_DECEL_AIR;
-            accelRateZ = input.forward || input.backward || input.left || input.right ? PLAYER_ACCEL_AIR : PLAYER_DECEL_AIR;
-        }
-
-        // Apply acceleration/deceleration to horizontal velocity components
-        this.playerVelocity.x = THREE.MathUtils.lerp(this.playerVelocity.x, targetVelocityX, accelRateX * deltaTime);
-        this.playerVelocity.z = THREE.MathUtils.lerp(this.playerVelocity.z, targetVelocityZ, accelRateZ * deltaTime);
-
-        // Handle jumping
-        if (this.isGrounded && input.jump) {
-            this.playerVelocity.y = JUMP_VELOCITY; // Apply upward jump velocity
-            this.isGrounded = false; // Player is no longer on the ground
-            this.jumpTriggered = true; // Set jump flag
-        }
-
-        // Crouching logic
-        const currentCrouchHeight = PLAYER_TOTAL_HEIGHT * CROUCH_HEIGHT_RATIO;
-        const standingHeight = PLAYER_TOTAL_HEIGHT;
-
-        // Determine target height based on input and ceiling check
-        if (input.crouch) {
+            // Block stand: stay crouched
             this.isCrouching = true;
-            this.targetPlayerHeight = currentCrouchHeight;
-        } else {
-            // Only allow standing if there's no ceiling
-            if (this._checkCeilingCollision(standingHeight)) {
-                this.isCrouching = false;
-                this.targetPlayerHeight = standingHeight;
-            } else {
-                // If there's a ceiling, remain crouched
-                this.isCrouching = true;
-                this.targetPlayerHeight = currentCrouchHeight;
-            }
+            this.targetPlayerHeight = crouchHeight;
         }
     }
+}
 
     /**
      * Checks if the player can stand up without hitting a ceiling.
