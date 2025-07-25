@@ -1212,24 +1212,23 @@ let inGameLoadoutBtn = createAnimatedButton(
 );
 
 function inGameLoadoutButtonHit() {
-    clearMenuCanvas();
-    // This is always a manual pause for the menu, regardless of player death status
-    setPauseState(true, false);
+  if (window.localPlayer.isDead) {
+    clearMenuCanvas(); // Clear current menu elements
+    setPauseState(true);
     add(loadoutMenu);
-    showLoadoutScreen();
-    addBackButton(inGameBack);
-
-    if (!window.localPlayer.isDead) { // Warning only if not dead
-        Swal.fire({
-            icon: 'warning',
-            title: 'Heads up!',
-            text: 'You can change loadouts, but your actual in-game weapon will only update if you respawn or if the game handles mid-life changes.',
-            confirmButtonText: 'Got it',
-            background: '#1e1e1e',
-            color: '#ffffff',
-            confirmButtonColor: '#ff4444',
-        });
-    }
+    showLoadoutScreen(); // Show our DOM loadout overlay
+    addBackButton(inGameBack); // Add a back button to return to the escape menu
+  } else {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Hold up!',
+      text: 'You have to be dead to change loadouts.',
+      confirmButtonText: 'Got it',
+      background: '#1e1e1e',
+      color: '#ffffff',
+      confirmButtonColor: '#ff4444',
+    });
+  }
 }
 
 /**
