@@ -2026,9 +2026,11 @@ if (saveUsernameBtn) {
     if (sensitivityRange && sensitivityInput) {
         setSensitivity(parseFloat(savedSens));
         sensitivityRange.addEventListener('input', () => {
+             console.log("test")
             setSensitivity(sensitivityRange.value);
         });
         sensitivityInput.addEventListener('change', () => {
+             console.log("test")
             setSensitivity(parseFloat(sensitivityInput.value));
         });
     }
