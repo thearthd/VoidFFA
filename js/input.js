@@ -115,18 +115,16 @@ function onKeyDown(e) {
   }
 
   // Handle Escape key for pausing/unpausing
-  // This should call your main UI toggle function if you want it to be the same behavior as 'P'
+  // If Escape should also trigger the UI (like 'P' does), uncomment this:
+  /*
   if (e.code === "Escape") {
-    // If you want Escape to also trigger the UI (like 'P' does), uncomment this:
-    // togglePauseMenuUI(!inputState.isPaused); // Use inputState.isPaused from input.js for current state
-    // e.preventDefault();
-    // return;
-
-    // If Escape is *only* meant to toggle the setPauseState internally without UI:
-    setPauseState(!inputState.isPaused, false); // Manual pause, not by death
+    if (window.checkInGame) { // Make sure checkInGame is accessible if needed here
+        window.togglePauseMenuUI(!inputState.isPaused);
+    }
     e.preventDefault();
     return;
   }
+  */
 
   // If game is paused or chat is focused, ignore other game keys.
   if (inputState.isPaused || document.activeElement === chatInput) return;
@@ -330,6 +328,8 @@ function removeGameEventListeners() {
 }
 
 export function setPauseState(paused, byDeath = false) {
+  // If the new state and the 'byDeath' flag are already the current state, do nothing.
+  // This helps prevent unnecessary state changes and potential overrides.
   if (inputState.isPaused === paused && inputState.wasPausedByDeath === byDeath) {
     return;
   }
@@ -362,7 +362,8 @@ export function setPauseState(paused, byDeath = false) {
     document.removeEventListener("mousemove", onMouseMove, false);
   } else {
     const elementToLock = document.body;
-    // Only attempt pointer lock if player is alive AND game is unpausing.
+    // Only attempt pointer lock if player is alive.
+    // If the player is dead and the game is unpausing (manually), we don't try to get pointer lock.
     if (!window.localPlayer || !window.localPlayer.isDead) {
         if (document.pointerLockElement !== elementToLock) {
             elementToLock.requestPointerLock();
@@ -380,14 +381,15 @@ export function setPauseState(paused, byDeath = false) {
 function checkPlayerDeadAndPause() {
   if (window.localPlayer) {
     if (window.localPlayer.isDead) {
-      // Player is dead. If game is NOT currently paused, or if it's paused
-      // but NOT specifically by death (i.e., it's manually unpaused after death),
-      // then we should enforce the "paused by death" state.
+      // Player is dead.
+      // IF the game is NOT currently paused, OR IF it IS paused but NOT specifically by death (i.e., manually unpaused),
+      // then we enforce the "paused by death" state.
       if (!inputState.isPaused || !inputState.wasPausedByDeath) {
         setPauseState(true, true); // Pause and mark as paused by death
       }
     } else {
-      // Player is alive. If game is paused AND it was paused specifically due to death, then unpause.
+      // Player is alive.
+      // IF the game is paused AND it was paused specifically due to death, THEN unpause.
       if (inputState.isPaused && inputState.wasPausedByDeath) {
         setPauseState(false, false); // Unpause and clear the death pause flag
       }
