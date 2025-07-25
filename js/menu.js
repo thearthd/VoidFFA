@@ -1178,6 +1178,10 @@ let loadoutMenu = new ImageShape("https://codehs.com/uploads/50e7492f5777ebcbaad
 loadoutMenu.setSize(1920, 1080);
 loadoutMenu.setPosition(getWidth()/2 - 1920/2, getHeight()/2 - 1080/2);
 
+let careerMenu = new ImageShape("https://codehs.com/uploads/a3f192faf79ef45e5db517264dc50503");
+careerMenu.setSize(1920, 1080);
+careerMenu.setPosition(getWidth()/2 - 1920/2, getHeight()/2 - 1080/2);
+
 
 let disclaimerText = new Text("⚠️ GAMES DO NOT AUTOCLEAR ⚠️", "30pt Arial");
 disclaimerText.setColor("#ffffff");
@@ -1910,6 +1914,7 @@ function settingsButtonHit() {
 function careerButtonHit() {
   clearMenuCanvas();
   add(logo);
+     add(careerMenu);
   addBackButton(menu);
 
   const username = localStorage.getItem('username') || 'Guest';
@@ -1960,7 +1965,7 @@ function careerButtonHit() {
     ];
 
     // Start drawing at y = 250
-    let y = 250;
+    let y = 350;
     for (let i = 0; i < lines.length; i++) {
       const lineText = createStatText(lines[i], y + i * lineHeight);
       add(lineText);
