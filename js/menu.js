@@ -1163,7 +1163,6 @@ function inGameSettingsButtonHit() {
     // Show settings-specific elements
     sensitivitySliderContainer.style.display = "flex"; // Or "block"
     settingsBox.style.display = 'block';
-
     addBackButton(inGameBack); // Add a back button to return to the escape menu
 
 }
@@ -1209,6 +1208,7 @@ function togglePauseMenuUI(shouldPause) {
         // Show and unlock the cursor
         document.body.style.cursor = 'auto';
 
+     hud.style.display = "none";
         // Set the global game pause state
         setPauseState(true);
     } else {
@@ -1229,6 +1229,7 @@ function togglePauseMenuUI(shouldPause) {
         // Hide and lock the cursor (if pointer lock is used for gameplay)
         document.body.style.cursor = 'none';
 
+     hud.style.display = "block";
         // Set the global game unpause state
         setPauseState(false);
     }
