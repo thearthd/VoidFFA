@@ -1902,7 +1902,7 @@ function settingsButtonHit() {
     if (settingsBox) {
         settingsBox.style.display = "block"; // Or "flex", depending on your CSS layout
     }
-
+populateKeybindSettings();
 
     addBackButton(menu); // Keep the back button to return to the main menu
 }
