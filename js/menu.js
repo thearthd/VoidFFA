@@ -1208,8 +1208,8 @@ function inGameBack() {
         setPauseState(true);
     // Re-add the main escape menu and its buttons
     add(escMenu);
-    add(inGameResumeButton.image);
-    makeButton(inGameResumeButton.hitbox, inGameResumeButton.hitbox.onClick);
+    add(inGameResumeBtn.image);
+    makeButton(inGameResumeBtn.hitbox, inGameResumeBtn.hitbox.onClick);
 
         add(inGameSettingsBtn.image);
         makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
