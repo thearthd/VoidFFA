@@ -1135,15 +1135,15 @@ disclaimerText.setPosition(getWidth()/2, getHeight()-100);
 
 
 
-let escMenu = new ImageShape("https://codehs.com/uploads/badb165ef3d765a60258ba9db41f3f28");
-escMenu.setSize(1920 / 2, 1080 / 2);
-escMenu.setPosition(getWidth() / 2 - (1920 / 4), getHeight() / 2 - (1080 / 4));
+let escMenu = new WebImage("https://codehs.com/uploads/ce8d9753693664ff70af6b371de3e7a0");
+escMenu.setSize(1080 / 2, 1920 / 2);
+escMenu.setPosition(getWidth() / 2 - (1080 / 4), getHeight() / 2 - (1920 / 4));
 
 let inGameSettingsBtn = createAnimatedButton(
     "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
-    270, 100,
-    getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 - (1080 / 8) / 2 - 100,
-    270, 100,
+    330, 100,
+    getWidth() / 2 - 330 / 2, getHeight() / 2 - 100 / 2 + 107 - 130,
+    330, 100,
     () => {
         console.log("inGameSettingsBtn hit");
         inGameSettingsButtonHit();
