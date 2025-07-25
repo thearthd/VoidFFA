@@ -80,7 +80,7 @@ export function initInput() {
   elementToLock.addEventListener("mousedown", (e) => {
     // Block game input when paused
     if (inputState.isPaused) {
-      e.preventDefault(); // Prevent default browser action like focus or selection
+    //  e.preventDefault(); // Prevent default browser action like focus or selection
       return;
     }
 
