@@ -658,7 +658,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
   initGlobalFogAndShadowParams();
   window.isGamePaused = false;
   document.getElementById('menu-overlay').style.display = 'none';
- // document.body.classList.add('game-active');
+  document.body.classList.add('game-active');
   document.getElementById('game-container').style.display = 'block';
   document.getElementById('hud').style.display = 'block';
   document.getElementById('crosshair').style.display = 'block';
@@ -729,7 +729,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
 
 export function hideGameUI() {
   document.getElementById("menu-overlay").style.display = "flex";
-//  document.body.classList.remove("game-active");
+  document.body.classList.remove("game-active");
 }
 
 function setupDetailToggle() {
@@ -2024,7 +2024,7 @@ window.collidables.push(child);
 
 // 7) Pointer-lock & input reset
 //  console.log("[respawnPlayer] Re-entering pointer lock");
-//document.body.classList.add("game-active");
+document.body.classList.add("game-active");
 
 // 8) Weapon & HUD reset
 if (typeof weaponAmmo === 'object') {
