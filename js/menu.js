@@ -1312,12 +1312,15 @@ window.togglePauseMenuUI = togglePauseMenuUI; // This makes it accessible from i
 // Listen for the 'P' key press to toggle the pause menu
 window.addEventListener("keydown", e => {
     // Only respond to 'P' key if the game is active and not chat-focused.
-    if (checkInGame && e.key.toLowerCase() === 'p') {
-        // Here, we explicitly toggle the visual pause state.
-        // The `setPauseState` call inside `togglePauseMenuUI` will handle the `byDeath` flag correctly.
-        window.togglePauseMenuUI(!inputState.isPaused); // Access inputState from the imported module if not global
-        e.preventDefault();
+if (checkInGame && e.key.toLowerCase() === 'p') {
+    // Allow toggling menu even if dead — just don't resume the game.
+    if (!inputState.isPaused || inputState.wasPausedByDeath) {
+        window.togglePauseMenuUI(true); // Force show pause menu
+    } else {
+        window.togglePauseMenuUI(false); // Hide menu
     }
+    e.preventDefault();
+}
 });
 function playerCardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
