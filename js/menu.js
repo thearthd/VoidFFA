@@ -1213,19 +1213,24 @@ let inGameLoadoutBtn = createAnimatedButton(
 );
 
 function inGameLoadoutButtonHit() {
+  if (window.localPlayer.isDead) {
     clearMenuCanvas(); // Clear current menu elements
-
-        setPauseState(true);
-     
-add(loadoutMenu);
-  // show our DOM loadout overlay
-  showLoadoutScreen();
-
-
+    setPauseState(true);
+    add(loadoutMenu);
+    showLoadoutScreen(); // Show our DOM loadout overlay
     addBackButton(inGameBack); // Add a back button to return to the escape menu
-
+  } else {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Hold up!',
+      text: 'You have to be dead to change loadouts.',
+      confirmButtonText: 'Got it',
+      background: '#1e1e1e',
+      color: '#ffffff',
+      confirmButtonColor: '#ff4444',
+    });
+  }
 }
-
 /**
  * Handles returning from the settings menu back to the main escape menu.
  */
