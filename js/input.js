@@ -28,7 +28,8 @@ export const inputState = {
   weaponSwitch: null,
   mouseDX: 0,
   mouseDY: 0,
-  isPaused: false, // Added for pause functionality f
+  isPaused: false, // Added for pause functionality
+  wasPausedByDeath: false, // NEW: Track if the pause was due to player death
 };
 
 let debugCursor, debugX, debugY;
@@ -66,7 +67,8 @@ function onMouseDownGlobal(e) {
   if (document.activeElement === chatInput) {
     return;
   }
-  if (document.pointerLockElement !== elementToLock && !inputState.isPaused) {
+  // Only request pointer lock if not paused OR if paused by death (to allow re-acquiring on unpause)
+  if (document.pointerLockElement !== elementToLock && (!inputState.isPaused || inputState.wasPausedByDeath)) {
     elementToLock.requestPointerLock();
   }
   // No e.preventDefault() here anymore. It's handled by specific game listeners when active.
@@ -78,7 +80,7 @@ function onPointerLockChange() {
   inputState.mouseDX = 0;
   inputState.mouseDY = 0;
 
-  if (locked && !inputState.isPaused) {
+  if (locked && !inputState.isPaused) { // Only change cursor and add mousemove if actively playing
     document.body.style.cursor = "none";
     document.addEventListener("mousemove", onMouseMove, false);
   } else {
@@ -89,8 +91,11 @@ function onPointerLockChange() {
 
 function onPointerLockError(e) {
   console.error("Pointer lock error:", e);
-  if (inputState.isPaused) {
-    setPauseState(true);
+  // If a pointer lock error occurs, and we were attempting to unpause, ensure pause state is restored.
+  // This might need more sophisticated handling depending on your game's re-entry logic.
+  if (!inputState.isPaused) { // If we intended to be unpaused but got an error
+      // setPauseState(true); // You might want to re-pause or alert the user
+      console.warn("Pointer lock error encountered while unpausing or attempting to acquire lock. Game might remain unpaused but without lock.");
   }
 }
 
@@ -115,7 +120,8 @@ function onKeyDown(e) {
 
   // Handle Escape key for pausing/unpausing
   if (e.code === "Escape") {
-    setPauseState(!inputState.isPaused);
+    // Manually toggling pause: This pause is NOT due to death
+    setPauseState(!inputState.isPaused, false); // Explicitly pass false for wasPausedByDeath
     e.preventDefault();
     return;
   }
@@ -140,7 +146,7 @@ function onKeyDown(e) {
       inputState.right = true;
       break;
     case "Space":
-      if (!window.localPlayer || !window.localPlayer.isDead) {
+      if (!window.localPlayer || !window.localPlayer.isDead) { // Allow jump only if not dead
         inputState.jump = true;
       }
       break;
@@ -234,7 +240,8 @@ function onKeyUp(e) {
 }
 
 function onMouseDownGame(e) {
-  if (document.activeElement === chatInput) {
+  // Do not process game input if chat is active or game is paused
+  if (document.activeElement === chatInput || inputState.isPaused) {
     return;
   }
   switch (e.button) {
@@ -250,7 +257,8 @@ function onMouseDownGame(e) {
 }
 
 function onMouseUpGame(e) {
-  if (document.activeElement === chatInput) {
+  // Do not process game input if chat is active or game is paused
+  if (document.activeElement === chatInput || inputState.isPaused) {
     return;
   }
   switch (e.button) {
@@ -265,13 +273,17 @@ function onMouseUpGame(e) {
 }
 
 function onContextMenu(e) {
-  // Block context menu when pointer locked.
-  if (document.pointerLockElement === elementToLock) {
+  // Block context menu when pointer locked AND game is not paused (or if paused but not by death)
+  // This prevents context menu even when manually paused, which is usually desired.
+  if (document.pointerLockElement === elementToLock && !inputState.isPaused) {
     e.preventDefault();
   }
 }
 
 function onMouseMove(e) {
+  // Do not process mouse movement if game is paused
+  if (inputState.isPaused) return;
+
   if (Math.abs(e.movementX) > MAX_DELTA || Math.abs(e.movementY) > MAX_DELTA) {
     return;
   }
@@ -316,13 +328,16 @@ function removeGameEventListeners() {
   });
 }
 
-export function setPauseState(paused) {
+// Modified setPauseState to accept a parameter indicating if it's a death-related pause
+export function setPauseState(paused, byDeath = false) { // Default to false for manual pauses
   // Prevent redundant calls if already in the desired state
-  if (inputState.isPaused === paused) {
+  if (inputState.isPaused === paused && inputState.wasPausedByDeath === byDeath) {
     return;
   }
 
   inputState.isPaused = paused;
+  inputState.wasPausedByDeath = byDeath; // Set the flag
+
   if (paused) {
     if (document.pointerLockElement) {
       document.exitPointerLock();
@@ -347,7 +362,7 @@ export function setPauseState(paused) {
 
     // *** Remove game-specific input listeners when paused ***
     removeGameEventListeners();
-    document.removeEventListener("mousemove", onMouseMove, false); // Already in pointerlockchange, but good to be explicit.
+    document.removeEventListener("mousemove", onMouseMove, false);
   } else {
     // If unpausing, and if the user previously had pointer lock, try to re-acquire.
     const elementToLock = document.body;
@@ -365,11 +380,11 @@ function checkPlayerDeadAndPause() {
   // Check if localPlayer exists to prevent errors
   if (window.localPlayer) {
     if (window.localPlayer.isDead && !inputState.isPaused) {
-      // Player is dead and game is not paused, so pause it
-      setPauseState(true);
-    } else if (!window.localPlayer.isDead && inputState.isPaused) {
-      // Player is no longer dead and game is paused, so unpause it
-      setPauseState(false);
+      // Player is dead and game is not paused, so pause it. This is a death-induced pause.
+      setPauseState(true, true); // Pass true for byDeath
+    } else if (!window.localPlayer.isDead && inputState.isPaused && inputState.wasPausedByDeath) {
+      // Player is no longer dead AND game is currently paused AND it was paused due to death, so unpause it.
+      setPauseState(false, false); // Pass false for byDeath when unpausing
     }
   }
 }
