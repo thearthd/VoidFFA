@@ -230,24 +230,27 @@ _applyControls(deltaTime, input) {
     }
 
     // --- Crouch / stand with ceiling check ---
-    const crouchHeight  = PLAYER_TOTAL_HEIGHT * CROUCH_HEIGHT_RATIO;
+    const crouchHeight   = PLAYER_TOTAL_HEIGHT * CROUCH_HEIGHT_RATIO;
     const standingHeight = PLAYER_TOTAL_HEIGHT;
-
+    
     if (input.crouch) {
-        // Always allow entering crouch
-        this.isCrouching = true;
+        // Player is holding crouch: enter (or stay) crouch
+        this.isCrouching       = true;
         this.targetPlayerHeight = crouchHeight;
-    } else {
-        // Attempt to stand: only if no ceiling above
-        const canStand = this._checkCeilingCollision(standingHeight);
-        if (canStand) {
-            this.isCrouching = false;
+    
+    } else if (this.isCrouching) {
+        // Player released crouch: only stand if there's room
+        if (this._checkCeilingCollision(standingHeight)) {
+            this.isCrouching       = false;
             this.targetPlayerHeight = standingHeight;
         } else {
-            // Block stand: stay crouched
-            this.isCrouching = true;
+            // Still in a low ceiling: stay crouched
             this.targetPlayerHeight = crouchHeight;
         }
+    
+    } else {
+        // Player wasn’t crouching and isn’t pressing crouch: stay standing
+        this.targetPlayerHeight = standingHeight;
     }
 }
 
