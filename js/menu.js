@@ -524,7 +524,7 @@ export class ImageShape extends Shape {
         this.height = 100;
         this.anchorX = 0;    // Default: top-left (0 for horizontal)
         this.anchorY = 0;
-         this.opacity = 1.0;
+        this.opacity = 1.0;
     }
 
     /**
@@ -806,23 +806,23 @@ function easeOutQuint(t) {
  * @returns {object} An object containing the image shape and its hitbox rectangle.
  */
 function createAnimatedButton(
-  imageUrl,
-  originalWidth,
-  originalHeight,
-  xPos,
-  yPos,
-  hitboxWidth,
-  hitboxHeight,
-  onClickCallback,
-  buttonTextX,
-  buttonTextY
+    imageUrl,
+    originalWidth,
+    originalHeight,
+    xPos,
+    yPos,
+    hitboxWidth,
+    hitboxHeight,
+    onClickCallback,
+    buttonTextX,
+    buttonTextY
 ) {
     // — image setup —
     const buttonImage = new ImageShape(imageUrl);
-    buttonImage.originalWidth  = originalWidth;
+    buttonImage.originalWidth = originalWidth;
     buttonImage.originalHeight = originalHeight;
-    buttonImage.originalX      = xPos;
-    buttonImage.originalY      = yPos;
+    buttonImage.originalX = xPos;
+    buttonImage.originalY = yPos;
     buttonImage.setPosition(xPos, yPos);
     buttonImage.setSize(originalWidth, originalHeight);
     buttonImage.setLayer(3);
@@ -842,45 +842,45 @@ function createAnimatedButton(
     // — hitbox setup (centered under image) —
     const buttonHitbox = new Rectangle(hitboxWidth, hitboxHeight);
     buttonHitbox.setPosition(
-        xPos + (originalWidth  - hitboxWidth ) / 2,
+        xPos + (originalWidth - hitboxWidth) / 2,
         yPos + (originalHeight - hitboxHeight) / 2
     );
-    buttonHitbox.setColor("rgba(0,0,0,0)");
-    buttonHitbox.setLayer(15);
-    buttonHitbox.onClick = onClickCallback;
-     
+    buttonHitbox.setColor("rgba(0,0,0,0)"); // Invisible hitbox
+    buttonHitbox.setLayer(15); // Ensure hitbox is on a layer where it can receive events
+    buttonHitbox.onClick = onClickCallback; // Assign the click callback
+
     // animation constants
-    const FRAME_RATE           = 1000 / 60;
-    const NUM_ANIMATION_STEPS  = 10;
-    const TARGET_SCALE_FACTOR  = 1.1;
-    let animationInterval;
+    const FRAME_RATE = 1000 / 60; // Approximately 60 FPS
+    const NUM_ANIMATION_STEPS = 10;
+    const TARGET_SCALE_FACTOR = 1.1; // Button scales to 110% on hover
+    let animationInterval; // To control the animation loop
 
     // — hover animation —
     buttonHitbox.onHover = () => {
-         playButtonHover();
-        clearInterval(animationInterval);
-        buttonImage.currentAnimationStep = 0;
+        playButtonHover(); // Play a sound or perform other actions on hover
+        clearInterval(animationInterval); // Clear any existing animation
+        buttonImage.currentAnimationStep = 0; // Reset animation step
 
         animationInterval = setInterval(() => {
             const step = ++buttonImage.currentAnimationStep;
             let t = step / NUM_ANIMATION_STEPS;
-            if (t > 1) t = 1;
-            const easedT = easeOutQuint(t);
-            const scale = 1 + (TARGET_SCALE_FACTOR - 1) * easedT;
+            if (t > 1) t = 1; // Clamp t to 1
+            const easedT = easeOutQuint(t); // Apply easing function for smoother animation
+            const scale = 1 + (TARGET_SCALE_FACTOR - 1) * easedT; // Calculate current scale
 
-            // new image size & position
-            const newW = originalWidth  * scale;
+            // Calculate new image size & position based on scale
+            const newW = originalWidth * scale;
             const newH = originalHeight * scale;
-            const dx   = (newW - originalWidth)  / 2;
-            const dy   = (newH - originalHeight) / 2;
+            const dx = (newW - originalWidth) / 2; // X-offset for centering
+            const dy = (newH - originalHeight) / 2; // Y-offset for centering
             const newX = xPos - dx;
             const newY = yPos - dy;
 
-            buttonImage.setSize(newW, newH);
-            buttonImage.setPosition(newX, newY);
+            buttonImage.setSize(newW, newH); // Update image size
+            buttonImage.setPosition(newX, newY); // Update image position
 
-            // mirror text offset + scale
-            if (buttonText.text) {
+            // Mirror text offset and scale with the image
+            if (buttonText.text) { // Only update text if it exists
                 buttonText.font = `${buttonText.originalFontSize * scale}pt Arial`;
                 buttonText.setPosition(
                     newX + textOffsetX * scale,
@@ -888,27 +888,27 @@ function createAnimatedButton(
                 );
             }
 
-            if (t === 1) clearInterval(animationInterval);
+            if (t === 1) clearInterval(animationInterval); // End animation when done
         }, FRAME_RATE);
     };
 
     // — unhover animation —
     buttonHitbox.onUnhover = () => {
-        clearInterval(animationInterval);
-        buttonImage.currentAnimationStep = 0;
-        const startScale = buttonImage.width / originalWidth;
+        clearInterval(animationInterval); // Clear any existing animation
+        buttonImage.currentAnimationStep = 0; // Reset animation step
+        const startScale = buttonImage.width / originalWidth; // Current scale when unhovering starts
 
         animationInterval = setInterval(() => {
             const step = ++buttonImage.currentAnimationStep;
             let t = step / NUM_ANIMATION_STEPS;
-            if (t > 1) t = 1;
-            const easedT = easeOutQuint(t);
-            const scale = startScale - (startScale - 1) * easedT;
+            if (t > 1) t = 1; // Clamp t to 1
+            const easedT = easeOutQuint(t); // Apply easing function
+            const scale = startScale - (startScale - 1) * easedT; // Calculate current scale back to 1
 
-            const newW = originalWidth  * scale;
+            const newW = originalWidth * scale;
             const newH = originalHeight * scale;
-            const dx   = (newW - originalWidth)  / 2;
-            const dy   = (newH - originalHeight) / 2;
+            const dx = (newW - originalWidth) / 2;
+            const dy = (newH - originalHeight) / 2;
             const newX = xPos - dx;
             const newY = yPos - dy;
 
@@ -925,7 +925,7 @@ function createAnimatedButton(
 
             if (t === 1) {
                 clearInterval(animationInterval);
-                // snap back exactly
+                // Snap back exactly to original size and position to prevent rounding errors
                 buttonImage.setSize(originalWidth, originalHeight);
                 buttonImage.setPosition(xPos, yPos);
                 if (buttonText.text) {
@@ -937,10 +937,54 @@ function createAnimatedButton(
     };
 
     // — return button object —
-    const buttonObject = { image: buttonImage, hitbox: buttonHitbox, text: buttonText };
+    const buttonObject = {
+        image: buttonImage,
+        hitbox: buttonHitbox,
+        text: buttonText
+    };
+
+    /**
+     * Sets the text displayed on the button.
+     * @param {string} newText - The new text to display.
+     */
     buttonObject.setText = function (newText) {
         this.text.setText(newText);
     };
+
+    /**
+     * Sets the opacity of the button's image, text, and optionally hitbox.
+     * @param {number} opacityValue - The opacity level (0.0 to 1.0).
+     */
+    buttonObject.setOpacity = function (opacityValue) {
+        this.image.setOpacity(opacityValue);
+        // Assuming Text and Rectangle also have a setOpacity method.
+        // If not, you might need to handle their visibility differently (e.g., this.text.setColor("rgba(255,255,255," + opacityValue + ")");)
+        this.text.setOpacity(opacityValue);
+        // You might not want the hitbox to fade, as it's typically invisible.
+        // If it's ever visible and you want it to fade, uncomment or adjust:
+        // this.hitbox.setOpacity(opacityValue);
+    };
+
+    /**
+     * Adds all components of the button (image, text, hitbox) to the canvas.
+     * Assumes `add` is a global function for adding objects to the rendering pipeline.
+     */
+    buttonObject.add = function () {
+        add(this.image);
+        add(this.text);
+        add(this.hitbox);
+    };
+
+    /**
+     * Removes all components of the button (image, text, hitbox) from the canvas.
+     * Assumes `remove` is a global function for removing objects from the rendering pipeline.
+     */
+    buttonObject.remove = function () {
+        remove(this.image);
+        remove(this.text);
+        remove(this.hitbox);
+    };
+
     return buttonObject;
 }
 /**
