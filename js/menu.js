@@ -1265,6 +1265,9 @@ function togglePauseMenuUI(shouldPause) {
          
         add(inGameSettingsBtn.image);
         makeButton(inGameSettingsBtn.hitbox, inGameSettingsBtn.hitbox.onClick);
+
+        add(inGameLoadoutBtn.image);
+        makeButton(inGameLoadoutBtn.hitbox, inGameLoadoutBtn.hitbox.onClick);
          
         // Apply overlay styles to the canvas
         // Assuming 'canvas' is your main game rendering element, this makes it an overlay.
