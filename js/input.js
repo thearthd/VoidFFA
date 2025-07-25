@@ -99,10 +99,7 @@ export function initInput() {
   });
 
   document.addEventListener("pointerlockchange", () => {
-        if (inputState.isPaused) {
-      e.preventDefault(); // Prevent default browser action like focus or selection
-      return;
-    }
+    
     const locked = document.pointerLockElement === elementToLock;
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
