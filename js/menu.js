@@ -1127,6 +1127,9 @@ let settingsMenu = new ImageShape("https://codehs.com/uploads/56483d9381657b285d
 settingsMenu.setSize(1920, 1080);
 settingsMenu.setPosition(getWidth()/2 - 1920/2, getHeight()/2 - 1080/2);
 
+let loadoutMenu = new ImageShape("https://codehs.com/uploads/50e7492f5777ebcbaad604383f2b889f");
+loadoutMenu.setSize(1920, 1080);
+loadoutMenu.setPosition(getWidth()/2 - 1920/2, getHeight()/2 - 1080/2);
 
 
 let disclaimerText = new Text("⚠️ GAMES DO NOT AUTOCLEAR ⚠️", "30pt Arial");
@@ -1873,6 +1876,7 @@ function careerButtonHit() {
  * Clears the current menu and displays a placeholder loadout screen.
  */
 function loadoutButtonHit() {
+add(loadoutMenu);
   // first clear out any canvas‑drawn menu items
   clearMenuCanvas();
 
