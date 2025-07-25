@@ -105,41 +105,6 @@ export function initInput() {
     if (inputState.isPaused) {
       e.preventDefault();
       e.stopPropagation(); // Stop propagation to prevent any other listeners from acting
-
-
-
-const sensitivitySliderContainer = document.getElementById("sensitivity-slider-container");
-const settingsBox = document.getElementById("settings-box");
-
-    const sensitivityRange = document.getElementById("sensitivity-range");
-    const sensitivityInput = document.getElementById("sensitivity-input");
-
-    function setSensitivity(newVal) {
-        const v = Math.min(parseFloat(sensitivityRange.max), Math.max(parseFloat(sensitivityRange.min), newVal)).toFixed(2);
-        sensitivityRange.value = v;
-        sensitivityInput.value = v;
-        localStorage.setItem("sensitivity", v);
-        document.dispatchEvent(new CustomEvent("updateSensitivity", { detail: parseFloat(v) }));
-    }
-
-    const savedSens = localStorage.getItem("sensitivity") || "5.00";
-
-        setSensitivity(parseFloat(savedSens));
-        sensitivityRange.addEventListener('input', () => {
-             console.log("test")
-            setSensitivity(sensitivityRange.value);
-        });
-        sensitivityInput.addEventListener('change', () => {
-             console.log("test")
-            setSensitivity(parseFloat(sensitivityInput.value));
-        });
-
-
-
-
-
-
-      
       return;
     }
 
