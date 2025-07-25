@@ -1913,7 +1913,6 @@ function settingsButtonHit() {
  */
 function careerButtonHit() {
   clearMenuCanvas();
-  add(logo);
      add(careerMenu);
   addBackButton(menu);
 
