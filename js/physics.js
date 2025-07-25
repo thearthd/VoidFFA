@@ -352,78 +352,75 @@ _updatePlayerPhysics(delta) {
     // Prepare collision shapecast
     const cap = this.player.capsuleInfo;
     const r = cap.radius + 0.001;
-
-    // Build world‑space segment
+    this.tempBox.makeEmpty();
     this.tempSegment.copy(cap.segment)
         .applyMatrix4(this.player.matrixWorld)
         .applyMatrix4(this.colliderMatrixWorldInverse);
-
-    // Build AABB around segment
-    this.tempBox.makeEmpty();
     this.tempBox.expandByPoint(this.tempSegment.start);
     this.tempBox.expandByPoint(this.tempSegment.end);
     this.tempBox.min.addScalar(-r);
-    this.tempBox.max.addScalar( r);
-
-    // Track deepest penetration
-    let bestDepth  = 0;
-    let bestNormal = null;
+    this.tempBox.max.addScalar(r);
 
     if (this.collider?.geometry?.boundsTree) {
         this.collider.geometry.boundsTree.shapecast({
             intersectsBounds: box => box.intersectsBox(this.tempBox),
             intersectsTriangle: tri => {
-                // find closest points
                 const tp = this.tempVector;
                 const cp = this.tempVector2;
                 const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
                 if (dist < r) {
                     const depth = r - dist;
-                    if (depth > bestDepth) {
-                        bestDepth  = depth;
-                        bestNormal = tri.getNormal(new THREE.Vector3());
-                    }
+                    const dir = cp.sub(tp).normalize();
+                    this.tempSegment.start.addScaledVector(dir, depth);
+                    this.tempSegment.end.addScaledVector(dir, depth);
                 }
             }
         });
     }
 
-    // If we hit something…
-    if (bestNormal) {
-        // push player out
-        const push = bestNormal.clone().multiplyScalar(bestDepth);
-        this.player.position.add(push);
+    // Compute collision offset in world space
+    const newStart = this.tempVector
+        .copy(this.tempSegment.start)
+        .applyMatrix4(this.collider.matrixWorld);
+    const deltaVec = newStart.sub(this.player.position);
 
-        // decompose
-        const verticalDelta = push.y;
+    // Determine if this is a slope/step or a wall
+    const stepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
+    const isSlope = deltaVec.y > stepThresh;
 
-        // slope test via normal
-        const upDot      = bestNormal.dot(this.upVector);
-        const slopeLimit = Math.cos(THREE.MathUtils.degToRad(45)); // 45°
+    // Decompose deltaVec
+    const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
+    const verticalDelta = deltaVec.y;
 
-        if (upDot >= slopeLimit) {
-            // floor / gentle slope
-            this.playerVelocity.y = 0;
+    if (isSlope) {
+        // Gentle slope or drop: move fully
+        this.player.position.add(horizontalDelta);
+        this.player.position.y += verticalDelta;
+        this.isGrounded = true;
+        this.playerVelocity.y = 0;
+    } else {
+        // Wall bump: check for small step
+        const MAX_STEP = 0.5;
+        if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
+            // climb the step: apply horizontal push and snap up
+            this.player.position.add(horizontalDelta);
+            this.player.position.y += verticalDelta;
             this.isGrounded = true;
-
+            this.playerVelocity.y = 0;
         } else {
-            // steep wall: allow tiny steps
-            const MAX_STEP = 0.2;
-            if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
-                this.playerVelocity.y = 0;
-                this.isGrounded = true;
-            } else {
-                // slide along wall
-                const n    = bestNormal.clone().normalize();
-                const proj = this.playerVelocity.dot(n);
-                this.playerVelocity.addScaledVector(n, -proj);
-            }
+            // slide along wall
+            const n = deltaVec.clone().normalize();
+            const proj = deltaVec.dot(this.playerVelocity);
+            this.playerVelocity.addScaledVector(n, -proj);
+            // apply only horizontal component of push so you don't get stuck
+            this.player.position.add(horizontalDelta);
         }
     }
 
     // Sync camera
     this.camera.position.copy(this.player.position);
 }
+
 
     /**
      * Teleports the player to a safe position if they fall out of bounds.
