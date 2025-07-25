@@ -23,13 +23,14 @@ function initLoadout() {
       saveLoadout();
       const { primary, secondary } = loadLoadout();
 
-      Swal.fire({
-        title: 'Success!',
-        html: `<strong>Primary:</strong> ${primary}<br><strong>Secondary:</strong> ${secondary}`,
-        icon: 'success'
-      });
-
-      updateHUD();
+Swal.fire({
+  title: 'Success!',
+  html: `<strong>Primary:</strong> ${primary}<br><strong>Secondary:</strong> ${secondary}`,
+  icon: 'success'
+}).then(() => {
+  updateHUD();
+  initInventory(primary); // <-- this updates inventory with selected loadout
+});
     });
 
   updateHUD();
