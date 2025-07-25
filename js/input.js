@@ -317,6 +317,11 @@ function removeGameEventListeners() {
 }
 
 export function setPauseState(paused) {
+  // Prevent redundant calls if already in the desired state
+  if (inputState.isPaused === paused) {
+    return;
+  }
+
   inputState.isPaused = paused;
   if (paused) {
     if (document.pointerLockElement) {
@@ -355,10 +360,17 @@ export function setPauseState(paused) {
   }
 }
 
-// Function to check if the player is dead and pause the game
+// Function to check player's death state and manage pause
 function checkPlayerDeadAndPause() {
-  if (window.localPlayer && window.localPlayer.isDead) {
-    setPauseState(true);
+  // Check if localPlayer exists to prevent errors
+  if (window.localPlayer) {
+    if (window.localPlayer.isDead && !inputState.isPaused) {
+      // Player is dead and game is not paused, so pause it
+      setPauseState(true);
+    } else if (!window.localPlayer.isDead && inputState.isPaused) {
+      // Player is no longer dead and game is paused, so unpause it
+      setPauseState(false);
+    }
   }
 }
 
@@ -379,15 +391,7 @@ export function initInput() {
   // Initially add all game listeners, as the game starts unpaused
   addGameEventListeners();
 
-  // Add a listener or a periodic check for player death
-  // The best approach depends on how window.localPlayer.isDead is updated.
-  // If `isDead` is updated by an event, you can listen to that event.
-  // If it's just a property that changes, you might need to check it regularly
-  // in your game loop or whenever `localPlayer`'s state is updated.
-
-  // For demonstration, let's add a simple interval check.
-  // In a real game, you'd likely integrate this into your game loop
-  // or respond to a 'playerDied' event if one exists.
+  // Set up a periodic check for player death state
   setInterval(checkPlayerDeadAndPause, 100); // Check every 100 milliseconds
 }
 
