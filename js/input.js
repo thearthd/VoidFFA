@@ -837,3 +837,5 @@ function getSavedLoadout() {
         secondary: localStorage.getItem("loadout_secondary") || DEFAULT_SECONDARY,
     };
 }
+
+initInput();
