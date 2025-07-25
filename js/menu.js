@@ -1135,7 +1135,7 @@ disclaimerText.setPosition(getWidth()/2, getHeight()-100);
 
 
 
-let escMenu = new WebImage("https://codehs.com/uploads/ce8d9753693664ff70af6b371de3e7a0");
+let escMenu = new ImageShape("https://codehs.com/uploads/ce8d9753693664ff70af6b371de3e7a0");
 escMenu.setSize(1080 / 2, 1920 / 2);
 escMenu.setPosition(getWidth() / 2 - (1080 / 4), getHeight() / 2 - (1920 / 4));
 
