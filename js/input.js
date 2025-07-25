@@ -102,11 +102,14 @@ export function initInput() {
   elementToLock.addEventListener("mousedown", (e) => {
     // Normal Reason: Prevent pointer lock requests if paused.
     // Crazy Reason: Prevent any rogue script from re-locking the pointer if we're paused.
-    if (inputState.isPaused) {
-      e.preventDefault();
-      e.stopPropagation(); // Stop propagation to prevent any other listeners from acting
-      return;
-    }
+  if (inputState.isPaused 
+      && !e.target.closest("#settings-box") 
+      && !e.target.closest("#sensitivity-slider-container")
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
 
     // Normal Reason: Allow chat input to function normally.
     if (document.activeElement === chatInput) {
