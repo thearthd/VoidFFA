@@ -1141,9 +1141,9 @@ escMenu.setPosition(getWidth() / 2 - (1920 / 4), getHeight() / 2 - (1080 / 4));
 
 let inGameSettingsBtn = createAnimatedButton(
     "https://codehs.com/uploads/5fbd4fb83e989f241441d27e7ab44c46", // Provided games button image
-    1920 / 8, 1080 / 8,
-    getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 - (1080 / 8) / 2,
-    1920 / 8, 1080 / 8,
+    270, 100,
+    getWidth() / 2 - (1920 / 8) / 2, getHeight() / 2 - (1080 / 8) / 2 - 100,
+    270, 100,
     () => {
         console.log("inGameSettingsBtn hit");
         inGameSettingsButtonHit();
@@ -1208,7 +1208,6 @@ function togglePauseMenuUI(shouldPause) {
         // Show and unlock the cursor
         document.body.style.cursor = 'auto';
 
-     hud.style.display = "none";
         // Set the global game pause state
         setPauseState(true);
     } else {
@@ -1229,7 +1228,6 @@ function togglePauseMenuUI(shouldPause) {
         // Hide and lock the cursor (if pointer lock is used for gameplay)
         document.body.style.cursor = 'none';
 
-     hud.style.display = "block";
         // Set the global game unpause state
         setPauseState(false);
     }
