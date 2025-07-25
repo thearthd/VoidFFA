@@ -1247,6 +1247,11 @@ function inGameLeaveButtonHit() {
      location.reload();
 }
 
+inGameResumeBtn.setOpacity(0);
+inGameSettingsBtn.setOpacity(0);
+inGameLoadoutBtn.setOpacity(0);
+inGameLeaveBtn.setOpacity(0);
+
 /**
  * Handles returning from the settings menu back to the main escape menu.
  */
