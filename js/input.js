@@ -29,7 +29,7 @@ export const inputState = {
   mouseDX: 0,
   mouseDY: 0,
   isPaused: false, // Added for pause functionality
-  wasPausedByDeath: false, // NEW: Track if the pause was due to player death
+  wasPausedByDeath: false, // Track if the pause was due to player death
 };
 
 let debugCursor, debugX, debugY;
@@ -68,7 +68,9 @@ function onMouseDownGlobal(e) {
     return;
   }
   // Only request pointer lock if not paused OR if paused by death (to allow re-acquiring on unpause)
-  if (document.pointerLockElement !== elementToLock && (!inputState.isPaused || inputState.wasPausedByDeath)) {
+  // Or if it's currently paused but *not* by death (i.e., manually paused),
+  // we still want to try to acquire lock if the user clicks.
+  if (document.pointerLockElement !== elementToLock && !inputState.isPaused) { // Only attempt lock if game is not paused at all
     elementToLock.requestPointerLock();
   }
   // No e.preventDefault() here anymore. It's handled by specific game listeners when active.
@@ -91,10 +93,7 @@ function onPointerLockChange() {
 
 function onPointerLockError(e) {
   console.error("Pointer lock error:", e);
-  // If a pointer lock error occurs, and we were attempting to unpause, ensure pause state is restored.
-  // This might need more sophisticated handling depending on your game's re-entry logic.
-  if (!inputState.isPaused) { // If we intended to be unpaused but got an error
-      // setPauseState(true); // You might want to re-pause or alert the user
+  if (!inputState.isPaused) {
       console.warn("Pointer lock error encountered while unpausing or attempting to acquire lock. Game might remain unpaused but without lock.");
   }
 }
@@ -118,15 +117,17 @@ function onKeyDown(e) {
     return;
   }
 
-  // Handle Escape key for pausing/unpausing
+  // Handle Escape key for pausing/unpausing - this should ALWAYS work, regardless of death status
   if (e.code === "Escape") {
     // Manually toggling pause: This pause is NOT due to death
-    setPauseState(!inputState.isPaused, false); // Explicitly pass false for wasPausedByDeath
+    // Allow manual pause/unpause regardless of localPlayer.isDead
+    setPauseState(!inputState.isPaused, false);
     e.preventDefault();
     return;
   }
 
   // If game is paused or chat is focused, ignore other game keys.
+  // This check should *only* apply to game controls, not the pause menu.
   if (inputState.isPaused || document.activeElement === chatInput) return;
 
   const { primary, secondary } = getSavedLoadout();
@@ -329,14 +330,19 @@ function removeGameEventListeners() {
 }
 
 // Modified setPauseState to accept a parameter indicating if it's a death-related pause
-export function setPauseState(paused, byDeath = false) { // Default to false for manual pauses
-  // Prevent redundant calls if already in the desired state
+export function setPauseState(paused, byDeath = false) {
+  // If the game is currently paused due to death, and a manual unpause is attempted,
+  // we might want to prevent it or handle it specifically.
+  // However, the request is to *allow* manual pause while dead, so the current logic for `byDeath` is crucial.
+  // The byDeath flag primarily affects *automatic* unpausing.
+
+  // Only proceed if the state is actually changing to avoid unnecessary side effects.
   if (inputState.isPaused === paused && inputState.wasPausedByDeath === byDeath) {
     return;
   }
 
   inputState.isPaused = paused;
-  inputState.wasPausedByDeath = byDeath; // Set the flag
+  inputState.wasPausedByDeath = byDeath; // Set the flag indicating if this pause was due to death
 
   if (paused) {
     if (document.pointerLockElement) {
@@ -366,8 +372,10 @@ export function setPauseState(paused, byDeath = false) { // Default to false for
   } else {
     // If unpausing, and if the user previously had pointer lock, try to re-acquire.
     const elementToLock = document.body;
-    if (document.pointerLockElement !== elementToLock) {
-      elementToLock.requestPointerLock();
+    // We only request pointer lock if the pause was NOT by death, or if it was by death AND the player is now alive.
+    // This is to prevent re-acquiring lock if the player is still dead and manually unpaused.
+    if (document.pointerLockElement !== elementToLock && (!inputState.wasPausedByDeath || (inputState.wasPausedByDeath && !window.localPlayer.isDead))) {
+        elementToLock.requestPointerLock();
     }
     // *** Re-add game-specific input listeners when unpaused ***
     addGameEventListeners();
@@ -379,12 +387,21 @@ export function setPauseState(paused, byDeath = false) { // Default to false for
 function checkPlayerDeadAndPause() {
   // Check if localPlayer exists to prevent errors
   if (window.localPlayer) {
-    if (window.localPlayer.isDead && !inputState.isPaused) {
-      // Player is dead and game is not paused, so pause it. This is a death-induced pause.
-      setPauseState(true, true); // Pass true for byDeath
-    } else if (!window.localPlayer.isDead && inputState.isPaused && inputState.wasPausedByDeath) {
-      // Player is no longer dead AND game is currently paused AND it was paused due to death, so unpause it.
-      setPauseState(false, false); // Pass false for byDeath when unpausing
+    if (window.localPlayer.isDead) {
+      // Player is dead. If not already paused by death, pause the game.
+      // This allows manual unpause (via Escape) to override the death pause.
+      if (!inputState.isPaused && !inputState.wasPausedByDeath) {
+        setPauseState(true, true); // Pause and mark as paused by death
+      }
+      // If player is dead AND game is manually paused (inputState.wasPausedByDeath is false),
+      // we don't automatically unpause here. The manual pause takes precedence.
+    } else {
+      // Player is alive. If game is paused AND it was paused due to death, then unpause.
+      if (inputState.isPaused && inputState.wasPausedByDeath) {
+        setPauseState(false, false); // Unpause and clear the death pause flag
+      }
+      // If player is alive AND game is manually paused (inputState.wasPausedByDeath is false),
+      // we don't automatically unpause here. The manual pause takes precedence.
     }
   }
 }
