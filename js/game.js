@@ -1795,6 +1795,7 @@ document.body.appendChild(respawnOverlay);
 // console.log("[createRespawnOverlay] Respawn overlay added to DOM.");
 */
 respawnOverlay = document.getElementById("respawn-overlay");
+respawnButton = document.getElementById("respawn-now-button");
     
 respawnButton.addEventListener("click", () => {
 respawnPlayer();
