@@ -127,9 +127,6 @@ export function populateKeybindSettings() {
 
 // Helper to get a readable name for the key code
 function getDisplayNameForCode(code) {
-    if (code.startsWith('Key')) return code.slice(3);
-    if (code.startsWith('Digit')) return code.slice(5);
-    if (code.startsWith('Arrow')) return code.slice(5);
     if (code === 'Space') return 'Spacebar';
     if (code === 'ShiftLeft') return 'Left Shift';
     if (code === 'ShiftRight') return 'Right Shift';
