@@ -1888,18 +1888,26 @@ function careerButtonHit() {
     const kills = stats.kills || 0;
     const deaths = stats.deaths || 0;
     const kd = deaths > 0 ? (kills / deaths).toFixed(2) : 'N/A';
-    const losses = userData.losses || 0;
+    const losses = stats.losses || 0; // Ensure losses are pulled from stats object
+
+    // Calculate Win Percentage
+    let winPercentage = 'N/A';
+    const totalGames = wins + losses;
+    if (totalGames > 0) {
+      winPercentage = ((wins / totalGames) * 100).toFixed(2) + '%';
+    }
 
     const lines = [
       `Career Stats for ${username}`,
       `Wins: ${wins}`,
       `Losses: ${losses}`,
+      `Win %: ${winPercentage}`, // Added Win Percentage
       `Kills: ${kills}`,
       `Deaths: ${deaths}`,
       `K/D Ratio: ${kd}`
     ];
 
-    // Start drawing at y = 150
+    // Start drawing at y = 250
     let y = 250;
     for (let i = 0; i < lines.length; i++) {
       const lineText = createStatText(lines[i], y + i * lineHeight);
@@ -1918,7 +1926,9 @@ function careerButtonHit() {
           .once('value')
           .then(qsnap => {
             let userData = null;
-            qsnap.forEach(child => { userData = child.val(); });
+            qsnap.forEach(child => {
+              userData = child.val();
+            });
             if (!userData) throw new Error("User not found in database.");
             displayStats(userData);
           });
