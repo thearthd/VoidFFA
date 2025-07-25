@@ -1,17 +1,16 @@
+import Swal from 'sweetalert2';
 import { updateInventory } from "./ui.js";
 
 const originalRequestPointerLock = Element.prototype.requestPointerLock;
-
 Element.prototype.requestPointerLock = function() {
-    console.warn('!!! Suspicious requestPointerLock called on element:', this);
-    console.trace('!!! Full call stack for requestPointerLock:');
-    return originalRequestPointerLock.apply(this, arguments);
+  console.warn('!!! Suspicious requestPointerLock called on element:', this);
+  console.trace('!!! Full call stack for requestPointerLock:');
+  return originalRequestPointerLock.apply(this, arguments);
 };
-
 
 const chatInput = document.getElementById("chat-input");
 const chatContainer = document.getElementById("chat-box");
-const elementToLock = document.body; // Define elementToLock globally for easier access
+const elementToLock = document.body;
 
 export const inputState = {
   forward: false,
@@ -28,46 +27,185 @@ export const inputState = {
   weaponSwitch: null,
   mouseDX: 0,
   mouseDY: 0,
-  isPaused: false, // Added for pause functionality
-  wasPausedByDeath: false, // Track if the pause was due to player death
+  isPaused: false,
+  wasPausedByDeath: false,
 };
 
-let debugCursor, debugX, debugY;
-let debugText;
-
-// threshold to drop spurious mouse movements
 const MAX_DELTA = 200;
-
-const DEFAULT_PRIMARY = "ak-47";
+const DEFAULT_PRIMARY   = "ak-47";
 const DEFAULT_SECONDARY = "m79";
+
+const DEFAULT_BINDINGS = {
+  forward:  'KeyW',
+  backward: 'KeyS',
+  left:     'KeyA',
+  right:    'KeyD',
+  jump:     'Space',
+  crouch:   'ShiftLeft',
+  slow:     'KeyZ',
+  reload:   'KeyR',
+  aim:      'KeyE',
+  fire:     'KeyX',
+  weapon1:  'Digit1',
+  weapon2:  'Digit2',
+  weapon3:  'Digit3'
+};
+let bindings = JSON.parse(localStorage.getItem('keyBindings')) || { ...DEFAULT_BINDINGS };
+function saveBindings() {
+  localStorage.setItem('keyBindings', JSON.stringify(bindings));
+}
 
 function getSavedLoadout() {
   return {
-    primary: localStorage.getItem("loadout_primary") || DEFAULT_PRIMARY,
+    primary:   localStorage.getItem("loadout_primary")   || DEFAULT_PRIMARY,
     secondary: localStorage.getItem("loadout_secondary") || DEFAULT_SECONDARY,
   };
 }
 
 let currentPlayerWeaponKey = "knife";
-
 export function handleWeaponSwitch() {
-  if (inputState.weaponSwitch !== null) {
-    const newWeaponKey = inputState.weaponSwitch;
-
-    if (newWeaponKey !== currentPlayerWeaponKey) {
-      currentPlayerWeaponKey = newWeaponKey;
-      updateInventory(currentPlayerWeaponKey);
-      console.log(`Switched to weapon: ${currentPlayerWeaponKey}`);
-    }
+  if (inputState.weaponSwitch && inputState.weaponSwitch !== currentPlayerWeaponKey) {
+    currentPlayerWeaponKey = inputState.weaponSwitch;
+    updateInventory(currentPlayerWeaponKey);
+    console.log(`Switched to weapon: ${currentPlayerWeaponKey}`);
   }
 }
 
-// --- Event Listener Functions (now named for easy removal) ---
-function onMouseDownGlobal(e) {
-  if (document.activeElement === chatInput) {
-    return;
+const actions = [
+  { key: 'forward',  label: 'Move Forward' },
+  { key: 'backward', label: 'Move Backward' },
+  { key: 'left',     label: 'Move Left' },
+  { key: 'right',    label: 'Move Right' },
+  { key: 'jump',     label: 'Jump' },
+  { key: 'crouch',   label: 'Crouch' },
+  { key: 'slow',     label: 'Walk/Slow' },
+  { key: 'reload',   label: 'Reload' },
+  { key: 'aim',      label: 'Aim' },
+  { key: 'fire',     label: 'Fire' },
+  { key: 'weapon1',  label: 'Weapon Slot 1' },
+  { key: 'weapon2',  label: 'Weapon Slot 2' },
+  { key: 'weapon3',  label: 'Weapon Slot 3' }
+];
+
+export function buildKeybindUI() {
+  const settingsBox = document.getElementById('settings-box');
+  const container = document.createElement('div');
+  container.id = 'keybinds-container';
+
+  actions.forEach(action => {
+    const row = document.createElement('div');
+    row.classList.add('setting-item');
+    row.innerHTML = `
+      <label>${action.label}:</label>
+      <span id="binding-${action.key}">${bindings[action.key]}</span>
+      <button id="btn-${action.key}">Change</button>
+    `;
+    container.appendChild(row);
+    document.getElementById(`btn-${action.key}`)
+      .addEventListener('click', () => promptRebind(action.key, action.label));
+  });
+
+  const ref = document.getElementById('sensitivity-slider-container');
+  settingsBox.insertBefore(container, ref);
+}
+
+function promptRebind(actionKey, actionLabel) {
+  Swal.fire({
+    title: `Press new key for "${actionLabel}"`,
+    text: 'Listening…',
+    icon: 'info',
+    showCancelButton: true,
+    allowOutsideClick: false,
+    didOpen: () => {
+      const listener = e => {
+        const newCode = e.code;
+        document.removeEventListener('keydown', listener, true);
+        Swal.fire({
+          title: `Bind "${actionLabel}" to "${newCode}"?`,
+          icon: 'question',
+          showCancelButton: true
+        }).then(result => {
+          if (result.isConfirmed) {
+            bindings[actionKey] = newCode;
+            saveBindings();
+            document.getElementById(`binding-${actionKey}`).textContent = newCode;
+            Swal.fire('Saved!', '', 'success');
+          }
+        });
+      };
+      document.addEventListener('keydown', listener, true);
+    }
+  });
+}
+
+function onKeyDown(e) {
+  if (e.code === 'Backquote') {
+    if (document.activeElement === chatInput) chatInput.blur();
+    else {
+      chatInput.focus();
+      inputState.forward = inputState.backward = inputState.left = inputState.right = inputState.fire = false;
+    }
+    e.preventDefault(); return;
   }
-  // Only request pointer lock if the game is *not* currently paused by any means.
+  if (inputState.isPaused || document.activeElement === chatInput) return;
+
+  let handled = true;
+  switch (e.code) {
+    case bindings.forward:   inputState.forward = true; break;
+    case bindings.backward:  inputState.backward = true; break;
+    case bindings.left:      inputState.left = true; break;
+    case bindings.right:     inputState.right = true; break;
+    case bindings.jump:
+      if (!window.localPlayer?.isDead) inputState.jump = true;
+      break;
+    case bindings.crouch:
+    case 'ShiftRight':       inputState.crouch = true; break;
+    case bindings.slow:      inputState.slow = true; break;
+    case bindings.reload:    inputState.reload = true; break;
+    case bindings.aim:       inputState.aim = true; break;
+    case bindings.fire:
+      inputState.fire = true;
+      inputState.fireJustPressed = true;
+      break;
+    case bindings.weapon1:   inputState.weaponSwitch = 'knife'; break;
+    case bindings.weapon2:
+      if (getSavedLoadout().primary) inputState.weaponSwitch = getSavedLoadout().primary;
+      break;
+    case bindings.weapon3:
+      if (getSavedLoadout().secondary) inputState.weaponSwitch = getSavedLoadout().secondary;
+      break;
+    default: handled = false;
+  }
+  if (handled) e.preventDefault();
+}
+
+function onKeyUp(e) {
+  if (['Backquote','Escape'].includes(e.code)) return;
+  if (inputState.isPaused || document.activeElement === chatInput) return;
+
+  let handled = true;
+  switch (e.code) {
+    case bindings.forward:   inputState.forward = false; break;
+    case bindings.backward:  inputState.backward = false; break;
+    case bindings.left:      inputState.left = false; break;
+    case bindings.right:     inputState.right = false; break;
+    case bindings.jump:      inputState.jump = false; break;
+    case bindings.crouch:
+    case 'ShiftRight':       inputState.crouch = false; break;
+    case bindings.slow:      inputState.slow = false; break;
+    case bindings.reload:    inputState.reload = false; break;
+    case bindings.aim:       inputState.aim = false; break;
+    case bindings.fire:      inputState.fire = false; break;
+    case bindings.weapon1:
+    case bindings.weapon2:
+    case bindings.weapon3:   inputState.weaponSwitch = null; break;
+    default: handled = false;
+  }
+  if (handled) e.preventDefault();
+}
+
+function onMouseDownGlobal(e) {
+  if (document.activeElement === chatInput) return;
   if (document.pointerLockElement !== elementToLock && !inputState.isPaused) {
     elementToLock.requestPointerLock();
   }
@@ -75,11 +213,9 @@ function onMouseDownGlobal(e) {
 
 function onPointerLockChange() {
   const locked = document.pointerLockElement === elementToLock;
-
   inputState.mouseDX = 0;
   inputState.mouseDY = 0;
-
-  if (locked && !inputState.isPaused) { // Only change cursor and add mousemove if actively playing
+  if (locked && !inputState.isPaused) {
     document.body.style.cursor = "none";
     document.addEventListener("mousemove", onMouseMove, false);
   } else {
@@ -91,227 +227,51 @@ function onPointerLockChange() {
 function onPointerLockError(e) {
   console.error("Pointer lock error:", e);
   if (!inputState.isPaused) {
-      console.warn("Pointer lock error encountered while unpausing or attempting to acquire lock. Game might remain unpaused but without lock.");
-  }
-}
-
-function onKeyDown(e) {
-  // Always allow Backquote for chat
-  if (e.code === "Backquote") {
-    if (document.activeElement === chatInput) {
-      chatInput.blur();
-    } else {
-      chatInput.focus();
-      // Clear movement inputs immediately when chat is opened.
-      inputState.forward =
-        inputState.backward =
-        inputState.left =
-        inputState.right =
-        inputState.fire =
-          false;
-    }
-    e.preventDefault();
-    return;
-  }
-
-  // Handle Escape key for pausing/unpausing
-  // If Escape should also trigger the UI (like 'P' does), uncomment this:
-  /*
-  if (e.code === "Escape") {
-    if (window.checkInGame) { // Make sure checkInGame is accessible if needed here
-        window.togglePauseMenuUI(!inputState.isPaused);
-    }
-    e.preventDefault();
-    return;
-  }
-  */
-
-  // If game is paused or chat is focused, ignore other game keys.
-  if (inputState.isPaused || document.activeElement === chatInput) return;
-
-  const { primary, secondary } = getSavedLoadout();
-  let handled = true;
-
-  switch (e.code) {
-    case "KeyW":
-      inputState.forward = true;
-      break;
-    case "KeyS":
-      inputState.backward = true;
-      break;
-    case "KeyA":
-      inputState.left = true;
-      break;
-    case "KeyD":
-      inputState.right = true;
-      break;
-    case "Space":
-      if (!window.localPlayer || !window.localPlayer.isDead) { // Allow jump only if not dead
-        inputState.jump = true;
-      }
-      break;
-    case "ShiftLeft":
-    case "ShiftRight":
-      inputState.crouch = true;
-      break;
-    case "KeyZ":
-      inputState.slow = true;
-      break;
-    case "KeyR":
-      inputState.reload = true;
-      break;
-    case "KeyE":
-      inputState.aim = true;
-      break;
-    case "Digit1":
-      inputState.weaponSwitch = "knife";
-      break;
-    case "Digit2":
-      if (primary) inputState.weaponSwitch = primary;
-      break;
-    case "Digit3":
-      if (secondary) inputState.weaponSwitch = secondary;
-      break;
-    case "KeyX":
-      inputState.fire = true;
-      inputState.fireJustPressed = true;
-      break;
-    default:
-      handled = false;
-  }
-
-  if (handled) {
-    e.preventDefault();
-  }
-}
-
-function onKeyUp(e) {
-  // Always allow Backquote for chat, or Escape to unpause (no action on keyup)
-  if (e.code === "Backquote" || e.code === "Escape") return;
-
-  // If game is paused or chat is focused, ignore other game keys.
-  if (inputState.isPaused || document.activeElement === chatInput) return;
-
-  let handled = true;
-  switch (e.code) {
-    case "KeyW":
-      inputState.forward = false;
-      break;
-    case "KeyS":
-      inputState.backward = false;
-      break;
-    case "KeyA":
-      inputState.left = false;
-      break;
-    case "KeyD":
-      inputState.right = false;
-      break;
-    case "Space":
-      inputState.jump = false;
-      break;
-    case "ShiftLeft":
-    case "ShiftRight":
-      inputState.crouch = false;
-      break;
-    case "KeyZ":
-      inputState.slow = false;
-      break;
-    case "KeyR":
-      inputState.reload = false;
-      break;
-    case "KeyE":
-      inputState.aim = false;
-      break;
-    case "Digit1":
-    case "Digit2":
-    case "Digit3":
-      inputState.weaponSwitch = null;
-      break;
-    case "KeyX":
-      inputState.fire = false;
-      break;
-    default:
-      handled = false;
-  }
-
-  if (handled) {
-    e.preventDefault();
+    console.warn("Pointer lock error encountered while unpausing or attempting to acquire lock. Game might remain unpaused but without lock.");
   }
 }
 
 function onMouseDownGame(e) {
-  // Do not process game input if chat is active or game is paused
-  if (document.activeElement === chatInput || inputState.isPaused) {
-    return;
-  }
-  switch (e.button) {
-    case 0: // Left click
-      inputState.fire = true;
-      inputState.fireJustPressed = true;
-      break;
-    case 2: // Right click
-      inputState.aim = true;
-      break;
-  }
-  e.preventDefault(); // Crucial: Prevent default browser action like focus or selection
+  if (document.activeElement === chatInput || inputState.isPaused) return;
+  if (e.button === 0) { inputState.fire = true; inputState.fireJustPressed = true; }
+  if (e.button === 2) { inputState.aim = true; }
+  e.preventDefault();
 }
 
 function onMouseUpGame(e) {
-  // Do not process game input if chat is active or game is paused
-  if (document.activeElement === chatInput || inputState.isPaused) {
-    return;
-  }
-  switch (e.button) {
-    case 0: // Left click
-      inputState.fire = false;
-      break;
-    case 2: // Right click
-      inputState.aim = false;
-      break;
-  }
-  e.preventDefault(); // Prevent default browser action
+  if (document.activeElement === chatInput || inputState.isPaused) return;
+  if (e.button === 0) inputState.fire = false;
+  if (e.button === 2) inputState.aim = false;
+  e.preventDefault();
 }
 
 function onContextMenu(e) {
-  // Block context menu when pointer locked AND game is not paused
   if (document.pointerLockElement === elementToLock && !inputState.isPaused) {
     e.preventDefault();
   }
 }
 
 function onMouseMove(e) {
-  // Do not process mouse movement if game is paused
   if (inputState.isPaused) return;
-
-  if (Math.abs(e.movementX) > MAX_DELTA || Math.abs(e.movementY) > MAX_DELTA) {
-    return;
-  }
+  if (Math.abs(e.movementX) > MAX_DELTA || Math.abs(e.movementY) > MAX_DELTA) return;
   inputState.mouseDX += e.movementX;
   inputState.mouseDY += e.movementY;
 }
 
 function onChatKeyC(e) {
   if (e.code === "KeyC") {
-    if (document.activeElement === chatInput) {
-      return;
-    }
-    if (chatContainer.classList.contains("hidden")) {
-      chatContainer.classList.remove("hidden");
-    } else {
-      chatContainer.classList.add("hidden");
-      chatInput.blur();
-    }
+    if (document.activeElement === chatInput) return;
+    chatContainer.classList.toggle("hidden");
+    if (chatContainer.classList.contains("hidden")) chatInput.blur();
     e.preventDefault();
   }
 }
-// --- End Event Listener Functions ---
 
-// Store references to all active game input listeners
 const gameEventListeners = [
-  { target: window, event: "keydown", handler: onKeyDown },
-  { target: window, event: "keyup", handler: onKeyUp },
+  { target: window, event: "keydown",   handler: onKeyDown },
+  { target: window, event: "keyup",     handler: onKeyUp },
   { target: window, event: "mousedown", handler: onMouseDownGame },
-  { target: window, event: "mouseup", handler: onMouseUpGame },
+  { target: window, event: "mouseup",   handler: onMouseUpGame },
   { target: window, event: "contextmenu", handler: onContextMenu },
 ];
 
@@ -328,71 +288,43 @@ function removeGameEventListeners() {
 }
 
 export function setPauseState(paused, byDeath = false) {
-  // If the new state and the 'byDeath' flag are already the current state, do nothing.
-  // This helps prevent unnecessary state changes and potential overrides.
-  if (inputState.isPaused === paused && inputState.wasPausedByDeath === byDeath) {
-    return;
-  }
+  if (inputState.isPaused === paused && inputState.wasPausedByDeath === byDeath) return;
 
   inputState.isPaused = paused;
   inputState.wasPausedByDeath = byDeath;
 
   if (paused) {
-    if (document.pointerLockElement) {
-      document.exitPointerLock();
-    }
-    inputState.forward = false;
-    inputState.backward = false;
-    inputState.left = false;
-    inputState.right = false;
-    inputState.crouch = false;
-    inputState.slow = false;
-    inputState.jump = false;
-    inputState.fire = false;
-    inputState.fireJustPressed = false;
-    inputState.reload = false;
-    inputState.aim = false;
-    inputState.weaponSwitch = null;
-    inputState.mouseDX = 0;
-    inputState.mouseDY = 0;
-
+    if (document.pointerLockElement) document.exitPointerLock();
+    Object.assign(inputState, {
+      forward: false, backward: false, left: false, right: false,
+      crouch: false, slow: false, jump: false, fire: false,
+      fireJustPressed: false, reload: false, aim: false,
+      weaponSwitch: null, mouseDX: 0, mouseDY: 0
+    });
     document.body.style.cursor = "default";
-
     removeGameEventListeners();
     document.removeEventListener("mousemove", onMouseMove, false);
   } else {
-    const elementToLock = document.body;
-    // Only attempt pointer lock if player is alive.
-    // If the player is dead and the game is unpausing (manually), we don't try to get pointer lock.
     if (!window.localPlayer || !window.localPlayer.isDead) {
-        if (document.pointerLockElement !== elementToLock) {
-            elementToLock.requestPointerLock();
-        }
+      if (document.pointerLockElement !== elementToLock) {
+        elementToLock.requestPointerLock();
+      }
     } else {
-        // If player is dead and unpausing manually, ensure cursor is default.
-        document.body.style.cursor = "default";
+      document.body.style.cursor = "default";
     }
-
     addGameEventListeners();
   }
 }
 
-// Function to check player's death state and manage pause
 function checkPlayerDeadAndPause() {
-  if (window.localPlayer) {
-    if (window.localPlayer.isDead) {
-      // Player is dead.
-      // IF the game is NOT currently paused, OR IF it IS paused but NOT specifically by death (i.e., manually unpaused),
-      // then we enforce the "paused by death" state.
-      if (!inputState.isPaused || !inputState.wasPausedByDeath) {
-        setPauseState(true, true); // Pause and mark as paused by death
-      }
-    } else {
-      // Player is alive.
-      // IF the game is paused AND it was paused specifically due to death, THEN unpause.
-      if (inputState.isPaused && inputState.wasPausedByDeath) {
-        setPauseState(false, false); // Unpause and clear the death pause flag
-      }
+  if (!window.localPlayer) return;
+  if (window.localPlayer.isDead) {
+    if (!inputState.isPaused || !inputState.wasPausedByDeath) {
+      setPauseState(true, true);
+    }
+  } else {
+    if (inputState.isPaused && inputState.wasPausedByDeath) {
+      setPauseState(false, false);
     }
   }
 }
@@ -408,6 +340,7 @@ export function initInput() {
   window.addEventListener("contextmenu", onContextMenu);
   window.addEventListener("keydown", onChatKeyC);
 
+  buildKeybindUI();
   addGameEventListeners();
   setInterval(checkPlayerDeadAndPause, 100);
 }
@@ -415,28 +348,17 @@ export function initInput() {
 export function initDebugCursor() {
   debugCursor = document.createElement("div");
   Object.assign(debugCursor.style, {
-    position: "absolute",
-    width: "8px",
-    height: "8px",
-    background: "red",
-    borderRadius: "50%",
-    pointerEvents: "none",
-    zIndex: 9999,
+    position: "absolute", width: "8px", height: "8px",
+    background: "red", borderRadius: "50%", pointerEvents: "none", zIndex: 9999,
   });
   document.body.appendChild(debugCursor);
 
   debugText = document.createElement("div");
   Object.assign(debugText.style, {
-    position: "fixed",
-    top: "10px",
-    left: "10px",
-    padding: "4px 8px",
-    background: "rgba(0,0,0,0.5)",
-    color: "#0f0",
-    fontFamily: "monospace",
-    fontSize: "12px",
-    zIndex: 9999,
-    pointerEvents: "none",
+    position: "fixed", top: "10px", left: "10px",
+    padding: "4px 8px", background: "rgba(0,0,0,0.5)",
+    color: "#0f0", fontFamily: "monospace", fontSize: "12px",
+    zIndex: 9999, pointerEvents: "none",
   });
   document.body.appendChild(debugText);
 
@@ -447,21 +369,15 @@ export function initDebugCursor() {
 
 export function updateDebugCursor() {
   if (inputState.isPaused) return;
-
-  debugX += inputState.mouseDX;
-  debugY += inputState.mouseDY;
-
-  debugX = Math.max(0, Math.min(window.innerWidth, debugX));
-  debugY = Math.max(0, Math.min(window.innerHeight, debugY));
-
+  debugX = Math.max(0, Math.min(window.innerWidth,  debugX + inputState.mouseDX));
+  debugY = Math.max(0, Math.min(window.innerHeight, debugY + inputState.mouseDY));
   debugCursor.style.left = debugX + "px";
-  debugCursor.style.top = debugY + "px";
-
+  debugCursor.style.top  = debugY + "px";
   debugText.innerText = `∆X: ${inputState.mouseDX}  ∆Y: ${inputState.mouseDY}\n X: ${Math.round(debugX)}  Y: ${Math.round(debugY)}`;
 }
 
 export function postFrameCleanup() {
-  inputState.weaponSwitch = null;
+  inputState.weaponSwitch   = null;
   inputState.fireJustPressed = false;
   inputState.mouseDX = 0;
   inputState.mouseDY = 0;
