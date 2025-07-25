@@ -838,4 +838,4 @@ function getSavedLoadout() {
     };
 }
 
-initInput();
+loadKeybinds();
