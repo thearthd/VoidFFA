@@ -30,7 +30,7 @@ const FIXED_TIME_STEP = 1 / 90; // Fixed time step for physics updates (e.g., 90
 const MAX_PHYSICS_STEPS = 5;    // Maximum number of physics steps per frame to prevent "spiral of death"
 
 // NEW: Step-up constants
-const STEP_HEIGHT = 1; // Maximum height the player can step up
+const STEP_HEIGHT = 0.3; // Maximum height the player can step up
 const STEP_FORWARD_OFFSET = 0.1; // How far in front of the player to check for a step
 
 // seamless audio-loop helper (UNCHANGED)
