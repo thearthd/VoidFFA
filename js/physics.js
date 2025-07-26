@@ -376,6 +376,60 @@ export class PhysicsController {
         return !hitCeiling; // Return true if no ceiling was hit
     }
 
+    // NEW: Reinstated _stepUpIfPossible method
+    /**
+     * Attempts to step the player up if they encounter a small obstacle.
+     * This method modifies player.position and playerVelocity if a step-up occurs.
+     * @param {number} currentScaledRadius The current radius of the player's capsule.
+     * @param {number} currentScaledSegmentLength The current length of the player's capsule segment.
+     */
+    _stepUpIfPossible(currentScaledRadius, currentScaledSegmentLength) {
+        // Only attempt step-up if grounded and there's horizontal movement
+        if (!this.isGrounded || Math.abs(this.playerVelocity.x) + Math.abs(this.playerVelocity.z) < 0.1) {
+            return;
+        }
+
+        // Calculate a point just in front of the player's feet
+        const checkPoint = this.player.position.clone();
+        // Adjust checkPoint to the bottom of the capsule
+        checkPoint.y -= currentScaledSegmentLength + currentScaledRadius;
+        
+        // Move checkPoint forward in the direction of horizontal velocity
+        checkPoint.addScaledVector(new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z).normalize(), currentScaledRadius + STEP_FORWARD_OFFSET);
+
+        // Raycast downwards from slightly above the step height
+        const rayOrigin = checkPoint.clone();
+        rayOrigin.y += STEP_HEIGHT + 0.01; // Start ray slightly above max step height
+
+        const raycaster = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.1);
+        const intersects = raycaster.intersectObject(this.collider, true);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            const normalY = hit.face.normal.dot(this.upVector);
+            // Check if it's a walkable surface and a valid step height
+            // The condition `hit.point.y - (this.player.position.y - currentScaledSegmentLength - currentScaledRadius)` calculates the height of the step.
+            // We compare this against STEP_HEIGHT. Adding a small epsilon (0.05) to allow for floating point inaccuracies.
+            if (normalY >= WALKABLE_DOT && (hit.point.y - (this.player.position.y - currentScaledSegmentLength - currentScaledRadius)) <= STEP_HEIGHT + 0.05) {
+                // Check for headroom before stepping up
+                // We need to ensure that after stepping up, the player's head won't hit a ceiling.
+                // The `_checkCeilingCollision` function currently checks against the full `PLAYER_TOTAL_HEIGHT`.
+                // A more precise check might consider the player's new top Y position relative to hit.point.y
+                const newPlayerTopY = hit.point.y + currentScaledSegmentLength + currentScaledRadius;
+                // For simplicity, we can continue to use the existing _checkCeilingCollision for full standing height.
+                // If the player is crouching and tries to step up, this will check if they can stand fully,
+                // or if they must remain crouched if a ceiling is present.
+                if (this._checkCeilingCollision(PLAYER_TOTAL_HEIGHT)) { // Check if full standing height is clear
+                    // Move player onto the step
+                    this.player.position.y = hit.point.y + currentScaledSegmentLength + currentScaledRadius;
+                    this.playerVelocity.y = 0; // Clear vertical velocity after stepping
+                    this.isGrounded = true; // Confirm grounded after stepping up
+                }
+            }
+        }
+    }
+
+
     _updatePlayerPhysics(delta) {
         // Store previous grounded state for landing sound and reset for this frame
         const wasGrounded = this.isGrounded;
@@ -500,36 +554,9 @@ export class PhysicsController {
             }
         }
 
-        // --- Original Step-up Logic (Reverted) ---
-        // This logic is separate from the main collision resolution
-        if (this.isGrounded && Math.abs(this.playerVelocity.x) + Math.abs(this.playerVelocity.z) > 0.1) {
-            // Calculate a point just in front of the player's feet
-            const checkPoint = this.player.position.clone();
-            checkPoint.y -= currentScaledSegmentLength + currentScaledRadius; // Bottom of the capsule
-            checkPoint.addScaledVector(new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z).normalize(), currentScaledRadius + STEP_FORWARD_OFFSET);
-
-            // Raycast downwards from slightly above the step height
-            const rayOrigin = checkPoint.clone();
-            rayOrigin.y += STEP_HEIGHT + 0.01; // Start ray slightly above max step height
-
-            const raycaster = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.1);
-            const intersects = raycaster.intersectObject(this.collider, true);
-
-            if (intersects.length > 0) {
-                const hit = intersects[0];
-                const normalY = hit.face.normal.dot(this.upVector);
-                // Check if it's a walkable surface and a valid step height
-                if (normalY >= WALKABLE_DOT && (hit.point.y - (this.player.position.y - currentScaledSegmentLength - currentScaledRadius)) <= STEP_HEIGHT + 0.05) {
-                    // Check for headroom before stepping up
-                    const newPlayerTopY = hit.point.y + currentScaledSegmentLength + currentScaledRadius;
-                    if (this._checkCeilingCollision(PLAYER_TOTAL_HEIGHT)) { // Check if full standing height is clear
-                        this.player.position.y = hit.point.y + currentScaledSegmentLength + currentScaledRadius;
-                        this.playerVelocity.y = 0; // Clear vertical velocity after stepping
-                    }
-                }
-            }
-        }
-
+        // --- Call the separate step-up logic here ---
+        // This will attempt to step up after primary collision resolution.
+        this._stepUpIfPossible(currentScaledRadius, currentScaledSegmentLength);
 
         // Final check for grounded state if no direct ground contact was made during collision resolution
         if (!this.isGrounded && this.playerVelocity.y <= 0) {
@@ -564,6 +591,35 @@ export class PhysicsController {
 
     /**
      * Teleports the player to a safe position if they fall out of bounds.
+     */
+    teleportIfOob() {
+        // Check player's Y position relative to the bottom of the capsule
+        // The bottom of the capsule is player.position.y (top) + segment.end.y (bottom of segment) - radius (bottom cap)
+        // Adjust for scaling: player.position.y is the top of the scaled capsule.
+        // The effective segment end will be relative to the scaled height.
+        const scaledSegmentEnd = this.player.capsuleInfo.segment.end.y * this.player.scale.y;
+        const bottomOfCapsuleY = this.player.position.y + scaledSegmentEnd - this.player.capsuleInfo.radius * this.player.scale.y;
+
+        if (bottomOfCapsuleY < -25) { // If player falls below a certain threshold
+            window.localPlayer.isDead = true;
+            /*
+            console.warn("Player OOB detected! Teleporting...");
+            this.setPlayerPosition(new THREE.Vector3(0, 5, 0)); // Teleport to a safe, elevated position
+            this.playerVelocity.set(0, 0, 0); // Clear velocity
+            this.isGrounded = false;
+            this.jumpTriggered = false; // Reset jump flag on teleport
+            this.fallStartY = null; // Reset fall start Y on teleport
+            if (this.fallStartTimer) {
+                clearTimeout(this.fallStartTimer);
+                this.fallStartTimer = null;
+            }
+            */
+        }
+    }
+
+    /**
+     * Sets the player's and camera's position.
+     * @param {THREE.Vector3} position The new position for the player.
      */
     setPlayerPosition(position) {
         // Set player mesh position
@@ -606,31 +662,6 @@ export class PhysicsController {
             }
         } else if (this.isGrounded && currentSpeedXZ <= FOOT_DISABLED_THRESHOLD) {
             this.footAcc = 0; // Reset footstep accumulator when stopped
-        }
-    }
-
-    teleportIfOob() {
-        // Check player's Y position relative to the bottom of the capsule
-        // The bottom of the capsule is player.position.y (top) + segment.end.y (bottom of segment) - radius (bottom cap)
-        // Adjust for scaling: player.position.y is the top of the scaled capsule.
-        // The effective segment end will be relative to the scaled height.
-        const scaledSegmentEnd = this.player.capsuleInfo.segment.end.y * this.player.scale.y;
-        const bottomOfCapsuleY = this.player.position.y + scaledSegmentEnd - this.player.capsuleInfo.radius * this.player.scale.y;
-
-        if (bottomOfCapsuleY < -25) { // If player falls below a certain threshold
-            window.localPlayer.isDead = true;
-            /*
-            console.warn("Player OOB detected! Teleporting...");
-            this.setPlayerPosition(new THREE.Vector3(0, 5, 0)); // Teleport to a safe, elevated position
-            this.playerVelocity.set(0, 0, 0); // Clear velocity
-            this.isGrounded = false;
-            this.jumpTriggered = false; // Reset jump flag on teleport
-            this.fallStartY = null; // Reset fall start Y on teleport
-            if (this.fallStartTimer) {
-                clearTimeout(this.fallStartTimer);
-                this.fallStartTimer = null;
-            }
-            */
         }
     }
 
