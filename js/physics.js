@@ -632,6 +632,7 @@ _updatePlayerPhysics(delta) {
 
         if (bottomOfCapsuleY < -25) { // If player falls below a certain threshold
             window.localPlayer.isDead = true;
+            /*
             console.warn("Player OOB detected! Teleporting...");
             this.setPlayerPosition(new THREE.Vector3(0, 5, 0)); // Teleport to a safe, elevated position
             this.playerVelocity.set(0, 0, 0); // Clear velocity
@@ -642,6 +643,7 @@ _updatePlayerPhysics(delta) {
                 clearTimeout(this.fallStartTimer);
                 this.fallStartTimer = null;
             }
+            */
         }
     }
 
