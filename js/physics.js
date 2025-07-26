@@ -589,19 +589,21 @@ _updatePlayerPhysics(delta) {
     deltaVec.normalize().multiplyScalar(offset);
     this.player.position.add(deltaVec);
 
-        if (hasCollision) {
-          const normalY = collisionNormal.dot(this.upVector);
-        
-        if (normalY >= WALKABLE_DOT && this.playerVelocity.y <= 0) {
-          // gentle slope → snap down
-          this.isGrounded = true;
-          this.playerVelocity.y = 0;
-        } else {
-          // too steep (i.e. a wall) → slide
-          const proj = collisionNormal.dot(this.playerVelocity);
-          this.playerVelocity.addScaledVector(collisionNormal, -proj);
-        }
-        }
+const triNormal = tri.getNormal(new THREE.Vector3());  
+const slopeDot = triNormal.dot(this.upVector);
+
+// 2. Decide slope vs. wall by triNormal, not pushDir
+if (hasCollision) {
+  if (slopeDot >= WALKABLE_DOT && this.playerVelocity.y <= 0) {
+    // real gentle slope → snap down
+    this.isGrounded = true;
+    this.playerVelocity.y = 0;
+  } else {
+    // real wall → slide
+    const proj = collisionNormal.dot(this.playerVelocity);
+    this.playerVelocity.addScaledVector(collisionNormal, -proj);
+  }
+}
     // Sync camera to player position
     this.camera.position.copy(this.player.position);
     this._lastAirYaw = this.camera.rotation.y;
