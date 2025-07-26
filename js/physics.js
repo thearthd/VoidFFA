@@ -417,7 +417,7 @@ _updatePlayerPhysics(delta) {
     // Call step up before applying gravity for this frame
     this._stepUpIfPossible();
     // Reset grounded; we’ll detect contact this frame
-    this.isGrounded = false;
+   this.isGrounded = false;
 
     // Apply gravity or snap-down
     if (this.isGrounded) {
@@ -522,7 +522,6 @@ _updatePlayerPhysics(delta) {
     // Sync camera
     this.camera.position.copy(this.player.position);
 }
-
 
     /**
      * Teleports the player to a safe position if they fall out of bounds.
