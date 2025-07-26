@@ -1394,7 +1394,7 @@ window.addEventListener("keydown", e => {
     console.log("  document.activeElement:", document.activeElement);
     // Check if the pressed key matches the currently configured togglePause keybind
     // and if the game is active and not chat-focused (assuming checkInGame is available)
-    if (window.checkInGame && e.code === currentKeybinds.togglePause) {
+    if (checkInGame && e.code === currentKeybinds.togglePause) {
              console.log("Keydown in other file:", e.code, e.key);
 
         // Allow toggling menu even if dead — just don't resume the game.
