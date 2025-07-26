@@ -349,7 +349,7 @@ _updatePlayerPhysics(delta) {
     this.player.position.addScaledVector(this.playerVelocity, delta);
     this.player.updateMatrixWorld();
 
-    // Prepare collision shapecast
+    // Prepare broad-phase box and segment in collider space
     const cap = this.player.capsuleInfo;
     const r = cap.radius + 0.001;
     this.tempBox.makeEmpty();
@@ -361,65 +361,59 @@ _updatePlayerPhysics(delta) {
     this.tempBox.min.addScalar(-r);
     this.tempBox.max.addScalar(r);
 
-    if (this.collider?.geometry?.boundsTree) {
-        this.collider.geometry.boundsTree.shapecast({
-            intersectsBounds: box => box.intersectsBox(this.tempBox),
-            intersectsTriangle: tri => {
-                const tp = this.tempVector;
-                const cp = this.tempVector2;
-                const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
-                if (dist < r) {
-                    const depth = r - dist;
-                    const dir = cp.sub(tp).normalize();
-                    this.tempSegment.start.addScaledVector(dir, depth);
-                    this.tempSegment.end.addScaledVector(dir, depth);
-                }
+    // --- New collision resolution using triangle normals ---
+    let contactNormal = new THREE.Vector3(0, 0, 0);
+    let hadContact = false;
+
+    this.collider.geometry.boundsTree.shapecast({
+        intersectsBounds: box => box.intersectsBox(this.tempBox),
+        intersectsTriangle: tri => {
+            const tp = this.tempVector;
+            const cp = this.tempVector2;
+            const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
+            if (dist < r) {
+                // record that we hit something
+                tri.getNormal(contactNormal); // contactNormal = triangle normal
+                hadContact = true;
+
+                // push capsule out along direction from tri → segment
+                const depth = r - dist;
+                const pushDir = cp.sub(tp).normalize();
+                this.tempSegment.start.addScaledVector(pushDir, depth);
+                this.tempSegment.end.addScaledVector(pushDir, depth);
             }
-        });
-    }
+        }
+    });
 
-    // Compute collision offset in world space
-    const newStart = this.tempVector
-        .copy(this.tempSegment.start)
-        .applyMatrix4(this.collider.matrixWorld);
-    const deltaVec = newStart.sub(this.player.position);
+    if (hadContact) {
+        // transform the adjusted segment start back to world space
+        const newStartWorld = this.tempVector
+            .copy(this.tempSegment.start)
+            .applyMatrix4(this.collider.matrixWorld);
+        const offset = newStartWorld.sub(this.player.position);
 
-    // Determine if this is a slope/step or a wall
-    const stepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
-    const isSlope = Math.abs(deltaVec.y) > stepThresh;
-
-    // Decompose deltaVec
-    const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
-    const verticalDelta = deltaVec.y;
-
-if (isSlope) {
-  // we have a gentle slope or drop
-  const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
-  // if deltaVec.y < 0, we’re going downhill; if > 0, uphill
-  this.player.position.add(horizontalDelta);
-  this.player.position.y += deltaVec.y;
-  this.isGrounded = true;
-  this.playerVelocity.y = 0;
-} else {
-        // Wall bump: check for small step
-        const MAX_STEP = 0.5;
-        if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
-            // climb the step: apply horizontal push and snap up
-            this.player.position.add(horizontalDelta);
-            this.player.position.y += verticalDelta;
+        // decide ground vs wall by normal’s Y component
+        const SLOPE_LIMIT = 0.7; // adjust between 0.5 (very steep allowed) and 0.8 (very flat only)
+        if (contactNormal.y >= SLOPE_LIMIT) {
+            // ground / gentle slope
+            this.player.position.add(new THREE.Vector3(offset.x, 0, offset.z));
+            this.player.position.y += offset.y;
             this.isGrounded = true;
             this.playerVelocity.y = 0;
         } else {
-            // slide along wall
-            const n = deltaVec.clone().normalize();
-            const proj = deltaVec.dot(this.playerVelocity);
-            this.playerVelocity.addScaledVector(n, -proj);
-            // apply only horizontal component of push so you don't get stuck
-            this.player.position.add(horizontalDelta);
+            // wall: slide horizontally, zero out any vertical push
+            this.player.position.add(new THREE.Vector3(offset.x, 0, offset.z));
+
+            // project velocity off the wall normal
+            // first bring normal into world space
+            const wallNormalWorld = contactNormal.clone().transformDirection(this.collider.matrixWorld);
+            const proj = this.playerVelocity.dot(wallNormalWorld);
+            this.playerVelocity.addScaledVector(wallNormalWorld, -proj);
         }
     }
+    // --- End new collision block ---
 
-    // Sync camera
+    // Sync camera to player after physics
     this.camera.position.copy(this.player.position);
 }
 
