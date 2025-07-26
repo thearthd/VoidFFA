@@ -276,47 +276,42 @@ export class PhysicsController {
         }
     }
 
-_applyAirControl(dt) {
-  const input = this.lastInput;            // assume we stored it
-  if (!input.forward) return;              // only steer when holding forward
+_applyAirControl(dt, moveDir /*we’ll ignore moveDir*/) {
+  // Only steer when the player is holding “forward”
+  if (!this.input.forward) return;
 
-  // 1) chase your camera-forward
-  const wishDir = this.getForwardVector(); // normalized XZ
+  // 1) Get flat forward from camera
+  const wishDir = this.getForwardVector();  // normalized XZ
 
-  // 2) decompose current horizontal velocity
-  const velXZ = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
-  const speed = velXZ.length();
-  if (speed < 1e-6) return;
+  // 2) Extract horizontal velocity
+  const vel = this.playerVelocity.clone();
+  vel.y = 0;
+  const speed = vel.length();
+  if (speed < 1e-6) return;  // no movement, nothing to steer
 
-  const currDir = velXZ.clone().normalize();
+  // 3) Compute current horizontal dir
+  const currDir = vel.normalize();
 
-  // 3) find angle between them (clamped)
+  // 4) Angle between current and wish
   let angle = Math.acos(THREE.MathUtils.clamp(currDir.dot(wishDir), -1, 1));
-  
-  // 4) compute momentum loss fraction
-  let loss;
-  if (angle <= Math.PI / 2) {
-    // 0→π/2 maps to 0→0.2
-    loss = (angle / (Math.PI/2)) * 0.2;
-  } else {
-    // π/2→π maps to 0.2→0.5
-    loss = 0.2 + ((angle - (Math.PI/2)) / (Math.PI/2)) * 0.3;
-  }
-
-  // 5) cap rotation this frame
   const maxDelta = AIR_TURN_RATE * dt;
-  const turnAngle = Math.min(angle, maxDelta);
+  if (angle > maxDelta) angle = maxDelta;
 
-  // figure out turn direction via cross
-  const sign = currDir.clone().cross(wishDir).y < 0 ? -1 : 1;
-  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), sign * turnAngle);
+  // 5) Compute the axis to rotate around (+Y)
+  const axis = new THREE.Vector3(0, 1, 0);
+
+  // 6) Rotate currDir toward wishDir by allowed angle
+  const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+  // But we need the *sign* of rotation: check cross
+  const cross = currDir.clone().cross(wishDir).y;
+  if (cross < 0) q.invert();  // rotate the other way
+
   const newDir = currDir.clone().applyQuaternion(q);
 
-  // 6) write back your velocity: new direction × reduced speed, keep vertical
-  const newSpeed = speed * (1 - loss);
-  this.playerVelocity.x = newDir.x * newSpeed;
-  this.playerVelocity.z = newDir.z * newSpeed;
-  // y velocity untouched
+  // 7) Set back velocity (preserve speed magnitude, keep Y)
+  this.playerVelocity.x = newDir.x * speed;
+  this.playerVelocity.z = newDir.z * speed;
+  // leave this.playerVelocity.y untouched
 }
 
     /**
