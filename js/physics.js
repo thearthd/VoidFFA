@@ -127,11 +127,7 @@ export class PhysicsController {
 
         // Input and camera setup
         this.mouseTime = 0;
-        const container = document.getElementById('container') || document.body;
-        container.addEventListener('mousedown', () => {
-            document.body.requestPointerLock();
-            this.mouseTime = performance.now();
-        });
+        
         this.camera.rotation.order = 'YXZ'; // Ensure correct camera rotation order
 
         // Audio setup
@@ -201,21 +197,19 @@ export class PhysicsController {
 _stepUpIfPossible() {
   if (!this.isGrounded || !this.collider) return;
 
-  // Direction of travel (horizontal)
+  // direction of travel (horizontal)
   const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
   if (horizVel.length() < 0.01) return;
 
   const dir = horizVel.normalize();
-
-  // Position at feet (bottom of capsule)
   const feetPos = this.player.position.clone()
-    .add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT / 2 + this.player.capsuleInfo.radius, 0));
+    .add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT/2 + this.player.capsuleInfo.radius, 0));
 
-  // Ray origin just in front of the player at feet level
+  // start the ray a bit in front of the feet and above max step height
   const origin = feetPos.clone()
-    .add(dir.clone().multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
+    .add(dir.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
+  origin.y += 0.05;
 
-  // Cast downward from foot level to detect step height
   const ray = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.1);
   const hits = ray.intersectObject(this.collider, true);
 
@@ -223,21 +217,16 @@ _stepUpIfPossible() {
   const hit = hits[0];
   const stepTopY = hit.point.y;
 
+  // current feet Y
   const currentFeetY = feetPos.y;
   const deltaY = stepTopY - currentFeetY;
-
   if (deltaY > 0.01 && deltaY <= STEP_HEIGHT) {
-    // Head clearance check
-    const headOrigin = new THREE.Vector3(
-      feetPos.x, 
-      stepTopY + 0.01 + PLAYER_TOTAL_HEIGHT * this.player.scale.y, 
-      feetPos.z
-    );
+    // make sure there’s headroom above the step
+    const headOrigin = new THREE.Vector3(feetPos.x, stepTopY + 0.01 + PLAYER_TOTAL_HEIGHT * this.player.scale.y, feetPos.z);
     const headRay = new THREE.Raycaster(headOrigin, new THREE.Vector3(0, 1, 0), 0, 0.01);
     const headHits = headRay.intersectObject(this.collider, true);
-
     if (headHits.length === 0) {
-      // Perform the step up
+      // perform the step
       this.player.position.y += deltaY;
       this.playerVelocity.y = 0;
       this.isGrounded = true;
