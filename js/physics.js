@@ -353,7 +353,8 @@ _updatePlayerPhysics(delta) {
     }
 
     // Predict player's next position based on current velocity
-    const playerSphere = new THREE.Sphere(new THREE.Vector3(), 0); // Temporary sphere for raycasting
+    // (playerSphere is not used in this specific implementation, can be removed if not used elsewhere)
+    // const playerSphere = new THREE.Sphere(new THREE.Vector3(), 0);
     const playerCapsule = this.player.capsuleInfo;
     const playerCapsuleRadius = playerCapsule.radius;
     const playerCapsuleSegment = playerCapsule.segment;
@@ -405,6 +406,7 @@ _updatePlayerPhysics(delta) {
 
                         if (penetration > deepestPenetration) {
                             deepestPenetration = penetration;
+                            // The push direction is from the triangle point to the capsule point
                             deepestPushVector.subVectors(capPoint, triPoint).normalize();
                             // Transform triangle normal to world space for accurate dot product with upVector
                             deepestCollisionNormal.copy(tri.getNormal(new THREE.Vector3()));
@@ -444,28 +446,38 @@ _updatePlayerPhysics(delta) {
 
     // Apply a small downward push if grounded and not already falling significantly
     if (this.isGrounded) {
-        if (this.playerVelocity.y < -0.1) { // If player is moving slightly upwards or too slow downwards on ground
-            this.playerVelocity.y = -0.playerVelocity.y * 0.5; // Dampen bounce
-        } else if (this.playerVelocity.y > -0.1) { // If player isn't actively falling
-            this.playerVelocity.y = -0.1; // Small downward push to stick to ground
+        // If the player is trying to "bounce" upwards slightly after collision
+        if (this.playerVelocity.y > 0) {
+            this.playerVelocity.y = 0; // Completely stop upward movement
+        } else if (this.playerVelocity.y < -0.1) { // If player is moving downwards but maybe too fast or bouncing
+            // Dampen bounce by reducing downward velocity, or bring to a gentle stop
+            this.playerVelocity.y = -this.playerVelocity.y * 0.5; // Corrected typo here
+            if (this.playerVelocity.y > -0.1) { // Ensure it's not pushing too hard upwards now
+                 this.playerVelocity.y = -0.1;
+            }
+        } else { // If player is nearly still vertically on the ground
+            this.playerVelocity.y = -0.1; // Small constant downward push to stick to ground
         }
     }
 
 
-    // Step-up logic: This part needs careful integration. It's often best run
+    // Step-up logic:
+    // This part needs careful integration. It's often best run
     // as a separate, pre-emptive check before the main collision response,
     // or very carefully integrated here. For now, it's placed after initial
     // collision resolution, but its interaction with iterative pushes might
     // still lead to edge cases.
     // A more robust approach would be to detect a "wall-like" collision
     // at feet level and then attempt the step-up.
-    // Removed the previous `hasCollision && !this.isGrounded` check here as `hasCollision`
-    // is now local to the iteration. This means step-up needs to be more explicitly
-    // triggered based on horizontal movement into an obstacle.
-    const horizontalMovementDirection = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z).normalize();
-    const currentHorizontalSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+    const horizontalMovementDirection = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
+    const currentHorizontalSpeed = horizontalMovementDirection.length(); // Get length before normalizing
+    if (currentHorizontalSpeed > 0.01) { // Only attempt if there's significant horizontal movement
+        horizontalMovementDirection.normalize();
+    }
 
-    // Only attempt step-up if moving horizontally and not already grounded on a slope
+
+    // Only attempt step-up if moving horizontally and not already firmly grounded (e.g., on a slope that's handled)
+    // The `this.isGrounded` check here is important to avoid stepping up when already smoothly on a slope.
     if (!this.isGrounded && currentHorizontalSpeed > 0.1) {
         const playerFeetPosition = this.player.position.clone().add(new THREE.Vector3(0, -(PLAYER_TOTAL_HEIGHT / 2) + playerCapsuleRadius, 0));
         const stepCheckOrigin = playerFeetPosition.add(horizontalMovementDirection.multiplyScalar(playerCapsuleRadius + STEP_FORWARD_OFFSET));
