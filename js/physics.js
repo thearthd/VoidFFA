@@ -28,7 +28,8 @@ const CROUCH_HEIGHT_RATIO = 0.6; // Player height when crouched (e.g., 60% of or
 const CROUCH_SPEED = 8;          // Speed at which player crouches/stands
 
 const MAX_SPEED = 10; // Maximum horizontal speed, now directly used for movement
-const AIR_ACCEL = 2.5;
+const AIR_TURN_RATE = Math.PI * 0.5;
+
 
 const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps stop
 
@@ -274,22 +275,42 @@ export class PhysicsController {
         }
     }
 
-_applyAirControl(dt, wishDir) {
-  if (wishDir.lengthSq() < 1e-6) return;  // no input, no air steer
+_applyAirControl(dt, moveDir /*we’ll ignore moveDir*/) {
+  // Only steer when the player is holding “forward”
+  if (!this.input.forward) return;
 
-  // 1. Calculate desired speeds
-  const wishSpeed = MAX_SPEED * this.speedModifier;
-  const currentSpeedAlongWish = this.playerVelocity.dot(wishDir);
+  // 1) Get flat forward from camera
+  const wishDir = this.getForwardVector();  // normalized XZ
 
-  // 2. How much speed we can still add
-  let addSpeed = wishSpeed - currentSpeedAlongWish;
-  if (addSpeed <= 0) return;
+  // 2) Extract horizontal velocity
+  const vel = this.playerVelocity.clone();
+  vel.y = 0;
+  const speed = vel.length();
+  if (speed < 1e-6) return;  // no movement, nothing to steer
 
-  // 3. Compute the amount to accelerate (clamped)
-  const accelSpeed = Math.min(addSpeed, AIR_ACCEL * dt * wishSpeed);
+  // 3) Compute current horizontal dir
+  const currDir = vel.normalize();
 
-  // 4. Apply it in the wish direction
-  this.playerVelocity.addScaledVector(wishDir, accelSpeed);
+  // 4) Angle between current and wish
+  let angle = Math.acos(THREE.MathUtils.clamp(currDir.dot(wishDir), -1, 1));
+  const maxDelta = AIR_TURN_RATE * dt;
+  if (angle > maxDelta) angle = maxDelta;
+
+  // 5) Compute the axis to rotate around (+Y)
+  const axis = new THREE.Vector3(0, 1, 0);
+
+  // 6) Rotate currDir toward wishDir by allowed angle
+  const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+  // But we need the *sign* of rotation: check cross
+  const cross = currDir.clone().cross(wishDir).y;
+  if (cross < 0) q.invert();  // rotate the other way
+
+  const newDir = currDir.clone().applyQuaternion(q);
+
+  // 7) Set back velocity (preserve speed magnitude, keep Y)
+  this.playerVelocity.x = newDir.x * speed;
+  this.playerVelocity.z = newDir.z * speed;
+  // leave this.playerVelocity.y untouched
 }
 
     /**
