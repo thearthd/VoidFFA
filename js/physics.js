@@ -30,7 +30,7 @@ const FIXED_TIME_STEP = 1 / 90; // Fixed time step for physics updates (e.g., 90
 const MAX_PHYSICS_STEPS = 5;    // Maximum number of physics steps per frame to prevent "spiral of death"
 
 // NEW: Step-up constants
-const STEP_HEIGHT = 5; // Maximum height the player can step up
+const STEP_HEIGHT = 1; // Maximum height the player can step up
 const STEP_FORWARD_OFFSET = 0.1; // How far in front of the player to check for a step
 
 // seamless audio-loop helper (UNCHANGED)
@@ -197,36 +197,43 @@ export class PhysicsController {
 _stepUpIfPossible() {
   if (!this.isGrounded || !this.collider) return;
 
-  // direction of travel (horizontal)
+  // direction of travel (horizontal only)
   const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
   if (horizVel.length() < 0.01) return;
 
   const dir = horizVel.normalize();
-  const feetPos = this.player.position.clone()
-    .add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT/2 + this.player.capsuleInfo.radius, 0));
 
-  // start the ray a bit in front of the feet and above max step height
+  // Position at the bottom of the capsule (feet)
+  const feetPos = this.player.position.clone()
+    .add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT / 2 + this.player.capsuleInfo.radius, 0));
+
+  // Raycast origin slightly in front and above max step height
   const origin = feetPos.clone()
     .add(dir.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
   origin.y += STEP_HEIGHT + 0.05;
 
   const ray = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.1);
   const hits = ray.intersectObject(this.collider, true);
-
   if (hits.length === 0) return;
+
   const hit = hits[0];
   const stepTopY = hit.point.y;
 
-  // current feet Y
   const currentFeetY = feetPos.y;
   const deltaY = stepTopY - currentFeetY;
   if (deltaY > 0.01 && deltaY <= STEP_HEIGHT) {
-    // make sure there’s headroom above the step
-    const headOrigin = new THREE.Vector3(feetPos.x, stepTopY + 0.01 + PLAYER_TOTAL_HEIGHT * this.player.scale.y, feetPos.z);
+    // Check head clearance at new position
+    const headOrigin = new THREE.Vector3(
+      feetPos.x,
+      stepTopY + this.player.capsuleInfo.height,
+      feetPos.z
+    );
+
     const headRay = new THREE.Raycaster(headOrigin, new THREE.Vector3(0, 1, 0), 0, 0.01);
     const headHits = headRay.intersectObject(this.collider, true);
+
     if (headHits.length === 0) {
-      // perform the step
+      // Step up
       this.player.position.y += deltaY;
       this.playerVelocity.y = 0;
       this.isGrounded = true;
