@@ -159,6 +159,7 @@ export class PhysicsController {
         // Speed and aim modifiers (kept from original physics.js)
         this.speedModifier = 0;
         this.isAim = false;
+        this._lastAirYaw = this.camera.rotation.y;
     }
 
     /**
@@ -277,33 +278,30 @@ export class PhysicsController {
     }
 
 _applyAirControl(dt) {
-  // 1. Get the camera’s flat forward
-  const wishDir = this.getForwardVector();  // normalized XZ
+  // 1) How much has the camera yaw changed this step?
+  let yawNow = this.camera.rotation.y;
+  let deltaYaw = yawNow - this._lastAirYaw;
 
-  // 2. Extract horizontal velocity & speed
-  const vel = this.playerVelocity.clone();
-  vel.y = 0;
-  const speed = vel.length();
-  if (speed < 1e-6) return;  // nothing to steer
+  // Normalize to [-π, +π]
+  deltaYaw = ((deltaYaw + Math.PI) % (2*Math.PI)) - Math.PI;
 
-  const currDir = vel.normalize();
+  // 2) Clamp by your max turn rate
+  const maxYaw = AIR_TURN_RATE * dt;       // radians allowed this frame
+  const appliedYaw = Math.sign(deltaYaw) * Math.min(Math.abs(deltaYaw), maxYaw);
+  if (appliedYaw === 0) return;            // no turning
 
-  // 3. Compute angle between current velocity and camera forward
-  let angle = Math.acos( THREE.MathUtils.clamp(currDir.dot(wishDir), -1, 1) );
+  // 3) Build a quaternion around world‑up
+  const q = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0,1,0),
+    appliedYaw
+  );
 
-  // 4. Clamp by your air turn rate
-  const maxDelta = AIR_TURN_RATE * dt;
-  if (angle > maxDelta) angle = maxDelta;
-
-  // 5. Figure out rotation direction via cross product
-  const sign = currDir.clone().cross(wishDir).y < 0 ? -1 : 1;
-  const q = new THREE.Quaternion().setFromAxisAngle( new THREE.Vector3(0,1,0), sign * angle );
-
-  // 6. Apply rotation to velocity (preserving speed & vertical vel)
-  const newDir = currDir.clone().applyQuaternion(q);
-  this.playerVelocity.x = newDir.x * speed;
-  this.playerVelocity.z = newDir.z * speed;
-  //   leave this.playerVelocity.y alone
+  // 4) Rotate _only_ the horizontal part of your velocity
+  const v = this.playerVelocity;
+  const horizontal = new THREE.Vector3(v.x, 0, v.z).applyQuaternion(q);
+  v.x = horizontal.x;
+  v.z = horizontal.z;
+  // leave v.y untouched
 }
 
     /**
@@ -611,6 +609,7 @@ _updatePlayerPhysics(delta) {
         }
     // Sync camera to player position
     this.camera.position.copy(this.player.position);
+    this._lastAirYaw = this.camera.rotation.y;
 }
 
 
