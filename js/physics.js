@@ -415,125 +415,177 @@ _stepUpIfPossible() {
      */
 _updatePlayerPhysics(delta) {
     // Call step up before applying gravity for this frame
- //   this._stepUpIfPossible();
-
+    this._stepUpIfPossible();
+    const wasGrounded = this.isGrounded;
     this.isGrounded = false;
 
     // Apply gravity
-    this.playerVelocity.y += (this.isGrounded ? -GRAVITY * 0.1 : -GRAVITY) * delta;
+    this.playerVelocity.y += this.GRAVITY * delta;
+    if (this.playerVelocity.y < -20) { // Cap downward speed
+        this.playerVelocity.y = -20;
+    }
 
     // Cap horizontal speed
-    const horizSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-    const maxHoriz = MAX_SPEED * this.speedModifier;
-    if (horizSpeed > maxHoriz) {
-        const s = maxHoriz / horizSpeed;
-        this.playerVelocity.x *= s;
-        this.playerVelocity.z *= s;
+    const horizontalSpeed = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z).length();
+    if (horizontalSpeed > this.MAX_SPEED) {
+        this.playerVelocity.setLength(this.MAX_SPEED);
     }
 
-    // Crouch/stand interpolation
-    const curS = this.player.scale.y;
-    const tgtS = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
-    if (Math.abs(curS - tgtS) > 0.001) {
-        const ns = THREE.MathUtils.lerp(curS, tgtS, CROUCH_SPEED * delta);
-        const oldH = PLAYER_TOTAL_HEIGHT * curS;
-        const newH = PLAYER_TOTAL_HEIGHT * ns;
-        this.player.scale.y = ns;
-        this.player.position.y -= (oldH - newH);
-        this.player.capsuleInfo.segment.end.y = -this.originalCapsuleSegmentLength * ns;
-    }
-
-    // STEP DETECTION:
-    // If moving horizontally, raycast at foot height to see a step in front
-    const moveDir = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
-    if (moveDir.lengthSq() > 1e-6 && this.collider?.geometry?.boundsTree) {
-        const footCenter = this.player.position.clone();
-        // segment.end.y is negative cylinder length scaled
-        footCenter.y += this.player.capsuleInfo.segment.end.y;
-        const rayOrigin = footCenter.clone().addScalar(0.01); // slightly above foot center
-        const rayDir = moveDir.clone().normalize();
-        const horizontalDist = moveDir.clone().multiplyScalar(delta).length() + this.player.capsuleInfo.radius + 0.01;
-        const raycaster = new THREE.Raycaster(rayOrigin, rayDir, 0, horizontalDist);
-        // three-mesh-bvh extends Raycaster to use BVH if present
-        const hits = raycaster.intersectObject(this.collider, false);
-        if (hits.length) {
-            const hit = hits[0];
-            const stepHeight = hit.point.y - rayOrigin.y;
-            const MAX_STEP = 0.5;
-            if (stepHeight > 0 && stepHeight <= MAX_STEP) {
-                // snap up onto the step
-                this.player.position.y += stepHeight;
-                this.playerVelocity.y = 0;
-                this.isGrounded = true;
-            }
+    // Smoothly adjust player height for crouching
+    if (this.isCrouching) {
+        if (this.player.scale.y > 0.6) {
+            this.player.scale.y = Math.max(0.6, this.player.scale.y - 4 * delta);
+        }
+    } else {
+        if (this.player.scale.y < 1.0) {
+            this.player.scale.y = Math.min(1.0, this.player.scale.y + 4 * delta);
         }
     }
 
-    // Move by current velocity
     this.player.position.addScaledVector(this.playerVelocity, delta);
     this.player.updateMatrixWorld();
 
-    // COLLISION + STEP-UP RESOLUTION
-    const cap = this.player.capsuleInfo;
-    const r = cap.radius + 0.001;
+    const capsuleInfo = this.player.capsuleInfo;
+    const collisionRadius = capsuleInfo.radius + 0.001;
 
-    // Build AABB around the capsule in collider-local space
     this.tempBox.makeEmpty();
-    this.tempSegment.copy(cap.segment)
+    this.tempSegment.copy(capsuleInfo.segment)
         .applyMatrix4(this.player.matrixWorld)
         .applyMatrix4(this.colliderMatrixWorldInverse);
     this.tempBox.expandByPoint(this.tempSegment.start);
     this.tempBox.expandByPoint(this.tempSegment.end);
-    this.tempBox.min.addScalar(-r);
-    this.tempBox.max.addScalar(r);
+    this.tempBox.min.addScalar(-collisionRadius);
+    this.tempBox.max.addScalar(collisionRadius);
 
-    // Shapecast to push out of geometry
-    if (this.collider.geometry.boundsTree) {
+    let hasCollision = false;
+    let collisionNormal = new THREE.Vector3();
+    let collisionPoint = new THREE.Vector3();
+
+    if (this.collider && this.collider.geometry && this.collider.geometry.boundsTree) {
         this.collider.geometry.boundsTree.shapecast({
             intersectsBounds: box => box.intersectsBox(this.tempBox),
             intersectsTriangle: tri => {
-                const tp = this.tempVector;
-                const cp = this.tempVector2;
-                const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
-                if (dist < r) {
-                    const depth = r - dist;
-                    const dir = cp.sub(tp).normalize();
-                    this.tempSegment.start.addScaledVector(dir, depth);
-                    this.tempSegment.end.addScaledVector(dir, depth);
+                const triPoint = this.tempVector;
+                const capPoint = this.tempVector2;
+                const dist = tri.closestPointToSegment(this.tempSegment, triPoint, capPoint);
+                if (dist < collisionRadius) {
+                    hasCollision = true;
+                    const depth = collisionRadius - dist;
+                    const pushDir = capPoint.sub(triPoint).normalize();
+                    this.tempSegment.start.addScaledVector(pushDir, depth);
+                    this.tempSegment.end.addScaledVector(pushDir, depth);
+                    collisionNormal.copy(pushDir);
+                    collisionPoint.copy(capPoint.applyMatrix4(this.collider.matrixWorld));
                 }
             }
         });
+    } else {
+        console.warn("Collider or boundsTree not available—skipping collision.");
     }
 
-    // Compute world-space collision offset
-    const newStart = this.tempVector
+    const newStartWorld = this.tempVector
         .copy(this.tempSegment.start)
         .applyMatrix4(this.collider.matrixWorld);
-    const deltaVec = newStart.sub(this.player.position);
+    const deltaVec = newStartWorld.sub(this.player.position);
 
-    // Determine slope vs wall
     const stepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
-    const isSlope = deltaVec.y > stepThresh;
+    const isStepOrSlope = deltaVec.y > stepThresh;
 
-    // Decompose deltaVec
-    const horizDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
-    const vertDelta = deltaVec.y;
+    if (hasCollision && !isStepOrSlope && this.isGrounded) {
+        console.log("Potential wall collision detected and grounded. Checking for step...");
 
-    if (isSlope) {
-        // gentle slope: apply full push
-        this.player.position.add(horizDelta);
-        this.player.position.y += vertDelta;
-        this.isGrounded = true;
-        this.playerVelocity.y = 0;
-    } else {
-        // wall bump: slide horizontally
-        this.player.position.add(horizDelta);
-        const n = deltaVec.clone().normalize();
-        const proj = deltaVec.dot(this.playerVelocity);
-        this.playerVelocity.addScaledVector(n, -proj);
+        const playerFeetPosition = this.player.position.clone().add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT / 2, 0));
+        const currentHorizVelocity = this.playerVelocity.clone().setY(0).normalize();
+        
+        if (currentHorizVelocity.lengthSq() < 0.0001) { 
+            console.log("No significant horizontal velocity for step check direction.");
+        } else {
+            const stepCheckOrigin = playerFeetPosition.add(currentHorizVelocity.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
+            stepCheckOrigin.y += STEP_HEIGHT + 0.01;
+
+            const raycaster = new THREE.Raycaster(stepCheckOrigin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.02);
+            const intersects = raycaster.intersectObject(this.collider, true);
+
+            if (intersects.length > 0) {
+                const stepHit = intersects[0];
+                const stepY = stepHit.point.y;
+                const bottomOfPlayerCapsuleY = this.player.position.y + this.player.capsuleInfo.segment.end.y * this.player.scale.y - this.player.capsuleInfo.radius * this.player.scale.y;
+                const stepHeightFromPlayerBase = stepY - bottomOfPlayerCapsuleY;
+
+                console.log(`Step candidate found! Step Y: ${stepY}, Player Base Y: ${bottomOfPlayerCapsuleY}, Height from player base: ${stepHeightFromPlayerBase.toFixed(3)}`);
+
+                if (stepHeightFromPlayerBase > 0.01 && stepHeightFromPlayerBase <= STEP_HEIGHT) {
+                    console.log("Step is within valid height range. Checking wall clearance...");
+
+                    const wallCheckOrigin = stepHit.point.clone();
+                    wallCheckOrigin.y += 0.01;
+
+                    const currentStandingHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
+                    const requiredClearance = currentStandingHeight;
+
+                    const wallRaycaster = new THREE.Raycaster(wallCheckOrigin, new THREE.Vector3(0, 1, 0), 0, requiredClearance);
+                    const wallIntersects = wallRaycaster.intersectObject(this.collider, true);
+
+                    let wallIsClear = true;
+                    if (wallIntersects.length > 0) {
+                        const wallHit = wallIntersects[0];
+                        const wallHeight = wallHit.point.y - wallCheckOrigin.y;
+                        console.log(`Wall hit above step. Wall height: ${wallHeight.toFixed(3)}, Required: ${requiredClearance.toFixed(3)}`);
+                        if (wallHeight < requiredClearance - 0.01) {
+                            wallIsClear = false;
+                        }
+                    } else {
+                        console.log("No wall hit above step within required clearance.");
+                    }
+
+                    if (wallIsClear) {
+                        const newPlayerY = stepY + (PLAYER_TOTAL_HEIGHT / 2) * this.player.scale.y - this.player.capsuleInfo.radius * this.player.scale.y;
+                        console.log(`STEP UP SUCCESS! Moving player from ${this.player.position.y.toFixed(3)} to ${newPlayerY.toFixed(3)}`);
+                        this.player.position.y = newPlayerY;
+                        this.playerVelocity.y = 0;
+                        this.isGrounded = true;
+                        return;
+                    } else {
+                        console.log("Wall above step is NOT clear. Cannot step up.");
+                    }
+                } else {
+                    console.log(`Step height (${stepHeightFromPlayerBase.toFixed(3)}) is outside valid range (0.01 to ${STEP_HEIGHT}).`);
+                }
+            } else {
+                console.log("No step candidate found by raycast.");
+            }
+        }
     }
 
-    // Sync camera
+    const offset = Math.max(0, deltaVec.length() - 1e-5);
+    deltaVec.normalize().multiplyScalar(offset);
+    this.player.position.add(deltaVec);
+
+    if (isStepOrSlope) {
+        this.isGrounded = true;
+        this.playerVelocity.y = 0;
+    } else if (hasCollision) {
+        const proj = collisionNormal.dot(this.playerVelocity);
+        this.playerVelocity.addScaledVector(collisionNormal, -proj);
+    }
+
+    if (deltaVec.y > 0.0001) {
+        this.playerVelocity.y = 0;
+    }
+
+    if (deltaVec.lengthSq() > 1e-5) {
+        const distSq = this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z;
+        if (distSq > 1e-5) {
+            this.playerVelocity.setLength(Math.sqrt(distSq));
+        }
+    }
+
+    if (this.player.position.y < -10) { // Fall detection / reset
+        this.player.position.set(0, 5, 0);
+        this.playerVelocity.set(0, 0, 0);
+    }
+
+    // Sync camera to player position
     this.camera.position.copy(this.player.position);
 }
 
