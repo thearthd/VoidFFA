@@ -365,7 +365,7 @@ _stepUpIfPossible() {
     const rayOriginZ = this.player.position.z + dir.z * rayOriginForwardOffset;
     
     // The ray for step detection starts from above the `actualGroundY` at max step height
-    const rayOriginY = actualGroundY + STEP_HEIGHT + 0.05; // 0.05 is a small offset above max step height
+    const rayOriginY = actualGroundY + 0.05; // 0.05 is a small offset above max step height
 
     const stepRay = new THREE.Raycaster(
         new THREE.Vector3(rayOriginX, rayOriginY, rayOriginZ),
