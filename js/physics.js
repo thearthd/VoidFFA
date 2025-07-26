@@ -276,42 +276,37 @@ export class PhysicsController {
         }
     }
 
-_applyAirControl(dt, moveDir /*we’ll ignore moveDir*/) {
-  // Only steer when the player is holding “forward”
-  if (!this.input.forward) return;
+_applyAirControl(dt) {
+  // Build wishDir just like on ground
+  const wishDir = new THREE.Vector3();
+  if (this.input.forward)  wishDir.add(this.getForwardVector());
+  if (this.input.backward) wishDir.add(this.getForwardVector().negate());
+  if (this.input.left)     wishDir.add(this.getSideVector().negate());
+  if (this.input.right)    wishDir.add(this.getSideVector());
 
-  // 1) Get flat forward from camera
-  const wishDir = this.getForwardVector();  // normalized XZ
-
-  // 2) Extract horizontal velocity
-  const vel = this.playerVelocity.clone();
-  vel.y = 0;
+  if (wishDir.lengthSq() < 1e-6) return;   // no air input → no steering
+  wishDir.normalize();
+  
+  // extract horizontal velocity
+  const vel = this.playerVelocity.clone().setY(0);
   const speed = vel.length();
-  if (speed < 1e-6) return;  // no movement, nothing to steer
-
-  // 3) Compute current horizontal dir
+  if (speed < 1e-6) return;                // no momentum → nothing to rotate
   const currDir = vel.normalize();
 
-  // 4) Angle between current and wish
+  // compute angle between current and wish
   let angle = Math.acos(THREE.MathUtils.clamp(currDir.dot(wishDir), -1, 1));
   const maxDelta = AIR_TURN_RATE * dt;
   if (angle > maxDelta) angle = maxDelta;
 
-  // 5) Compute the axis to rotate around (+Y)
+  // determine rotation direction via cross
+  const crossY = currDir.clone().cross(wishDir).y;
   const axis = new THREE.Vector3(0, 1, 0);
+  const q = new THREE.Quaternion().setFromAxisAngle(axis, angle * (crossY < 0 ? -1 : 1));
 
-  // 6) Rotate currDir toward wishDir by allowed angle
-  const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
-  // But we need the *sign* of rotation: check cross
-  const cross = currDir.clone().cross(wishDir).y;
-  if (cross < 0) q.invert();  // rotate the other way
-
+  // apply rotation
   const newDir = currDir.clone().applyQuaternion(q);
-
-  // 7) Set back velocity (preserve speed magnitude, keep Y)
   this.playerVelocity.x = newDir.x * speed;
   this.playerVelocity.z = newDir.z * speed;
-  // leave this.playerVelocity.y untouched
 }
 
     /**
