@@ -11,8 +11,8 @@ const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 const STEP_HEIGHT = 1; // Maximum height the player can step up
 const STEP_FORWARD_OFFSET = 0.04; // How far in front of the player to check for a step
 
-const MAX_SLOPE_ANGLE = 45 * (Math.PI / 180); // in radians
-const walkableDot = Math.cos(MAX_SLOPE_ANGLE); // e.g. ~0.707
+const MAX_SLOPE_ANGLE = 45 * (Math.PI / 180);
+const WALKABLE_DOT    = Math.cos(MAX_SLOPE_ANGLE);
 
 // Player capsule dimensions (matching the provided example's player setup)
 const PLAYER_CAPSULE_RADIUS = 0.5;
