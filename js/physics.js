@@ -212,7 +212,7 @@ _stepUpIfPossible() {
     .add(dir.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
   origin.y += STEP_HEIGHT + 0.05;
 
-  const ray = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, 3 + 0.1);
+  const ray = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, 4 + 0.1);
   const hits = ray.intersectObject(this.collider, true);
   if (hits.length === 0) return;
 
