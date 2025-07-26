@@ -28,6 +28,10 @@ const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps st
 const FIXED_TIME_STEP = 1 / 90; // Fixed time step for physics updates (e.g., 90 FPS physics)
 const MAX_PHYSICS_STEPS = 5;    // Maximum number of physics steps per frame to prevent "spiral of death"
 
+// NEW: Slope and Step Physics Constants
+const MAX_STEP_HEIGHT = 0.5; // Maximum height the player can step up
+const SLOPE_LIMIT_ANGLE_COS = Math.cos(Math.PI / 4); // Cosine of 45 degrees, for slope limit (dot product with up vector)
+
 // seamless audio-loop helper (UNCHANGED)
 function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
     let timerId = null, currentAudio = null;
@@ -251,8 +255,15 @@ export class PhysicsController {
             this.isCrouching = true;
             this.targetPlayerHeight = currentCrouchHeight;
         } else {
-            this.isCrouching = false;
-            this.targetPlayerHeight = standingHeight;
+            // Only allow standing if there's no ceiling
+            if (this._checkCeilingCollision(standingHeight)) {
+                this.isCrouching = false;
+                this.targetPlayerHeight = standingHeight;
+            } else {
+                // If there's a ceiling, remain crouched
+                this.isCrouching = true;
+                this.targetPlayerHeight = currentCrouchHeight;
+            }
         }
     }
 
@@ -266,7 +277,7 @@ export class PhysicsController {
             return true; // If no collider, assume no ceiling
         }
 
-        const currentRadius = this.player.capsuleInfo.radius;
+        const currentRadius = this.player.capsuleInfo.radius * this.player.scale.y; // Account for current player scale
         // Calculate the segment of the capsule at the target standing height
         // This is relative to the player's current position (which is the top of the capsule)
         const segmentStart = new THREE.Vector3(0, 0, 0); // Top of the capsule
@@ -297,7 +308,7 @@ export class PhysicsController {
                     // Check if the collision is above the player (a ceiling)
                     const normal = tri.getNormal(new THREE.Vector3());
                     // Dot product with upVector to see if normal points mostly downwards (ceiling)
-                    if (normal.dot(this.upVector) < -0.1) {
+                    if (normal.dot(this.upVector) < -0.1) { // A small negative value allows for slight imperfections
                         hitCeiling = true;
                         return true; // Stop iterating
                     }
@@ -313,114 +324,149 @@ export class PhysicsController {
      * This function runs for each physics sub-step.
      * @param {number} delta The fixed time step for this physics update.
      */
-_updatePlayerPhysics(delta) {
-    // Reset grounded; we’ll detect contact this frame
-    this.isGrounded = false;
+    _updatePlayerPhysics(delta) {
+        // Reset grounded; we’ll detect contact this frame
+        this.isGrounded = false;
 
-    // Apply gravity
-    this.playerVelocity.y -= GRAVITY * delta;
-
-    // Cap horizontal speed
-    const horizSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-    const maxHoriz = MAX_SPEED * this.speedModifier;
-    if (horizSpeed > maxHoriz) {
-        const s = maxHoriz / horizSpeed;
-        this.playerVelocity.x *= s;
-        this.playerVelocity.z *= s;
-    }
-
-    // Crouch/stand interpolation (unchanged)
-    /* … your existing crouch/scale code … */
-
-    // Move by velocity
-    this.player.position.addScaledVector(this.playerVelocity, delta);
-    this.player.updateMatrixWorld();
-
-    // Prepare capsule shapecast
-    const cap = this.player.capsuleInfo;
-    const r = cap.radius + 0.001;
-    this.tempBox.makeEmpty();
-    this.tempSegment.copy(cap.segment)
-        .applyMatrix4(this.player.matrixWorld)
-        .applyMatrix4(this.colliderMatrixWorldInverse);
-    this.tempBox.expandByPoint(this.tempSegment.start);
-    this.tempBox.expandByPoint(this.tempSegment.end);
-    this.tempBox.min.addScalar(-r);
-    this.tempBox.max.addScalar(r);
-
-    let hitNormal = null;
-    let pushOut = 0;
-
-    // Perform shapecast
-    this.collider.geometry.boundsTree.shapecast({
-        intersectsBounds: box => box.intersectsBox(this.tempBox),
-        intersectsTriangle: tri => {
-            // find closest point between tri and capsule segment
-            const tp = this.tempVector;
-            const cp = this.tempVector2;
-            const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
-            if (dist < r) {
-                // compute penetration depth and normal
-                const depth = r - dist;
-                const normal = tri.getNormal(new THREE.Vector3());
-                // accumulate the deepest penetration/normal
-                if (depth > pushOut) {
-                    pushOut = depth;
-                    hitNormal = normal.clone();
-                    // also push the capsule segment out
-                    this.tempSegment.start.addScaledVector(tp.clone().sub(cp).normalize(), depth);
-                    this.tempSegment.end .addScaledVector(tp.clone().sub(cp).normalize(), depth);
-                }
-            }
+        // Apply gravity
+        if (!this.isGrounded) { // Only apply gravity if not currently grounded
+            this.playerVelocity.y -= GRAVITY * delta;
         }
-    });
 
-    if (hitNormal) {
-        // compute world‐space delta
-        const newStart = this.tempVector
-            .copy(this.tempSegment.start)
-            .applyMatrix4(this.collider.matrixWorld);
-        const deltaVec = newStart.sub(this.player.position);
+        // Cap horizontal speed
+        const horizSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+        const maxHoriz = MAX_SPEED * this.speedModifier; // Use speedModifier for max horizontal speed
+        if (horizSpeed > maxHoriz) {
+            const s = maxHoriz / horizSpeed;
+            this.playerVelocity.x *= s;
+            this.playerVelocity.z *= s;
+        }
 
-        // classify by face normal instead of pure Y
-        const upDot = hitNormal.dot(this.upVector);
-        const slopeLimit = Math.cos(THREE.MathUtils.degToRad(45)); // allow up to 45°
+        // Crouch/stand interpolation
+        const curS = this.player.scale.y;
+        const tgtS = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
+        if (Math.abs(curS - tgtS) > 0.001) {
+            const ns = THREE.MathUtils.lerp(curS, tgtS, CROUCH_SPEED * delta);
+            const oldH = PLAYER_TOTAL_HEIGHT * curS;
+            const newH = PLAYER_TOTAL_HEIGHT * ns;
+            this.player.scale.y = ns;
+            // Adjust player position so the bottom of the capsule stays roughly in place
+            this.player.position.y -= (oldH - newH);
+            // Adjust the capsule segment length for collision detection
+            this.player.capsuleInfo.segment.end.y = -this.originalCapsuleSegmentLength * ns;
+        }
 
-        // decompose movement
-        const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
-        const verticalDelta   = deltaVec.y;
+        // Move by velocity (tentative position)
+        this.player.position.addScaledVector(this.playerVelocity, delta);
+        this.player.updateMatrixWorld();
 
-        if (upDot >= slopeLimit) {
-            // gentle slope or floor
-            // zero out vertical velocity
-            this.playerVelocity.y = 0;
-            this.player.position.add(horizontalDelta);
-            this.player.position.y += verticalDelta;
-            this.isGrounded = true;
-        } else {
-            // too steep: treat as wall but allow small steps
-            const MAX_STEP = 0.2; // adjust to taste
-            if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
-                // small step up
-                this.playerVelocity.y = 0;
-                this.player.position.add(horizontalDelta);
-                this.player.position.y += verticalDelta;
-                this.isGrounded = true;
+        // Prepare collision shapecast
+        const cap = this.player.capsuleInfo;
+        const currentCapsuleRadius = cap.radius * this.player.scale.y; // Account for current scale
+        const currentCapsuleSegmentLength = Math.abs(cap.segment.end.y); // Current segment length from scaled capsule
+        const r = currentCapsuleRadius + 0.001; // Add small buffer for robustness
+
+        this.tempSegment.copy(cap.segment)
+            .applyMatrix4(this.player.matrixWorld)
+            .applyMatrix4(this.colliderMatrixWorldInverse);
+
+        let hasCollided = false;
+        let collisionNormal = new THREE.Vector3(); // Store the normal of the collision surface
+
+        if (this.collider?.geometry?.boundsTree) {
+            this.collider.geometry.boundsTree.shapecast({
+                intersectsBounds: box => box.intersectsBox(this.tempBox),
+                intersectsTriangle: tri => {
+                    const tp = this.tempVector;
+                    const cp = this.tempVector2;
+                    const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
+                    if (dist < r) {
+                        hasCollided = true;
+                        const depth = r - dist;
+                        const dir = cp.sub(tp).normalize();
+
+                        // Store the collision normal for later analysis
+                        collisionNormal.copy(dir);
+
+                        // Push the segment out of collision along its normal
+                        this.tempSegment.start.addScaledVector(dir, depth);
+                        this.tempSegment.end.addScaledVector(dir, depth);
+                    }
+                    return false; // Continue iterating to find the deepest penetration/closest contact
+                }
+            });
+        }
+
+        if (hasCollided) {
+            // Compute collision offset in world space
+            const newStart = this.tempVector
+                .copy(this.tempSegment.start)
+                .applyMatrix4(this.collider.matrixWorld);
+            const deltaVec = newStart.sub(this.player.position); // This is the displacement needed to resolve collision
+
+            // Determine if the collision surface is considered "ground" (within slope limit)
+            const isGroundSurface = collisionNormal.dot(this.upVector) > SLOPE_LIMIT_ANGLE_COS;
+
+            if (isGroundSurface) {
+                // If it's a ground surface, check for stepping
+                if (deltaVec.y > 0 && deltaVec.y <= MAX_STEP_HEIGHT) {
+                    // Small step up: climb the step
+                    this.player.position.add(deltaVec);
+                    this.isGrounded = true;
+                    this.playerVelocity.y = 0; // Stop vertical movement
+                } else if (deltaVec.y < 0.001) { // Very small or negative vertical push (horizontal wall/flat ground)
+                    // Horizontal wall or flat ground: slide along the wall
+                    const n = deltaVec.clone().normalize();
+                    const proj = deltaVec.dot(this.playerVelocity);
+                    this.playerVelocity.addScaledVector(n, -proj); // Remove velocity component along collision normal
+                    // Apply the horizontal component of the push to prevent sticking
+                    this.player.position.add(new THREE.Vector3(deltaVec.x, 0, deltaVec.z));
+                    this.isGrounded = true; // Still considered grounded if on a flat surface
+                    this.playerVelocity.y = 0;
+                } else {
+                    // Large step up or down too steep to step: treat as obstacle, slide horizontally
+                    // This covers cases where deltaVec.y > MAX_STEP_HEIGHT but it's a "ground-like" surface
+                    const n = deltaVec.clone().normalize();
+                    const proj = deltaVec.dot(this.playerVelocity);
+                    this.playerVelocity.addScaledVector(n, -proj);
+                    this.player.position.add(new THREE.Vector3(deltaVec.x, 0, deltaVec.z));
+                    // If moving downwards onto a steep slope, it might still register as grounded depending on angle
+                    if (deltaVec.y < 0) { // If pushed downwards by a surface, assume grounded
+                         this.isGrounded = true;
+                         this.playerVelocity.y = 0;
+                    }
+                }
             } else {
-                // slide along wall
-                // remove velocity component into the wall
+                // If it's a steep slope or wall (not considered ground for stepping)
+                // Slide along the surface
                 const n = deltaVec.clone().normalize();
                 const proj = deltaVec.dot(this.playerVelocity);
                 this.playerVelocity.addScaledVector(n, -proj);
-                this.player.position.add(horizontalDelta);
+                // Apply the horizontal component of the push to prevent sticking
+                this.player.position.add(new THREE.Vector3(deltaVec.x, 0, deltaVec.z));
+
+                // If the player is trying to move into a steep slope, prevent upward movement from collision
+                if (this.playerVelocity.y > 0 && n.y < -0.1) { // If moving up into a downward-pointing normal (ceiling)
+                    this.playerVelocity.y = 0;
+                }
+            }
+
+            // If we are grounded due to a collision, ensure vertical velocity is zero
+            if (this.isGrounded) {
+                this.playerVelocity.y = 0;
             }
         }
 
-        // sync camera
+        // If player is now grounded due to collision, ensure gravity doesn't immediately pull them down next frame
+        if (this.isGrounded) {
+             // A small negative velocity to keep the player "stuck" to the ground
+            this.playerVelocity.y = -0.1;
+        }
+
+
+        // Sync camera
         this.camera.position.copy(this.player.position);
     }
-}
-
 
     /**
      * Teleports the player to a safe position if they fall out of bounds.
@@ -430,7 +476,7 @@ _updatePlayerPhysics(delta) {
         // The bottom of the capsule is player.position.y (top) + segment.end.y (bottom of segment) - radius (bottom cap)
         // Adjust for scaling: player.position.y is the top of the scaled capsule.
         // The effective segment end will be relative to the scaled height.
-        const scaledSegmentEnd = this.player.capsuleInfo.segment.end.y * this.player.scale.y;
+        const scaledSegmentEnd = this.player.capsuleInfo.segment.end.y; // Already scaled by this.player.scale.y
         const bottomOfCapsuleY = this.player.position.y + scaledSegmentEnd - this.player.capsuleInfo.radius * this.player.scale.y;
 
         if (bottomOfCapsuleY < -25) { // If player falls below a certain threshold
@@ -464,7 +510,8 @@ _updatePlayerPhysics(delta) {
         // Reset player scale and target height in case they were crouching
         this.player.scale.set(1, 1, 1);
         this.targetPlayerHeight = PLAYER_TOTAL_HEIGHT;
-        this.player.capsuleInfo.segment.end.y = -PLAYER_CAPSULE_SEGMENT_LENGTH; // Reset segment length
+        // The segment end needs to be reset to its *original* value, as it's modified by scaling
+        this.player.capsuleInfo.segment.end.y = -PLAYER_CAPSULE_SEGMENT_LENGTH;
 
         // Update camera position to match the player's new position
         this.camera.position.copy(this.player.position);
@@ -501,7 +548,8 @@ _updatePlayerPhysics(delta) {
     _handleLandingSound() {
         if (!this.prevPlayerIsOnGround && this.isGrounded) {
             // Play landing sound if falling distance was significant or it was a jump
-            if ((this.fallStartY !== null && (this.fallStartY - this.player.position.y) > 1) || (this.jumpTriggered && (this.fallStartY - this.player.position.y) > 1)) {
+            // Added check for jumpTriggered so landing sound plays after a jump
+            if ((this.fallStartY !== null && (this.fallStartY - this.player.position.y) > 1) || this.jumpTriggered) {
                 this.landAudio.currentTime = 0;
                 this.landAudio.play().catch(() => { });
                 sendSoundEvent("landingThud", "land", this._pos());
@@ -514,8 +562,7 @@ _updatePlayerPhysics(delta) {
             this.jumpTriggered = false; // Reset jump trigger
         } else if (!this.isGrounded && this.fallStartY === null) {
             // If not grounded and fallStartY hasn't been set yet, and not due to a jump, start a timer
-            if (!this.fallStartTimer) {
-                
+            if (!this.fallStartTimer && !this.jumpTriggered) { // Only start fall timer if not a jump
                 this.fallStartTimer = setTimeout(() => {
                     this.fallStartY = this.player.position.y; // Set fallStartY after delay
                     this.fallStartTimer = null;
@@ -544,6 +591,7 @@ _updatePlayerPhysics(delta) {
             this.player.quaternion.slerp(targetQuaternion, smoothingFactor);
         } else {
             // If not grounded, smoothly return to upright (or keep previous horizontal rotation)
+            // This prevents the player model from tilting excessively while airborne
             const upAlignmentQuaternion = new THREE.Quaternion();
             upAlignmentQuaternion.setFromUnitVectors(this.player.up, new THREE.Vector3(0, 1, 0));
             this.player.quaternion.slerp(upAlignmentQuaternion, 0.05);
