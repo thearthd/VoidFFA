@@ -173,6 +173,29 @@ export class PhysicsController {
     setSpeedModifier(value) {
         this.speedModifier = value;
     }
+    
+    /**
+     * Gets the forward vector based on the camera's direction, flattened to the XZ plane.
+     * @returns {THREE.Vector3} The normalized forward vector.
+     */
+    getForwardVector() {
+        this.camera.getWorldDirection(this.tempVector);
+        this.tempVector.y = 0;
+        this.tempVector.normalize();
+        return this.tempVector;
+    }
+
+    /**
+     * Gets the side (right) vector based on the camera's direction, flattened to the XZ plane.
+     * @returns {THREE.Vector3} The normalized side vector.
+     */
+    getSideVector() {
+        this.camera.getWorldDirection(this.tempVector);
+        this.tempVector.y = 0;
+        this.tempVector.normalize();
+        this.tempVector.cross(this.upVector); // Cross with world up to get side vector
+        return this.tempVector;
+    }
 
 _simpleStepUp() {
     if (!this.isGrounded || !this.collider) return;
@@ -203,31 +226,7 @@ _simpleStepUp() {
             this.player.position.y = stepY + PLAYER_TOTAL_HEIGHT - PLAYER_CAPSULE_RADIUS + 0.01;
         }
     }
-}
-    
-    /**
-     * Gets the forward vector based on the camera's direction, flattened to the XZ plane.
-     * @returns {THREE.Vector3} The normalized forward vector.
-     */
-    getForwardVector() {
-        this.camera.getWorldDirection(this.tempVector);
-        this.tempVector.y = 0;
-        this.tempVector.normalize();
-        return this.tempVector;
-    }
-
-    /**
-     * Gets the side (right) vector based on the camera's direction, flattened to the XZ plane.
-     * @returns {THREE.Vector3} The normalized side vector.
-     */
-    getSideVector() {
-        this.camera.getWorldDirection(this.tempVector);
-        this.tempVector.y = 0;
-        this.tempVector.normalize();
-        this.tempVector.cross(this.upVector); // Cross with world up to get side vector
-        return this.tempVector;
-    }
-
+}    
     /**
      * Handles player input and updates player velocity.
      * @param {number} deltaTime The time elapsed since the last frame.
