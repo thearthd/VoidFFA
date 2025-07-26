@@ -1417,11 +1417,6 @@ window.addEventListener("keydown", e => {
 
 
 
-
-
-
-
-});
 function playerCardHit() {
     // 1) Inject popup‑wide styles (gradient & icon color)
     const style = document.createElement('style');
