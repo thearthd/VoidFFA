@@ -442,7 +442,7 @@ _stepUpIfPossible() {
             // Perform the step: Adjust player's y position directly.
             // Since this.player.position.y is the TOP of the capsule, to place the BOTTOM at stepTopY,
             // we set the TOP to (stepTopY + currentScaledPlayerHeight).
-            this.player.position.y = stepTopY + currentScaledPlayerHeight - 0.40;
+            this.player.position.y = stepTopY + currentScaledPlayerHeight - 0.60;
             this.playerVelocity.y = 0; // Clear vertical velocity to prevent immediate fall
             this.isGrounded = true; // Player is now grounded on the new step
         }
