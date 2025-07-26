@@ -33,7 +33,7 @@ import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
 import { initNetwork, setActiveGameId } from "./network.js";
 import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, requiredGameVersion, assignPlayerVersion, } from './firebase-config.js';
-import { setPauseState, inputState } from "./input.js";
+import { setPauseState, inputState, currentKeybinds } from "./input.js";
 import {  showLoadoutScreen, hideLoadoutScreen } from "./loadout.js";
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
 // <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -1388,17 +1388,32 @@ window.togglePauseMenuUI = togglePauseMenuUI; // This makes it accessible from i
 
 // Listen for the 'P' key press to toggle the pause menu
 window.addEventListener("keydown", e => {
-    // Only respond to 'P' key if the game is active and not chat-focused.
-if (checkInGame && e.key.toLowerCase() === 'p') {
-    // Allow toggling menu even if dead — just don't resume the game.
-    if (!inputState.isPaused || inputState.wasPausedByDeath) {
-        window.togglePauseMenuUI(true); // Force show pause menu
-    } else {
-        window.togglePauseMenuUI(false); // Hide menu
+    // Check if the pressed key matches the currently configured togglePause keybind
+    // and if the game is active and not chat-focused (assuming checkInGame is available)
+    if (window.checkInGame && e.code === currentKeybinds.togglePause) {
+        // Allow toggling menu even if dead — just don't resume the game.
+        if (!inputState.isPaused || inputState.wasPausedByDeath) {
+            if (typeof window.togglePauseMenuUI === 'function') {
+                window.togglePauseMenuUI(true); // Force show pause menu
+            } else {
+                console.warn("window.togglePauseMenuUI is not defined. Pause menu might not show.");
+                // Fallback: Manually toggle pause state if UI function is missing
+                inputState.isPaused = true;
+                inputState.wasPausedByDeath = false; // Assuming manual pause isn't by death
+            }
+        } else {
+            if (typeof window.togglePauseMenuUI === 'function') {
+                window.togglePauseMenuUI(false); // Hide menu
+            } else {
+                console.warn("window.togglePauseMenuUI is not defined. Pause menu might not hide.");
+                // Fallback: Manually toggle pause state if UI function is missing
+                inputState.isPaused = false;
+                inputState.wasPausedByDeath = false;
+            }
+        }
+        e.preventDefault();
     }
-    e.preventDefault();
-}
-
+});
 
 
 
