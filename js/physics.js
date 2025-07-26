@@ -609,6 +609,31 @@ export class PhysicsController {
         }
     }
 
+    teleportIfOob() {
+        // Check player's Y position relative to the bottom of the capsule
+        // The bottom of the capsule is player.position.y (top) + segment.end.y (bottom of segment) - radius (bottom cap)
+        // Adjust for scaling: player.position.y is the top of the scaled capsule.
+        // The effective segment end will be relative to the scaled height.
+        const scaledSegmentEnd = this.player.capsuleInfo.segment.end.y * this.player.scale.y;
+        const bottomOfCapsuleY = this.player.position.y + scaledSegmentEnd - this.player.capsuleInfo.radius * this.player.scale.y;
+
+        if (bottomOfCapsuleY < -25) { // If player falls below a certain threshold
+            window.localPlayer.isDead = true;
+            /*
+            console.warn("Player OOB detected! Teleporting...");
+            this.setPlayerPosition(new THREE.Vector3(0, 5, 0)); // Teleport to a safe, elevated position
+            this.playerVelocity.set(0, 0, 0); // Clear velocity
+            this.isGrounded = false;
+            this.jumpTriggered = false; // Reset jump flag on teleport
+            this.fallStartY = null; // Reset fall start Y on teleport
+            if (this.fallStartTimer) {
+                clearTimeout(this.fallStartTimer);
+                this.fallStartTimer = null;
+            }
+            */
+        }
+    }
+
     /**
      * Handles landing audio logic.
      */
