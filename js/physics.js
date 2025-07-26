@@ -28,7 +28,7 @@ const CROUCH_HEIGHT_RATIO = 0.6; // Player height when crouched (e.g., 60% of or
 const CROUCH_SPEED = 8;          // Speed at which player crouches/stands
 
 const MAX_SPEED = 10; // Maximum horizontal speed, now directly used for movement
-const AIR_TURN_RATE = 40 * (Math.PI / 180);
+const AIR_TURN_RATE = 180 * (Math.PI / 180);
 
 
 const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps stop
@@ -248,7 +248,7 @@ export class PhysicsController {
 
   if (!this.isGrounded) {
         this.input = input;
-    this._applyAirControl(deltaTime, moveDirection);
+    this._applyAirControl(deltaTime);
   }
 
         // Apply acceleration/deceleration to horizontal velocity components
@@ -277,36 +277,33 @@ export class PhysicsController {
     }
 
 _applyAirControl(dt) {
-  // Build wishDir just like on ground
-  const wishDir = new THREE.Vector3();
-  if (this.input.forward)  wishDir.add(this.getForwardVector());
-  if (this.input.backward) wishDir.add(this.getForwardVector().negate());
-  if (this.input.left)     wishDir.add(this.getSideVector().negate());
-  if (this.input.right)    wishDir.add(this.getSideVector());
+  // 1. Get the camera’s flat forward
+  const wishDir = this.getForwardVector();  // normalized XZ
 
-  if (wishDir.lengthSq() < 1e-6) return;   // no air input → no steering
-  wishDir.normalize();
-  
-  // extract horizontal velocity
-  const vel = this.playerVelocity.clone().setY(0);
+  // 2. Extract horizontal velocity & speed
+  const vel = this.playerVelocity.clone();
+  vel.y = 0;
   const speed = vel.length();
-  if (speed < 1e-6) return;                // no momentum → nothing to rotate
+  if (speed < 1e-6) return;  // nothing to steer
+
   const currDir = vel.normalize();
 
-  // compute angle between current and wish
-  let angle = Math.acos(THREE.MathUtils.clamp(currDir.dot(wishDir), -1, 1));
+  // 3. Compute angle between current velocity and camera forward
+  let angle = Math.acos( THREE.MathUtils.clamp(currDir.dot(wishDir), -1, 1) );
+
+  // 4. Clamp by your air turn rate
   const maxDelta = AIR_TURN_RATE * dt;
   if (angle > maxDelta) angle = maxDelta;
 
-  // determine rotation direction via cross
-  const crossY = currDir.clone().cross(wishDir).y;
-  const axis = new THREE.Vector3(0, 1, 0);
-  const q = new THREE.Quaternion().setFromAxisAngle(axis, angle * (crossY < 0 ? -1 : 1));
+  // 5. Figure out rotation direction via cross product
+  const sign = currDir.clone().cross(wishDir).y < 0 ? -1 : 1;
+  const q = new THREE.Quaternion().setFromAxisAngle( new THREE.Vector3(0,1,0), sign * angle );
 
-  // apply rotation
+  // 6. Apply rotation to velocity (preserving speed & vertical vel)
   const newDir = currDir.clone().applyQuaternion(q);
   this.playerVelocity.x = newDir.x * speed;
   this.playerVelocity.z = newDir.z * speed;
+  //   leave this.playerVelocity.y alone
 }
 
     /**
