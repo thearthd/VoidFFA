@@ -132,11 +132,6 @@ export class PhysicsController {
 
         // Input and camera setup
         this.mouseTime = 0;
-        const container = document.getElementById('container') || document.body;
-        container.addEventListener('mousedown', () => {
-            document.body.requestPointerLock();
-            this.mouseTime = performance.now();
-        });
         this.camera.rotation.order = 'YXZ'; // Ensure correct camera rotation order
 
         // Audio setup
