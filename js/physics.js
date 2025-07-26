@@ -592,21 +592,15 @@ _updatePlayerPhysics(delta) {
         if (hasCollision) {
           const normalY = collisionNormal.dot(this.upVector);
         
-          if (normalY >= WALKABLE_DOT && this.playerVelocity.y <= 0) {
-            // gentle slope or floor → snap down
-            this.isGrounded = true;
-            this.playerVelocity.y = 0;
-            } else {
-              // wall → slide
-              const proj = collisionNormal.dot(this.playerVelocity);
-              this.playerVelocity.addScaledVector(collisionNormal, -proj);
-            
-              // ★ new: apply friction/damping to lose momentum ★
-              const DAMPING = 0.8;          // keep 80% of speed
-              this.playerVelocity.x *= DAMPING;
-              this.playerVelocity.z *= DAMPING;
-              // (leave y alone if you only want horizontal damping)
-            }
+        if (normalY >= WALKABLE_DOT && this.playerVelocity.y <= 0) {
+          // gentle slope → snap down
+          this.isGrounded = true;
+          this.playerVelocity.y = 0;
+        } else {
+          // too steep (i.e. a wall) → slide
+          const proj = collisionNormal.dot(this.playerVelocity);
+          this.playerVelocity.addScaledVector(collisionNormal, -proj);
+        }
         }
     // Sync camera to player position
     this.camera.position.copy(this.player.position);
