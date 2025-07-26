@@ -365,13 +365,13 @@ _stepUpIfPossible() {
     const rayOriginZ = this.player.position.z + dir.z * rayOriginForwardOffset;
     
     // The ray for step detection starts from above the `actualGroundY` at max step height
-    const rayOriginY = actualGroundY + 0.05; // 0.05 is a small offset above max step height
+    const rayOriginY = actualGroundY + STEP_HEIGHT + 0.05; // 0.05 is a small offset above max step height
 
     const stepRay = new THREE.Raycaster(
         new THREE.Vector3(rayOriginX, rayOriginY, rayOriginZ),
         new THREE.Vector3(0, -1, 0), // Ray points straight down
         0,
-        STEP_HEIGHT + 0.1 // Max distance the ray will travel downwards to find a step
+        STEP_HEIGHT + 0.3 // Max distance the ray will travel downwards to find a step
     );
     const stepHits = stepRay.intersectObject(this.collider, true);
 
