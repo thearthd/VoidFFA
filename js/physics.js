@@ -209,8 +209,8 @@ _stepUpIfPossible() {
 
   // cast just above the max step height in front of the player
   const origin = feetPos.clone()
-    .add(dir.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
- // origin.y += 0.5 + 0.05;
+    .add(dir.multiplyScalar(STEP_FORWARD_OFFSET));
+  origin.y += 1 + 0.05;
 
   const ray = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.1);
   const hits = ray.intersectObject(this.collider, true);
