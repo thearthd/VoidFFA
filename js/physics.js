@@ -386,19 +386,21 @@ _updatePlayerPhysics(delta) {
 
     // Determine if this is a slope/step or a wall
     const stepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
-    const isSlope = deltaVec.y > stepThresh;
+    const isSlope = Math.abs(deltaVec.y) > stepThresh;
 
     // Decompose deltaVec
     const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
     const verticalDelta = deltaVec.y;
 
-    if (isSlope) {
-        // Gentle slope or drop: move fully
-        this.player.position.add(horizontalDelta);
-        this.player.position.y += verticalDelta;
-        this.isGrounded = true;
-        this.playerVelocity.y = 0;
-    } else {
+if (isSlope) {
+  // we have a gentle slope or drop
+  const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
+  // if deltaVec.y < 0, we’re going downhill; if > 0, uphill
+  this.player.position.add(horizontalDelta);
+  this.player.position.y += deltaVec.y;
+  this.isGrounded = true;
+  this.playerVelocity.y = 0;
+} else {
         // Wall bump: check for small step
         const MAX_STEP = 0.5;
         if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
