@@ -11,6 +11,8 @@ const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 const STEP_HEIGHT = 1; // Maximum height the player can step up
 const STEP_FORWARD_OFFSET = 0.04; // How far in front of the player to check for a step
 
+const MAX_SLOPE_ANGLE = 45 * (Math.PI / 180); // in radians
+const walkableDot = Math.cos(MAX_SLOPE_ANGLE); // e.g. ~0.707
 
 // Player capsule dimensions (matching the provided example's player setup)
 const PLAYER_CAPSULE_RADIUS = 0.5;
@@ -557,17 +559,19 @@ _updatePlayerPhysics(delta) {
     deltaVec.normalize().multiplyScalar(offset);
     this.player.position.add(deltaVec);
 
-    if (isStepOrSlope) {
-        // Landed on ground or stepped up → only zero vertical velocity
-        this.isGrounded = true;
-        this.playerVelocity.y = 0;
-    } else if (hasCollision) {
-        // Hit a wall → slide along it
-        // Use the actual collision normal for sliding
-        const proj = collisionNormal.dot(this.playerVelocity);
-        this.playerVelocity.addScaledVector(collisionNormal, -proj);
-    }
-
+        if (hasCollision) {
+          const normalY = collisionNormal.dot(this.upVector);
+        
+          if (normalY >= WALKABLE_DOT && this.playerVelocity.y <= 0) {
+            // gentle slope or floor → snap down
+            this.isGrounded = true;
+            this.playerVelocity.y = 0;
+          } else {
+            // too steep or upward‐moving → slide
+            const proj = collisionNormal.dot(this.playerVelocity);
+            this.playerVelocity.addScaledVector(collisionNormal, -proj);
+          }
+        }
     // Sync camera to player position
     this.camera.position.copy(this.player.position);
 }
