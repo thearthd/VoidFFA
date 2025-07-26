@@ -601,11 +601,17 @@ _updatePlayerPhysics(delta) {
             // gentle slope or floor → snap down
             this.isGrounded = true;
             this.playerVelocity.y = 0;
-          } else {
-            // too steep or upward‐moving → slide
-            const proj = collisionNormal.dot(this.playerVelocity);
-            this.playerVelocity.addScaledVector(collisionNormal, -proj);
-          }
+            } else {
+              // wall → slide
+              const proj = collisionNormal.dot(this.playerVelocity);
+              this.playerVelocity.addScaledVector(collisionNormal, -proj);
+            
+              // ★ new: apply friction/damping to lose momentum ★
+              const DAMPING = 0.8;          // keep 80% of speed
+              this.playerVelocity.x *= DAMPING;
+              this.playerVelocity.z *= DAMPING;
+              // (leave y alone if you only want horizontal damping)
+            }
         }
     // Sync camera to player position
     this.camera.position.copy(this.player.position);
