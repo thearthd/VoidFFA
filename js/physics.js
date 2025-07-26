@@ -379,47 +379,58 @@ export class PhysicsController {
         }
 
         // Compute collision offset in world space
-        const newStart = this.tempVector
-            .copy(this.tempSegment.start)
-            .applyMatrix4(this.collider.matrixWorld);
-        const deltaVec = newStart.sub(this.player.position);
+const newStart = this.tempVector
+    .copy(this.tempSegment.start)
+    .applyMatrix4(this.collider.matrixWorld);
+const deltaVec = newStart.sub(this.player.position); // <-- Start copying from here
 
-        // Determine if this is a slope/step or a wall
-        // ADDED: A minimum threshold for slope detection to ensure smoother movement on very gentle slopes
-        const MIN_SLOPE_THRESHOLD = 0.01;
-        const dynamicStepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
-        const stepThresh = Math.max(dynamicStepThresh, MIN_SLOPE_THRESHOLD); // MODIFIED this line
-        const isSlope = deltaVec.y > stepThresh;
+// --- START OF DEBUGGING LOGS AND MODIFIED LOGIC ---
+console.log("--- Physics Step Debug ---");
+console.log("Current Player Y Pos:", this.player.position.y.toFixed(3));
+console.log("Player Velocity Y:", this.playerVelocity.y.toFixed(3));
+console.log("Collision DeltaVec (xyz):", deltaVec.x.toFixed(3), deltaVec.y.toFixed(3), deltaVec.z.toFixed(3));
 
-        // Decompose deltaVec
-        const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
-        const verticalDelta = deltaVec.y;
+const MIN_SLOPE_THRESHOLD = 0.01; // This should be 0.01
+const dynamicStepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
+const stepThresh = Math.max(dynamicStepThresh, MIN_SLOPE_THRESHOLD);
+console.log("Calculated stepThresh:", stepThresh.toFixed(3));
 
-        if (isSlope) {
-            // Gentle slope or drop: move fully by the collision response vector
-            this.player.position.add(horizontalDelta);
-            this.player.position.y += verticalDelta;
-            this.isGrounded = true;
-            this.playerVelocity.y = 0; // Prevent gravity accumulation on slopes
-        } else {
-            // Wall bump: check for small step
-            // MODIFIED: Reduced MAX_STEP to make automatic step climbing less aggressive
-            const MAX_STEP = 0.2; // Example: Player can only auto-step up to 20cm
-            if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
-                // climb the step: apply horizontal push and snap up
-                this.player.position.add(horizontalDelta);
-                this.player.position.y += verticalDelta;
-                this.isGrounded = true;
-                this.playerVelocity.y = 0; // Prevent gravity accumulation on steps
-            } else {
-                // slide along wall or get blocked by an obstacle too high to step
-                const n = deltaVec.clone().normalize();
-                const proj = deltaVec.dot(this.playerVelocity);
-                this.playerVelocity.addScaledVector(n, -proj);
-                // apply only horizontal component of push so you don't get stuck
-                this.player.position.add(horizontalDelta);
-            }
-        }
+const isSlope = deltaVec.y > stepThresh;
+console.log("Is Slope?:", isSlope);
+
+const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
+const verticalDelta = deltaVec.y;
+console.log("Vertical Delta from Collision:", verticalDelta.toFixed(3));
+
+const MAX_STEP_VALUE = 0.2; // This should be your desired step height (e.g., 0.2)
+console.log("Configured MAX_STEP:", MAX_STEP_VALUE.toFixed(3));
+
+if (isSlope) {
+    console.log("Collision Path: SLOPE");
+    // Gentle slope or drop: move fully
+    this.player.position.add(horizontalDelta);
+    this.player.position.y += verticalDelta;
+    this.isGrounded = true;
+    this.playerVelocity.y = 0;
+} else {
+    // Wall bump: check for small step
+    if (verticalDelta > 0 && verticalDelta <= MAX_STEP_VALUE) { // Use MAX_STEP_VALUE here
+        console.log("Collision Path: STEP");
+        // climb the step: apply horizontal push and snap up
+        this.player.position.add(horizontalDelta);
+        this.player.position.y += verticalDelta;
+        this.isGrounded = true;
+        this.playerVelocity.y = 0;
+    } else {
+        console.log("Collision Path: WALL / Too high to step");
+        // slide along wall
+        const n = deltaVec.clone().normalize();
+        const proj = deltaVec.dot(this.playerVelocity);
+        this.playerVelocity.addScaledVector(n, -proj);
+        // apply only horizontal component of push so you don't get stuck
+        this.player.position.add(horizontalDelta);
+    }
+}
 
         // Sync camera position with player position
         this.camera.position.copy(this.player.position);
