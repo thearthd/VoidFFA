@@ -31,7 +31,7 @@ const MAX_PHYSICS_STEPS = 5;    // Maximum number of physics steps per frame to 
 
 // NEW: Step-up constants
 const STEP_HEIGHT = 1; // Maximum height the player can step up
-const STEP_FORWARD_OFFSET = 0.1; // How far in front of the player to check for a step
+const STEP_FORWARD_OFFSET = 0.01; // How far in front of the player to check for a step
 
 // seamless audio-loop helper (UNCHANGED)
 function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
@@ -260,7 +260,7 @@ _stepUpIfPossible() {
     //    - deltaY must be within the allowed STEP_HEIGHT
     //    - deltaY must be at least 0.3 for the step to count (NEW CONDITION)
     //    - Use a very small tolerance (1e-5) for deltaY, as `actualGroundY` is more reliable now.
-    if (deltaY > 1e-5 && deltaY <= STEP_HEIGHT && deltaY >= 0.5) { // Added deltaY >= 0.3
+    if (deltaY > 1e-5 && deltaY <= STEP_HEIGHT && deltaY >= 0.3) { // Added deltaY >= 0.3
         // 6. Headroom Check: Ensure there’s enough space above the player at the new stepped-up height
         // Calculate the Y coordinate of the player's top if they were to step up.
         // If the player's bottom moves to `stepTopY`, their top will be `stepTopY + currentScaledPlayerHeight`.
