@@ -8,7 +8,7 @@ const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 
 const STEP_HEIGHT = 1; // Maximum height the player can step up
-const STEP_FORWARD_OFFSET = 0.1; // How far in front of the player to check for a step
+const STEP_FORWARD_OFFSET = 0.05; // How far in front of the player to check for a step
 
 const MAX_SLOPE_ANGLE = 45 * (Math.PI / 180);
 const WALKABLE_DOT = Math.cos(MAX_SLOPE_ANGLE);
@@ -462,7 +462,7 @@ _stepUpIfPossible() {
             // Perform the step: Adjust player's y position directly.
             // Since this.player.position.y is the TOP of the capsule, to place the BOTTOM at stepTopY,
             // we set the TOP to (stepTopY + currentScaledPlayerHeight).
-            this.player.position.y = stepTopY + currentScaledPlayerHeight - 0.400;
+            this.player.position.y = stepTopY + currentScaledPlayerHeight - 0.500;
             this.playerVelocity.y = 0; // Clear vertical velocity to prevent immediate fall
             this.isGrounded = true; // Player is now grounded on the new step
         }
