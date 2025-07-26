@@ -195,37 +195,55 @@ export class PhysicsController {
 
     
 _stepUpIfPossible() {
-  if (!this.isGrounded || !this.collider) return;
+    if (!this.isGrounded || !this.collider) return;
 
-  // direction of travel (horizontal)
-  const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
-  if (horizVel.length() < 0.01) return;
+    // direction of travel (horizontal)
+    const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
+    if (horizVel.length() < 0.01) return; // Only step up if moving horizontally
 
-  const dir = horizVel.normalize();
-  const feetPos = this.player.position.clone()
-    .add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT / 2 + this.player.capsuleInfo.radius, 0));
+    const dir = horizVel.normalize();
 
-  // start the ray a bit in front of the feet and above max step height
-  const origin = feetPos.clone()
-    .add(dir.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
-  origin.y += STEP_HEIGHT + 0.05;
+    // Calculate the actual bottom of the player's capsule
+    // player.position.y is the top.
+    // So bottom is player.position.y - (current_scaled_height - radius) - radius
+    // which simplifies to player.position.y - (PLAYER_TOTAL_HEIGHT * this.player.scale.y) + this.player.capsuleInfo.radius * this.player.scale.y
+    const currentScaledPlayerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
+    const currentScaledCapsuleRadius = this.player.capsuleInfo.radius * this.player.scale.y;
+    const currentBottomY = this.player.position.y - (currentScaledPlayerHeight - currentScaledCapsuleRadius) - currentScaledCapsuleRadius;
 
-  const ray = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.1);
-  const hits = ray.intersectObject(this.collider, true);
+    // Start the ray slightly in front of the player's current bottom and just above the max step height
+    const rayOriginY = currentBottomY + STEP_HEIGHT + 0.05; // Slightly above max step height from current bottom
+    const origin = this.player.position.clone() // Start from player's horizontal position
+      .add(dir.multiplyScalar(this.player.capsuleInfo.radius * this.player.scale.y + STEP_FORWARD_OFFSET));
+    origin.y = rayOriginY; // Set the Y component to the calculated ray origin Y
 
-  if (hits.length === 0) return;
-  const hit = hits[0];
-  const stepTopY = hit.point.y;
+    const ray = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.1);
+    const hits = ray.intersectObject(this.collider, true);
 
-  // current feet Y
-  const currentFeetY = feetPos.y;
-  const deltaY = stepTopY - currentFeetY;
-  if (deltaY > 0.01 && deltaY <= STEP_HEIGHT) {
-    // perform the step
-    this.player.position.y += deltaY;
-    this.playerVelocity.y = 0;
-    this.isGrounded = true;
-  }
+    if (hits.length === 0) return;
+    const hit = hits[0];
+    const stepTopY = hit.point.y; // Y coordinate of the surface we hit
+
+    // Check if the step height is within the allowed range
+    const deltaY = stepTopY - currentBottomY;
+    if (deltaY > 0.01 && deltaY <= STEP_HEIGHT) {
+        // Make sure there’s headroom above the step after we move up
+        // The new top of the player will be stepTopY + (currentScaledPlayerHeight - currentScaledCapsuleRadius) + currentScaledCapsuleRadius
+        const newPlayerTopY = stepTopY + (currentScaledPlayerHeight - currentScaledCapsuleRadius) + currentScaledCapsuleRadius;
+
+        const headCheckOrigin = new THREE.Vector3(this.player.position.x, newPlayerTopY, this.player.position.z);
+        // The headCheckOrigin is now at the *new* top of the player.
+        // We want to cast a small ray upwards from there to detect a ceiling.
+        const headRay = new THREE.Raycaster(headCheckOrigin, new THREE.Vector3(0, 1, 0), 0, 0.05); // A small ray
+        const headHits = headRay.intersectObject(this.collider, true);
+
+        if (headHits.length === 0) {
+            // Perform the step: Adjust player's y position so the bottom of the capsule is at stepTopY
+            this.player.position.y += deltaY; // Move the whole player up by deltaY
+            this.playerVelocity.y = 0; // Clear vertical velocity
+            this.isGrounded = true; // Player is now grounded
+        }
+    }
 }
     /**
      * Handles player input and updates player velocity.
