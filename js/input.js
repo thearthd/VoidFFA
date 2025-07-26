@@ -60,10 +60,11 @@ const defaultKeybinds = {
     'weapon3': 'Digit3', // Secondary
     'toggleChat': 'Backquote', // Tilde key
     'toggleChatUI': 'KeyC', // Toggle chat container visibility
+    'togglePause': 'KeyP', // Added 'KeyP' for pause
 };
 
 // Current active keybinds, initialized from localStorage or defaults
-let currentKeybinds = {};
+export let currentKeybinds = {}; // Export currentKeybinds so other files can access it
 
 // --- Keybind Management Functions ---
 function loadKeybinds() {
@@ -473,6 +474,8 @@ function onKeyDown(e) {
         return;
     }
 
+    // IMPORTANT: Pause key handling is moved to the external file that had the original listener.
+    // This `onKeyDown` in the input.js file should NOT handle the pause key to avoid conflicts.
     // If game is paused or chat is focused, ignore other game keys.
     if (inputState.isPaused || document.activeElement === chatInput) return;
 
@@ -535,8 +538,9 @@ function onKeyDown(e) {
 }
 
 function onKeyUp(e) {
-    // Always allow Backquote for chat, or Escape to unpause (no action on keyup)
-    if (e.code === currentKeybinds.toggleChat || e.code === "Escape") return;
+    // Always allow Backquote for chat, or Escape (which is often used to close menus, not a game input itself).
+    // The `togglePause` key should NOT be handled here if its behavior is entirely on keydown in another file.
+    if (e.code === currentKeybinds.toggleChat) return;
 
     // If game is paused or chat is focused, ignore other game keys.
     if (inputState.isPaused || document.activeElement === chatInput) return;
@@ -753,12 +757,6 @@ export function initInput() {
     elementToLock.addEventListener("mousedown", onMouseDownGlobal, true);
     document.addEventListener("pointerlockchange", onPointerLockChange);
     document.addEventListener("pointerlockerror", onPointerLockError);
-    // These are handled by addGameEventListeners/removeGameEventListeners based on pause state
-    // window.addEventListener("keydown", onKeyDown);
-    // window.addEventListener("keyup", onKeyUp);
-    // window.addEventListener("mousedown", onMouseDownGame);
-    // window.addEventListener("mouseup", onMouseUpGame);
-    // window.addEventListener("contextmenu", onContextMenu);
     window.addEventListener("keydown", onChatKeyC); // Chat toggle always active
 
     addGameEventListeners(); // Add initial game event listeners
@@ -849,32 +847,4 @@ function getSavedLoadout() {
         primary: localStorage.getItem("loadout_primary") || DEFAULT_PRIMARY,
         secondary: localStorage.getItem("loadout_secondary") || DEFAULT_SECONDARY,
     };
-}
-
-loadKeybinds();
-
-if (keybindsContainer) populateKeybindSettings();
-
-// Immediately bind reset keybinds button
-if (resetKeybindsBtn) {
-    resetKeybindsBtn.addEventListener('click', () => {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: "This will reset all your keybinds to their default settings.",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Yes, reset them!',
-            customClass: {
-                popup: 'swal-custom-popup',
-                confirmButton: 'swal-custom-button',
-                cancelButton: 'swal-custom-button'
-            }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                resetKeybinds();
-            }
-        });
-    });
 }
