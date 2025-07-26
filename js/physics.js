@@ -245,9 +245,7 @@ export class PhysicsController {
             accelRateZ = input.forward || input.backward || input.left || input.right ? PLAYER_ACCEL_AIR : PLAYER_DECEL_AIR;
         }
 
-  if (this.isGrounded) {
-    this._applyGroundControl(deltaTime, moveDirection);
-  } else {
+  if (!this.isGrounded) {
     this._applyAirControl(deltaTime, moveDirection);
   }
 
