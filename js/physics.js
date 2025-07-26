@@ -258,8 +258,9 @@ _stepUpIfPossible() {
     // 5. Conditions for performing the step-up:
     //    - deltaY must be positive (it's a step up, not down or flat)
     //    - deltaY must be within the allowed STEP_HEIGHT
+    //    - deltaY must be at least 0.3 for the step to count (NEW CONDITION)
     //    - Use a very small tolerance (1e-5) for deltaY, as `actualGroundY` is more reliable now.
-    if (deltaY > 1e-5 && deltaY <= STEP_HEIGHT) {
+    if (deltaY > 1e-5 && deltaY <= STEP_HEIGHT && deltaY >= 0.3) { // Added deltaY >= 0.3
         // 6. Headroom Check: Ensure there’s enough space above the player at the new stepped-up height
         // Calculate the Y coordinate of the player's top if they were to step up.
         // If the player's bottom moves to `stepTopY`, their top will be `stepTopY + currentScaledPlayerHeight`.
@@ -285,6 +286,7 @@ _stepUpIfPossible() {
         }
     }
 }
+
     /**
      * Handles player input and updates player velocity.
      * @param {number} deltaTime The time elapsed since the last frame.
