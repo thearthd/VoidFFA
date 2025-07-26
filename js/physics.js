@@ -356,6 +356,7 @@ _stepUpIfPossible() {
      * @param {number} delta The fixed time step for this physics update.
      */
 _updatePlayerPhysics(delta) {
+    this._stepUpIfPossible();
     // Store previous grounded state and reset for this frame
     const wasGrounded = this.isGrounded;
     this.isGrounded = false;
