@@ -8,6 +8,10 @@ const PLAYER_MASS = 70;
 const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 
+const STEP_HEIGHT = 1; // Maximum height the player can step up
+const STEP_FORWARD_OFFSET = -0.2; // How far in front of the player to check for a step
+
+
 // Player capsule dimensions (matching the provided example's player setup)
 const PLAYER_CAPSULE_RADIUS = 0.5;
 const PLAYER_CAPSULE_SEGMENT_LENGTH = 2.2 - PLAYER_CAPSULE_RADIUS; // Length of the cylindrical part of the capsule
@@ -174,37 +178,6 @@ export class PhysicsController {
         this.speedModifier = value;
     }
 
-_simpleStepUp() {
-    if (!this.isGrounded || !this.collider) return;
-    
-    // Get player's horizontal movement direction
-    const moveDir = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
-    if (moveDir.length() < 0.1) return; // Not moving
-    
-    // Check for step in front of player
-    const checkPos = this.player.position.clone()
-        .add(moveDir.normalize().multiplyScalar(0.6)); // 0.6 units ahead
-    
-    const raycaster = new THREE.Raycaster(
-        checkPos.clone().add(new THREE.Vector3(0, STEP_HEIGHT, 0)), // Start above step
-        new THREE.Vector3(0, -1, 0), // Ray down
-        0, 
-        STEP_HEIGHT + 0.1
-    );
-    
-    const hits = raycaster.intersectObject(this.collider);
-    if (hits.length > 0) {
-        const stepY = hits[0].point.y;
-        const currentY = this.player.position.y - PLAYER_TOTAL_HEIGHT + PLAYER_CAPSULE_RADIUS;
-        const stepHeight = stepY - currentY;
-        
-        // If it's a valid step, move player up
-        if (stepHeight > 0.05 && stepHeight <= STEP_HEIGHT) {
-            this.player.position.y = stepY + PLAYER_TOTAL_HEIGHT - PLAYER_CAPSULE_RADIUS + 0.01;
-        }
-    }
-}
-    
     /**
      * Gets the forward vector based on the camera's direction, flattened to the XZ plane.
      * @returns {THREE.Vector3} The normalized forward vector.
@@ -349,13 +322,102 @@ _simpleStepUp() {
         return !hitCeiling; // Return true if no ceiling was hit
     }
 
-    /**
-     * Updates the player's position and resolves collisions using MeshBVH.
-     * This function runs for each physics sub-step.
-     * @param {number} delta The fixed time step for this physics update.
-     */
+_stepUpIfPossible() {
+    if (!this.isGrounded || !this.collider) return;
+
+    // 1. Determine player's horizontal movement direction and magnitude
+    const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
+    // Only attempt step-up if there's significant horizontal movement
+    // Using lengthSq for performance and a slightly higher threshold to filter out tiny movements or standing still
+    if (horizVel.lengthSq() < 0.1 * 0.1) return; // Threshold squared (0.01)
+
+    const dir = horizVel.normalize();
+
+    // Calculate current scaled dimensions
+    const currentScaledPlayerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
+    const currentScaledCapsuleRadius = this.player.capsuleInfo.radius * this.player.scale.y;
+
+    // 2. Find the actual ground level directly beneath the player
+    // This helps establish a precise 'current ground Y' to compare against.
+    // The ray starts from the player's current horizontal position (top of capsule) and shoots downwards
+    const groundCheckRay = new THREE.Raycaster(
+        this.player.position.clone(),
+        new THREE.Vector3(0, -1, 0),
+        0, // Near plane (start from ray origin)
+        currentScaledPlayerHeight + 0.1 // Far plane (check down to bottom of player + a small margin)
+    );
+    const groundHits = groundCheckRay.intersectObject(this.collider, true);
+
+    let actualGroundY;
+    if (groundHits.length > 0) {
+        // If we hit ground directly below, use that as the reference Y
+        actualGroundY = groundHits[0].point.y;
+    } else {
+        // Fallback: If for some reason no ground is directly below (e.g., player is slightly floating
+        // due to prior collision), derive it from the player's current bottom.
+        // This makes the assumption that if !groundHits, the player is currently over air or already lifted.
+        actualGroundY = this.player.position.y - currentScaledPlayerHeight;
+    }
+
+    // 3. Setup the step-up raycast in front of the player
+    // This ray will check for a stepable surface ahead.
+    const rayOriginForwardOffset = currentScaledCapsuleRadius + STEP_FORWARD_OFFSET;
+    const rayOriginX = this.player.position.x + dir.x * rayOriginForwardOffset;
+    const rayOriginZ = this.player.position.z + dir.z * rayOriginForwardOffset;
+    
+    // The ray for step detection starts from above the `actualGroundY` at max step height
+    const rayOriginY = actualGroundY + STEP_HEIGHT + 0.05; // 0.05 is a small offset above max step height
+
+    const stepRay = new THREE.Raycaster(
+        new THREE.Vector3(rayOriginX, rayOriginY, rayOriginZ),
+        new THREE.Vector3(0, -1, 0), // Ray points straight down
+        0,
+        STEP_HEIGHT + 0.1 // Max distance the ray will travel downwards to find a step
+    );
+    const stepHits = stepRay.intersectObject(this.collider, true);
+
+    // If no step surface is found in front, return
+    if (stepHits.length === 0) return;
+    const stepTopY = stepHits[0].point.y; // Y coordinate of the surface we hit
+
+    // 4. Calculate the vertical difference between the detected step and the *actual current ground*
+    const deltaY = stepTopY - actualGroundY;
+
+    // 5. Conditions for performing the step-up:
+    //    - deltaY must be positive (it's a step up, not down or flat)
+    //    - deltaY must be within the allowed STEP_HEIGHT
+    //    - deltaY must be at least 0.3 for the step to count (NEW CONDITION)
+    //    - Use a very small tolerance (1e-5) for deltaY, as `actualGroundY` is more reliable now.
+    if (deltaY > 1e-5 && deltaY <= STEP_HEIGHT && deltaY >= 0.3) { // Added deltaY >= 0.3
+        // 6. Headroom Check: Ensure there’s enough space above the player at the new stepped-up height
+        // Calculate the Y coordinate of the player's top if they were to step up.
+        // If the player's bottom moves to `stepTopY`, their top will be `stepTopY + currentScaledPlayerHeight`.
+        const newPlayerTopY = stepTopY + currentScaledPlayerHeight;
+
+        // Cast a small ray upwards from the predicted new top of the player
+        const headCheckOrigin = new THREE.Vector3(
+            this.player.position.x, // Use player's current horizontal position for the check
+            newPlayerTopY + 0.01, // Start ray slightly above the predicted new player top
+            this.player.position.z
+        );
+        const headRay = new THREE.Raycaster(headCheckOrigin, new THREE.Vector3(0, 1, 0), 0, 0.02); // Small ray upwards
+        const headHits = headRay.intersectObject(this.collider, true);
+
+        // If no ceiling is hit, perform the step
+        if (headHits.length === 0) {
+            // Perform the step: Adjust player's y position directly.
+            // Since this.player.position.y is the TOP of the capsule, to place the BOTTOM at stepTopY,
+            // we set the TOP to (stepTopY + currentScaledPlayerHeight).
+            this.player.position.y = stepTopY + currentScaledPlayerHeight - 0.52;
+            this.playerVelocity.y = 0; // Clear vertical velocity to prevent immediate fall
+            this.isGrounded = true; // Player is now grounded on the new step
+        }
+    }
+}
+
+    
 _updatePlayerPhysics(delta) {
-        this._simpleStepUp();
+    this._stepUpIfPossible();
     // Store previous grounded state and reset for this frame
     const wasGrounded = this.isGrounded;
     this.isGrounded = false;
