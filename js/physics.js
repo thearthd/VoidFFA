@@ -2,7 +2,7 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { sendSoundEvent } from "./network.js"; // Corrected import
 
-// Constants for player physics and dimensions f
+// Constants for player physics and dimensions
 const PLAYER_MASS = 70;
 const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
@@ -268,8 +268,15 @@ export class PhysicsController {
             this.isCrouching = true;
             this.targetPlayerHeight = currentCrouchHeight;
         } else {
-            this.isCrouching = false;
-            this.targetPlayerHeight = standingHeight;
+            // Check if standing up would cause a collision
+            if (this._checkCeilingCollision(standingHeight)) {
+                this.isCrouching = false;
+                this.targetPlayerHeight = standingHeight;
+            } else {
+                // If there's a ceiling, force crouch
+                this.isCrouching = true;
+                this.targetPlayerHeight = currentCrouchHeight;
+            }
         }
     }
 
@@ -404,31 +411,25 @@ export class PhysicsController {
             this.player.capsuleInfo.segment.end.y = -this.originalCapsuleSegmentLength * newScaleY;
         }
 
-        // --- Collision + step-up resolution ---
+        // --- Collision resolution loop ---
         const capsuleInfo = this.player.capsuleInfo;
-        const currentScaledRadius = capsuleInfo.radius * this.player.scale.y; // Account for current scale
-        const currentScaledTotalHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
-        const currentScaledSegmentLength = currentScaledTotalHeight - (2 * currentScaledRadius);
+        const currentScaledRadius = capsuleInfo.radius * this.player.scale.y;
+        const currentScaledSegmentLength = this.originalCapsuleSegmentLength * this.player.scale.y;
 
-        // This is the player's future position, which we'll try to move to
-        const desiredPosition = this.player.position.clone().addScaledVector(this.playerVelocity, delta);
+        // Move the player's mesh by current velocity (prediction for collision check)
+        this.player.position.addScaledVector(this.playerVelocity, delta);
 
-        // We'll iteratively resolve collisions
-        const collisionIterations = 5;
-        for (let i = 0; i < collisionIterations; i++) {
+        const iterations = 5; // Max iterations for collision resolution
+
+        for (let i = 0; i < iterations; i++) {
             let hasCollision = false;
-            let deepestOverlap = 0;
-            let collisionPushVector = new THREE.Vector3();
-            let currentCollisionNormal = new THREE.Vector3();
 
-            // Create the capsule segment for the current (potentially adjusted) position
-            // The segment starts at the player's current position (top of capsule)
-            this.tempSegment.copy(new THREE.Line3(
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(0, -currentScaledSegmentLength, 0)
-            ));
-            this.tempSegment.start.add(desiredPosition);
-            this.tempSegment.end.add(desiredPosition);
+            // Update tempSegment to player's current (potentially moved) position
+            this.tempSegment.copy(capsuleInfo.segment);
+            this.tempSegment.start.multiplyScalar(this.player.scale.y);
+            this.tempSegment.end.multiplyScalar(this.player.scale.y);
+            this.tempSegment.start.add(this.player.position);
+            this.tempSegment.end.add(this.player.position);
 
             // Transform into collider's local space for shapecast
             const segmentInLocal = this.tempSegment.clone()
@@ -440,6 +441,10 @@ export class PhysicsController {
             this.tempBox.expandByPoint(segmentInLocal.end);
             this.tempBox.min.addScalar(-currentScaledRadius);
             this.tempBox.max.addScalar(currentScaledRadius);
+
+            let deepestOverlap = 0;
+            let collisionPushVector = new THREE.Vector3();
+            let currentCollisionNormal = new THREE.Vector3();
 
             if (this.collider && this.collider.geometry && this.collider.geometry.boundsTree) {
                 this.collider.geometry.boundsTree.shapecast({
@@ -465,7 +470,7 @@ export class PhysicsController {
 
             if (hasCollision) {
                 // Apply the push out
-                desiredPosition.addScaledVector(collisionPushVector, deepestOverlap + 0.001); // Small epsilon to ensure separation
+                this.player.position.addScaledVector(collisionPushVector, deepestOverlap + 0.001); // Small epsilon for separation
 
                 const normalY = currentCollisionNormal.dot(this.upVector);
 
@@ -480,63 +485,14 @@ export class PhysicsController {
                     }
 
                     // Project horizontal velocity onto the plane of the slope for smooth movement
-                    // Ensure we are not pushing into the ground *along* the slope
                     const velocityOnNormal = this.playerVelocity.dot(this.groundNormal);
                     if (velocityOnNormal < 0) { // If moving into the ground
                         this.playerVelocity.addScaledVector(this.groundNormal, -velocityOnNormal);
-                    }
-
-                    // --- Step-up Logic (Integrated here) ---
-                    // Only attempt step-up if there's significant horizontal movement and we're currently colliding
-                    const horizVelMagnitude = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-                    if (horizVelMagnitude > 0.1 && collisionPushVector.y > 0.05) { // If pushed up by the collision
-                        const currentFeetY = desiredPosition.y - (currentScaledTotalHeight / 2) + currentScaledRadius; // Approximate feet base
-                        const rayOriginX = desiredPosition.x + this.playerVelocity.x / horizVelMagnitude * (currentScaledRadius + STEP_FORWARD_OFFSET);
-                        const rayOriginZ = desiredPosition.z + this.playerVelocity.z / horizVelMagnitude * (currentScaledRadius + STEP_FORWARD_OFFSET);
-                        const rayOriginY = currentFeetY + STEP_HEIGHT + 0.01; // Start ray slightly above max step height
-
-                        const stepRay = new THREE.Raycaster(
-                            new THREE.Vector3(rayOriginX, rayOriginY, rayOriginZ),
-                            new THREE.Vector3(0, -1, 0), // Ray points straight down
-                            0,
-                            STEP_HEIGHT + 0.1 // Max distance to find a step
-                        );
-                        const stepHits = stepRay.intersectObject(this.collider, true);
-
-                        if (stepHits.length > 0) {
-                            const stepTopY = stepHits[0].point.y;
-                            const deltaY = stepTopY - currentFeetY;
-
-                            if (deltaY > 0.01 && deltaY <= STEP_HEIGHT) { // Valid step height
-                                // Check for headroom above the new stepped-up position
-                                const newPlayerTopY = stepTopY + currentScaledTotalHeight - currentScaledRadius;
-                                const headroomClear = this._checkCeilingCollision(PLAYER_TOTAL_HEIGHT); // Check against full standing height
-                                if (headroomClear) {
-                                    // Move player onto the step
-                                    desiredPosition.y = stepTopY + (currentScaledTotalHeight / 2) - currentScaledRadius; // Adjust desiredPosition Y
-                                    this.playerVelocity.y = 0; // Clear vertical velocity
-                                    this.isGrounded = true; // Confirm grounded state
-                                    // Break from collision loop to apply new position and re-evaluate
-                                    break;
-                                }
-                            }
-                        }
                     }
                 } else { // This is a wall or too steep a slope
                     // Slide along the wall by projecting velocity onto the plane of the wall
                     const proj = currentCollisionNormal.dot(this.playerVelocity);
                     this.playerVelocity.addScaledVector(currentCollisionNormal, -proj);
-
-                    // Ensure horizontal velocity is not pushing *into* the wall after slide
-                    // This prevents sticky walls
-                    const horizontalVelocity = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
-                    const wallNormalHorizontal = new THREE.Vector3(currentCollisionNormal.x, 0, currentCollisionNormal.z).normalize();
-                    const wallProj = horizontalVelocity.dot(wallNormalHorizontal);
-                    if (wallProj < 0) {
-                        horizontalVelocity.addScaledVector(wallNormalHorizontal, -wallProj);
-                        this.playerVelocity.x = horizontalVelocity.x;
-                        this.playerVelocity.z = horizontalVelocity.z;
-                    }
                 }
             } else {
                 // No more collisions, break early
@@ -544,14 +500,41 @@ export class PhysicsController {
             }
         }
 
-        // Apply the final desired position to the player
-        this.player.position.copy(desiredPosition);
+        // --- Original Step-up Logic (Reverted) ---
+        // This logic is separate from the main collision resolution
+        if (this.isGrounded && Math.abs(this.playerVelocity.x) + Math.abs(this.playerVelocity.z) > 0.1) {
+            // Calculate a point just in front of the player's feet
+            const checkPoint = this.player.position.clone();
+            checkPoint.y -= currentScaledSegmentLength + currentScaledRadius; // Bottom of the capsule
+            checkPoint.addScaledVector(new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z).normalize(), currentScaledRadius + STEP_FORWARD_OFFSET);
+
+            // Raycast downwards from slightly above the step height
+            const rayOrigin = checkPoint.clone();
+            rayOrigin.y += STEP_HEIGHT + 0.01; // Start ray slightly above max step height
+
+            const raycaster = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0), 0, STEP_HEIGHT + 0.1);
+            const intersects = raycaster.intersectObject(this.collider, true);
+
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                const normalY = hit.face.normal.dot(this.upVector);
+                // Check if it's a walkable surface and a valid step height
+                if (normalY >= WALKABLE_DOT && (hit.point.y - (this.player.position.y - currentScaledSegmentLength - currentScaledRadius)) <= STEP_HEIGHT + 0.05) {
+                    // Check for headroom before stepping up
+                    const newPlayerTopY = hit.point.y + currentScaledSegmentLength + currentScaledRadius;
+                    if (this._checkCeilingCollision(PLAYER_TOTAL_HEIGHT)) { // Check if full standing height is clear
+                        this.player.position.y = hit.point.y + currentScaledSegmentLength + currentScaledRadius;
+                        this.playerVelocity.y = 0; // Clear vertical velocity after stepping
+                    }
+                }
+            }
+        }
+
 
         // Final check for grounded state if no direct ground contact was made during collision resolution
-        // This helps catch cases where the player just barely touches the ground or moves off a step
         if (!this.isGrounded && this.playerVelocity.y <= 0) {
-            const currentFeetY = this.player.position.y - (currentScaledTotalHeight / 2) + currentScaledRadius;
-            const rayOrigin = new THREE.Vector3(this.player.position.x, currentFeetY + 0.05, this.player.position.z); // Slightly above feet
+            const currentFeetY = this.player.position.y - currentScaledSegmentLength - currentScaledRadius; // Exact bottom of capsule
+            const rayOrigin = new THREE.Vector3(this.player.position.x, currentFeetY + 0.05, this.player.position.z); // Slightly above feet for raycast
             const raycaster = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0), 0, 0.15); // Small distance check
 
             const intersects = raycaster.intersectObject(this.collider, true);
@@ -563,7 +546,7 @@ export class PhysicsController {
                     this.groundNormal.copy(hit.face.normal.transformDirection(this.collider.matrixWorld));
                     this.playerVelocity.y = 0; // Snap to ground
                     // Ensure player is exactly on the ground
-                    this.player.position.y = hit.point.y + (currentScaledTotalHeight / 2) - currentScaledRadius;
+                    this.player.position.y = hit.point.y + currentScaledSegmentLength + currentScaledRadius;
                 }
             }
         }
@@ -581,35 +564,6 @@ export class PhysicsController {
 
     /**
      * Teleports the player to a safe position if they fall out of bounds.
-     */
-    teleportIfOob() {
-        // Check player's Y position relative to the bottom of the capsule
-        // The bottom of the capsule is player.position.y (top) + segment.end.y (bottom of segment) - radius (bottom cap)
-        // Adjust for scaling: player.position.y is the top of the scaled capsule.
-        // The effective segment end will be relative to the scaled height.
-        const scaledSegmentEnd = this.player.capsuleInfo.segment.end.y * this.player.scale.y;
-        const bottomOfCapsuleY = this.player.position.y + scaledSegmentEnd - this.player.capsuleInfo.radius * this.player.scale.y;
-
-        if (bottomOfCapsuleY < -25) { // If player falls below a certain threshold
-            window.localPlayer.isDead = true;
-            /*
-            console.warn("Player OOB detected! Teleporting...");
-            this.setPlayerPosition(new THREE.Vector3(0, 5, 0)); // Teleport to a safe, elevated position
-            this.playerVelocity.set(0, 0, 0); // Clear velocity
-            this.isGrounded = false;
-            this.jumpTriggered = false; // Reset jump flag on teleport
-            this.fallStartY = null; // Reset fall start Y on teleport
-            if (this.fallStartTimer) {
-                clearTimeout(this.fallStartTimer);
-                this.fallStartTimer = null;
-            }
-            */
-        }
-    }
-
-    /**
-     * Sets the player's and camera's position.
-     * @param {THREE.Vector3} position The new position for the player.
      */
     setPlayerPosition(position) {
         // Set player mesh position
