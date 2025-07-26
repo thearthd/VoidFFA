@@ -762,7 +762,6 @@ _updatePlayerPhysics(delta) {
      * @returns {object} An object containing current player state information.
      */
     update(deltaTime, input) {
-          this.lastInput = input;
         deltaTime = Math.min(0.1, deltaTime); // Cap deltaTime to prevent "explosions"
 
         this.accumulator += deltaTime;
