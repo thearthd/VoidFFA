@@ -329,11 +329,9 @@ _updatePlayerPhysics(delta) {
     this.isGrounded = false;
 
     // Apply gravity or small downward snap
-    if (wasGrounded) {
-        this.playerVelocity.y = -GRAVITY * delta * 0.1;
-    } else {
-        this.playerVelocity.y -= GRAVITY * delta;
-    }
+
+
+    this.playerVelocity.y -= GRAVITY * delta;
 
     // Cap horizontal speed as a safety
     const horiz = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
