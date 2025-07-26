@@ -205,7 +205,7 @@ _stepUpIfPossible() {
 
   // bottom of the capsule (feet)
   const feetPos = this.player.position.clone()
-    .add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT / 2 + this.player.capsuleInfo.radius, 0));
+    .add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT, 0));
 
   // cast just above the max step height in front of the player
   const origin = feetPos.clone()
