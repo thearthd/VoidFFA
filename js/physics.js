@@ -248,7 +248,7 @@ export class PhysicsController {
 
   if (!this.isGrounded) {
         this.input = input;
-    this._applyAirControl(deltaTime, moveDirection);
+     this._applyAirControl(deltaTime);
   }
 
         // Apply acceleration/deceleration to horizontal velocity components
