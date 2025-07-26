@@ -30,7 +30,7 @@ const FIXED_TIME_STEP = 1 / 90; // Fixed time step for physics updates (e.g., 90
 const MAX_PHYSICS_STEPS = 5;    // Maximum number of physics steps per frame to prevent "spiral of death"
 
 // NEW: Step-up constants
-const STEP_HEIGHT = 0.7; // Maximum height the player can step up
+const STEP_HEIGHT = 1; // Maximum height the player can step up
 const STEP_FORWARD_OFFSET = 0.1; // How far in front of the player to check for a step
 
 // seamless audio-loop helper (UNCHANGED)
@@ -279,7 +279,7 @@ _stepUpIfPossible() {
             // Perform the step: Adjust player's y position directly.
             // Since this.player.position.y is the TOP of the capsule, to place the BOTTOM at stepTopY,
             // we set the TOP to (stepTopY + currentScaledPlayerHeight).
-            this.player.position.y = stepTopY + currentScaledPlayerHeight - STEP_HEIGHT;
+            this.player.position.y = stepTopY + currentScaledPlayerHeight - STEP_HEIGHT + 0.1;
             this.playerVelocity.y = 0; // Clear vertical velocity to prevent immediate fall
             this.isGrounded = true; // Player is now grounded on the new step
         }
