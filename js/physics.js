@@ -268,15 +268,8 @@ export class PhysicsController {
             this.isCrouching = true;
             this.targetPlayerHeight = currentCrouchHeight;
         } else {
-            // Check if standing up would cause a collision
-            if (this._checkCeilingCollision(standingHeight)) {
-                this.isCrouching = false;
-                this.targetPlayerHeight = standingHeight;
-            } else {
-                // If there's a ceiling, force crouch
-                this.isCrouching = true;
-                this.targetPlayerHeight = currentCrouchHeight;
-            }
+            this.isCrouching = false;
+            this.targetPlayerHeight = standingHeight;
         }
     }
 
