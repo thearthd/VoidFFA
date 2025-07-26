@@ -28,6 +28,7 @@ const CROUCH_HEIGHT_RATIO = 0.6; // Player height when crouched (e.g., 60% of or
 const CROUCH_SPEED = 8;          // Speed at which player crouches/stands
 
 const MAX_SPEED = 10; // Maximum horizontal speed, now directly used for movement
+const AIR_ACCEL = 2.5;
 
 const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps stop
 
@@ -244,6 +245,12 @@ export class PhysicsController {
             accelRateZ = input.forward || input.backward || input.left || input.right ? PLAYER_ACCEL_AIR : PLAYER_DECEL_AIR;
         }
 
+  if (this.isGrounded) {
+    this._applyGroundControl(deltaTime, moveDirection);
+  } else {
+    this._applyAirControl(deltaTime, moveDirection);
+  }
+
         // Apply acceleration/deceleration to horizontal velocity components
         this.playerVelocity.x = THREE.MathUtils.lerp(this.playerVelocity.x, targetVelocityX, accelRateX * deltaTime);
         this.playerVelocity.z = THREE.MathUtils.lerp(this.playerVelocity.z, targetVelocityZ, accelRateZ * deltaTime);
@@ -268,6 +275,24 @@ export class PhysicsController {
             this.targetPlayerHeight = standingHeight;
         }
     }
+
+_applyAirControl(dt, wishDir) {
+  if (wishDir.lengthSq() < 1e-6) return;  // no input, no air steer
+
+  // 1. Calculate desired speeds
+  const wishSpeed = MAX_SPEED * this.speedModifier;
+  const currentSpeedAlongWish = this.playerVelocity.dot(wishDir);
+
+  // 2. How much speed we can still add
+  let addSpeed = wishSpeed - currentSpeedAlongWish;
+  if (addSpeed <= 0) return;
+
+  // 3. Compute the amount to accelerate (clamped)
+  const accelSpeed = Math.min(addSpeed, AIR_ACCEL * dt * wishSpeed);
+
+  // 4. Apply it in the wish direction
+  this.playerVelocity.addScaledVector(wishDir, accelSpeed);
+}
 
     /**
      * Checks if the player can stand up without hitting a ceiling.
