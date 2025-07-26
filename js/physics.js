@@ -236,11 +236,17 @@ export class PhysicsController {
         this.playerVelocity.z = THREE.MathUtils.lerp(this.playerVelocity.z, targetVelocityZ, accelRateZ * deltaTime);
 
         // Handle jumping
-        if (this.isGrounded && input.jump) {
-            this.playerVelocity.y = JUMP_VELOCITY; // Apply upward jump velocity
-            this.isGrounded = false; // Player is no longer on the ground
-            this.jumpTriggered = true; // Set jump flag
-        }
+if (this.isGrounded && input.jump) {
+    // Only jump if there’s enough headroom at full standing height
+    const standingHeight = PLAYER_TOTAL_HEIGHT;
+    if (this._checkCeilingCollision(standingHeight)) {
+        this.playerVelocity.y = JUMP_VELOCITY;
+        this.isGrounded = false;
+        this.jumpTriggered = true;
+    } else {
+        // Optional: you could play a “bump head” sound here
+    }
+}
 
         // Crouching logic
         const currentCrouchHeight = PLAYER_TOTAL_HEIGHT * CROUCH_HEIGHT_RATIO;
