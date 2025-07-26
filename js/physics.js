@@ -9,7 +9,7 @@ const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 
 const STEP_HEIGHT = 1; // Maximum height the player can step up
-const STEP_FORWARD_OFFSET = 0; // How far in front of the player to check for a step
+const STEP_FORWARD_OFFSET = 0.04; // How far in front of the player to check for a step
 
 
 // Player capsule dimensions (matching the provided example's player setup)
