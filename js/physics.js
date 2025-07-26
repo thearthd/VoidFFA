@@ -221,16 +221,10 @@ _stepUpIfPossible() {
   const currentFeetY = feetPos.y;
   const deltaY = stepTopY - currentFeetY;
   if (deltaY > 0.01 && deltaY <= STEP_HEIGHT) {
-    // make sure there’s headroom above the step
-    const headOrigin = new THREE.Vector3(feetPos.x, stepTopY + 0.01 + PLAYER_TOTAL_HEIGHT * this.player.scale.y, feetPos.z);
-    const headRay = new THREE.Raycaster(headOrigin, new THREE.Vector3(0, 1, 0), 0, 0.01);
-    const headHits = headRay.intersectObject(this.collider, true);
-    if (headHits.length === 0) {
-      // perform the step
-      this.player.position.y += deltaY;
-      this.playerVelocity.y = 0;
-      this.isGrounded = true;
-    }
+    // perform the step
+    this.player.position.y += deltaY;
+    this.playerVelocity.y = 0;
+    this.isGrounded = true;
   }
 }
     /**
