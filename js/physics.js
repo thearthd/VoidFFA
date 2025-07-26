@@ -31,7 +31,7 @@ const MAX_PHYSICS_STEPS = 5;    // Maximum number of physics steps per frame to 
 
 // NEW: Step-up constants
 const STEP_HEIGHT = 1; // Maximum height the player can step up
-const STEP_FORWARD_OFFSET = 0.01; // How far in front of the player to check for a step
+const STEP_FORWARD_OFFSET = -0.5; // How far in front of the player to check for a step
 
 // seamless audio-loop helper (UNCHANGED)
 function createSeamlessLoop(src, leadTimeMs = 50, volume = 1) {
