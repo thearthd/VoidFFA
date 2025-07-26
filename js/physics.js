@@ -28,7 +28,7 @@ const CROUCH_HEIGHT_RATIO = 0.6; // Player height when crouched (e.g., 60% of or
 const CROUCH_SPEED = 8;          // Speed at which player crouches/stands
 
 const MAX_SPEED = 10; // Maximum horizontal speed, now directly used for movement
-const AIR_TURN_RATE = Math.PI * 0.5;
+const AIR_TURN_RATE = 180 * (Math.PI / 180);
 
 
 const FOOT_DISABLED_THRESHOLD = 0.2; // Speed threshold below which footsteps stop
