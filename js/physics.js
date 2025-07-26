@@ -469,9 +469,7 @@ _updatePlayerPhysics(delta) {
 
     let hasCollision = false;
     let collisionNormal = new THREE.Vector3();
-    // Keep track of the highest Y collision normal (most "upward" facing) to determine grounding
-    let highestYNormal = -Infinity;
-    let groundCollisionNormal = null;
+    let collisionPoint = new THREE.Vector3();
 
     // Shapecast to push out of geometry
     if (this.collider && this.collider.geometry && this.collider.geometry.boundsTree) {
@@ -481,21 +479,15 @@ _updatePlayerPhysics(delta) {
                 const triPoint = this.tempVector;
                 const capPoint = this.tempVector2;
                 const dist = tri.closestPointToSegment(this.tempSegment, triPoint, capPoint);
-
                 if (dist < collisionRadius) {
                     hasCollision = true;
                     const depth = collisionRadius - dist;
                     const pushDir = capPoint.sub(triPoint).normalize();
-
-                    // Apply push directly to the segment, which will then be used to update player.position
                     this.tempSegment.start.addScaledVector(pushDir, depth);
                     this.tempSegment.end.addScaledVector(pushDir, depth);
-
-                    // If this collision normal has a higher Y component, store it
-                    if (pushDir.y > highestYNormal) {
-                        highestYNormal = pushDir.y;
-                        groundCollisionNormal = pushDir.clone(); // Clone to store it
-                    }
+                    // Store collision normal and point
+                    collisionNormal.copy(pushDir);
+                    collisionPoint.copy(capPoint.applyMatrix4(this.collider.matrixWorld)); // World space collision point
                 }
             }
         });
@@ -503,60 +495,32 @@ _updatePlayerPhysics(delta) {
         console.warn("Collider or boundsTree not available—skipping collision.");
     }
 
-    // Compute world-space collision offset from the *adjusted* tempSegment
+    // Compute world-space collision offset
     const newStartWorld = this.tempVector
         .copy(this.tempSegment.start)
         .applyMatrix4(this.collider.matrixWorld);
     const deltaVec = newStartWorld.sub(this.player.position);
 
-    // Apply the position correction (minus a tiny epsilon for float stability)
+    // Determine if the collision is a slope/ground or a wall
+    const isSlopeOrGround = collisionNormal.y > 0.5; // Arbitrary threshold to consider it a "ground" normal
+
+    // Move by the collision offset (minus a tiny epsilon)
     const offset = Math.max(0, deltaVec.length() - 1e-5);
     deltaVec.normalize().multiplyScalar(offset);
     this.player.position.add(deltaVec);
 
-    // Now, apply velocity corrections based on collisions
     if (hasCollision) {
-        // We prioritize "ground" collisions. If there was *any* collision with an upward normal,
-        // we consider the player grounded and adjust velocity accordingly.
-        if (groundCollisionNormal && groundCollisionNormal.y > 0.05) { // A very small positive Y threshold
+        if (isSlopeOrGround) {
+            // Landed on ground or slope → only zero vertical velocity
             this.isGrounded = true;
-
-            // Project current velocity onto the plane defined by the ground normal
-            const dot = this.playerVelocity.dot(groundCollisionNormal);
-            // Only remove the velocity component that's pushing into the ground/slope
-            this.playerVelocity.addScaledVector(groundCollisionNormal, -dot);
-
-            // If still moving significantly downwards, zero out Y velocity to prevent "bouncing"
-            // but allow sliding.
-            if (this.playerVelocity.y < 0) {
-                 this.playerVelocity.y = 0;
-            }
-
-            // Add a small downward force if perfectly still on a flat surface to prevent floating
-            // or very slow "floating" on gentle slopes due to precision.
-            // This specifically applies when horizontal velocity is very low.
-            if (Math.abs(this.playerVelocity.x) < 0.01 && Math.abs(this.playerVelocity.z) < 0.01 && this.isGrounded) {
-                 this.playerVelocity.y = -0.1; // A very slight downward "stickiness"
-            }
-
+            this.playerVelocity.y = 0;
         } else {
-            // Hit a wall or ceiling (normal has little or no positive Y component)
-            // Slide along the surface
-            const proj = deltaVec.normalize().dot(this.playerVelocity); // Use deltaVec as collision normal approximation here
-            this.playerVelocity.addScaledVector(deltaVec.normalize(), -proj);
-
-            // If hitting a ceiling and moving upwards, stop vertical movement
-            if (deltaVec.y < -0.05 && this.playerVelocity.y > 0) { // deltaVec.y < 0 means collision came from above
-                this.playerVelocity.y = 0;
-            }
+            // Hit a wall → slide along it
+            // Use the actual collision normal for sliding
+            const proj = collisionNormal.dot(this.playerVelocity);
+            this.playerVelocity.addScaledVector(collisionNormal, -proj);
         }
     }
-
-    // If still technically grounded but velocity is upwards (e.g. from step-up or precision), zero it.
-    if (this.isGrounded && this.playerVelocity.y > 0) {
-        this.playerVelocity.y = 0;
-    }
-
 
     // Sync camera to player position
     this.camera.position.copy(this.player.position);
