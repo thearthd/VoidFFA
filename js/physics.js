@@ -197,17 +197,17 @@ export class PhysicsController {
 _stepUpIfPossible() {
   if (!this.isGrounded || !this.collider) return;
 
-  // direction of travel (horizontal only)
+  // horizontal velocity
   const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
   if (horizVel.length() < 0.01) return;
 
   const dir = horizVel.normalize();
 
-  // Position at the bottom of the capsule (feet)
+  // bottom of the capsule (feet)
   const feetPos = this.player.position.clone()
     .add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT / 2 + this.player.capsuleInfo.radius, 0));
 
-  // Raycast origin slightly in front and above max step height
+  // cast just above the max step height in front of the player
   const origin = feetPos.clone()
     .add(dir.multiplyScalar(this.player.capsuleInfo.radius + STEP_FORWARD_OFFSET));
   origin.y += STEP_HEIGHT + 0.05;
@@ -221,23 +221,12 @@ _stepUpIfPossible() {
 
   const currentFeetY = feetPos.y;
   const deltaY = stepTopY - currentFeetY;
+
   if (deltaY > 0.01 && deltaY <= STEP_HEIGHT) {
-    // Check head clearance at new position
-    const headOrigin = new THREE.Vector3(
-      feetPos.x,
-      stepTopY + this.player.capsuleInfo.height,
-      feetPos.z
-    );
-
-    const headRay = new THREE.Raycaster(headOrigin, new THREE.Vector3(0, 1, 0), 0, 0.01);
-    const headHits = headRay.intersectObject(this.collider, true);
-
-    if (headHits.length === 0) {
-      // Step up
-      this.player.position.y += deltaY;
-      this.playerVelocity.y = 0;
-      this.isGrounded = true;
-    }
+    // Snap player upward
+    this.player.position.y += deltaY;
+    this.playerVelocity.y = 0;
+    this.isGrounded = true;
   }
 }
     /**
