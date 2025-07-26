@@ -174,6 +174,37 @@ export class PhysicsController {
         this.speedModifier = value;
     }
 
+_simpleStepUp() {
+    if (!this.isGrounded || !this.collider) return;
+    
+    // Get player's horizontal movement direction
+    const moveDir = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
+    if (moveDir.length() < 0.1) return; // Not moving
+    
+    // Check for step in front of player
+    const checkPos = this.player.position.clone()
+        .add(moveDir.normalize().multiplyScalar(0.6)); // 0.6 units ahead
+    
+    const raycaster = new THREE.Raycaster(
+        checkPos.clone().add(new THREE.Vector3(0, STEP_HEIGHT, 0)), // Start above step
+        new THREE.Vector3(0, -1, 0), // Ray down
+        0, 
+        STEP_HEIGHT + 0.1
+    );
+    
+    const hits = raycaster.intersectObject(this.collider);
+    if (hits.length > 0) {
+        const stepY = hits[0].point.y;
+        const currentY = this.player.position.y - PLAYER_TOTAL_HEIGHT + PLAYER_CAPSULE_RADIUS;
+        const stepHeight = stepY - currentY;
+        
+        // If it's a valid step, move player up
+        if (stepHeight > 0.05 && stepHeight <= STEP_HEIGHT) {
+            this.player.position.y = stepY + PLAYER_TOTAL_HEIGHT - PLAYER_CAPSULE_RADIUS + 0.01;
+        }
+    }
+}
+    
     /**
      * Gets the forward vector based on the camera's direction, flattened to the XZ plane.
      * @returns {THREE.Vector3} The normalized forward vector.
@@ -324,6 +355,7 @@ export class PhysicsController {
      * @param {number} delta The fixed time step for this physics update.
      */
 _updatePlayerPhysics(delta) {
+        this._simpleStepUp();
     // Store previous grounded state and reset for this frame
     const wasGrounded = this.isGrounded;
     this.isGrounded = false;
