@@ -1388,13 +1388,15 @@ window.togglePauseMenuUI = togglePauseMenuUI; // This makes it accessible from i
 
 // Listen for the 'P' key press to toggle the pause menu
 window.addEventListener("keydown", e => {
+
+    console.log("  currentKeybinds.togglePause:", currentKeybinds.togglePause);
+    console.log("  inputState.isPaused:", inputState.isPaused);
+    console.log("  document.activeElement:", document.activeElement);
     // Check if the pressed key matches the currently configured togglePause keybind
     // and if the game is active and not chat-focused (assuming checkInGame is available)
     if (window.checkInGame && e.code === currentKeybinds.togglePause) {
              console.log("Keydown in other file:", e.code, e.key);
-    console.log("  currentKeybinds.togglePause:", currentKeybinds.togglePause);
-    console.log("  inputState.isPaused:", inputState.isPaused);
-    console.log("  document.activeElement:", document.activeElement);
+
         // Allow toggling menu even if dead — just don't resume the game.
         if (!inputState.isPaused || inputState.wasPausedByDeath) {
             if (typeof window.togglePauseMenuUI === 'function') {
