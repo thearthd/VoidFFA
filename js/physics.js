@@ -313,128 +313,113 @@ export class PhysicsController {
      * This function runs for each physics sub-step.
      * @param {number} delta The fixed time step for this physics update.
      */
-    _updatePlayerPhysics(delta) {
-        // Reset grounded; we’ll detect contact this frame
-        this.isGrounded = false;
+_updatePlayerPhysics(delta) {
+    // Reset grounded; we’ll detect contact this frame
+    this.isGrounded = false;
 
-        // Apply gravity or snap-down
-        if (this.isGrounded) {
-            this.playerVelocity.y = -GRAVITY * delta * 0.1;
-        } else {
-            this.playerVelocity.y -= GRAVITY * delta;
-        }
+    // Apply gravity or snap-down
+    if (this.isGrounded) {
+        this.playerVelocity.y = -GRAVITY * delta * 0.1;
+    } else {
+        this.playerVelocity.y -= GRAVITY * delta;
+    }
 
-        // Cap horizontal speed
-        const horizSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-        const maxHoriz = MAX_SPEED * this.speedModifier;
-        if (horizSpeed > maxHoriz) {
-            const s = maxHoriz / horizSpeed;
-            this.playerVelocity.x *= s;
-            this.playerVelocity.z *= s;
-        }
+    // Cap horizontal speed
+    const horizSpeed = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+    const maxHoriz = MAX_SPEED * this.speedModifier;
+    if (horizSpeed > maxHoriz) {
+        const s = maxHoriz / horizSpeed;
+        this.playerVelocity.x *= s;
+        this.playerVelocity.z *= s;
+    }
 
-        // Crouch/stand interpolation
-        const curS = this.player.scale.y;
-        const tgtS = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
-        if (Math.abs(curS - tgtS) > 0.001) {
-            const ns = THREE.MathUtils.lerp(curS, tgtS, CROUCH_SPEED * delta);
-            const oldH = PLAYER_TOTAL_HEIGHT * curS;
-            const newH = PLAYER_TOTAL_HEIGHT * ns;
-            this.player.scale.y = ns;
-            this.player.position.y -= (oldH - newH);
-            this.player.capsuleInfo.segment.end.y = -this.originalCapsuleSegmentLength * ns;
-        }
+    // Crouch/stand interpolation
+    const curS = this.player.scale.y;
+    const tgtS = this.targetPlayerHeight / PLAYER_TOTAL_HEIGHT;
+    if (Math.abs(curS - tgtS) > 0.001) {
+        const ns = THREE.MathUtils.lerp(curS, tgtS, CROUCH_SPEED * delta);
+        const oldH = PLAYER_TOTAL_HEIGHT * curS;
+        const newH = PLAYER_TOTAL_HEIGHT * ns;
+        this.player.scale.y = ns;
+        this.player.position.y -= (oldH - newH);
+        this.player.capsuleInfo.segment.end.y = -this.originalCapsuleSegmentLength * ns;
+    }
 
-        // Move by velocity
-        this.player.position.addScaledVector(this.playerVelocity, delta);
-        this.player.updateMatrixWorld();
+    // Move by velocity
+    this.player.position.addScaledVector(this.playerVelocity, delta);
+    this.player.updateMatrixWorld();
 
-        // Prepare collision shapecast
-        const cap = this.player.capsuleInfo;
-        const r = cap.radius + 0.001;
-        this.tempBox.makeEmpty();
-        this.tempSegment.copy(cap.segment)
-            .applyMatrix4(this.player.matrixWorld)
-            .applyMatrix4(this.colliderMatrixWorldInverse);
-        this.tempBox.expandByPoint(this.tempSegment.start);
-        this.tempBox.expandByPoint(this.tempSegment.end);
-        this.tempBox.min.addScalar(-r);
-        this.tempBox.max.addScalar(r);
+    // Prepare collision shapecast
+    const cap = this.player.capsuleInfo;
+    const r = cap.radius + 0.001;
+    this.tempBox.makeEmpty();
+    this.tempSegment.copy(cap.segment)
+        .applyMatrix4(this.player.matrixWorld)
+        .applyMatrix4(this.colliderMatrixWorldInverse);
+    this.tempBox.expandByPoint(this.tempSegment.start);
+    this.tempBox.expandByPoint(this.tempSegment.end);
+    this.tempBox.min.addScalar(-r);
+    this.tempBox.max.addScalar(r);
 
-        if (this.collider?.geometry?.boundsTree) {
-            this.collider.geometry.boundsTree.shapecast({
-                intersectsBounds: box => box.intersectsBox(this.tempBox),
-                intersectsTriangle: tri => {
-                    const tp = this.tempVector;
-                    const cp = this.tempVector2;
-                    const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
-                    if (dist < r) {
-                        const depth = r - dist;
-                        const dir = cp.sub(tp).normalize();
-                        this.tempSegment.start.addScaledVector(dir, depth);
-                        this.tempSegment.end.addScaledVector(dir, depth);
-                    }
+    if (this.collider?.geometry?.boundsTree) {
+        this.collider.geometry.boundsTree.shapecast({
+            intersectsBounds: box => box.intersectsBox(this.tempBox),
+            intersectsTriangle: tri => {
+                const tp = this.tempVector;
+                const cp = this.tempVector2;
+                const dist = tri.closestPointToSegment(this.tempSegment, tp, cp);
+                if (dist < r) {
+                    const depth = r - dist;
+                    const dir = cp.sub(tp).normalize();
+                    this.tempSegment.start.addScaledVector(dir, depth);
+                    this.tempSegment.end.addScaledVector(dir, depth);
                 }
-            });
-        }
+            }
+        });
+    }
 
-        // Compute collision offset in world space
-const newStart = this.tempVector
-    .copy(this.tempSegment.start)
-    .applyMatrix4(this.collider.matrixWorld);
-const deltaVec = newStart.sub(this.player.position); // <-- Start copying from here
+    // Compute collision offset in world space
+    const newStart = this.tempVector
+        .copy(this.tempSegment.start)
+        .applyMatrix4(this.collider.matrixWorld);
+    const deltaVec = newStart.sub(this.player.position);
 
-// --- START OF DEBUGGING LOGS AND MODIFIED LOGIC ---
-console.log("--- Physics Step Debug ---");
-console.log("Current Player Y Pos:", this.player.position.y.toFixed(3));
-console.log("Player Velocity Y:", this.playerVelocity.y.toFixed(3));
-console.log("Collision DeltaVec (xyz):", deltaVec.x.toFixed(3), deltaVec.y.toFixed(3), deltaVec.z.toFixed(3));
+    // Determine if this is a slope/step or a wall
+    const stepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
+    const isSlope = deltaVec.y > stepThresh;
 
-const MIN_SLOPE_THRESHOLD = 0.01; // This should be 0.01
-const dynamicStepThresh = Math.abs(delta * this.playerVelocity.y * 0.25);
-const stepThresh = Math.max(dynamicStepThresh, MIN_SLOPE_THRESHOLD);
-console.log("Calculated stepThresh:", stepThresh.toFixed(3));
+    // Decompose deltaVec
+    const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
+    const verticalDelta = deltaVec.y;
 
-const isSlope = deltaVec.y > stepThresh;
-console.log("Is Slope?:", isSlope);
-
-const horizontalDelta = new THREE.Vector3(deltaVec.x, 0, deltaVec.z);
-const verticalDelta = deltaVec.y;
-console.log("Vertical Delta from Collision:", verticalDelta.toFixed(3));
-
-const MAX_STEP_VALUE = 0.2; // This should be your desired step height (e.g., 0.2)
-console.log("Configured MAX_STEP:", MAX_STEP_VALUE.toFixed(3));
-
-if (isSlope) {
-    console.log("Collision Path: SLOPE");
-    // Gentle slope or drop: move fully
-    this.player.position.add(horizontalDelta);
-    this.player.position.y += verticalDelta;
-    this.isGrounded = true;
-    this.playerVelocity.y = 0;
-} else {
-    // Wall bump: check for small step
-    if (verticalDelta > 0 && verticalDelta <= MAX_STEP_VALUE) { // Use MAX_STEP_VALUE here
-        console.log("Collision Path: STEP");
-        // climb the step: apply horizontal push and snap up
+    if (isSlope) {
+        // Gentle slope or drop: move fully
         this.player.position.add(horizontalDelta);
         this.player.position.y += verticalDelta;
         this.isGrounded = true;
         this.playerVelocity.y = 0;
     } else {
-        console.log("Collision Path: WALL / Too high to step");
-        // slide along wall
-        const n = deltaVec.clone().normalize();
-        const proj = deltaVec.dot(this.playerVelocity);
-        this.playerVelocity.addScaledVector(n, -proj);
-        // apply only horizontal component of push so you don't get stuck
-        this.player.position.add(horizontalDelta);
+        // Wall bump: check for small step
+        const MAX_STEP = 0.5;
+        if (verticalDelta > 0 && verticalDelta <= MAX_STEP) {
+            // climb the step: apply horizontal push and snap up
+            this.player.position.add(horizontalDelta);
+            this.player.position.y += verticalDelta;
+            this.isGrounded = true;
+            this.playerVelocity.y = 0;
+        } else {
+            // slide along wall
+            const n = deltaVec.clone().normalize();
+            const proj = deltaVec.dot(this.playerVelocity);
+            this.playerVelocity.addScaledVector(n, -proj);
+            // apply only horizontal component of push so you don't get stuck
+            this.player.position.add(horizontalDelta);
+        }
     }
-}
 
-        // Sync camera position with player position
-        this.camera.position.copy(this.player.position);
-    }
+    // Sync camera
+    this.camera.position.copy(this.player.position);
+}
 
 
     /**
@@ -530,7 +515,7 @@ if (isSlope) {
         } else if (!this.isGrounded && this.fallStartY === null) {
             // If not grounded and fallStartY hasn't been set yet, and not due to a jump, start a timer
             if (!this.fallStartTimer) {
-
+                
                 this.fallStartTimer = setTimeout(() => {
                     this.fallStartY = this.player.position.y; // Set fallStartY after delay
                     this.fallStartTimer = null;
