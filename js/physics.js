@@ -415,7 +415,7 @@ _stepUpIfPossible() {
      */
 _updatePlayerPhysics(delta) {
     // Call step up before applying gravity for this frame
-    this._stepUpIfPossible();
+ //   this._stepUpIfPossible();
 
     this.isGrounded = false;
 
