@@ -442,7 +442,7 @@ _stepUpIfPossible() {
     //    - deltaY must be within the allowed STEP_HEIGHT
     //    - deltaY must be at least 0.3 for the step to count (NEW CONDITION)
     //    - Use a very small tolerance (1e-5) for deltaY, as `actualGroundY` is more reliable now.
-    if (deltaY > 1e-5 && deltaY <= STEP_HEIGHT && deltaY >= 0.00) { // Added deltaY >= 0.3
+    if (deltaY > 1e-5 && deltaY <= STEP_HEIGHT && deltaY >= 0.10) { // Added deltaY >= 0.3
         // 6. Headroom Check: Ensure there’s enough space above the player at the new stepped-up height
         // Calculate the Y coordinate of the player's top if they were to step up.
         // If the player's bottom moves to `stepTopY`, their top will be `stepTopY + currentScaledPlayerHeight`.
@@ -462,7 +462,7 @@ _stepUpIfPossible() {
             // Perform the step: Adjust player's y position directly.
             // Since this.player.position.y is the TOP of the capsule, to place the BOTTOM at stepTopY,
             // we set the TOP to (stepTopY + currentScaledPlayerHeight).
-            this.player.position.y = stepTopY + currentScaledPlayerHeight - 0.310;
+            this.player.position.y = stepTopY + currentScaledPlayerHeight - 0.400;
             this.playerVelocity.y = 0; // Clear vertical velocity to prevent immediate fall
             this.isGrounded = true; // Player is now grounded on the new step
         }
