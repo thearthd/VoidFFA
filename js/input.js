@@ -53,8 +53,8 @@ const defaultKeybinds = {
     'crouch': 'ShiftLeft',
     'slowWalk': 'KeyZ',
     'reload': 'KeyR',
-    'aim': 'Mouse2', // Right-click
-    'fire': 'Mouse0', // Left-click
+    'aim': 'KeyE', // Changed from 'Mouse2' to 'KeyE' for 'aim'
+    'fire': 'KeyX', // Changed from 'Mouse0' to 'KeyX' for 'fire'
     'weapon1': 'Digit1', // Knife
     'weapon2': 'Digit2', // Primary
     'weapon3': 'Digit3', // Secondary
@@ -507,6 +507,13 @@ function onKeyDown(e) {
         case currentKeybinds.reload:
             inputState.reload = true;
             break;
+        case currentKeybinds.aim: // Handling 'aim' for keyboard
+            inputState.aim = true;
+            break;
+        case currentKeybinds.fire: // Handling 'fire' for keyboard
+            inputState.fire = true;
+            inputState.fireJustPressed = true;
+            break;
         case currentKeybinds.weapon1:
             inputState.weaponSwitch = "knife";
             break;
@@ -560,6 +567,12 @@ function onKeyUp(e) {
             break;
         case currentKeybinds.reload:
             inputState.reload = false;
+            break;
+        case currentKeybinds.aim: // Handling 'aim' for keyboard
+            inputState.aim = false;
+            break;
+        case currentKeybinds.fire: // Handling 'fire' for keyboard
+            inputState.fire = false;
             break;
         case currentKeybinds.weapon1:
         case currentKeybinds.weapon2:
