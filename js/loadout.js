@@ -7,6 +7,7 @@ const PRIMARIES = [
   { key: 'ak-47',   img: 'https://codehs.com/uploads/7aab0473bfe25a8df97fee546120aa5d' },
   { key: 'deagle',  img: 'https://codehs.com/uploads/3a742a06b29233afdce01154d0c2247d' },
   { key: 'marshal', img: 'https://codehs.com/uploads/231ea31e130955d00410d9b3d5f3a3b5' },
+  { key: 'viper', img: 'https://codehs.com/uploads/5a61c6c1dbc2c08d392b11d27c97930e' },
 ];
 const SECONDARIES = [
   { key: 'm79',     img: 'https://codehs.com/uploads/967700dec4457f4bf0461e723d74550d' },
