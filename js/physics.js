@@ -606,29 +606,6 @@ _updatePlayerPhysics(delta) {
         if (this.isGrounded) {
       this.playerVelocity.y = 0;
     }
-    const downRay = new THREE.Raycaster(
-      this.player.position.clone(),
-      new THREE.Vector3(0, -1, 0),
-      0,
-      0.1 // only look 10cm down
-    );
-    const downHits = downRay.intersectObject(this.collider, true);
-
-    if (downHits.length > 0) {
-      const floorY = downHits[0].point.y;
-      // since player.position.y is the TOP of the capsule (after your translation),
-      // the bottom sits at position.y − (PLAYER_TOTAL_HEIGHT * scaleY)
-      const totalHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
-      const bottomY    = this.player.position.y - totalHeight;
-      const gap        = bottomY - floorY;
-
-      // 2) If we're hovering under 2cm above the floor, snap right onto it
-      if (gap > 0 && gap < 0.02) {
-        this.player.position.y     = floorY + totalHeight;
-        this.isGrounded             = true;
-        this.playerVelocity.y      = 0;
-      }
-    }
     // Sync camera to player position
     this.camera.position.copy(this.player.position);
     this._lastAirYaw = this.camera.rotation.y;
