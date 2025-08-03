@@ -739,7 +739,9 @@ update(inputState, delta, playerState) {
           // Store the recoil properties for the animation
           this._recoil.peakOffset      = appliedRecoilAngle;
           this._recoil.recoilStartTime = now;
-          
+          // Reset previous recoil offset for a fresh calculation
+          this._recoil.previousRecoilOffset = 0; 
+
           // View-model kickback
           this.state.recoiling   = true;
           this.state.recoilStart = now;
@@ -897,11 +899,9 @@ if (this.state.deagleRecoil && this.state.deagleRecoil.active) {
     return true;
   });
 
-  // --- Camera recoil recovery & application ---
+  // --- Camera recoil recovery & application (Corrected Logic) ---
   // The recoil should be an additive effect.
-  // We'll calculate the vertical recoil and add it to the camera's rotation.
-  // The player's mouse input should be processed elsewhere and also added to the camera's rotation.
-  // Assuming `_recoil.recoilOffset` is a new property to store the current recoil value.
+  // We calculate the change (delta) in recoil since the last frame and apply it.
   
   const elapsed = now - this._recoil.recoilStartTime;
   if (elapsed < this._recoil.recoilDuration) {
@@ -909,32 +909,24 @@ if (this.state.deagleRecoil && this.state.deagleRecoil.active) {
     const t = elapsed / this._recoil.recoilDuration;
     const easedT = 1 - (t * t * (3 - 2 * t)); // inverse smoothstep for a natural recovery curve
     
-    // Calculate the new recoil offset based on the eased progress
-    const newOffset = this._recoil.peakOffset * easedT;
+    // Calculate the new total recoil offset for this frame
+    const currentRecoilOffset = this._recoil.peakOffset * easedT;
     
-    // The previous line that was locking the camera has been removed:
-    // this.camera.rotation.x = this._recoil.recoveryPoint.x + newOffset;
+    // Calculate the difference between the current offset and the previous one
+    const recoilDelta = currentRecoilOffset - (this._recoil.previousRecoilOffset || 0);
 
-    // Now, we will simply store the new offset.
-    // This assumes that the main camera control loop takes this offset into account.
-    // E.g., this.camera.rotation.x = playerInput.rotation.x + this._recoil.recoilOffset;
-    // We update this value to be used in the next frame.
-    this._recoil.recoilOffset = newOffset;
+    // Apply the delta to the camera's rotation
+    this.camera.rotation.x += recoilDelta;
+
+    // Store the current offset for the next frame's calculation
+    this._recoil.previousRecoilOffset = currentRecoilOffset;
 
   } else if (this._recoil.peakOffset > 0) {
-    // Recoil animation is finished. Reset the offset.
-    this._recoil.recoilOffset = 0;
+    // Recoil animation is finished. Reset all recoil values.
     this._recoil.peakOffset = 0;
+    this._recoil.recoilStartTime = 0;
+    this._recoil.previousRecoilOffset = 0;
   }
-
-  // Applying the recoil to the camera
-  // This line is a crucial addition to link the recoil logic with the camera.
-  // It assumes the player's vertical rotation is stored in `playerState.cameraRotation.x`
-  // and we're adding the recoil offset on top of that.
-  // You would need to ensure `playerState.cameraRotation.x` is updated by your mouse input.
-  if (playerState.cameraRotation) {
-      this.camera.rotation.x = playerState.cameraRotation.x + this._recoil.recoilOffset;
-  }
 }
   
 
