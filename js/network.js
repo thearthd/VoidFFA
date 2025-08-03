@@ -181,64 +181,6 @@ export function updateShield(shield) {
         dbRefs.playersRef.child(localPlayerId).update({ shield }).catch(err => console.error("Failed to update shield:", err));
     }
 }
-
-export function applyDamageToRemote(targetId, damage, killerInfo) {
-    if (!dbRefs.playersRef) { // Check for playersRef from the current game slot
-        console.warn("dbRefs not initialized for damage application.");
-        return;
-    }
-    const pRef = dbRefs.playersRef.child(targetId);
-    pRef.transaction((current) => {
-        if (!current) return;
-        const prevHealth = current.health || 0;
-        let { shield = 0, health = prevHealth, deaths = 0, ks = 0 } = current;
-        let remaining = damage;
-        if (shield > 0) {
-            const sDmg = Math.min(shield, remaining);
-            shield -= sDmg;
-            remaining -= sDmg;
-        }
-        health -= remaining;
-        const justDied = prevHealth > 0 && health <= 0;
-        if (justDied) {
-            deaths += 1;
-            ks = 0; // Reset killstreak on death
-            health = 0; // Ensure health doesn't go negative on death
-            shield = 0; // Ensure shield is 0 on death
-        }
-        return { ...current, health, shield, deaths, ks, isDead: health <= 0, _justDied: justDied };
-    }, (error, committed, snap) => {
-        if (error) {
-            console.error("Firebase transaction failed for damage:", error);
-            return;
-        }
-        if (!committed) return;
-        const updated = snap.val();
-        console.log(`Player ${targetId} → H:${updated.health} S:${updated.shield} Dead:${updated.isDead}`);
-
-        if (updated._justDied && killerInfo && localPlayerId === killerInfo.killerId) {
-            dbRefs.playersRef.child(localPlayerId).transaction(currentKiller => {
-                if (!currentKiller) return;
-                currentKiller.kills = (currentKiller.kills || 0) + 1;
-                currentKiller.ks = (currentKiller.ks || 0) + 1;
-                return currentKiller;
-            }).then(() => {
-                dbRefs.killsRef.push({
-                    killer: killerInfo.killerUsername,
-                    victim: updated.username,
-                    weapon: killerInfo.weapon,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                }).catch(err => console.error("Failed to record kill:", err));
-            }).catch(err => console.error("Failed to update killer stats:", err));
-
-            if (targetId === localPlayerId) {
-                // If local player died, notify game.js
-                handleLocalDeath(killerInfo.killerUsername);
-            }
-        }
-    });
-}
-
 // --- Event Sending Functions (Tracers, Chat, Bullet Holes, Sounds) ---
 
 export function sendTracer(tracerData) {
