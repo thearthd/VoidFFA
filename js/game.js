@@ -1967,6 +1967,8 @@ function respawnPlayer() {
 // 0) Flip yourself alive immediately
 window.localPlayer.isDead = false;
 
+  weaponController.equipWeapon("knife");
+    
 // UI + audio reset
 deathTheme.currentTime = 0;
 deathTheme.pause();
@@ -2735,4 +2737,5 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
