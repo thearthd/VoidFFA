@@ -59,7 +59,7 @@ export function getSpreadMultiplier(
       break;
     case "viper":
       standingBase = 0.05; runBase = 0.1; airBase = 0.15;
-      crouchFactor = 0.1; runThreshold = 4; aimFactor = 0.25;
+      crouchFactor = 0.3; runThreshold = 4; aimFactor = 0.55;
       break;
     case "deagle":
       standingBase = 0.01; runBase = 0.1; airBase = 0.15;
