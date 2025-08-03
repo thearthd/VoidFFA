@@ -575,11 +575,9 @@ function onKeyUp(e) {
         case currentKeybinds.aim: // Handling 'aim' for keyboard
             inputState.aim = false;
             break;
-            /*
         case currentKeybinds.fire: // Handling 'fire' for keyboard
             inputState.fire = false;
             break;
-            */
 
         case currentKeybinds.knife:
         case currentKeybinds.primary:
