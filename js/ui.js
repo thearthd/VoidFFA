@@ -361,90 +361,93 @@ export function addChatMessage(username, text, chatId) {
 
 
 // Kill Feed: show last 5 entries
-export function updateKillFeed(
-  killer,
-  victim,
-  weaponKey,
-  isHeadshot = false,
-  isPenetrationShot = false,
-  killId
-) {
-  // ---- 1) detect old 4-arg signature and shift ----
-  // old: (killer, victim, weaponKey, killId)
-  if (typeof isHeadshot === 'string' && killId === undefined) {
-    killId         = isHeadshot;
-    isHeadshot     = false;
-    isPenetrationShot = false;
-  }
-
+export function updateKillFeed(killer, victim, weapon, killId, isHeadshot, isPenetrationShot) {
   const feed = document.getElementById("kill-feed");
   if (!feed) {
     console.error("Kill feed container not found! ID: 'kill-feed'");
     return;
   }
 
-  // ---- 2) build entry ----
   const entry = document.createElement("div");
-  entry.classList.add("kill-entry");
-  if (killId) entry.dataset.killId = killId;
+  entry.className = "kill-entry";
+  entry.dataset.killId = killId;
 
-  // killer name
-  const ks = document.createElement("span");
-  ks.textContent = killer;
-  entry.appendChild(ks);
+  // Helper for weapon and icon image
+  const weaponImgs = {
+    ak47:    "https://codehs.com/uploads/36178d893bc2c622e7b343bbbdb8c1f1",
+    deagle:  "https://codehs.com/uploads/d616d247f6764ad2275c96395beb21a8",
+    knife:   "https://codehs.com/uploads/d0ca87fe37301b4b81c5db8d10cac10a",
+    m79:     "https://codehs.com/uploads/78b318e3e11e59fc133477a0d9fdae14",
+    marhsal: "https://codehs.com/uploads/0677c14ed85f07c6d950f75bb95a4db2",
+    viper:   "https://codehs.com/uploads/bc7d35cd4ca88fdfaa8b2097471e526b",
+  };
 
-  // weapon icon (safe toLowerCase & fallback)
-  let wkey = 'knife'; // default if missing
-  if (typeof weaponKey === 'string') {
-    wkey = weaponKey.toLowerCase();
+  const iconImgs = {
+    headshot:   "https://codehs.com/uploads/097af549eede2dcb2df129f1763e6592",
+    penetrate:  "https://codehs.com/uploads/0856e475bd3b85a992f4359dae0b0adf",
+  };
+
+  const wKey = (weapon || "").toLowerCase();
+  const weaponImgUrl = weaponImgs[wKey];
+
+  // Append killer
+  const killerSpan = document.createElement("span");
+  killerSpan.className = "name killer";
+  killerSpan.textContent = killer;
+  entry.appendChild(killerSpan);
+
+  // Append weapon image
+  if (weaponImgUrl) {
+    const weaponImg = document.createElement("img");
+    weaponImg.src = weaponImgUrl;
+    weaponImg.className = "weapon-img";
+    entry.appendChild(weaponImg);
   }
-  const wurl = weaponIcons[wkey] || weaponIcons['knife'];
-  const wimg = document.createElement("img");
-  wimg.src = wurl;
-  wimg.alt = wkey;
-  wimg.classList.add("kill-icon", "weapon-icon");
-  entry.appendChild(wimg);
 
-  // optional headshot
+  // Append headshot icon if applicable
   if (isHeadshot) {
-    const himg = document.createElement("img");
-    himg.src = headshotIcon;
-    himg.alt = "headshot";
-    himg.classList.add("kill-icon", "headshot-icon");
-    entry.appendChild(himg);
+    const icon = document.createElement("img");
+    icon.src = iconImgs.headshot;
+    icon.className = "icon";
+    entry.appendChild(icon);
   }
 
-  // optional penetration
+  // Append penetration icon if applicable
   if (isPenetrationShot) {
-    const pimg = document.createElement("img");
-    pimg.src = penetrationIcon;
-    pimg.alt = "penetration";
-    pimg.classList.add("kill-icon", "penetration-icon");
-    entry.appendChild(pimg);
+    const icon = document.createElement("img");
+    icon.src = iconImgs.penetrate;
+    icon.className = "icon";
+    entry.appendChild(icon);
   }
 
-  // victim name
-  const vs = document.createElement("span");
-  vs.textContent = victim;
-  entry.appendChild(vs);
+  // Append victim
+  const victimSpan = document.createElement("span");
+  victimSpan.className = "name victim";
+  victimSpan.textContent = victim;
+  entry.appendChild(victimSpan);
 
-  // append & prune
+  // Add to DOM
   feed.appendChild(entry);
+
+  // Remove overflow
   if (feed.children.length > 5) {
-    const old = feed.firstElementChild;
-    const oldId = old.dataset.killId;
-    old.remove();
+    const oldest = feed.firstElementChild;
+    const oldId = oldest?.dataset?.killId;
+    oldest?.remove();
+
     if (uiDbRefs?.killsRef && oldId) {
-      uiDbRefs.killsRef.child(oldId).remove().catch(e => console.error("Prune failed:", e));
+      uiDbRefs.killsRef.child(oldId).remove()
+        .catch(err => console.error("Failed to remove old kill entry from Firebase:", err));
     }
   }
 
-  // auto-expire
+  // Auto-expire
   setTimeout(() => {
     if (entry.parentNode) {
       entry.remove();
-      if (uiDbRefs?.killsRef && killId) {
-        uiDbRefs.killsRef.child(killId).remove().catch(e => console.error("Timeout removal failed:", e));
+      if (uiDbRefs?.killsRef) {
+        uiDbRefs.killsRef.child(killId).remove()
+          .catch(err => console.error("Failed to remove timed-out kill entry from Firebase:", err));
       }
     }
   }, 10000);
