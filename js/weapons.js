@@ -14,7 +14,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { Loader } from './Loader.js';
 
 
-// ff
+// fff
 
 
 const scopeOverlay = document.getElementById('scopeOverlay');
