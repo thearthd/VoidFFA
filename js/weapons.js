@@ -683,50 +683,43 @@ update(inputState, delta, playerState) {
         this.lastShotTime         = now;
       } else {
         // —— BULLET FIRE ——  
-        if (this.ammoInMagazine > 0) {
+if (this.ammoInMagazine > 0) {
+  // 1) figure out how much recoil to apply
+  const shotIndex = this.burstCount - 1;
+  let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
+  let appliedRecoilAngle = rawRecoil;
 
-this._recoil.baseCameraX = this.camera.rotation.x;  // new baseline
-this._recoil.recoilStartTime = now;
-this._recoil.peakOffset = appliedRecoilAngle * 2;
-this._recoil.lastOffset = 0; // reset offset
+  // clamp AK-47 recoil after certain shot counts
+  if (this.currentKey === "ak-47" && shotIndex >= 7) {
+    appliedRecoilAngle = 0.008;
+  }
+  if (this.currentKey === "ak-47" && shotIndex === 9) {
+    appliedRecoilAngle = 0.007;
+  }
+  if (this.currentKey === "ak-47" && shotIndex >= 10) {
+    appliedRecoilAngle = 0.005;
+  }
 
-          
-          this.lastShotTime    = now;
-          this.ammoInMagazine--;
-          this.burstCount++;
+  // halve recoil when aiming down sights
+  if (this._aiming) {
+    appliedRecoilAngle /= 2;
+  }
 
-          this.fireBullet(spreadAngle, playerState.collidables);
-          this.playWeaponSound("shot");
-          updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
+  // 2) initialize recoil recovery parameters
+  this._recoil.baseCameraX     = this.camera.rotation.x;
+  this._recoil.recoilStartTime = now;
+  this._recoil.peakOffset      = appliedRecoilAngle * 2;
+  this._recoil.lastOffset      = 0;
 
-          // Camera recoil
-const shotIndex = this.burstCount - 1;               // zero‑based index
-let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
-let appliedRecoilAngle = rawRecoil;
-// if AK‑47 and we've already fired 10 or more bullets in this string, clamp it
+  // proceed with the shot
+  this.lastShotTime     = now;
+  this.ammoInMagazine--;
+  this.burstCount++;
 
-if (this.currentKey === "ak-47" && shotIndex >= 7) {
-  appliedRecoilAngle = 0.008;
-}     
-if (this.currentKey === "ak-47" && shotIndex == 9) {
-  appliedRecoilAngle = 0.007;
-}     
-if (this.currentKey === "ak-47" && shotIndex >= 10) {
-  appliedRecoilAngle = 0.005;
-}
-
-if (this._aiming) {
-  appliedRecoilAngle /= 2;
-}
-
-
-this._recoil.peakOffset      = appliedRecoilAngle*2;
-this._recoil.recoilStartTime  = now;
-          
-          // View‑model kickback
-          this.state.recoiling   = true;
-          this.state.recoilStart = now;
-        } else {
+  this.fireBullet(spreadAngle, playerState.collidables);
+  this.playWeaponSound("shot");
+  updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
+} else {
           // Start reload
           this.isReloadingFlag = true;
           this.state.reloading  = true;
