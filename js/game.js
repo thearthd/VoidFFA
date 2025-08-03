@@ -1964,100 +1964,103 @@ hideRespawn();
 };
 
 function respawnPlayer() {
-// 0) Flip yourself alive immediately
-window.localPlayer.isDead = false;
+    // 0) Flip yourself alive immediately
+    window.localPlayer.isDead = false;
 
-  weaponController.equipWeapon("knife");
-    
-// UI + audio reset
-deathTheme.currentTime = 0;
-deathTheme.pause();
-if (sceneNum == 1) {
-windSound.play().catch(err => console.warn(err));
-} else if (sceneNum == 2) {
-forestNoise.play().catch(err => console.warn(err));
-}
+    // Force the player's weapon to be the knife and update the inventory
+    window.localPlayer.weapon = "knife";
+    weaponController.equipWeapon("knife");
+    updateInventory("knife");
+    activeRecoils.length = 0; // Clear recoil for the knife
 
-respawnOverlay.style.display = "none";
-document.getElementById("crosshair").style.display = "block";
-if (fadeOverlay) {
-fadeOverlay.style.pointerEvents = "none";
-fadeOverlay.style.opacity = "0";
-}
+    // UI + audio reset
+    deathTheme.currentTime = 0;
+    deathTheme.pause();
+    if (sceneNum == 1) {
+        windSound.play().catch(err => console.warn(err));
+    } else if (sceneNum == 2) {
+        forestNoise.play().catch(err => console.warn(err));
+    }
 
-// 1) Compute spawn point
-const spawn = findFurthestSpawn();
+    respawnOverlay.style.display = "none";
+    document.getElementById("crosshair").style.display = "block";
+    if (fadeOverlay) {
+        fadeOverlay.style.pointerEvents = "none";
+        fadeOverlay.style.opacity = "0";
+    }
 
-// 2) Reset logical/player state
-window.localPlayer.x = spawn.x;
-window.localPlayer.y = spawn.y;
-window.localPlayer.z = spawn.z;
-physicsController.setPlayerPosition(spawn);
-// 3) Reset your physics body so PhysicsController doesn’t yank you back
-if (physicsController && physicsController.body) {
-const body = physicsController.body;
-// zero out any residual motion
-body.velocity.set(0, 0, 0);
-body.angularVelocity.set(0, 0, 0);
-// teleport to spawn + eye-height
-body.position.set(spawn.x, spawn.y + 1.6, spawn.z);
-// reset orientation
-body.quaternion.set(0, 0, 0, 1);
-body.wakeUp();
-}
+    // 1) Compute spawn point
+    const spawn = findFurthestSpawn();
 
-// 4) Move THREE camera immediately
-window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
-window.camera.lookAt(new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z + 1).add(new THREE.Vector3(0, 0, 0)));
+    // 2) Reset logical/player state
+    window.localPlayer.x = spawn.x;
+    window.localPlayer.y = spawn.y;
+    window.localPlayer.z = spawn.z;
+    physicsController.setPlayerPosition(spawn);
+    // 3) Reset your physics body so PhysicsController doesn’t yank you back
+    if (physicsController && physicsController.body) {
+        const body = physicsController.body;
+        // zero out any residual motion
+        body.velocity.set(0, 0, 0);
+        body.angularVelocity.set(0, 0, 0);
+        // teleport to spawn + eye-height
+        body.position.set(spawn.x, spawn.y + 1.6, spawn.z);
+        // reset orientation
+        body.quaternion.set(0, 0, 0, 1);
+        body.wakeUp();
+    }
 
-// 5) Reposition your model/group if you have one
-const group = window.localPlayer.group;
-if (group) {
-group.position.set(spawn.x, spawn.y + 1.6, spawn.z);
-}
+    // 4) Move THREE camera immediately
+    window.camera.position.copy(spawn).add(new THREE.Vector3(0, 1.6, 0));
+    window.camera.lookAt(new THREE.Vector3(spawn.x, spawn.y + 1.6, spawn.z + 1).add(new THREE.Vector3(0, 0, 0)));
 
-// 6) Re-add collidables for your body
-if (group) {
-group.traverse(child => {
-if (child.isMesh) {
-child.userData.isPlayerBodyPart = true;
-child.userData.playerId = window.localPlayer.id;
-window.collidables.push(child);
-}
-});
-// console.log('[respawnPlayer] Restored collidables, total now:', window.collidables.length);
-}
+    // 5) Reposition your model/group if you have one
+    const group = window.localPlayer.group;
+    if (group) {
+        group.position.set(spawn.x, spawn.y + 1.6, spawn.z);
+    }
 
-// 7) Pointer-lock & input reset
-//  console.log("[respawnPlayer] Re-entering pointer lock");
-document.body.classList.add("game-active");
+    // 6) Re-add collidables for your body
+    if (group) {
+        group.traverse(child => {
+            if (child.isMesh) {
+                child.userData.isPlayerBodyPart = true;
+                child.userData.playerId = window.localPlayer.id;
+                window.collidables.push(child);
+            }
+        });
+    }
 
-// 8) Weapon & HUD reset
-if (typeof weaponAmmo === 'object') {
-for (const key in weaponAmmo) delete weaponAmmo[key];
-}
-for (const key in WeaponController.WEAPONS) {
-const stats = WeaponController.WEAPONS[key];
-weaponController.ammoStore[key] = stats.magazineSize;
-if (weaponController.currentKey === key) {
-weaponController.ammoInMagazine = stats.magazineSize;
-updateAmmoDisplay(weaponController.ammoInMagazine, stats.magazineSize);
-updateInventory(
-weaponController.getCurrentAmmo(),
-weaponController.getMaxAmmo()
-);
-}
-}
+    // 7) Pointer-lock & input reset
+    document.body.classList.add("game-active");
 
-// 9) Sync alive state to Firebase
-playersRef.child(window.localPlayer.id).update({
-x: spawn.x,
-y: spawn.y,
-z: spawn.z,
-health: 100,
-shield: 50,
-isDead: false
-});
+    // 8) Weapon & HUD reset
+    if (typeof weaponAmmo === 'object') {
+        for (const key in weaponAmmo) delete weaponAmmo[key];
+    }
+    for (const key in WeaponController.WEAPONS) {
+        const stats = WeaponController.WEAPONS[key];
+        weaponController.ammoStore[key] = stats.magazineSize;
+        if (weaponController.currentKey === key) {
+            weaponController.ammoInMagazine = stats.magazineSize;
+            updateAmmoDisplay(weaponController.ammoInMagazine, stats.magazineSize);
+            updateInventory(
+                weaponController.getCurrentAmmo(),
+                weaponController.getMaxAmmo()
+            );
+        }
+    }
+
+    // 9) Sync alive state to Firebase
+    playersRef.child(window.localPlayer.id).update({
+        x: spawn.x,
+        y: spawn.y,
+        z: spawn.z,
+        health: 100,
+        shield: 50,
+        isDead: false,
+        weapon: "knife" // Update the weapon in Firebase
+    });
 }
 
 
