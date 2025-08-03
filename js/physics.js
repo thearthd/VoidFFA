@@ -357,25 +357,25 @@ _applyAirControl(dt) {
 _stepUpIfPossible() {
     if (!this.collider) return;
 
-    // 1. Only proceed if the player is moving significantly horizontally
+    // 1. Only attempt if there’s significant horizontal movement
     const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
     if (horizVel.lengthSq() < 0.1 * 0.1) return;
     const dir = horizVel.normalize();
 
-    // 2. Cast downward from the player's current position to find the true ground level
-    const playerBottom = this.player.position.clone().add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT * this.player.scale.y, 0));
+    // 2. Raycast straight down to find the true ground Y
+    const playerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
     const groundRay = new THREE.Raycaster(
         this.player.position.clone(),
         new THREE.Vector3(0, -1, 0),
         0,
-        PLAYER_TOTAL_HEIGHT * this.player.scale.y + 0.2
+        playerHeight + 0.2
     );
     const groundHits = groundRay.intersectObject(this.collider, true);
     const actualGroundY = groundHits.length
         ? groundHits[0].point.y
-        : playerBottom.y;
+        : this.player.position.y - playerHeight;
 
-    // 3. Project forward to see if there's an obstacle we can step onto
+    // 3. Forward‐offset raycast at step height
     const capsuleRadius = this.player.capsuleInfo.radius * this.player.scale.y;
     const forwardOrigin = this.player.position.clone()
         .setY(actualGroundY + STEP_HEIGHT + 0.05)
@@ -387,33 +387,35 @@ _stepUpIfPossible() {
         STEP_HEIGHT + 0.3
     );
     const stepHits = stepRay.intersectObject(this.collider, true);
-    if (!stepHits.length) return;
+    if (stepHits.length) {
+        const stepTopY = stepHits[0].point.y;
+        const deltaY = stepTopY - actualGroundY;
 
-    const stepTopY = stepHits[0].point.y;
-    const deltaY = stepTopY - actualGroundY;
+        // 4. If the rise is within step limits, check headroom
+        if (deltaY > 0.05 && deltaY <= STEP_HEIGHT + 0.01) {
+            const headCheckOrigin = new THREE.Vector3(
+                this.player.position.x,
+                stepTopY + playerHeight + 0.02,
+                this.player.position.z
+            );
+            const headRay = new THREE.Raycaster(headCheckOrigin, new THREE.Vector3(0, 1, 0), 0, 0.1);
 
-    // 4. Only step if the height is within bounds
-    if (deltaY > 0.05 && deltaY <= STEP_HEIGHT + 0.01) {
-        // 5. Check for headroom above the new position
-        const playerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
-        const headCheckOrigin = new THREE.Vector3(
-            this.player.position.x,
-            stepTopY + playerHeight + 0.02,
-            this.player.position.z
-        );
-        const headRay = new THREE.Raycaster(headCheckOrigin, new THREE.Vector3(0, 1, 0), 0, 0.1);
-        if (headRay.intersectObject(this.collider, true).length === 0) {
-            // 6. Snap the player up onto the step
-            this.player.position.y = stepTopY + playerHeight - 0.51;
-            this.playerVelocity.y = 0;
-            this.isGrounded = true;
-
-            // 7. Nudge forward so the foot clears the edge
-            this.player.position.add(dir.multiplyScalar(STEP_FORWARD_PUSH));
+            if (headRay.intersectObject(this.collider, true).length === 0) {
+                // Snap up onto the ledge
+                this.player.position.y = stepTopY + playerHeight - 0.51;
+                this.playerVelocity.y = 0;
+                this.isGrounded = true;
+                this.player.position.add(dir.multiplyScalar(STEP_FORWARD_PUSH));
+                return;
+            }
         }
-    } else if (Math.abs(this.player.position.y - (actualGroundY + playerBottom.y)) < 0.1) {
-        // 8. If we're floating slightly off the ground (e.g. <10cm), snap down
-        this.player.position.y = actualGroundY + playerBottom.y;
+    }
+
+    // 5. Snap‐down if very close to ground and vertical speed is near zero
+    const distanceToGround = (this.player.position.y - actualGroundY) - playerHeight;
+    const verticalSpeed = this.playerVelocity.y;
+    if (Math.abs(distanceToGround) < 0.1 && Math.abs(verticalSpeed) < 0.1) {
+        this.player.position.y = actualGroundY + playerHeight;
         this.playerVelocity.y = 0;
         this.isGrounded = true;
     }
