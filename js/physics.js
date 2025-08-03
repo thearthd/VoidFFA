@@ -602,6 +602,11 @@ _updatePlayerPhysics(delta) {
           this.playerVelocity.addScaledVector(collisionNormal, -proj);
         }
         }
+
+        if (this.isGrounded) {
+      this.playerVelocity.y = 0;
+    }
+
     // Sync camera to player position
     this.camera.position.copy(this.player.position);
     this._lastAirYaw = this.camera.rotation.y;
