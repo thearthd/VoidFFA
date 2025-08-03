@@ -262,12 +262,14 @@ export class WeaponController {
     this.scene = window.scene;
     this.raycaster = new THREE.Raycaster();
 
-        this._recoil = {
-            currentOffset: 0,     // The actual offset applied to camera
-            peakOffset: 0,        // The accumulated recoil value to decay from
-            recoilStartTime: 0,
-            recoilDuration: 0.1   // <--- ADJUST THIS VALUE (in seconds)
-        };
+this._recoil = {
+  currentOffset: 0,           // instantaneous offset to apply this frame
+  peakOffset: 0,              // max height of recoil to recover from
+  recoilStartTime: 0,
+  recoilDuration: 0.1,
+  appliedOffset: 0,           // total rotation applied so far
+  lastOffset: 0               // last frame's offset, to compute delta
+};
   }
 
 equipWeapon(weaponKey) {
@@ -520,13 +522,7 @@ update(inputState, delta, playerState) {
       currentOffset: 0,
       peakOffset: 0,
       recoilStartTime: 0,
-      recoilDuration: 0.1,
-      // Recovery properties
-      isRecovering: false,
-      recoveryStartTime: 0,
-      recoveryDuration: 0.3,
-      recoveryStartOffset: 0,
-      lastShotTime: 0
+      recoilDuration: 0.1
     };
   }
 
@@ -698,31 +694,28 @@ update(inputState, delta, playerState) {
           updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
 
           // Camera recoil
-          const shotIndex = this.burstCount - 1;               // zero‑based index
-          let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
-          let appliedRecoilAngle = rawRecoil;
-          // if AK‑47 and we've already fired 10 or more bullets in this string, clamp it
+const shotIndex = this.burstCount - 1;               // zero‑based index
+let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
+let appliedRecoilAngle = rawRecoil;
+// if AK‑47 and we've already fired 10 or more bullets in this string, clamp it
 
-          if (this.currentKey === "ak-47" && shotIndex >= 7) {
-            appliedRecoilAngle = 0.008;
-          }     
-          if (this.currentKey === "ak-47" && shotIndex == 9) {
-            appliedRecoilAngle = 0.007;
-          }     
-          if (this.currentKey === "ak-47" && shotIndex >= 10) {
-            appliedRecoilAngle = 0.005;
-          }
+if (this.currentKey === "ak-47" && shotIndex >= 7) {
+  appliedRecoilAngle = 0.008;
+}     
+if (this.currentKey === "ak-47" && shotIndex == 9) {
+  appliedRecoilAngle = 0.007;
+}     
+if (this.currentKey === "ak-47" && shotIndex >= 10) {
+  appliedRecoilAngle = 0.005;
+}
 
-          if (this._aiming) {
-            appliedRecoilAngle /= 2;
-          }
+if (this._aiming) {
+  appliedRecoilAngle /= 2;
+}
 
-          // Stop any ongoing recovery when firing
-          this._recoil.isRecovering = false;
-          
-          this._recoil.peakOffset      = appliedRecoilAngle*2;
-          this._recoil.recoilStartTime  = now;
-          this._recoil.lastShotTime    = now;
+
+this._recoil.peakOffset      = appliedRecoilAngle*2;
+this._recoil.recoilStartTime  = now;
           
           // View‑model kickback
           this.state.recoiling   = true;
@@ -832,46 +825,27 @@ update(inputState, delta, playerState) {
   });
 
   // Camera recoil recovery & application
-  if (this._recoil.peakOffset > 0 || this._recoil.currentOffset !== 0) {
-    const elapsedRecoil = now - this._recoil.recoilStartTime;
-    
-    if (elapsedRecoil >= this._recoil.recoilDuration) {
-      // Initial recoil phase is done, start recovery if not already started
-      if (!this._recoil.isRecovering) {
-        this._recoil.isRecovering = true;
-        this._recoil.recoveryStartTime = now;
-        this._recoil.recoveryStartOffset = this._recoil.currentOffset;
-      }
-      
-      // Check if we should start recovery (after a delay from last shot)
-      const timeSinceLastShot = now - this._recoil.lastShotTime;
-      const recoveryDelay = 0.2; // Wait 200ms after last shot before recovering
-      
-      if (timeSinceLastShot >= recoveryDelay) {
-        const recoveryElapsed = now - this._recoil.recoveryStartTime;
-        
-        if (recoveryElapsed >= this._recoil.recoveryDuration) {
-          // Recovery complete
-          this._recoil.currentOffset = 0;
-          this._recoil.peakOffset = 0;
-          this._recoil.isRecovering = false;
-        } else {
-          // Apply recovery interpolation
-          const recoveryProgress = recoveryElapsed / this._recoil.recoveryDuration;
-          const easedRecovery = recoveryProgress * recoveryProgress * (3 - 2 * recoveryProgress); // smoothstep
-          this._recoil.currentOffset = this._recoil.recoveryStartOffset * (1 - easedRecovery);
-        }
-      }
-    } else {
-      // Still in initial recoil phase
-      const t = elapsedRecoil / this._recoil.recoilDuration;
-      const easedT = 1 - (t * t * (3 - 2 * t));
-      this._recoil.currentOffset = this._recoil.peakOffset * easedT;
-    }
+if (this._recoil.peakOffset > 0 || this._recoil.currentOffset !== 0) {
+  const elapsedRecoil = now - this._recoil.recoilStartTime;
+
+  if (elapsedRecoil >= this._recoil.recoilDuration) {
+    this._recoil.currentOffset = 0;
+    this._recoil.peakOffset = 0;
+    this._recoil.appliedOffset = 0;
+    this._recoil.lastOffset = 0;
+  } else {
+    const t = elapsedRecoil / this._recoil.recoilDuration;
+    const easedT = 1 - (t * t * (3 - 2 * t));
+    const newOffset = this._recoil.peakOffset * easedT;
+    this._recoil.currentOffset = newOffset - this._recoil.lastOffset;
+    this._recoil.lastOffset = newOffset;
+    this._recoil.appliedOffset += this._recoil.currentOffset;
+    this.camera.rotation.x += this._recoil.currentOffset;
   }
-  
+}
   this.camera.rotation.x += this._recoil.currentOffset;
 }
+
   
 
   getCurrentAmmo() {
