@@ -357,9 +357,8 @@ _applyAirControl(dt) {
 _stepUpIfPossible() {
     if (!this.collider) return;
     if (this.playerVelocity.y > 0.1) return;
-    // ——————————————————————————————
+
     // 1) Find true ground Y under the player
-    // ——————————————————————————————
     const playerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
     const downRay = new THREE.Raycaster(
         this.player.position.clone(),
@@ -372,15 +371,12 @@ _stepUpIfPossible() {
         ? groundHits[0].point.y
         : this.player.position.y - playerHeight;
 
-    // ——————————————————————————————
     // 2) Try to step up if moving into a small obstacle
-    // ——————————————————————————————
     const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
     if (horizVel.lengthSq() >= 0.1 * 0.1) {
         const dir = horizVel.normalize();
         const capsuleRadius = this.player.capsuleInfo.radius * this.player.scale.y;
 
-        // Origin of the step‐height ray, projected forward
         const forwardOrigin = this.player.position.clone()
             .setY(actualGroundY + STEP_HEIGHT + 0.05)
             .add(dir.clone().multiplyScalar(capsuleRadius + STEP_FORWARD_OFFSET));
@@ -397,7 +393,11 @@ _stepUpIfPossible() {
             const stepTopY = stepHits[0].point.y;
             const deltaY = stepTopY - actualGroundY;
 
-            if (deltaY > 0.05 && deltaY <= STEP_HEIGHT + 0.01) {
+            if (
+                deltaY > 0.05 &&
+                deltaY <= STEP_HEIGHT + 0.01 &&
+                stepTopY >= this.player.position.y // prevent stepping down
+            ) {
                 // Check we have headroom
                 const headCheck = new THREE.Raycaster(
                     new THREE.Vector3(this.player.position.x, stepTopY + playerHeight + 0.02, this.player.position.z),
@@ -410,9 +410,8 @@ _stepUpIfPossible() {
                     this.player.position.y = stepTopY + playerHeight - 0.51;
                     this.playerVelocity.y = 0;
                     this.isGrounded = true;
-                    // Nudge forward so feet clear the ledge
                     this.player.position.add(dir.multiplyScalar(STEP_FORWARD_PUSH));
-                    return; // done stepping
+                    return;
                 }
             }
         }
