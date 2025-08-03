@@ -2322,149 +2322,167 @@ export function animate(timestamp) {
 
 
 function resetWeaponPose(weaponKey, mesh) {
-const M = THREE.MathUtils;
-switch (weaponKey) {
-case "knife":
-mesh.scale.set(0.0007, 0.0007, 0.0007);
-mesh.rotation.set(M.degToRad(90), M.degToRad(180), 0);
-mesh.position.set(0.5, 0.8 - 1.4, 0);
-break;
+    const M = THREE.MathUtils;
 
-case "deagle":
-mesh.scale.set(0.5, 0.5, 0.5);
-mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
-mesh.position.set(0.5, 0.8 - 1.4, 0);
-break;
+    switch (weaponKey) {
+        case "knife":
+            mesh.scale.set(0.0007, 0.0007, 0.0007);
+            mesh.rotation.set(M.degToRad(90), M.degToRad(180), 0);
+            mesh.position.set(0.5, 0.8 - 1.4, 0);
+            break;
 
-case "ak-47":
-mesh.scale.set(0.4, 0.4, 0.4);
-mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
-mesh.position.set(0.5, 0.8 - 1.4, 0);
-break;
+        case "deagle":
+            mesh.scale.set(0.5, 0.5, 0.5);
+            mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
+            mesh.position.set(0.5, 0.8 - 1.4, 0);
+            break;
 
-case "marshal":
-mesh.scale.set(2, 2, 2);
-mesh.rotation.set(M.degToRad(0), M.degToRad(0), 0);
-mesh.position.set(0.5, 0.8 - 1.4, 0);
-break;
+        case "ak-47":
+            mesh.scale.set(0.4, 0.4, 0.4);
+            mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
+            mesh.position.set(0.5, 0.8 - 1.4, 0);
+            break;
 
-case "m79":
-mesh.scale.set(0.5, 0.5, 0.5);
-mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
-mesh.position.set(0.5, 0.8 - 1.4, 0);
-break;
+        case "viper":
+            mesh.scale.set(0.4, 0.4, 0.4);
+            mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
+            mesh.position.set(0.5, 0.8 - 1.4, 0);
+            break;
 
-default:
-console.warn(`resetWeaponPose(): unknown weapon "${weaponKey}"`);
+        case "marshal":
+            mesh.scale.set(2, 2, 2);
+            mesh.rotation.set(M.degToRad(0), M.degToRad(0), 0);
+            mesh.position.set(0.5, 0.8 - 1.4, 0);
+            break;
+
+        case "m79":
+            mesh.scale.set(0.5, 0.5, 0.5);
+            mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
+            mesh.position.set(0.5, 0.8 - 1.4, 0);
+            break;
+
+        default:
+            console.warn(`resetWeaponPose(): unknown weapon "${weaponKey}"`);
+    }
 }
-}
-
 
 function attachWeaponToPlayer(playerId, weaponName) {
-const key = weaponName.replace(/-/g, "").toLowerCase();
-const rp  = window.remotePlayers[playerId];
-if (!rp) return;
+    const key = weaponName.replace(/-/g, "").toLowerCase();
+    const rp = window.remotePlayers[playerId];
+    if (!rp) return;
 
-// 1) Clear any previous model
-while (rp.weaponRoot.children.length) {
-rp.weaponRoot.remove(rp.weaponRoot.children[0]);
+    // 1) Clear any previous model
+    while (rp.weaponRoot.children.length) {
+        rp.weaponRoot.remove(rp.weaponRoot.children[0]);
+    }
+    rp.weaponMesh = null;
+
+    // 2) Get preloaded prototype
+    const proto = _prototypeModels[key];
+
+    if (proto && proto.children.length) {
+        const clone = proto.clone(true);
+        clone.visible = true;
+
+        // 3) Apply original buildX() transforms
+        switch (key) {
+            case "knife": {
+                const s = 0.0007;
+                clone.scale.set(s, s, s);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(90),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(0.5, 0.8 - 1.4, 0);
+                break;
+            }
+            case "deagle":
+                clone.scale.set(0.5, 0.5, 0.5);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(0.5, 0.8 - 1.4, 0);
+                break;
+
+            case "ak47":
+                clone.scale.set(0.4, 0.4, 0.4);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(0.5, 0.8 - 1.4, 0);
+                break;
+
+            case "viper":
+                clone.scale.set(0.4, 0.4, 0.4);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(0.5, 0.8 - 1.4, 0);
+                break;
+
+            case "marshal":
+                clone.scale.set(2, 2, 2);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(0),
+                    0
+                );
+                clone.position.set(0.5, 0.8 - 1.4, 0);
+                break;
+
+            case "m79":
+                clone.scale.set(0.5, 0.5, 0.5);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(0.5, 0.8 - 1.4, 0);
+                break;
+
+            default:
+                console.warn(`attachWeaponToPlayer(): Unknown weapon "${key}"`);
+                return;
+        }
+
+        // 4) Parent it under the hand and record for animation
+        rp.weaponRoot.add(clone);
+        rp.weaponMesh = clone;
+        rp.currentWeapon = key;
+        return;
+    }
+
+    // 5) Knife fallback only if prototype isn't ready
+    if (key === "knife") {
+        console.warn(`[attachWeaponToPlayer] Knife prototype missing — fallback to live build`);
+        const tempWC = new WeaponController(new THREE.Group());
+        tempWC.buildKnife((knifeGroup) => {
+            knifeGroup.visible = true;
+            knifeGroup.scale.set(0.001, 0.001, 0.001);
+            knifeGroup.rotation.set(
+                THREE.MathUtils.degToRad(90),
+                THREE.MathUtils.degToRad(160),
+                0
+            );
+            knifeGroup.position.set(0.5, -0.1, -0.7);
+
+            rp.weaponRoot.add(knifeGroup);
+            rp.weaponMesh = knifeGroup;
+            rp.currentWeapon = "knife";
+
+            console.log(`[${playerId}] attached fallback knife as weaponMesh`, knifeGroup);
+        });
+    } else {
+        console.warn(`attachWeaponToPlayer(): No prototype available for "${key}"`);
+    }
 }
-// clear any old reference
-rp.weaponMesh = null;
-
-// 2) Get preloaded prototype
-const proto = _prototypeModels[key];
-
-if (proto && proto.children.length) {
-const clone = proto.clone(true);
-clone.visible = true;
-
-// 3) Apply original buildX() transforms
-switch (key) {
-case "knife": {
-const s = 0.0007;
-clone.scale.set(s, s, s);
-clone.rotation.set(
-THREE.MathUtils.degToRad(90),
-THREE.MathUtils.degToRad(180),
-0
-);
-clone.position.set(0.5, 0.8 - 1.4, 0);
-break;
-}
-case "deagle":
-clone.scale.set(0.5, 0.5, 0.5);
-clone.rotation.set(
-THREE.MathUtils.degToRad(0),
-THREE.MathUtils.degToRad(180),
-0
-);
-clone.position.set(0.5, 0.8 - 1.4, 0);
-break;
-case "ak47":
-clone.position.set(0.5, 0.8 - 1.4, 0);
-clone.scale.set(0.4, 0.4, 0.4);
-clone.rotation.set(
-THREE.MathUtils.degToRad(0),
-THREE.MathUtils.degToRad(180),
-0
-);
-break;
-case "marshal":
-clone.scale.set(2, 2, 2);
-clone.rotation.set(
-THREE.MathUtils.degToRad(0),
-THREE.MathUtils.degToRad(0),
-0
-);
-clone.position.set(0.5, 0.8 - 1.4, 0);
-break;
-case "m79":
-clone.scale.set(0.5, 0.5, 0.5);
-clone.rotation.set(
-THREE.MathUtils.degToRad(0),
-THREE.MathUtils.degToRad(180),
-0
-);
-clone.position.set(0.5, 0.8 - 1.4, 0);
-break;
-default:
-console.warn(`attachWeaponToPlayer(): Unknown weapon "${key}"`);
-return;
-}
-
-// 4) Parent it under the hand and record for animation
-rp.weaponRoot.add(clone);
-rp.weaponMesh = clone;
-rp.currentWeapon = key;
-// console.log(`[${playerId}] attached prototype "${key}" as weaponMesh`, clone);
-return;
-}
-
-// 5) Knife fallback only if prototype isn't ready
-if (key === "knife") {
-console.warn(`[attachWeaponToPlayer] Knife prototype missing — fallback to live build`);
-const tempWC = new WeaponController(new THREE.Group());
-tempWC.buildKnife((knifeGroup) => {
-knifeGroup.visible = true;
-knifeGroup.scale.set(0.001, 0.001, 0.001);
-knifeGroup.rotation.set(
-THREE.MathUtils.degToRad(90),
-THREE.MathUtils.degToRad(160),
-0
-);
-knifeGroup.position.set(0.5, -0.1, -0.7);
-
-rp.weaponRoot.add(knifeGroup);
-rp.weaponMesh = knifeGroup;
-rp.currentWeapon = "knife";
-console.log(`[${playerId}] attached fallback knife as weaponMesh`, knifeGroup);
-});
-} else {
-console.warn(`attachWeaponToPlayer(): No prototype available for "${key}"`);
-}
-}
-
 
 
 
@@ -2717,3 +2735,4 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
