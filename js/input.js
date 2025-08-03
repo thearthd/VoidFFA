@@ -517,13 +517,13 @@ function onKeyDown(e) {
             inputState.fire = true;
             inputState.fireJustPressed = true;
             break;
-        case currentKeybinds.weapon1:
+        case currentKeybinds.knife:
             inputState.weaponSwitch = "knife";
             break;
-        case currentKeybinds.weapon2:
+        case currentKeybinds.primary:
             if (primary) inputState.weaponSwitch = primary;
             break;
-        case currentKeybinds.weapon3:
+        case currentKeybinds.secondary:
             if (secondary) inputState.weaponSwitch = secondary;
             break;
         // Aim and Fire are primarily mouse-driven, but could have keyboard binds too.
