@@ -45,7 +45,8 @@ initAmmoDisplay,
 updateAmmoDisplay,
 createHealthBar,
 updateHealthShieldUI,
-createTracer
+createTracer,
+uiDbRefs
 } from "./ui.js";
 
 import { usersRef } from './firebase-config.js';
@@ -2748,6 +2749,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
