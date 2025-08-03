@@ -267,7 +267,7 @@ this._recoil = {
   peakOffset: 0,          // how far up recoil kicks
   lastOffset: 0,          // last recoil value applied
   recoilStartTime: 0,
-  recoilDuration: 0.1
+  recoilDuration: 0.4
 };
   }
 
