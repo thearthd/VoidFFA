@@ -575,9 +575,9 @@ function onKeyUp(e) {
         case currentKeybinds.aim: // Handling 'aim' for keyboard
             inputState.aim = false;
             break;
-        case currentKeybinds.fire: // Handling 'fire' for keyboard
-            inputState.fire = false;
-            break;
+    case currentKeybinds.fire:
+      inputState.fire = false;
+      break;
 
         case currentKeybinds.knife:
         case currentKeybinds.primary:
@@ -838,7 +838,8 @@ export function updateDebugCursor() {
 
 export function postFrameCleanup() {
     inputState.weaponSwitch = null;
-    inputState.fireJustPressed = false;
+  inputState.fire           = false;
+  inputState.fireJustPressed= false;
     inputState.mouseDX = 0;
     inputState.mouseDY = 0;
 }
