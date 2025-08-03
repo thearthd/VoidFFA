@@ -706,8 +706,8 @@ update(inputState, delta, playerState) {
                     startRotation: this.viewModel.rotation.clone(),
                     durationUp: 0.03, // A very fast upward kick
                     durationDown: 0.25, // A slower downward recovery
-                    maxAngleUp: THREE.MathUtils.degToRad(3), // Subtly kick up on the X-axis
-                    maxAngleSide: THREE.MathUtils.degToRad(60), // Kick hard on the Z-axis (sideways)
+                    maxAngleUp: THREE.MathUtils.degToRad(60), // Subtly kick up on the X-axis
+                    maxAngleSide: THREE.MathUtils.degToRad(3), // Kick hard on the Z-axis (sideways)
                 };
             }
 
