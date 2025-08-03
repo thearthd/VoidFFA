@@ -852,17 +852,24 @@ update(inputState, delta, playerState) {
   if (this._recoil && isFinite(this._recoil.peakOffset) && this._recoil.peakOffset !== 0) {
     const elapsed = now - this._recoil.recoilStartTime;
     const t       = elapsed / this._recoil.recoilDuration;
+
     if (t >= 1) {
+      // Recovery complete: reset everything
       this.camera.rotation.x    = this._recoil.baseCameraX;
       this._recoil.peakOffset   = 0;
+      this._recoil.recoilStartTime = 0;
       this._recoil.lastOffset   = 0;
     } else {
+      // Ease back from peakOffset → 0
       const easedT    = 1 - (t * t * (3 - 2 * t));
       const newOffset = this._recoil.peakOffset * easedT;
       const deltaOff  = newOffset - this._recoil.lastOffset;
+
+      // Only apply valid finite rotations
       if (isFinite(this._recoil.baseCameraX + newOffset)) {
         this.camera.rotation.x = this._recoil.baseCameraX + newOffset;
       }
+
       this._recoil.lastOffset = isFinite(newOffset) ? newOffset : this._recoil.lastOffset;
     }
   }
