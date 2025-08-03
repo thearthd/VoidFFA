@@ -728,11 +728,11 @@ update(inputState, delta, playerState) {
           let appliedRecoilAngle = rawRecoil*3;
           if (this.currentKey === "ak-47" && shotIndex >= 7) appliedRecoilAngle = 0.008;
           if (this.currentKey === "ak-47" && shotIndex == 9) appliedRecoilAngle = 0.007;
-          if (this.currentKey === "ak-47" && shotIndex >= 10) appliedRecoilAngle = 0.005;
+          if (this.currentKey === "ak-47" && shotIndex >= 11) appliedRecoilAngle = 0.005;
 
-          if (this.currentKey === "viper" && shotIndex >= 13) appliedRecoilAngle = 0.024;
-          if (this.currentKey === "viper" && shotIndex == 15) appliedRecoilAngle = 0.020;
-          if (this.currentKey === "viper" && shotIndex >= 17) appliedRecoilAngle = 0.016;
+          if (this.currentKey === "viper" && shotIndex >= 7) appliedRecoilAngle = 0.024;
+          if (this.currentKey === "viper" && shotIndex == 9) appliedRecoilAngle = 0.020;
+          if (this.currentKey === "viper" && shotIndex >= 11) appliedRecoilAngle = 0.016;
           
           if (this._aiming) appliedRecoilAngle /= 2;
 
