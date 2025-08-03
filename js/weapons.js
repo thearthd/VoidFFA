@@ -227,13 +227,13 @@ export class WeaponController {
     m79: {
       shot: 'https://codehs.com/uploads/8b81838df3b08b56fac7f26a2ca9e7c3',
       pull: 'https://codehs.com/uploads/aff98052ce443af0016300655d234189',
-      reloadStart: 'https://codehs.com/uploads/bceedd01e90d49150d6d0c33f8107066',
+      reloadStart: 'https://codehs.com/uploads/c037824e7ad86dcf55ca2e89b0b893af',
       reloadEnd: 'https://codehs.com/uploads/bb78ded10db4f1f4a9092d5744bda11a',
     },
     viper: {
       shot: 'https://codehs.com/uploads/7536977c95aafe3ed9b2633239282f88',
       pull: 'https://codehs.com/uploads/6305a83477d217c2575c59e90b8273fd',
-      reloadStart: 'https://codehs.com/uploads/c037824e7ad86dcf55ca2e89b0b893af',
+      reloadStart: 'https://codehs.com/uploads/bceedd01e90d49150d6d0c33f8107066',
       reloadEnd: 'https://codehs.com/uploads/bc0dfbadc36ac155b7944c788c827135',
     },
   };
