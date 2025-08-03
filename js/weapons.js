@@ -266,7 +266,7 @@ this._recoil = {
   currentOffset: 0,
   peakOffset:    0,
   recoilStartTime: 0,
-  recoilDuration:  0.2
+  recoilDuration:  0.1
 };
   }
 
@@ -692,7 +692,6 @@ update(inputState, delta, playerState) {
 
           this._recoil.peakOffset      = appliedRecoilAngle;
           this._recoil.recoilStartTime = now;
-          this._recoil.recoilDuration = 0.5; // You'll need to define this somewhere or make it a variable.
           this._recoil.recoveryPoint = this.camera.rotation.clone();
 
           // View-model kickback
