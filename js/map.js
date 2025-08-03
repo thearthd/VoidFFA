@@ -94,7 +94,16 @@ export class Lantern {
  * @returns {Promise<THREE.Vector3[]>} A promise that resolves with an array of spawn points.
  */
 export async function createCrocodilosConstruction(scene, physicsController) {
-    const mapName = 'CrocodilosConstruction';
+    // Track loaded meshes and readiness status
+    window.envMeshes = [];
+    window.mapReady = false;
+
+    // Initialize loader UI with a single milestone for GLB loading
+    const loaderUI = new Loader();
+    const mapLoadPercentages = [1.0]; // GLB loading is 100% of the map load
+    loaderUI.show('Loading CrocodilosConstruction Map...', mapLoadPercentages);
+
+    // Define scaling and initial spawn points for the map
     const SCALE = 5;
     const rawSpawnPoints = [
         new THREE.Vector3(-14, 7, -36), // 1
@@ -108,59 +117,7 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 5));
 
-    // Check if the map is already preloaded
-    if (window.preloadedMaps && window.preloadedMaps[mapName]) {
-        console.log(`✅ Using preloaded map: ${mapName}`);
-        
-        const preloadedData = window.preloadedMaps[mapName];
-
-        // Clone the gltfGroup and the collider to add them to the scene
-        const gltfGroup = preloadedData.gltfGroup.clone();
-        const collider = preloadedData.collider.clone();
-        
-        scene.add(gltfGroup);
-        scene.add(collider);
-        
-        // Update physics controller with the cloned collider
-        physicsController.setCollider(collider);
-        physicsController.worldBVH = collider.geometry.boundsTree;
-
-        // Set up sunlight (this is done regardless of preloading)
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-        sunLight.position.set(50, 100, 50);
-        sunLight.target.position.set(0, 0, 0);
-        sunLight.castShadow = true;
-        sunLight.shadow.mapSize.set(2048, 2048);
-        const d = 100;
-        sunLight.shadow.camera.left = -d;
-        sunLight.shadow.camera.right = d;
-        sunLight.shadow.camera.top = d;
-        sunLight.shadow.camera.bottom = -d;
-        sunLight.shadow.camera.near = 0.1;
-        sunLight.shadow.camera.far = 200;
-        scene.add(sunLight, sunLight.target);
-        
-        window.envMeshes = [];
-        gltfGroup.traverse(child => {
-            if (child.isMesh) {
-                window.envMeshes.push(child);
-            }
-        });
-        window.mapReady = true;
-
-        return spawnPoints;
-    }
-
-    // --- Original loading logic (for when the map is NOT preloaded) ---
-    console.log(`❌ Map not preloaded. Loading ${mapName} from scratch.`);
-    
-    window.envMeshes = [];
-    window.mapReady = false;
-
-    const loaderUI = new Loader();
-    const mapLoadPercentages = [1.0];
-    loaderUI.show(`Loading ${mapName} Map...`, mapLoadPercentages);
-
+    // Set up sunlight and shadows for the scene
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
     sunLight.position.set(50, 100, 50);
     sunLight.target.position.set(0, 0, 0);
@@ -175,19 +132,24 @@ export async function createCrocodilosConstruction(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
+    // URL of the GLB model for the map
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/croccodilosconstruction.glb';
-    
+
+    // 1) Load the GLB model into the scene and process it for collision detection
+    let gltfGroup = null;
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                const gltfGroup = gltf.scene;
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                gltfGroup.updateMatrixWorld(true);
+                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
 
+                // Add the visual GLTF group to the scene
                 scene.add(gltfGroup);
 
+                // Enable shadows and anisotropy on all meshes in the GLTF group
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -195,34 +157,48 @@ export async function createCrocodilosConstruction(scene, physicsController) {
                         if (child.material.map) {
                             child.material.map.anisotropy = 4;
                         }
-                        window.envMeshes.push(child);
+                        window.envMeshes.push(child); // Store reference to environment meshes
+                        // Ensure geometries have indices for BVH computation if missing
                         if (child.geometry && !child.geometry.index) {
                             child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
                         }
                     }
                 });
 
+                // --- MeshBVH Collider Setup ---
+                // Create a StaticGeometryGenerator from the loaded GLTF scene to merge geometries
                 const staticGenerator = new StaticGeometryGenerator(gltfGroup);
-                staticGenerator.attributes = ['position'];
-                const mergedGeometry = staticGenerator.generate();
-                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry);
+                staticGenerator.attributes = ['position']; // Only position is needed for collision
 
+                // Generate the merged geometry from the static generator
+                const mergedGeometry = staticGenerator.generate();
+
+                // Compute the BVH on the merged geometry using the MeshBVH constructor directly
+                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry); // <--- Changed here
+
+                // Create the collider mesh using the merged geometry and a basic material
                 const collider = new THREE.Mesh(mergedGeometry, new THREE.MeshBasicMaterial());
-                collider.material.wireframe = true;
+                collider.material.wireframe = true; // For visualization during development
                 collider.material.opacity = 0.5;
                 collider.material.transparent = true;
-                collider.visible = false;
+                collider.visible = false; // Hide the collider by default in production
+
+                // Add the collider to the scene
                 scene.add(collider);
 
-                const visualizer = new MeshBVHHelper(collider, 10);
-                visualizer.visible = false;
+                // Optional: Add MeshBVHHelper for visual debugging of the BVH structure
+                const visualizer = new MeshBVHHelper(collider, 10); // 10 is an example depth
+                visualizer.visible = false; // Hide by default
                 scene.add(visualizer);
 
+                // Pass the created collider mesh to the physics controller
+                // Assumes physicsController has a method like setCollider(mesh)
                 physicsController.setCollider(collider);
                 physicsController.worldBVH = collider.geometry.boundsTree;
                 console.log('✔️ GLB mesh loaded and BVH collider built.');
-                resolve(spawnPoints);
+                resolve(gltfGroup); // Resolve the promise once loading and BVH setup are complete
             },
+            // Progress callback for GLB loading
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
@@ -233,12 +209,15 @@ export async function createCrocodilosConstruction(scene, physicsController) {
         );
     });
 
+    // Track GLB load progress with the loader UI
     loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
         onGLBProgress = cb;
     });
 
+    // Wait for the map loading to complete
     await mapLoadPromise;
 
+    // When fully done, update readiness status and hide loader UI
     loaderUI.onComplete(() => {
         window.mapReady = true;
         console.log('🗺️ Map + BVH Collider fully ready!');
@@ -254,7 +233,16 @@ export async function createCrocodilosConstruction(scene, physicsController) {
  * @returns {Promise<THREE.Vector3[]>} A promise that resolves with an array of spawn points.
  */
 export async function createSigmaCity(scene, physicsController) {
-    const mapName = 'SigmaCity';
+    // Track loaded meshes and readiness status
+    window.envMeshes = [];
+    window.mapReady = false;
+
+    // Initialize loader UI with a single milestone for GLB loading
+    const loaderUI = new Loader();
+    const mapLoadPercentages = [1.0]; // GLB loading is 100% of the map load
+    loaderUI.show('Loading SigmaCity Map...', mapLoadPercentages);
+
+    // Define scaling and initial spawn points for the map
     const SCALE = 2;
     const rawSpawnPoints = [
         new THREE.Vector3(-1, 3, -4), // 1
@@ -268,55 +256,7 @@ export async function createSigmaCity(scene, physicsController) {
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 2));
 
-    // Check if the map is already preloaded
-    if (window.preloadedMaps && window.preloadedMaps[mapName]) {
-        console.log(`✅ Using preloaded map: ${mapName}`);
-        const preloadedData = window.preloadedMaps[mapName];
-
-        const gltfGroup = preloadedData.gltfGroup.clone();
-        const collider = preloadedData.collider.clone();
-
-        scene.add(gltfGroup);
-        scene.add(collider);
-
-        physicsController.setCollider(collider);
-        physicsController.worldBVH = collider.geometry.boundsTree;
-
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-        sunLight.position.set(50, 100, 50);
-        sunLight.target.position.set(0, 0, 0);
-        sunLight.castShadow = true;
-        sunLight.shadow.mapSize.set(2048, 2048);
-        const d = 100;
-        sunLight.shadow.camera.left = -d;
-        sunLight.shadow.camera.right = d;
-        sunLight.shadow.camera.top = d;
-        sunLight.shadow.camera.bottom = -d;
-        sunLight.shadow.camera.near = 0.1;
-        sunLight.shadow.camera.far = 200;
-        scene.add(sunLight, sunLight.target);
-
-        window.envMeshes = [];
-        gltfGroup.traverse(child => {
-            if (child.isMesh) {
-                window.envMeshes.push(child);
-            }
-        });
-        window.mapReady = true;
-
-        return spawnPoints;
-    }
-
-    // --- Original loading logic (for when the map is NOT preloaded) ---
-    console.log(`❌ Map not preloaded. Loading ${mapName} from scratch.`);
-
-    window.envMeshes = [];
-    window.mapReady = false;
-
-    const loaderUI = new Loader();
-    const mapLoadPercentages = [1.0];
-    loaderUI.show(`Loading ${mapName} Map...`, mapLoadPercentages);
-
+    // Set up sunlight and shadows for the scene
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
     sunLight.position.set(50, 100, 50);
     sunLight.target.position.set(0, 0, 0);
@@ -331,19 +271,24 @@ export async function createSigmaCity(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
+    // URL of the GLB model for the map
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sigmaCITYPLEASE.glb';
 
+    // 1) Load the GLB model into the scene and process it for collision detection
+    let gltfGroup = null;
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                const gltfGroup = gltf.scene;
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                gltfGroup.updateMatrixWorld(true);
+                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
 
+                // Add the visual GLTF group to the scene
                 scene.add(gltfGroup);
 
+                // Enable shadows and anisotropy on all meshes in the GLTF group
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -351,34 +296,48 @@ export async function createSigmaCity(scene, physicsController) {
                         if (child.material.map) {
                             child.material.map.anisotropy = 4;
                         }
-                        window.envMeshes.push(child);
+                        window.envMeshes.push(child); // Store reference to environment meshes
+                        // Ensure geometries have indices for BVH computation if missing
                         if (child.geometry && !child.geometry.index) {
                             child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
                         }
                     }
                 });
 
+                // --- MeshBVH Collider Setup ---
+                // Create a StaticGeometryGenerator from the loaded GLTF scene to merge geometries
                 const staticGenerator = new StaticGeometryGenerator(gltfGroup);
-                staticGenerator.attributes = ['position'];
-                const mergedGeometry = staticGenerator.generate();
-                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry);
+                staticGenerator.attributes = ['position']; // Only position is needed for collision
 
+                // Generate the merged geometry from the static generator
+                const mergedGeometry = staticGenerator.generate();
+
+                // Compute the BVH on the merged geometry using the MeshBVH constructor directly
+                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry); // <--- Changed here
+
+                // Create the collider mesh using the merged geometry and a basic material
                 const collider = new THREE.Mesh(mergedGeometry, new THREE.MeshBasicMaterial());
-                collider.material.wireframe = true;
+                collider.material.wireframe = true; // For visualization during development
                 collider.material.opacity = 0.5;
                 collider.material.transparent = true;
-                collider.visible = false;
+                collider.visible = false; // Hide the collider by default in production
+
+                // Add the collider to the scene
                 scene.add(collider);
 
-                const visualizer = new MeshBVHHelper(collider, 10);
-                visualizer.visible = false;
+                // Optional: Add MeshBVHHelper for visual debugging of the BVH structure
+                const visualizer = new MeshBVHHelper(collider, 10); // 10 is an example depth
+                visualizer.visible = false; // Hide by default
                 scene.add(visualizer);
 
+                // Pass the created collider mesh to the physics controller
+                // Assumes physicsController has a method like setCollider(mesh)
                 physicsController.setCollider(collider);
                 physicsController.worldBVH = collider.geometry.boundsTree;
                 console.log('✔️ GLB mesh loaded and BVH collider built.');
-                resolve(spawnPoints);
+                resolve(gltfGroup); // Resolve the promise once loading and BVH setup are complete
             },
+            // Progress callback for GLB loading
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
@@ -389,12 +348,15 @@ export async function createSigmaCity(scene, physicsController) {
         );
     });
 
+    // Track GLB load progress with the loader UI
     loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
         onGLBProgress = cb;
     });
 
+    // Wait for the map loading to complete
     await mapLoadPromise;
 
+    // When fully done, update readiness status and hide loader UI
     loaderUI.onComplete(() => {
         window.mapReady = true;
         console.log('🗺️ Map + BVH Collider fully ready!');
@@ -404,7 +366,16 @@ export async function createSigmaCity(scene, physicsController) {
 }
 
 export async function createDiddyDunes(scene, physicsController) {
-    const mapName = 'DiddyDunes';
+    // Track loaded meshes and readiness status
+    window.envMeshes = [];
+    window.mapReady = false;
+
+    // Initialize loader UI with a single milestone for GLB loading
+    const loaderUI = new Loader();
+    const mapLoadPercentages = [1.0]; // GLB loading is 100% of the map load
+    loaderUI.show('Loading diddyDunes Map...', mapLoadPercentages);
+
+    // Define scaling and initial spawn points for the map
     const SCALE = 2;
     const rawSpawnPoints = [
         new THREE.Vector3(34, 3, 0), // 1
@@ -418,55 +389,7 @@ export async function createDiddyDunes(scene, physicsController) {
     ];
     const spawnPoints = rawSpawnPoints.map(p => p.clone().multiplyScalar(SCALE / 2));
 
-    // Check if the map is already preloaded
-    if (window.preloadedMaps && window.preloadedMaps[mapName]) {
-        console.log(`✅ Using preloaded map: ${mapName}`);
-        const preloadedData = window.preloadedMaps[mapName];
-
-        const gltfGroup = preloadedData.gltfGroup.clone();
-        const collider = preloadedData.collider.clone();
-
-        scene.add(gltfGroup);
-        scene.add(collider);
-
-        physicsController.setCollider(collider);
-        physicsController.worldBVH = collider.geometry.boundsTree;
-
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-        sunLight.position.set(50, 100, 50);
-        sunLight.target.position.set(0, 0, 0);
-        sunLight.castShadow = true;
-        sunLight.shadow.mapSize.set(2048, 2048);
-        const d = 100;
-        sunLight.shadow.camera.left = -d;
-        sunLight.shadow.camera.right = d;
-        sunLight.shadow.camera.top = d;
-        sunLight.shadow.camera.bottom = -d;
-        sunLight.shadow.camera.near = 0.1;
-        sunLight.shadow.camera.far = 200;
-        scene.add(sunLight, sunLight.target);
-
-        window.envMeshes = [];
-        gltfGroup.traverse(child => {
-            if (child.isMesh) {
-                window.envMeshes.push(child);
-            }
-        });
-        window.mapReady = true;
-
-        return spawnPoints;
-    }
-
-    // --- Original loading logic (for when the map is NOT preloaded) ---
-    console.log(`❌ Map not preloaded. Loading ${mapName} from scratch.`);
-
-    window.envMeshes = [];
-    window.mapReady = false;
-
-    const loaderUI = new Loader();
-    const mapLoadPercentages = [1.0];
-    loaderUI.show(`Loading ${mapName} Map...`, mapLoadPercentages);
-
+    // Set up sunlight and shadows for the scene
     const sunLight = new THREE.DirectionalLight(0xffffff, 1);
     sunLight.position.set(50, 100, 50);
     sunLight.target.position.set(0, 0, 0);
@@ -481,19 +404,24 @@ export async function createDiddyDunes(scene, physicsController) {
     sunLight.shadow.camera.far = 200;
     scene.add(sunLight, sunLight.target);
 
+    // URL of the GLB model for the map
     const GLB_MODEL_URL = 'https://raw.githubusercontent.com/thearthd/3d-models/main/sandyards_standoff_2.glb';
 
+    // 1) Load the GLB model into the scene and process it for collision detection
+    let gltfGroup = null;
     let onGLBProgress = () => {};
     const mapLoadPromise = new Promise((resolve, reject) => {
         new GLTFLoader().load(
             GLB_MODEL_URL,
             gltf => {
-                const gltfGroup = gltf.scene;
+                gltfGroup = gltf.scene;
                 gltfGroup.scale.set(SCALE, SCALE, SCALE);
-                gltfGroup.updateMatrixWorld(true);
+                gltfGroup.updateMatrixWorld(true); // Crucial for correct vertex transformation
 
+                // Add the visual GLTF group to the scene
                 scene.add(gltfGroup);
 
+                // Enable shadows and anisotropy on all meshes in the GLTF group
                 gltfGroup.traverse(child => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -501,50 +429,67 @@ export async function createDiddyDunes(scene, physicsController) {
                         if (child.material.map) {
                             child.material.map.anisotropy = 4;
                         }
-                        window.envMeshes.push(child);
+                        window.envMeshes.push(child); // Store reference to environment meshes
+                        // Ensure geometries have indices for BVH computation if missing
                         if (child.geometry && !child.geometry.index) {
                             child.geometry.setIndex(generateSequentialIndices(child.geometry.attributes.position.count));
                         }
                     }
                 });
 
+                // --- MeshBVH Collider Setup ---
+                // Create a StaticGeometryGenerator from the loaded GLTF scene to merge geometries
                 const staticGenerator = new StaticGeometryGenerator(gltfGroup);
-                staticGenerator.attributes = ['position'];
-                const mergedGeometry = staticGenerator.generate();
-                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry);
+                staticGenerator.attributes = ['position']; // Only position is needed for collision
 
+                // Generate the merged geometry from the static generator
+                const mergedGeometry = staticGenerator.generate();
+
+                // Compute the BVH on the merged geometry using the MeshBVH constructor directly
+                mergedGeometry.boundsTree = new MeshBVH(mergedGeometry); // <--- Changed here
+
+                // Create the collider mesh using the merged geometry and a basic material
                 const collider = new THREE.Mesh(mergedGeometry, new THREE.MeshBasicMaterial());
-                collider.material.wireframe = true;
+                collider.material.wireframe = true; // For visualization during development
                 collider.material.opacity = 0.5;
                 collider.material.transparent = true;
-                collider.visible = false;
+                collider.visible = false; // Hide the collider by default in production
+
+                // Add the collider to the scene
                 scene.add(collider);
 
-                const visualizer = new MeshBVHHelper(collider, 10);
-                visualizer.visible = false;
+                // Optional: Add MeshBVHHelper for visual debugging of the BVH structure
+                const visualizer = new MeshBVHHelper(collider, 10); // 10 is an example depth
+                visualizer.visible = false; // Hide by default
                 scene.add(visualizer);
 
+                // Pass the created collider mesh to the physics controller
+                // Assumes physicsController has a method like setCollider(mesh)
                 physicsController.setCollider(collider);
                 physicsController.worldBVH = collider.geometry.boundsTree;
                 console.log('✔️ GLB mesh loaded and BVH collider built.');
-                resolve(spawnPoints);
+                resolve(gltfGroup); // Resolve the promise once loading and BVH setup are complete
             },
+            // Progress callback for GLB loading
             evt => {
                 if (evt.lengthComputable) onGLBProgress(evt);
             },
             err => {
-                console.error('❌ Error loading DiddyDunes GLB:', err);
+                console.error('❌ Error loading diddyDunes GLB:', err);
                 reject(err);
             }
         );
     });
 
+    // Track GLB load progress with the loader UI
     loaderUI.track(mapLoadPercentages[0], mapLoadPromise, cb => {
         onGLBProgress = cb;
     });
 
+    // Wait for the map loading to complete
     await mapLoadPromise;
 
+    // When fully done, update readiness status and hide loader UI
     loaderUI.onComplete(() => {
         window.mapReady = true;
         console.log('🗺️ Map + BVH Collider fully ready!');
@@ -552,78 +497,3 @@ export async function createDiddyDunes(scene, physicsController) {
 
     return spawnPoints;
 }
-
-
-export async function preloadMapPrototypes(onComplete) {
-    const mapNames = ['CrocodilosConstruction', 'SigmaCity', 'DiddyDunes'];
-    const mapLoaders = {
-        'CrocodilosConstruction': createCrocodilosConstruction,
-        'SigmaCity': createSigmaCity,
-        'DiddyDunes': createDiddyDunes,
-    };
-    
-    // We will store the preloaded map data in a global object.
-    window.preloadedMaps = {};
-    window.mapReady = false;
-
-    const loaderUI = new Loader();
-    const itemPercentages = mapNames.map(() => 1 / mapNames.length);
-
-    loaderUI.show('Preloading Maps...', itemPercentages);
-
-    for (let i = 0; i < mapNames.length; i++) {
-        const name = mapNames[i];
-        const createMapFunction = mapLoaders[name];
-        console.log(`Preloading map: ${name}, weight ${itemPercentages[i] * 100}%`);
-
-        // Create a dummy scene and physics controller for preloading.
-        const dummyScene = new THREE.Scene();
-        const dummyPhysicsController = {
-            setCollider: (collider) => {
-                // We just store the collider and the scene data for later.
-                window.preloadedMaps[name].collider = collider;
-            },
-            worldBVH: null
-        };
-
-        // The map creation function returns a promise that resolves with spawn points.
-        // We need to slightly modify your existing functions to also return the gltfGroup.
-        const promise = createMapFunction(dummyScene, dummyPhysicsController);
-
-        // Store the promise and a placeholder for the map data.
-        window.preloadedMaps[name] = {
-            promise: promise,
-            gltfGroup: null,
-            collider: null,
-            spawnPoints: null,
-            sunLight: null,
-            onProgress: null
-        };
-
-        // Track progress and wait for the promise to resolve.
-        // We need to modify your createMap functions to expose the progress callback.
-        const spawnPoints = await loaderUI.track(itemPercentages[i], promise, cb => {
-            window.preloadedMaps[name].onProgress = cb;
-        });
-        
-        // Once loaded, store the final data.
-        const loadedMapData = {
-            gltfGroup: dummyScene.children.find(child => child instanceof THREE.Group), // Assuming the GLTF is a Group
-            collider: dummyPhysicsController.collider,
-            spawnPoints: spawnPoints
-        };
-        
-        window.preloadedMaps[name] = loadedMapData;
-        console.log(`Preloaded ${name} successfully.`);
-    }
-
-    loaderUI.onComplete(() => {
-        window.mapReady = true;
-        console.log('✅ ALL map prototypes are ready!');
-        onComplete?.();
-    });
-}
-
-    preloadMapPrototypes(() => {
-        console.log("Maps finished preloading!");
-    });
