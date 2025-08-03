@@ -707,7 +707,7 @@ update(inputState, delta, playerState) {
                     durationUp: 0.03, // A very fast upward kick
                     durationDown: 0.25, // A slower downward recovery
                     maxAngleUp: THREE.MathUtils.degToRad(3), // Subtly kick up on the X-axis
-                    maxAngleSide: THREE.MathUtils.degToRad(8), // Kick hard on the Z-axis (sideways)
+                    maxAngleSide: THREE.MathUtils.degToRad(60), // Kick hard on the Z-axis (sideways)
                 };
             }
 
