@@ -710,24 +710,51 @@ function setupChatListener(chatRef) {
 }
 
 function setupKillsListener(killsRef) {
-    if (killsListener) killsRef.off("child_added", killsListener); // Detach previous
-    killsListener = killsRef.limitToLast(5).on("child_added", (snap) => {
-        const k = snap.val();
-        updateKillFeed(k.killer, k.victim, k.weapon, snap.key);
-        updateScoreboard(dbRefs.playersRef); // This will cause full scoreboard refresh
+  // 1) Detach any old child_added listener
+  if (killsListener) {
+    killsRef.off("child_added", killsListener);
+  }
+
+  // 2) Listen to the last 5 kills
+  killsListener = killsRef
+    .limitToLast(5)
+    .on("child_added", (snap) => {
+      const k = snap.val() || {};
+
+      updateKillFeed(
+        k.killer,
+        k.victim,
+        k.weapon,
+        /* isHeadshot: */       Boolean(k.isHeadshot),
+        /* isPenetrationShot: */Boolean(k.isPenetrationShot),
+        /* killId: */           snap.key
+      );
+
+      // Also refresh your scoreboard
+      updateScoreboard(dbRefs.playersRef);
     });
 
-    // Kills cleanup interval
-    // Clear any previous interval to prevent multiple from running
-    if (window.killsCleanupInterval) {
-        clearInterval(window.killsCleanupInterval);
-    }
-    window.killsCleanupInterval = setInterval(() => {
-        const cutoff = Date.now() - 60000; // 1 minute cutoff
-        killsRef.orderByChild("timestamp").endAt(cutoff).once("value", (snapshot) => {
-            snapshot.forEach(child => child.ref.remove());
-        });
-    }, 60000); // Run every minute
+  // 3) OPTIONAL: auto‐remove entries if Firebase record is deleted
+  //    This keeps the DOM in sync if your cleanup interval nukes old kills.
+  killsRef.on("child_removed", (snap) => {
+    const feed = document.getElementById("kill-feed");
+    const entry = feed?.querySelector(`[data-kill-id="${snap.key}"]`);
+    if (entry) entry.remove();
+  });
+
+  // 4) Cleanup interval: delete old kills from Firebase
+  if (window.killsCleanupInterval) {
+    clearInterval(window.killsCleanupInterval);
+  }
+  window.killsCleanupInterval = setInterval(() => {
+    const cutoff = Date.now() - 60_000; // 1 minute ago
+    killsRef
+      .orderByChild("timestamp")
+      .endAt(cutoff)
+      .once("value", (snapshot) => {
+        snapshot.forEach(child => child.ref.remove());
+      });
+  }, 60_000);
 }
 
 function setupMapStateListener(mapStateRef) {
