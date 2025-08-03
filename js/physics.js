@@ -357,65 +357,74 @@ _applyAirControl(dt) {
 _stepUpIfPossible() {
     if (!this.collider) return;
 
-    // 1. Only attempt if there’s significant horizontal movement
-    const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
-    if (horizVel.lengthSq() < 0.1 * 0.1) return;
-    const dir = horizVel.normalize();
-
-    // 2. Raycast straight down to find the true ground Y
+    // ——————————————————————————————
+    // 1) Find true ground Y under the player
+    // ——————————————————————————————
     const playerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
-    const groundRay = new THREE.Raycaster(
+    const downRay = new THREE.Raycaster(
         this.player.position.clone(),
         new THREE.Vector3(0, -1, 0),
         0,
         playerHeight + 0.2
     );
-    const groundHits = groundRay.intersectObject(this.collider, true);
+    const groundHits = downRay.intersectObject(this.collider, true);
     const actualGroundY = groundHits.length
         ? groundHits[0].point.y
         : this.player.position.y - playerHeight;
 
-    // 3. Forward‐offset raycast at step height
-    const capsuleRadius = this.player.capsuleInfo.radius * this.player.scale.y;
-    const forwardOrigin = this.player.position.clone()
-        .setY(actualGroundY + STEP_HEIGHT + 0.05)
-        .add(dir.clone().multiplyScalar(capsuleRadius + STEP_FORWARD_OFFSET));
-    const stepRay = new THREE.Raycaster(
-        forwardOrigin,
-        new THREE.Vector3(0, -1, 0),
-        0,
-        STEP_HEIGHT + 0.3
-    );
-    const stepHits = stepRay.intersectObject(this.collider, true);
-    if (stepHits.length) {
-        const stepTopY = stepHits[0].point.y;
-        const deltaY = stepTopY - actualGroundY;
+    // ——————————————————————————————
+    // 2) Try to step up if moving into a small obstacle
+    // ——————————————————————————————
+    const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
+    if (horizVel.lengthSq() >= 0.1 * 0.1) {
+        const dir = horizVel.normalize();
+        const capsuleRadius = this.player.capsuleInfo.radius * this.player.scale.y;
 
-        // 4. If the rise is within step limits, check headroom
-        if (deltaY > 0.05 && deltaY <= STEP_HEIGHT + 0.01) {
-            const headCheckOrigin = new THREE.Vector3(
-                this.player.position.x,
-                stepTopY + playerHeight + 0.02,
-                this.player.position.z
-            );
-            const headRay = new THREE.Raycaster(headCheckOrigin, new THREE.Vector3(0, 1, 0), 0, 0.1);
+        // Origin of the step‐height ray, projected forward
+        const forwardOrigin = this.player.position.clone()
+            .setY(actualGroundY + STEP_HEIGHT + 0.05)
+            .add(dir.clone().multiplyScalar(capsuleRadius + STEP_FORWARD_OFFSET));
 
-            if (headRay.intersectObject(this.collider, true).length === 0) {
-                // Snap up onto the ledge
-                this.player.position.y = stepTopY + playerHeight - 0.51;
-                this.playerVelocity.y = 0;
-                this.isGrounded = true;
-                this.player.position.add(dir.multiplyScalar(STEP_FORWARD_PUSH));
-                return;
+        const stepRay = new THREE.Raycaster(
+            forwardOrigin,
+            new THREE.Vector3(0, -1, 0),
+            0,
+            STEP_HEIGHT + 0.3
+        );
+        const stepHits = stepRay.intersectObject(this.collider, true);
+
+        if (stepHits.length) {
+            const stepTopY = stepHits[0].point.y;
+            const deltaY = stepTopY - actualGroundY;
+
+            if (deltaY > 0.05 && deltaY <= STEP_HEIGHT + 0.01) {
+                // Check we have headroom
+                const headCheck = new THREE.Raycaster(
+                    new THREE.Vector3(this.player.position.x, stepTopY + playerHeight + 0.02, this.player.position.z),
+                    new THREE.Vector3(0, 1, 0),
+                    0,
+                    0.1
+                );
+                if (headCheck.intersectObject(this.collider, true).length === 0) {
+                    // Snap up onto the step
+                    this.player.position.y = stepTopY + playerHeight - 0.51;
+                    this.playerVelocity.y = 0;
+                    this.isGrounded = true;
+                    // Nudge forward so feet clear the ledge
+                    this.player.position.add(dir.multiplyScalar(STEP_FORWARD_PUSH));
+                    return; // done stepping
+                }
             }
         }
     }
 
-    // 5. Snap‐down if very close to ground and vertical speed is near zero
-    const distanceToGround = (this.player.position.y - actualGroundY) - playerHeight;
-    const verticalSpeed = this.playerVelocity.y;
-    if (Math.abs(distanceToGround) < 0.1 && Math.abs(verticalSpeed) < 0.1) {
-        this.player.position.y = actualGroundY + playerHeight;
+    // ——————————————————————————————
+    // 3) Snap down if you’re hovering with almost zero vertical speed
+    // ——————————————————————————————
+    const targetY = actualGroundY + playerHeight - 0.51;
+    const deltaToTarget = this.player.position.y - targetY;
+    if (Math.abs(deltaToTarget) < 0.05 && Math.abs(this.playerVelocity.y) < 0.1) {
+        this.player.position.y = targetY;
         this.playerVelocity.y = 0;
         this.isGrounded = true;
     }
