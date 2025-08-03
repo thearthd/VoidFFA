@@ -2318,7 +2318,6 @@ export function animate(timestamp) {
 
         // Render the scene
         composer.render();
-                updateKillFeed();
     } catch (err) {
         console.error("Error in animate:", err);
     } finally {
@@ -2741,6 +2740,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
