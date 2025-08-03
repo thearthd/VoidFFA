@@ -692,11 +692,25 @@ update(inputState, delta, playerState) {
 
           this._recoil.peakOffset      = appliedRecoilAngle;
           this._recoil.recoilStartTime = now;
-          this._recoil.recoveryPoint = this.camera.rotation.clone();
+          this._recoil.recoveryPoint = this.camera.rotation.clone();
 
           // View-model kickback
           this.state.recoiling   = true;
           this.state.recoilStart = now;
+
+            // --- NEW: Deagle Recoil Animation Trigger ---
+            if (this.currentKey === 'deagle') {
+                this.state.deagleRecoil = {
+                    active: true,
+                    startTime: now,
+                    startRotation: this.viewModel.rotation.clone(),
+                    durationUp: 0.03, // A very fast upward kick
+                    durationDown: 0.25, // A slower downward recovery
+                    maxAngleUp: THREE.MathUtils.degToRad(8), // How far up it kicks
+                    maxAngleSide: THREE.MathUtils.degToRad(3), // How far sideways it kicks
+                };
+            }
+
         } else {
           // Start reload
           this.isReloadingFlag = true;
@@ -708,6 +722,43 @@ update(inputState, delta, playerState) {
       }
     }
   }
+
+// --- NEW: Deagle Recoil Animation Logic ---
+if (this.state.deagleRecoil && this.state.deagleRecoil.active) {
+    const { deagleRecoil } = this.state;
+    const elapsed = now - deagleRecoil.startTime;
+    const { durationUp, durationDown, maxAngleUp, maxAngleSide } = deagleRecoil;
+    const totalDuration = durationUp + durationDown;
+
+    if (elapsed < totalDuration) {
+        let yAngle = 0;
+        let xAngle = 0;
+        let zAngle = 0;
+
+        if (elapsed < durationUp) {
+            // Upward kick phase (fast exponential curve)
+            const progress = elapsed / durationUp;
+            const easedProgress = 1 - Math.exp(-progress * 5); // Exponential curve
+            xAngle = maxAngleUp * easedProgress;
+            zAngle = maxAngleSide * easedProgress;
+        } else {
+            // Downward recovery phase (slower exponential curve)
+            const downElapsed = elapsed - durationUp;
+            const progress = downElapsed / durationDown;
+            const easedProgress = Math.exp(-progress * 5); // Exponential decay
+            xAngle = maxAngleUp * easedProgress;
+            zAngle = maxAngleSide * (1 - progress); // Linear decay on the side angle
+        }
+
+        this.viewModel.rotation.x = deagleRecoil.startRotation.x - xAngle;
+        this.viewModel.rotation.y = deagleRecoil.startRotation.y + yAngle;
+        this.viewModel.rotation.z = deagleRecoil.startRotation.z - zAngle;
+    } else {
+        // Animation finished, reset to initial rotation
+        this.viewModel.rotation.copy(deagleRecoil.startRotation);
+        this.state.deagleRecoil.active = false;
+    }
+}
 
   // —— VIEW-MODEL RECOIL ANIMATION FOR GUNS ——
   if (this.state.recoiling && !this.stats.isMelee) {
@@ -808,10 +859,10 @@ update(inputState, delta, playerState) {
     // Calculate the animation progress
     const t = elapsed / this._recoil.recoilDuration;
     const easedT = 1 - (t * t * (3 - 2 * t)); // inverse smoothstep for a natural recovery curve
-    
+    
     // Calculate the new recoil offset based on the eased progress
     const newOffset = this._recoil.peakOffset * easedT;
-    
+    
     // Apply the recoil to the camera's rotation, using the recoveryPoint
     this.camera.rotation.x = this._recoil.recoveryPoint.x + newOffset;
   } else if (this._recoil.peakOffset > 0) {
@@ -820,7 +871,6 @@ this.camera.rotation.x = this._recoil.recoveryPoint.x;
     this._recoil.peakOffset = 0;
   }
 }
-
   
 
   getCurrentAmmo() {
