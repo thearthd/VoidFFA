@@ -753,70 +753,89 @@ _updatePlayerPhysics(delta) {
      * @param {object} input An object containing input states.
      * @returns {object} An object containing current player state information.
      */
-    update(deltaTime, input) {
-        deltaTime = Math.min(0.1, deltaTime);
-        this.accumulator += deltaTime;
+update(deltaTime, input) {
+    // 1) Cap deltaTime and accumulate for fixed-step physics
+    deltaTime = Math.min(0.1, deltaTime);
+    this.accumulator += deltaTime;
 
-        // Store grounded state for sounds/logic
-        this.prevPlayerIsOnGround = this.isGrounded;
+    // 2) Store previous grounded state
+    this.prevPlayerIsOnGround = this.isGrounded;
 
-        // Fixed-step physics
-        let stepsTaken = 0;
-        while (this.accumulator >= FIXED_TIME_STEP && stepsTaken < MAX_PHYSICS_STEPS) {
-            this._applyControls(FIXED_TIME_STEP, input);
-            this._updatePlayerPhysics(FIXED_TIME_STEP);
-            this.accumulator -= FIXED_TIME_STEP;
-            stepsTaken++;
-        }
-
-        // Footsteps & landing & rotation & OOB
-        const currentSpeedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
-        this._handleFootsteps(currentSpeedXZ, deltaTime, input);
-        this._handleLandingSound();
-        this._rotatePlayerModel();
-        this.teleportIfOob();
-
-        // —— NEW: stuck-in-air logic ——
-        // Initialize lastY on first frame
-        if (this._lastY === null) {
-            this._lastY = this.player.position.y;
-        }
-
-        if (!this.isGrounded) {
-            const currentY = this.player.position.y;
-            const dy = Math.abs(currentY - this._lastY);
-
-            if (dy > 0.01) {
-                // Y moved ⇒ reset timer
-                this._lastY = currentY;
-                this._yStuckTimer = 0;
-            } else {
-                // Y stagnant ⇒ accumulate time
-                this._yStuckTimer += deltaTime;
-                if (this._yStuckTimer >= 1.0) {
-                    // stuck ≥1s: clear velocity
-                    this.playerVelocity.set(0, 0, 0);
-                    this._lastY = currentY;
-                    this._yStuckTimer = 0;
-                }
-            }
-        } else {
-            // grounded ⇒ reset detection
-            this._lastY = this.player.position.y;
-            this._yStuckTimer = 0;
-        }
-
-        // Return state
-        return {
-            x: this.player.position.x,
-            y: this.player.position.y,
-            z: this.player.position.z,
-            rotY: this.camera.rotation.y,
-            isGrounded: this.isGrounded,
-            velocity: this.playerVelocity.clone(),
-            velocityY: this.playerVelocity.y
-        };
+    // 3) Run fixed‐step physics sub‐iterations
+    let stepsTaken = 0;
+    while (this.accumulator >= FIXED_TIME_STEP && stepsTaken < MAX_PHYSICS_STEPS) {
+        this._applyControls(FIXED_TIME_STEP, input);
+        this._updatePlayerPhysics(FIXED_TIME_STEP);
+        this.accumulator -= FIXED_TIME_STEP;
+        stepsTaken++;
     }
+
+    // 4) Handle footsteps, landing sound, model rotation, out‐of‐bounds teleport
+    const currentSpeedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
+    this._handleFootsteps(currentSpeedXZ, deltaTime, input);
+    this._handleLandingSound();
+    this._rotatePlayerModel();
+    this.teleportIfOob();
+
+    // —— NEW: stuck‐in‐air detection + snap to ground ——
+    // Initialize _lastY on first invocation
+    if (this._lastY === null) {
+        this._lastY = this.player.position.y;
+    }
+
+    if (!this.isGrounded) {
+        const currentY = this.player.position.y;
+        const dy = Math.abs(currentY - this._lastY);
+
+        if (dy > 0.01) {
+            // Significant vertical movement → reset the timer
+            this._lastY = currentY;
+            this._yStuckTimer = 0;
+        } else {
+            // No vertical movement → accumulate stuck time
+            this._yStuckTimer += deltaTime;
+            if (this._yStuckTimer >= 1.0) {
+                // 1s stuck in air: clear velocity
+                this.playerVelocity.set(0, 0, 0);
+
+                // Raycast downward to snap to nearest ground
+                const downOrigin = this.player.position.clone();
+                const downDir = new THREE.Vector3(0, -1, 0);
+                // Cast down up to (capsule height + 1)
+                const maxDrop = (PLAYER_TOTAL_HEIGHT * this.player.scale.y) + 1;
+                const ray = new THREE.Raycaster(downOrigin, downDir, 0, maxDrop);
+                const hits = ray.intersectObject(this.collider, true);
+                if (hits.length > 0) {
+                    const hitY = hits[0].point.y;
+                    const scale = this.player.scale.y;
+                    // bottom offset = (segment length + radius) * scale
+                    const bottomOffset = (PLAYER_CAPSULE_SEGMENT_LENGTH + PLAYER_CAPSULE_RADIUS) * scale;
+                    // Position.y is top of capsule → set so bottom sits at hitY
+                    this.player.position.y = hitY + bottomOffset;
+                }
+
+                // Reset stuck detection
+                this._lastY = this.player.position.y;
+                this._yStuckTimer = 0;
+            }
+        }
+    } else {
+        // On ground → reset stuck detection immediately
+        this._lastY = this.player.position.y;
+        this._yStuckTimer = 0;
+    }
+
+    // 5) Return the player’s current state
+    return {
+        x: this.player.position.x,
+        y: this.player.position.y,
+        z: this.player.position.z,
+        rotY: this.camera.rotation.y,
+        isGrounded: this.isGrounded,
+        velocity: this.playerVelocity.clone(),
+        velocityY: this.playerVelocity.y
+    };
+}
 
     _pos() {
         const p = this.player.position;
