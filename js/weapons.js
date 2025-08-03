@@ -552,6 +552,7 @@ update(inputState, delta, playerState) {
   const wishAim       = inputState.aim;
   const isGrounded    = playerState.physicsController.isGrounded;
   const now           = performance.now() / 1000;
+  const justFired   = inputState.fireJustPressed;
   const defaultAimPos = new THREE.Vector3(0, -0.3, -0.5);
 
   // Handle weapon switch & ADS positioning
@@ -698,8 +699,8 @@ update(inputState, delta, playerState) {
     const sinceLast   = now - this.lastShotTime;
     const isSemi      = ["deagle","marshal","m79"].includes(this.currentKey);
     const canFire     = this.stats.isMelee
-                        ? inputState.fire && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime)
-                        : (isSemi ? inputState.fire && sinceLast > secsPerShot : sinceLast > secsPerShot);
+                        ? justFired && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime)
+                        : (isSemi ? justFired && sinceLast > secsPerShot : sinceLast > secsPerShot);
 
     if (canFire) {
       // —— MELEE KNIFE SWING ——
