@@ -617,8 +617,12 @@ update(inputState, delta, playerState) {
   updateCrosshair(spreadAngle);
   playerState.isAirborne = !isGrounded;
 
-  // Reset AK burst when you stop firing
+
   if (!inputState.fire && this.currentKey === "ak-47") {
+    this.burstCount = 0;
+  }
+
+  if (!inputState.fire && this.currentKey === "viper") {
     this.burstCount = 0;
   }
 
