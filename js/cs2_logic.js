@@ -2,10 +2,17 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 export const RECOIL_PATTERN = {
   "ak-47": [
-    0.003, 0.005, 0.008, 0.012, 0.010, 0.010, 0.010, 0.010, 0.010,
+    0.003, 0.005, 0.008, 0.010, 0.010, 0.010, 0.010, 0.010, 0.010,
     0.010, 0.010, 0.010, 0.010, 0.010, 0.010, 0.010, 0.010, 0.010,
     0.010, 0.010, 0.010, 0.010, 0.010, 0.010, 0.010,
   ],
+"viper": [
+  0.0045, 0.006, 0.008, 0.010, 0.012, 0.014, 0.016, 0.018,
+  0.020, 0.022, 0.024, 0.026, 0.028, 0.028, 0.028, 0.028,
+  0.028, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028,
+  0.028, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028, 0.028,
+  0.028, 0.028, 0.028, 0.028, 0.028
+],
   deagle: [0.025],
   marshal: [0.055],
   m79: [0.010],
@@ -15,6 +22,7 @@ export const ADS_FOV = {
   default: 75,
   deagle: 50,
   ak47: 60,
+  viper: 65,
   marshal: 10,
   m79: 70,
 };
@@ -47,6 +55,10 @@ export function getSpreadMultiplier(
   switch (weaponKey) {
     case "ak-47":
       standingBase = 0.01; runBase = 0.1; airBase = 0.15;
+      crouchFactor = 0.1; runThreshold = 4; aimFactor = 0.25;
+      break;
+    case "viper":
+      standingBase = 0.05; runBase = 0.1; airBase = 0.15;
       crouchFactor = 0.1; runThreshold = 4; aimFactor = 0.25;
       break;
     case "deagle":
@@ -95,6 +107,11 @@ export function getSpreadMultiplier(
   if (isAiming) currentSpreadAngle *= aimFactor;
 
   // Recoil pattern (AK-47 only)
+  if (weaponKey === "ak-47") {
+    const recoilPatternValue = getRecoilAngle(weaponKey, shotIndex);
+    currentSpreadAngle += recoilPatternValue * 1;
+  }
+
   if (weaponKey === "ak-47") {
     const recoilPatternValue = getRecoilAngle(weaponKey, shotIndex);
     currentSpreadAngle += recoilPatternValue * 1;
