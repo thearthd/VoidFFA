@@ -738,14 +738,14 @@ if (this.state.deagleRecoil && this.state.deagleRecoil.active) {
             // Upward kick phase (fast exponential curve)
             const progress = elapsed / durationUp;
             const easedProgress = 1 - Math.exp(-progress * 5); // Exponential curve
-            xAngle = maxAngleUp * easedProgress; // Small upward kick
+            xAngle = -maxAngleUp * easedProgress; // Small upward kick
             zAngle = -maxAngleSide * easedProgress; // Hard sideways kick
         } else {
             // Downward recovery phase (slower exponential curve)
             const downElapsed = elapsed - durationUp;
             const progress = downElapsed / durationDown;
             const easedProgress = Math.exp(-progress * 5); // Exponential decay
-            xAngle = maxAngleUp * easedProgress; // Upward kick recovers
+            xAngle = -maxAngleUp * easedProgress; // Upward kick recovers
             zAngle = -maxAngleSide * easedProgress; // Sideways kick recovers
         }
 
