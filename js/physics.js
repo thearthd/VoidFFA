@@ -356,7 +356,7 @@ _applyAirControl(dt) {
 
 _stepUpIfPossible() {
     if (!this.collider) return;
-
+    if (this.playerVelocity.y > 0.1) return;
     // ——————————————————————————————
     // 1) Find true ground Y under the player
     // ——————————————————————————————
@@ -417,19 +417,6 @@ _stepUpIfPossible() {
             }
         }
     }
-
-    // ——————————————————————————————
-    // 3) Snap down if you’re hovering with almost zero vertical speed
-    // ——————————————————————————————
-    /*
-    const targetY = actualGroundY + playerHeight - 0.51;
-    const deltaToTarget = this.player.position.y - targetY;
-    if (Math.abs(deltaToTarget) < 0.05 && Math.abs(this.playerVelocity.y) < 0.1) {
-        this.player.position.y = targetY;
-        this.playerVelocity.y = 0;
-        this.isGrounded = true;
-    }
-    */
 }
 
     
