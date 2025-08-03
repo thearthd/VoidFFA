@@ -266,7 +266,7 @@ this._recoil = {
   currentOffset: 0,
   peakOffset:    0,
   recoilStartTime: 0,
-  recoilDuration:  0.5
+  recoilDuration:  0.2
 };
   }
 
