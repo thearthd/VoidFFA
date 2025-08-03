@@ -9,7 +9,7 @@ const GRAVITY = 27.5; // Gravity strength
 const JUMP_VELOCITY = 12.3; // Initial upward velocity for jumps
 
 const STEP_HEIGHT = 1; // Maximum height the player can step up
-const STEP_FORWARD_OFFSET = 0.05; // How far in front of the player to check for a step
+const STEP_FORWARD_OFFSET = 0.12; // How far in front of the player to check for a step
 const STEP_FORWARD_PUSH = 0.05;
 
 const MAX_SLOPE_ANGLE = 45 * (Math.PI / 180);
