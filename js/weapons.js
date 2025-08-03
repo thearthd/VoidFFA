@@ -452,7 +452,7 @@ equipWeapon(weaponKey) {
                 clone.position.set(
                     0.35 * (window.innerWidth / 1920),
                     -0.15 * (window.innerHeight / 1080),
-                    -1.5 * (window.innerWidth / 1920)
+                    0 * (window.innerWidth / 1920)
                 );
                 break;
             case "marshal":
@@ -1401,7 +1401,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                     this.weaponModel.position.set(
                         0.35*(sw/1920),
                         -0.15*(sh/1080),
-                        -0.7*(sw/1920)
+                        0*(sw/1920)
                     );
                     this.weaponModel.add(muzzle);
                     this.parts.muzzle = muzzle;
