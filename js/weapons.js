@@ -263,12 +263,11 @@ export class WeaponController {
     this.raycaster = new THREE.Raycaster();
 
 this._recoil = {
-  currentOffset: 0,           // instantaneous offset to apply this frame
-  peakOffset: 0,              // max height of recoil to recover from
+  baseCameraX: 0,         // camera.x at time of shot
+  peakOffset: 0,          // how far up recoil kicks
+  lastOffset: 0,          // last recoil value applied
   recoilStartTime: 0,
-  recoilDuration: 0.1,
-  appliedOffset: 0,           // total rotation applied so far
-  lastOffset: 0               // last frame's offset, to compute delta
+  recoilDuration: 0.1
 };
   }
 
@@ -685,6 +684,13 @@ update(inputState, delta, playerState) {
       } else {
         // —— BULLET FIRE ——  
         if (this.ammoInMagazine > 0) {
+
+this._recoil.baseCameraX = this.camera.rotation.x;  // new baseline
+this._recoil.recoilStartTime = now;
+this._recoil.peakOffset = appliedRecoilAngle * 2;
+this._recoil.lastOffset = 0; // reset offset
+
+          
           this.lastShotTime    = now;
           this.ammoInMagazine--;
           this.burstCount++;
@@ -825,22 +831,22 @@ this._recoil.recoilStartTime  = now;
   });
 
   // Camera recoil recovery & application
-if (this._recoil.peakOffset > 0 || this._recoil.currentOffset !== 0) {
-  const elapsedRecoil = now - this._recoil.recoilStartTime;
+if (this._recoil.peakOffset !== 0) {
+  const elapsed = now - this._recoil.recoilStartTime;
+  const t = elapsed / this._recoil.recoilDuration;
 
-  if (elapsedRecoil >= this._recoil.recoilDuration) {
-    this._recoil.currentOffset = 0;
+  if (t >= 1) {
+    // Recoil done
+    this.camera.rotation.x = this._recoil.baseCameraX;
     this._recoil.peakOffset = 0;
-    this._recoil.appliedOffset = 0;
     this._recoil.lastOffset = 0;
   } else {
-    const t = elapsedRecoil / this._recoil.recoilDuration;
+    // Apply smooth recoil from base to base + peak
     const easedT = 1 - (t * t * (3 - 2 * t));
     const newOffset = this._recoil.peakOffset * easedT;
-    this._recoil.currentOffset = newOffset - this._recoil.lastOffset;
+    const delta = newOffset - this._recoil.lastOffset;
+    this.camera.rotation.x = this._recoil.baseCameraX + newOffset;
     this._recoil.lastOffset = newOffset;
-    this._recoil.appliedOffset += this._recoil.currentOffset;
-    this.camera.rotation.x += this._recoil.currentOffset;
   }
 }
   this.camera.rotation.x += this._recoil.currentOffset;
