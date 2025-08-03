@@ -725,14 +725,15 @@ update(inputState, delta, playerState) {
           // Camera recoil: capture start rotation so recovery returns from here
           const shotIndex = this.burstCount - 1;
           let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
-          let appliedRecoilAngle = rawRecoil*4;
-          if (this.currentKey === "ak-47" && shotIndex >= 7) appliedRecoilAngle = 0.010;
-          if (this.currentKey === "ak-47" && shotIndex == 9) appliedRecoilAngle = 0.009;
-          if (this.currentKey === "ak-47" && shotIndex >= 11) appliedRecoilAngle = 0.008;
+          let recoilMultipler = 4;
+          let appliedRecoilAngle = rawRecoil*recoilMultipler;
+          if (this.currentKey === "ak-47" && shotIndex >= 7) appliedRecoilAngle = 0.008*recoilMultipler;
+          if (this.currentKey === "ak-47" && shotIndex == 9) appliedRecoilAngle = 0.007*recoilMultipler;
+          if (this.currentKey === "ak-47" && shotIndex >= 11) appliedRecoilAngle = 0.005*recoilMultipler;
 
-          if (this.currentKey === "viper" && shotIndex >= 7) appliedRecoilAngle = 0.024;
-          if (this.currentKey === "viper" && shotIndex == 9) appliedRecoilAngle = 0.020;
-          if (this.currentKey === "viper" && shotIndex >= 11) appliedRecoilAngle = 0.016;
+          if (this.currentKey === "viper" && shotIndex >= 7) appliedRecoilAngle = 0.024*recoilMultipler;
+          if (this.currentKey === "viper" && shotIndex == 9) appliedRecoilAngle = 0.020*recoilMultipler;
+          if (this.currentKey === "viper" && shotIndex >= 11) appliedRecoilAngle = 0.016*recoilMultipler;
           
           if (this._aiming) appliedRecoilAngle /= 2;
 
