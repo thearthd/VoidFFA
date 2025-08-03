@@ -1180,12 +1180,17 @@ checkMeleeHit(collidables) {
       targetGroup.getWorldPosition(targetPos);
 
       if (playerPos.distanceTo(targetPos) <= meleeRange) {
-      //  console.log(`🗡️ Knife hit player ${obj.userData.playerId}`);
-        window.applyDamageToRemote?.(
-          obj.userData.playerId,
-          meleeDamage,
-          { id: this.localPlayerId, username: window.localPlayer?.username ?? "Unknown", weapon: "knife" }
-        );
+      window.applyDamageToRemote?.(
+        mesh.userData.playerId,
+        damageToApply,
+        {
+          id: this.localPlayerId,
+          username: window.localPlayer?.username ?? "Unknown",
+          weapon: this.currentKey,
+          isHeadshot: isHead,
+          isPenetrationShot: traj.isPenetrationShot
+        }
+      );
         return;
       }
     }
