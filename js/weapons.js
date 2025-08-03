@@ -816,7 +816,7 @@ update(inputState, delta, playerState) {
     this.camera.rotation.x = this._recoil.recoveryPoint.x + newOffset;
   } else if (this._recoil.peakOffset > 0) {
     // Recoil animation is finished. Reset to the original recovery point.
-    this.camera.rotation.copy(this._recoil.recoveryPoint);
+this.camera.rotation.x = this._recoil.recoveryPoint.x;
     this._recoil.peakOffset = 0;
   }
 }
