@@ -578,9 +578,9 @@ function onKeyUp(e) {
         case currentKeybinds.fire: // Handling 'fire' for keyboard
             inputState.fire = false;
             break;
-        case currentKeybinds.weapon1:
-        case currentKeybinds.weapon2:
-        case currentKeybinds.weapon3:
+        case currentKeybinds.knife:
+        case currentKeybinds.primary:
+        case currentKeybinds.secondary:
             inputState.weaponSwitch = null;
             break;
         default:
