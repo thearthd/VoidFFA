@@ -2534,111 +2534,111 @@ function incrementUserStat(username, field, amount) {
 }
 
 function applyDamageToRemote(targetId, damage, killerInfo) {
-    if (targetId === window.localPlayer.id) {
-        if (killerInfo && killerInfo.id) {
-            const killerEntry = window.remotePlayers[killerInfo.id];
-            if (killerEntry && killerEntry.position) {
-                lastDamageSourcePosition = killerEntry.position;
-            } else {
-                console.warn('[applyDamageToRemote] Killer position not found for ID:', killerInfo.id);
-                lastDamageSourcePosition = null;
+  // extract all flags with defaults
+  const {
+    id: killerId,
+    username: killerName,
+    weapon,
+    isHeadshot = false,
+    isPenetrationShot = false
+  } = killerInfo || {};
+
+  // remember last damage source for local‐player UI
+  if (targetId === window.localPlayer.id) {
+    const killerEntry = killerId != null && window.remotePlayers[killerId];
+    lastDamageSourcePosition = killerEntry?.position || null;
+  }
+
+  const entry = window.remotePlayers[targetId];
+  if (!entry) {
+    console.warn('[applyDamageToRemote] unknown player:', targetId);
+    return;
+  }
+
+  playersRef.child(targetId).once('value')
+    .then(snap => {
+      const data = snap.val();
+      if (!data || data.isDead) return;
+
+      // shield + health logic unchanged
+      let newShield = data.shield;
+      let newHP     = data.health;
+      let remaining = damage;
+
+      if (newShield > 0) {
+        const used = Math.min(newShield, remaining);
+        newShield -= used;
+        remaining -= used;
+      }
+      newHP -= remaining;
+
+      const updateData = {
+        shield:  newShield,
+        health:  newHP,
+        isDead:  newHP <= 0
+      };
+
+      // if we killed them…
+      if (newHP <= 0) {
+        // increment victim’s death count
+        incrementUserStat(data.username, 'deaths', 1);
+
+        Object.assign(updateData, {
+          deaths: (data.deaths || 0) + 1,
+          ks:     0,
+          health: 0,
+          shield: 0
+        });
+
+        // 1) update victim
+        return playersRef.child(targetId).update(updateData)
+          // 2) update killer stats
+          .then(() => playersRef.child(killerId).once('value'))
+          .then(snap2 => {
+            const kd = snap2.val() || {};
+            const newKills = (kd.kills || 0) + 1;
+            const newKS    = (kd.ks    || 0) + 1;
+
+            window.localPlayer.kills = newKills;
+            window.localPlayer.ks    = newKS;
+
+            return playersRef.child(killerId).update({ kills: newKills, ks: newKS });
+          })
+          // 3) play any streak sounds / effects
+          .then(() => {
+            incrementUserStat(killerName, 'kills', 1);
+            if (killerId === window.localPlayer.id) {
+              const streak = Math.min(window.localPlayer.ks, 10);
+              const url    = KILLSTREAK_SOUNDS?.[streak] ?? null;
+              if (url) new Audio(url).play();
+              pulseScreenWhite();
             }
-        } else {
-            lastDamageSourcePosition = null;
-        }
-    }
+          })
+          // 4) death animations + local/victim callbacks
+          .then(() => {
+            animateDeath(targetId);
+            if (targetId === window.localPlayer.id) handleLocalDeath();
+          })
+          // 5) push a record into `killsRef` with our new flags
+          .then(() => {
+            return killsRef.push({
+              killer:            killerName,
+              victim:            data.username,
+              weapon,
+              isHeadshot,
+              isPenetrationShot,
+              timestamp:         Date.now()
+            });
+          });
+      }
 
-    const entry = window.remotePlayers[targetId];
-    if (!entry) {
-        console.warn('[applyDamageToRemote] unknown player:', targetId);
-        return;
-    }
-
-    playersRef.child(targetId).once('value')
-        .then(snap => {
-            const data = snap.val();
-            if (!data || data.isDead) return;
-
-            let newShield = data.shield;
-            let newHP = data.health;
-            let rem = damage;
-
-            if (newShield > 0) {
-                const sd = Math.min(newShield, rem);
-                newShield -= sd;
-                rem -= sd;
-            }
-            newHP -= rem;
-
-            const updateData = {
-                shield: newShield,
-                health: newHP,
-                isDead: newHP <= 0
-            };
-
-            if (newHP <= 0) {
-                incrementUserStat(data.username, 'deaths', 1);
-
-                Object.assign(updateData, {
-                    deaths: (data.deaths || 0) + 1,
-                    ks: 0,
-                    health: 0,
-                    shield: 0
-                });
-
-                return playersRef.child(targetId)
-                    .update(updateData)
-                    .then(() => {
-                        return playersRef.child(window.localPlayer.id).once('value')
-                            .then(snap2 => {
-                                const kd = snap2.val() || {};
-                                const newKills = (kd.kills || 0) + 1;
-                                const newKS    = (kd.ks    || 0) + 1;
-
-                                window.localPlayer.kills = newKills;
-                                window.localPlayer.ks    = newKS;
-
-                                return playersRef.child(window.localPlayer.id)
-                                    .update({ kills: newKills, ks: newKS })
-                                    .then(() => {
-                                        incrementUserStat(window.localPlayer.username, 'kills', 1);
-
-                                        if (killerInfo.id === window.localPlayer.id) {
-                                            const streak = newKS >= 10 ? 10 : newKS;
-                                            const url = typeof KILLSTREAK_SOUNDS !== 'undefined' ? KILLSTREAK_SOUNDS[streak] : null;
-                                            if (url) {
-                                                const audio = new Audio(url);
-                                                audio.play();
-                                            }
-                                            pulseScreenWhite();
-                                        }
-                                    });
-                            });
-                    })
-                    .then(() => {
-                        animateDeath(targetId);
-                        if (targetId === window.localPlayer.id) {
-                            handleLocalDeath();
-                        }
-                        if (typeof killsRef !== 'undefined') {
-                            return killsRef.push({
-                                killer:    window.localPlayer.username,
-                                victim:    data.username,
-                                weapon:    window.localPlayer.weapon,
-                                timestamp: Date.now()
-                            });
-                        }
-                        return Promise.resolve();
-                    });
-            } else {
-                if (typeof pulsePlayerHit !== 'undefined') {
-                    pulsePlayerHit(targetId);
-                }
-                return playersRef.child(targetId)
-                    .update(updateData);
-            }
-        })
-        .catch(err => console.error('[applyDamageToRemote]', err));
+      // non‐fatal hit: just pulse & update
+      if (typeof pulsePlayerHit === 'function') {
+        pulsePlayerHit(targetId);
+      }
+      return playersRef.child(targetId).update(updateData);
+    })
+    .catch(err => console.error('[applyDamageToRemote]', err));
 }
 
 window.applyDamageToRemote = applyDamageToRemote;
@@ -2741,6 +2741,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
