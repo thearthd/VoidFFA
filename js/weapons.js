@@ -122,7 +122,7 @@ export class WeaponController {
       heavySwingTime: 300/600,
       pullDuration: 300/600/2,
       reloadDuration: null,
-      speedModifier: 1 + 0.0,
+      speedModifier: 1.2 + 0.0,
       rpm: 120,
       tracerLength: 0,
     },
@@ -138,8 +138,7 @@ export class WeaponController {
       recoilDistance: 0.08,
       recoilDuration: 0.08,
       tracerLength: 100,
-      speedModifier: 0.7 + 0.0,
-      tracerLength: 30,
+      speedModifier: 0.9 + 0.0,
     },
     "ak-47": {
       name: "AK-47",
@@ -153,8 +152,21 @@ export class WeaponController {
       recoilDistance: 0.07,
       recoilDuration: 0.06,
       tracerLength: 100,
-      speedModifier: 0.65 + 0.0,
-      tracerLength: 20,
+      speedModifier: 0.7 + 0.0,
+    },
+    "viper": {
+      name: "Viper",
+      isMelee: false,
+      headshotDamage: 60,
+      bodyDamage: 20,
+      fireRateRPM: 800,
+      magazineSize: 35,
+      reloadDuration: 2.1,
+      pullDuration: 0.6,
+      recoilDistance: 0.07,
+      recoilDuration: 0.06,
+      tracerLength: 50,
+      speedModifier: 0.8 + 0.0,
     },
     marshal: {
       name: "Marshal",
@@ -169,8 +181,7 @@ export class WeaponController {
       recoilDuration: 0.1,
       isSniper: true,
       tracerLength: 100,
-      speedModifier: 0.4 + 0.0,
-      tracerLength: 40,
+      speedModifier: 0.55 + 0.0,
     },
     m79: {
       name: "M-79",
@@ -183,8 +194,7 @@ export class WeaponController {
       pullDuration: 125/600*1.5,
       recoilDistance: 0.08,
       recoilDuration: 0.08,
-      tracerLength: 100,
-      speedModifier: 0.85 + 0.0,
+      speedModifier: 1 + 0.0,
       tracerLength: 20,
     },
   };
@@ -217,8 +227,14 @@ export class WeaponController {
     m79: {
       shot: 'https://codehs.com/uploads/8b81838df3b08b56fac7f26a2ca9e7c3',
       pull: 'https://codehs.com/uploads/aff98052ce443af0016300655d234189',
-      reloadStart: 'https://codehs.com/uploads/c037824e7ad86dcf55ca2e89b0b893af',
+      reloadStart: 'https://codehs.com/uploads/bceedd01e90d49150d6d0c33f8107066',
       reloadEnd: 'https://codehs.com/uploads/bb78ded10db4f1f4a9092d5744bda11a',
+    },
+    viper: {
+      shot: 'https://codehs.com/uploads/7536977c95aafe3ed9b2633239282f88',
+      pull: 'https://codehs.com/uploads/6305a83477d217c2575c59e90b8273fd',
+      reloadStart: 'https://codehs.com/uploads/c037824e7ad86dcf55ca2e89b0b893af',
+      reloadEnd: 'https://codehs.com/uploads/bc0dfbadc36ac155b7944c788c827135',
     },
   };
 
@@ -426,6 +442,19 @@ equipWeapon(weaponKey) {
                     -0.3 * (window.innerWidth / 1920)
                 );
                 break;
+            case "viper":
+                clone.scale.set(0.4, 0.4, 0.4);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(4),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(
+                    0.35 * (window.innerWidth / 1920),
+                    -0.15 * (window.innerHeight / 1080),
+                    -0.3 * (window.innerWidth / 1920)
+                );
+                break;
             case "marshal":
                 clone.scale.set(1, 1, 1);
                 clone.rotation.set(0, 0, 0);
@@ -475,6 +504,10 @@ equipWeapon(weaponKey) {
                 break;
             case "marshal":
                 this.buildMarshal();
+                onModelReady(this.weaponModel);
+                break;
+            case "viper":
+                this.buildViper();
                 onModelReady(this.weaponModel);
                 break;
             case "m79":
@@ -538,7 +571,9 @@ update(inputState, delta, playerState) {
             ? ADS_FOV.deagle
             : this.currentKey === "m79"
               ? ADS_FOV.m79
-              : ADS_FOV.default;
+              : this.currentKey === "viper"
+                ? ADS_FOV.viper
+                : ADS_FOV.default;
 
       const toPos = this.currentKey === "marshal"
         ? new THREE.Vector3(-0.025, -0.035, -0.2)
@@ -598,6 +633,8 @@ update(inputState, delta, playerState) {
           ? ADS_FOV.marshal
           : this.currentKey === "ak-47"
             ? ADS_FOV.ak47
+          : this.currentKey === "viper"
+            ? ADS_FOV.viper
             : this.currentKey === "deagle"
               ? ADS_FOV.deagle
               : this.currentKey === "m79"
@@ -688,6 +725,11 @@ update(inputState, delta, playerState) {
           if (this.currentKey === "ak-47" && shotIndex >= 7) appliedRecoilAngle = 0.008;
           if (this.currentKey === "ak-47" && shotIndex == 9) appliedRecoilAngle = 0.007;
           if (this.currentKey === "ak-47" && shotIndex >= 10) appliedRecoilAngle = 0.005;
+
+          if (this.currentKey === "viper" && shotIndex >= 7) appliedRecoilAngle = 0.008;
+          if (this.currentKey === "viper" && shotIndex == 9) appliedRecoilAngle = 0.007;
+          if (this.currentKey === "viper" && shotIndex >= 10) appliedRecoilAngle = 0.005;
+          
           if (this._aiming) appliedRecoilAngle /= 2;
 
           this._recoil.peakOffset      = appliedRecoilAngle;
@@ -1313,6 +1355,66 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
         return { promise, register: cb => prog = cb };
     }
 
+    buildViper(onProgressRegistrar) {
+        const loader = new GLTFLoader();
+        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/Viper.glb';
+        let prog = () => {};
+        const promise = new Promise((res, rej) => {
+            loader.load(
+                url,
+                gltf => {
+                    this.weaponModel = new THREE.Group();
+                    this.parts = {};
+                    const metalM = createMetalMaterial(0x888888);
+                    const woodM = createWoodMaterial(0x8B4513);
+                    const plasticM = createPlasticMaterial(0x666666);
+                    const model = gltf.scene;
+                    model.traverse(child => {
+                        if (!child.isMesh) return;
+                        const nm = child.name.toLowerCase();
+                        child.material = (nm.includes('wood')||nm.includes('stock')||nm.includes('handguard'))
+                            ? woodM
+                            : (nm.includes('grip')||nm.includes('handle'))
+                                ? plasticM
+                                : metalM;
+                    });
+                    const before = new THREE.Box3().setFromObject(model);
+                    const center = before.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+                    const after = new THREE.Box3().setFromObject(model);
+                    const muzzle = new THREE.Object3D();
+                    muzzle.name = 'Muzzle';
+                    // Adjust these values until the debug dot appears at the very tip.
+                    muzzle.position.set(-after.max.x + 0.5, after.max.y, 1.6);
+                    this.weaponModel.add(model);
+                    this.weaponModel.scale.set(0.4,0.4,0.4);
+                    this.weaponModel.rotation.set(
+                        THREE.MathUtils.degToRad(4),
+                        THREE.MathUtils.degToRad(180),
+                        0
+                    );
+                    const sw = window.innerWidth, sh = window.innerHeight;
+                    this.weaponModel.position.set(
+                        0.35*(sw/1920),
+                        -0.15*(sh/1080),
+                        -0.3*(sw/1920)
+                    );
+                    this.weaponModel.add(muzzle);
+                    this.parts.muzzle = muzzle;
+                    if (this.viewModel) this.viewModel.add(this.weaponModel);
+
+                    // --- ADD THE DEBUG DOT HERE ---
+
+
+                    res(this.weaponModel);
+                },
+                evt => { if (evt.lengthComputable) prog(evt); },
+                err => rej(err)
+            );
+        });
+        return { promise, register: cb => prog = cb };
+    }
+
     buildMarshal(onProgressRegistrar) {
         const loader = new GLTFLoader();
         const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/svd_sniper_rfile.glb';
@@ -1422,7 +1524,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
 
 
 export async function preloadWeaponPrototypes(onComplete) {
-  const names = ['knife','deagle','ak47','marshal','m79',];
+  const names = ['knife','deagle','ak47','marshal','m79','viper',];
   const dummyCam = new THREE.Group();
   const loaderUI = new Loader();
   const itemPercentages = names.map(() => 1 / names.length);
