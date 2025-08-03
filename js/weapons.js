@@ -1401,7 +1401,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                     this.weaponModel.position.set(
                         0.35*(sw/1920),
                         -0.15*(sh/1080),
-                        -0.3*(sw/1920)
+                        -0.7*(sw/1920)
                     );
                     this.weaponModel.add(muzzle);
                     this.parts.muzzle = muzzle;
