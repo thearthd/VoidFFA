@@ -1,7 +1,7 @@
 import { updateInventory } from "./ui.js";
-
-const originalRequestPointerLock = Element.prototype.requestPointerLock;
 /*
+const originalRequestPointerLock = Element.prototype.requestPointerLock;
+
 Element.prototype.requestPointerLock = function() {
     console.warn('!!! Suspicious requestPointerLock called on element:', this);
     console.trace('!!! Full call stack for requestPointerLock:');
