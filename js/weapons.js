@@ -729,21 +729,23 @@ update(inputState, delta, playerState) {
           let appliedRecoilAngle = rawRecoil*recoilMultipler;
 
         // —— FALL OFF ——
-    if (this.currentKey === "ak-47") {
-      if (shotIndex >= 3) {
-        const decayFactor = 0.8; // Adjust this value to change the rate of decay
-        const recoilDecay =  appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
-        appliedRecoilAngle = recoilDecay;
-      }
-    }
-    
-    if (this.currentKey === "viper") {
-      if (shotIndex >= 3) {
-        const decayFactor = 0.8; // Adjust this value to change the rate of decay
-        const recoilDecay =  appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
-        appliedRecoilAngle = recoilDecay;
-      }
-    }
+if (this.currentKey === "ak-47") {
+  if (shotIndex >= 3) {
+    const decayFactor = 0.8; // Adjust this value to change the rate of decay
+    const minRecoil = 0.005; // Minimum recoil angle allowed
+    const recoilDecay = appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
+    appliedRecoilAngle = Math.max(recoilDecay, minRecoil);
+  }
+}
+
+if (this.currentKey === "viper") {
+  if (shotIndex >= 3) {
+    const decayFactor = 0.8; // Adjust this value to change the rate of decay
+    const minRecoil = 0.007; // Minimum recoil angle allowed (adjust as needed)
+    const recoilDecay = appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
+    appliedRecoilAngle = Math.max(recoilDecay, minRecoil);
+  }
+}
           
           if (this._aiming) appliedRecoilAngle /= 2;
 
