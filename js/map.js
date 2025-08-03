@@ -497,3 +497,78 @@ export async function createDiddyDunes(scene, physicsController) {
 
     return spawnPoints;
 }
+
+
+export async function preloadMapPrototypes(onComplete) {
+    const mapNames = ['CrocodilosConstruction', 'SigmaCity', 'DiddyDunes'];
+    const mapLoaders = {
+        'CrocodilosConstruction': createCrocodilosConstruction,
+        'SigmaCity': createSigmaCity,
+        'DiddyDunes': createDiddyDunes,
+    };
+    
+    // We will store the preloaded map data in a global object.
+    window.preloadedMaps = {};
+    window.mapReady = false;
+
+    const loaderUI = new Loader();
+    const itemPercentages = mapNames.map(() => 1 / mapNames.length);
+
+    loaderUI.show('Preloading Maps...', itemPercentages);
+
+    for (let i = 0; i < mapNames.length; i++) {
+        const name = mapNames[i];
+        const createMapFunction = mapLoaders[name];
+        console.log(`Preloading map: ${name}, weight ${itemPercentages[i] * 100}%`);
+
+        // Create a dummy scene and physics controller for preloading.
+        const dummyScene = new THREE.Scene();
+        const dummyPhysicsController = {
+            setCollider: (collider) => {
+                // We just store the collider and the scene data for later.
+                window.preloadedMaps[name].collider = collider;
+            },
+            worldBVH: null
+        };
+
+        // The map creation function returns a promise that resolves with spawn points.
+        // We need to slightly modify your existing functions to also return the gltfGroup.
+        const promise = createMapFunction(dummyScene, dummyPhysicsController);
+
+        // Store the promise and a placeholder for the map data.
+        window.preloadedMaps[name] = {
+            promise: promise,
+            gltfGroup: null,
+            collider: null,
+            spawnPoints: null,
+            sunLight: null,
+            onProgress: null
+        };
+
+        // Track progress and wait for the promise to resolve.
+        // We need to modify your createMap functions to expose the progress callback.
+        const spawnPoints = await loaderUI.track(itemPercentages[i], promise, cb => {
+            window.preloadedMaps[name].onProgress = cb;
+        });
+        
+        // Once loaded, store the final data.
+        const loadedMapData = {
+            gltfGroup: dummyScene.children.find(child => child instanceof THREE.Group), // Assuming the GLTF is a Group
+            collider: dummyPhysicsController.collider,
+            spawnPoints: spawnPoints
+        };
+        
+        window.preloadedMaps[name] = loadedMapData;
+        console.log(`Preloaded ${name} successfully.`);
+    }
+
+    loaderUI.onComplete(() => {
+        window.mapReady = true;
+        console.log('✅ ALL map prototypes are ready!');
+        onComplete?.();
+    });
+}
+
+    preloadMapPrototypes(() => {
+        console.log("Maps finished preloading!");
+    });
