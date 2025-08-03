@@ -355,8 +355,8 @@ _applyAirControl(dt) {
     }
 
 _stepUpIfPossible() {
-    if (!this.isGrounded || !this.collider) return;
-
+  //  if (!this.isGrounded || !this.collider) return;
+    if (!this.collider) return;
     // 1. Determine player's horizontal movement direction and magnitude
     const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
     // Only attempt step-up if there's significant horizontal movement
