@@ -452,7 +452,7 @@ equipWeapon(weaponKey) {
                 clone.position.set(
                     0.35 * (window.innerWidth / 1920),
                     -0.15 * (window.innerHeight / 1080),
-                    -0.3 * (window.innerWidth / 1920)
+                    -0.7 * (window.innerWidth / 1920)
                 );
                 break;
             case "marshal":
