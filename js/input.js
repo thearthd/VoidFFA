@@ -55,9 +55,9 @@ const defaultKeybinds = {
     'reload': 'KeyR',
     'aim': 'KeyE', // Changed from 'Mouse2' to 'KeyE' for 'aim'
     'fire': 'KeyX', // Changed from 'Mouse0' to 'KeyX' for 'fire'
-    'Knife': 'Digit1', // Knife
-    'Primary': 'Digit2', // Primary
-    'Secondary': 'Digit3', // Secondary
+    'knife': 'Digit1', // Knife
+    'primary': 'Digit2', // Primary
+    'secondary': 'Digit3', // Secondary
     'toggleChat': 'Backquote', // Tilde key
     'toggleChatUI': 'KeyC', // Toggle chat container visibility
     'togglePause': 'KeyP', // Added 'KeyP' for pause
