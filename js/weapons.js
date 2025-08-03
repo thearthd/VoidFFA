@@ -926,7 +926,6 @@ equipWeapon(weaponKey) {
       this._recoil.previousRecoilOffset = 0;
     }
   }
-}
   
 
   getCurrentAmmo() {
