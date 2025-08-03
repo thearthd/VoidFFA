@@ -8,6 +8,18 @@ import { AnimatedTracer } from "./weapons.js";
 // Global variable to hold the Firebase database references for UI operations
 let uiDbRefs = null;
 
+const weaponIcons = {
+  ak47: 'https://codehs.com/uploads/36178d893bc2c622e7b343bbbdb8c1f1',
+  deagle: 'https://codehs.com/uploads/d616d247f6764ad2275c96395beb21a8',
+  knife: 'https://codehs.com/uploads/d0ca87fe37301b4b81c5db8d10cac10a',
+  m79: 'https://codehs.com/uploads/78b318e3e11e59fc133477a0d9fdae14',
+  marshal: 'https://codehs.com/uploads/0677c14ed85f07c6d950f75bb95a4db2',
+  viper: 'https://codehs.com/uploads/bc7d35cd4ca88fdfaa8b2097471e526b'
+};
+const headshotIcon    = 'https://codehs.com/uploads/097af549eede2dcb2df129f1763e6592';
+const penetrationIcon = 'https://codehs.com/uploads/0856e475bd3b85a992f4359dae0b0adf';
+
+
 /**
  * Sets the Firebase database references for UI operations.
  * This function should be called once from a main initialization point
@@ -348,48 +360,77 @@ export function addChatMessage(username, text, chatId) {
 
 
 // Kill Feed: show last 5 entries
-export function updateKillFeed(killer, victim, weapon, killId) {
-    const feed = document.getElementById("kill-feed");
-    if (!feed) {
-        console.error("Kill feed container not found! ID: 'kill-feed'");
-        return;
-    }
+export function updateKillFeed(killer, victim, weaponKey, isHeadshot, isPenetrationShot, killId) {
+  const feed = document.getElementById("kill-feed");
+  if (!feed) {
+    console.error("Kill feed container not found! ID: 'kill-feed'");
+    return;
+  }
 
-    // 1) Create & append the new entry
-    const entry = document.createElement("div");
-    entry.textContent = `${killer} → ${victim} [${weapon}]`;
-    entry.dataset.killId = killId;
-    feed.appendChild(entry);
+  // --- build entry ---
+  const entry = document.createElement("div");
+  entry.classList.add("kill-entry");
+  entry.dataset.killId = killId;
 
-    // 2) If this pushes us over 5 entries, remove the oldest immediately
-    if (feed.children.length > 5) {
-        const oldest = feed.firstElementChild;
-        const oldId = oldest.dataset.killId;
-        if (oldest) { // Ensure oldest exists before removing
-            oldest.remove();         // remove from UI
-            // Check if uiDbRefs and killsRef are available before attempting to remove from Firebase
-            if (uiDbRefs && uiDbRefs.killsRef) {
-                uiDbRefs.killsRef.child(oldId).remove().catch(err => console.error("Failed to remove old kill entry from Firebase:", err)); // remove from Firebase
-            } else {
-                console.warn("Firebase kills reference not initialized in UI for pruning. Kill entry not removed from Firebase.");
-            }
-        }
-    }
+  // killer name
+  const killerSpan = document.createElement("span");
+  killerSpan.textContent = killer;
+  entry.appendChild(killerSpan);
 
-    // 3) Still auto-expire this entry after 10 seconds if it's still present
-    setTimeout(() => {
-        if (entry.parentNode) { // Check if it's still in the DOM
-            entry.remove();
-            // Check if uiDbRefs and killsRef are available before attempting to remove from Firebase
-            if (uiDbRefs && uiDbRefs.killsRef) {
-                uiDbRefs.killsRef.child(killId).remove().catch(err => console.error("Failed to remove timed-out kill entry from Firebase:", err));
-            } else {
-                console.warn("Firebase kills reference not initialized in UI for removal. Kill entry not removed from Firebase.");
-            }
-        }
-    }, 10000);
+  // weapon icon
+  const wkey = weaponKey.toLowerCase();
+  const wimg = document.createElement("img");
+  wimg.src = weaponIcons[wkey] || '';
+  wimg.alt = wkey;
+  wimg.classList.add("kill-icon", "weapon-icon");
+  entry.appendChild(wimg);
+
+  // optional headshot icon
+  if (isHeadshot) {
+    const himg = document.createElement("img");
+    himg.src = headshotIcon;
+    himg.alt = "headshot";
+    himg.classList.add("kill-icon", "headshot-icon");
+    entry.appendChild(himg);
+  }
+
+  // optional penetration icon
+  if (isPenetrationShot) {
+    const pimg = document.createElement("img");
+    pimg.src = penetrationIcon;
+    pimg.alt = "penetration";
+    pimg.classList.add("kill-icon", "penetration-icon");
+    entry.appendChild(pimg);
+  }
+
+  // victim name
+  const victimSpan = document.createElement("span");
+  victimSpan.textContent = victim;
+  entry.appendChild(victimSpan);
+
+  // add to feed
+  feed.appendChild(entry);
+
+  // prune if >5
+  if (feed.children.length > 5) {
+    const oldest = feed.firstElementChild;
+    const oldId  = oldest.dataset.killId;
+    oldest.remove();
+    if (uiDbRefs?.killsRef && oldId) {
+      uiDbRefs.killsRef.child(oldId).remove().catch(e => console.error("Prune failed:", e));
+    }
+  }
+
+  // auto‐expire after 10s
+  setTimeout(() => {
+    if (entry.parentNode) {
+      entry.remove();
+      if (uiDbRefs?.killsRef) {
+        uiDbRefs.killsRef.child(killId).remove().catch(e => console.error("Timeout remove failed:", e));
+      }
+    }
+  }, 10000);
 }
-
 // Scoreboard: populate with players’ username, kills, deaths, ks
 export function updateScoreboard(dbRefPlayers) {
     const tbody = document.querySelector("#score-table tbody");
