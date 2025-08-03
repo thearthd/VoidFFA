@@ -9,7 +9,7 @@ import { AnimatedTracer } from "./weapons.js";
 export let uiDbRefs = null;
 
 const weaponIcons = {
-  ak47: 'https://codehs.com/uploads/36178d893bc2c622e7b343bbbdb8c1f1',
+  ak-47: 'https://codehs.com/uploads/36178d893bc2c622e7b343bbbdb8c1f1',
   deagle: 'https://codehs.com/uploads/d616d247f6764ad2275c96395beb21a8',
   knife: 'https://codehs.com/uploads/d0ca87fe37301b4b81c5db8d10cac10a',
   m79: 'https://codehs.com/uploads/78b318e3e11e59fc133477a0d9fdae14',
