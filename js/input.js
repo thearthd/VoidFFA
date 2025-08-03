@@ -580,9 +580,7 @@ function onKeyUp(e) {
             inputState.fire = false;
             break;
             */
-const canFire = isSemi
-  ? justClicked                    // only need the edge
-  : (inputState.fire && sinceLast > secsPerShot);
+
         case currentKeybinds.knife:
         case currentKeybinds.primary:
         case currentKeybinds.secondary:
