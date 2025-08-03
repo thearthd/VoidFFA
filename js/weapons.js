@@ -732,7 +732,7 @@ update(inputState, delta, playerState) {
     if (this.currentKey === "ak-47") {
       if (shotIndex >= 3) {
         const decayFactor = 0.6; // Adjust this value to change the rate of decay
-        const recoilDecay =  appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 6);
+        const recoilDecay =  appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
         appliedRecoilAngle = recoilDecay;
       }
     }
@@ -740,7 +740,7 @@ update(inputState, delta, playerState) {
     if (this.currentKey === "viper") {
       if (shotIndex >= 3) {
         const decayFactor = 0.6; // Adjust this value to change the rate of decay
-        const recoilDecay =  appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 6);
+        const recoilDecay =  appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
         appliedRecoilAngle = recoilDecay;
       }
     }
