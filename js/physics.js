@@ -396,7 +396,7 @@ _stepUpIfPossible() {
             if (
                 deltaY > 0.05 &&
                 deltaY <= STEP_HEIGHT + 0.01 &&
-                stepTopY >= this.player.position.y // prevent stepping down
+                stepTopY >= this.player.position.y - 1
             ) {
                 // Check we have headroom
                 const headCheck = new THREE.Raycaster(
