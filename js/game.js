@@ -2533,7 +2533,7 @@ function incrementUserStat(username, field, amount) {
 }
 
 function applyDamageToRemote(targetId, damage, killerInfo) {
-  // extract all flags with defaults
+  // 1) Destructure killer info, with safe defaults
   const {
     id: killerId,
     username: killerName,
@@ -2542,24 +2542,25 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
     isPenetrationShot = false
   } = killerInfo || {};
 
-  // remember last damage source for local‐player UI
+  // 2) Remember last damage source for local‐player UI
   if (targetId === window.localPlayer.id) {
     const killerEntry = killerId != null && window.remotePlayers[killerId];
-    lastDamageSourcePosition = killerEntry?.position || null;
+    window.lastDamageSourcePosition = killerEntry?.position || null;
   }
 
-  const entry = window.remotePlayers[targetId];
-  if (!entry) {
-    console.warn('[applyDamageToRemote] unknown player:', targetId);
+  // 3) Fetch the victim’s current data
+  const playersRef = uiDbRefs.playersRef;
+  if (!playersRef) {
+    console.warn('[applyDamageToRemote] playersRef not set—skipping damage apply');
     return;
   }
 
   playersRef.child(targetId).once('value')
     .then(snap => {
       const data = snap.val();
-      if (!data || data.isDead) return;
+      if (!data || data.isDead) return;  // nothing to do
 
-      // shield + health logic unchanged
+      // 4) Apply shield/HP logic
       let newShield = data.shield;
       let newHP     = data.health;
       let remaining = damage;
@@ -2572,14 +2573,14 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
       newHP -= remaining;
 
       const updateData = {
-        shield:  newShield,
-        health:  newHP,
-        isDead:  newHP <= 0
+        shield: newShield,
+        health: newHP,
+        isDead: newHP <= 0
       };
 
-      // if we killed them…
+      // 5) If this hit killed them…
       if (newHP <= 0) {
-        // increment victim’s death count
+        // increment victim’s death stat
         incrementUserStat(data.username, 'deaths', 1);
 
         Object.assign(updateData, {
@@ -2589,49 +2590,56 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
           shield: 0
         });
 
-        // 1) update victim
+        // ---- update victim, then update killer stats ----
         return playersRef.child(targetId).update(updateData)
-          // 2) update killer stats
           .then(() => playersRef.child(killerId).once('value'))
           .then(snap2 => {
             const kd = snap2.val() || {};
             const newKills = (kd.kills || 0) + 1;
             const newKS    = (kd.ks    || 0) + 1;
-
             window.localPlayer.kills = newKills;
             window.localPlayer.ks    = newKS;
-
             return playersRef.child(killerId).update({ kills: newKills, ks: newKS });
           })
-          // 3) play any streak sounds / effects
           .then(() => {
+            // play killstreak sound / effect if locally‐killed
             incrementUserStat(killerName, 'kills', 1);
             if (killerId === window.localPlayer.id) {
               const streak = Math.min(window.localPlayer.ks, 10);
-              const url    = KILLSTREAK_SOUNDS?.[streak] ?? null;
+              const url    = (typeof KILLSTREAK_SOUNDS !== 'undefined')
+                ? KILLSTREAK_SOUNDS[streak]
+                : null;
               if (url) new Audio(url).play();
               pulseScreenWhite();
             }
           })
-          // 4) death animations + local/victim callbacks
           .then(() => {
+            // death animations & callbacks
             animateDeath(targetId);
-            if (targetId === window.localPlayer.id) handleLocalDeath();
+            if (targetId === window.localPlayer.id) {
+              handleLocalDeath();
+            }
           })
-          // 5) push a record into `killsRef` with our new flags
+          // ---- finally push into kills log ----
           .then(() => {
-            return killsRef.push({
+            const killLog = {
               killer:            killerName,
               victim:            data.username,
               weapon,
               isHeadshot,
               isPenetrationShot,
               timestamp:         Date.now()
-            });
+            };
+            if (uiDbRefs.killsRef) {
+              return uiDbRefs.killsRef.push(killLog);
+            } else {
+              console.warn('[applyDamageToRemote] killsRef not set—skipping killLog.push()', killLog);
+              return Promise.resolve();
+            }
           });
       }
 
-      // non‐fatal hit: just pulse & update
+      // 6) Non‐fatal hit: just pulse & update
       if (typeof pulsePlayerHit === 'function') {
         pulsePlayerHit(targetId);
       }
@@ -2740,6 +2748,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
