@@ -2189,6 +2189,8 @@ export function animate(timestamp) {
             window.worldFog.position.z += Math.cos(nowMs * 0.0001) * delta * 2;
         }
 
+        updateKillFeed();
+        
         // Physics & Input Update
         const physState = physicsController.update(delta, inputState, window.collidables);
 
@@ -2740,5 +2742,6 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
