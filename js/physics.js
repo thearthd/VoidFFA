@@ -585,7 +585,6 @@ _updatePlayerPhysics(delta) {
     this.camera.position.copy(this.player.position);
     this._lastAirYaw = this.camera.rotation.y;
 
-    console.log(this.isGrounded);
 }
 
 
