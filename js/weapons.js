@@ -521,7 +521,6 @@ update(inputState, delta, playerState) {
       peakOffset: 0,
       recoilStartTime: 0,
       recoilDuration: 0.1,
-      // Add recovery properties
       recoveryStartTime: 0,
       recoveryDuration: 0.5, // Adjust this value to control recovery speed
       recoveryStartOffset: 0
@@ -717,6 +716,7 @@ update(inputState, delta, playerState) {
 
           this._recoil.peakOffset = appliedRecoilAngle * 2;
           this._recoil.recoilStartTime = now;
+          // When a new shot fires, the recoil recovery is interrupted and a new recoil impulse starts.
           this._recoil.recoveryStartOffset = this._recoil.currentOffset + this._recoil.peakOffset;
           this._recoil.recoveryStartTime = now;
 
@@ -828,31 +828,37 @@ update(inputState, delta, playerState) {
   });
 
   // Camera recoil recovery & application
-  if (this._recoil.peakOffset > 0) {
+  // Recoil impulse
+  if (this._recoil.peakOffset > 0 && this._recoil.recoilDuration > 0) {
     const elapsedRecoil = now - this._recoil.recoilStartTime;
     if (elapsedRecoil < this._recoil.recoilDuration) {
       const t = elapsedRecoil / this._recoil.recoilDuration;
       const easedT = 1 - (t * t * (3 - 2 * t));
       this._recoil.currentOffset = this._recoil.peakOffset * easedT;
     } else {
-      // Recoil peak reached, start recovery
+      // Recoil peak reached, transfer to recovery
       this._recoil.peakOffset = 0;
+      this._recoil.recoveryStartOffset = this._recoil.currentOffset;
+      this._recoil.recoveryStartTime = now;
     }
   }
 
-  // Recovery logic
-  if (this._recoil.currentOffset > 0 && this._recoil.peakOffset === 0) {
+  // Recoil recovery
+  if (this._recoil.peakOffset === 0 && this._recoil.currentOffset > 0 && this._recoil.recoveryDuration > 0) {
     const elapsedRecovery = now - this._recoil.recoveryStartTime;
     if (elapsedRecovery >= this._recoil.recoveryDuration) {
       this._recoil.currentOffset = 0;
     } else {
       const t = elapsedRecovery / this._recoil.recoveryDuration;
-      const easedT = 1 - (t * t * (3 - 2 * t)); // This is the easing function you were using before, which is fine
+      const easedT = 1 - (t * t * (3 - 2 * t));
       this._recoil.currentOffset = this._recoil.recoveryStartOffset * easedT;
     }
   }
 
-  this.camera.rotation.x += this._recoil.currentOffset;
+  // Apply final recoil value if it is a finite number
+  if (Number.isFinite(this._recoil.currentOffset)) {
+    this.camera.rotation.x += this._recoil.currentOffset;
+  }
 }
   
 
