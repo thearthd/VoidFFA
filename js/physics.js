@@ -78,83 +78,85 @@ export class PhysicsController {
         this.camera = camera;
         this.scene = scene;
 
-        // Player mesh and capsule information, matching the provided example
+        // Player mesh and capsule information
         this.player = new THREE.Mesh(
             new RoundedBoxGeometry(
-                PLAYER_CAPSULE_RADIUS * 2, // Width
-                PLAYER_TOTAL_HEIGHT,       // Height
-                PLAYER_CAPSULE_RADIUS * 2, // Depth
-                10,                        // Segments
-                PLAYER_CAPSULE_RADIUS      // Radius for rounded corners
+                PLAYER_CAPSULE_RADIUS * 2,
+                PLAYER_TOTAL_HEIGHT,
+                PLAYER_CAPSULE_RADIUS * 2,
+                10,
+                PLAYER_CAPSULE_RADIUS
             ),
             new THREE.MeshStandardMaterial()
         );
-        // Translate the geometry so the player's origin (player.position) is at the top of the capsule
         this.player.geometry.translate(0, -PLAYER_CAPSULE_RADIUS, 0);
-
-        // Define the capsule for collision detection relative to the player's local origin
         this.player.capsuleInfo = {
             radius: PLAYER_CAPSULE_RADIUS,
-            // Segment starts at (0,0,0) (top of capsule) and goes down by segment length
             segment: new THREE.Line3(
                 new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(0, -PLAYER_CAPSULE_SEGMENT_LENGTH, 0.0)
+                new THREE.Vector3(0, -PLAYER_CAPSULE_SEGMENT_LENGTH, 0)
             )
         };
         this.player.castShadow = true;
         this.player.receiveShadow = true;
-        this.player.material.shadowSide = 2; // Render shadows on both sides of the material
+        this.player.material.shadowSide = 2;
 
-        // Physics state variables
+        // Physics state
         this.playerVelocity = new THREE.Vector3();
-        this.isGrounded = false; // Tracks if the player is currently on the ground
+        this.isGrounded = false;
 
-        // NEW: Crouching state variables
+        // Crouch state
         this.isCrouching = false;
         this.targetPlayerHeight = PLAYER_TOTAL_HEIGHT;
         this.originalCapsuleSegmentLength = PLAYER_CAPSULE_SEGMENT_LENGTH;
         this.originalCapsuleRadius = PLAYER_CAPSULE_RADIUS;
 
-        // Helper vectors and objects to avoid re-allocations during calculations
+        // Helpers
         this.upVector = new THREE.Vector3(0, 1, 0);
         this.tempVector = new THREE.Vector3();
         this.tempVector2 = new THREE.Vector3();
         this.tempBox = new THREE.Box3();
         this.tempMat = new THREE.Matrix4();
         this.tempSegment = new THREE.Line3();
-        this.colliderMatrixWorldInverse = new THREE.Matrix4(); // Pre-allocate and store inverse
+        this.colliderMatrixWorldInverse = new THREE.Matrix4();
 
-        // Physics sub-stepping accumulator
+        // Sub-stepping
         this.accumulator = 0;
 
-        // The MeshBVH collider, set externally by map.js
+        // Collider (set later)
         this.collider = null;
 
-        // Input and camera setup
+        // Camera/input state
         this.mouseTime = 0;
-        this.camera.rotation.order = 'YXZ'; // Ensure correct camera rotation order
+        this.camera.rotation.order = 'YXZ';
 
-        // Audio setup
+        // Footstep audio
         this.footAudios = [
             new Audio("https://codehs.com/uploads/29c8a5da333b3fd36dc9681a4a8ec865"),
             new Audio("https://codehs.com/uploads/616ef1b61061008f9993d1ab4fa323ba")
         ];
-        this.footAudios.forEach(audio => { audio.volume = 0.7; });
+        this.footAudios.forEach(a => a.volume = 0.7);
         this.footIndex = 0;
         this.footAcc = 0;
         this.baseFootInterval = 4;
+
+        // Landing audio
         this.landAudio = new Audio("https://codehs.com/uploads/600ab769d99d74647db55a468b19761f");
         this.landAudio.volume = 0.8;
         this.fallStartY = null;
-        this.prevPlayerIsOnGround = false; // Store previous ground state for landing sound
-        this.jumpTriggered = false; // Flag to track if the last airborne state was due to a jump
-        this.fallDelay = 300; // Delay before considering a fall initiated
-        this.fallStartTimer = null; // Timer for fall delay
+        this.prevPlayerIsOnGround = false;
+        this.jumpTriggered = false;
+        this.fallDelay = 300;
+        this.fallStartTimer = null;
 
-        // Speed and aim modifiers (kept from original physics.js)
+        // Movement modifiers
         this.speedModifier = 0;
         this.isAim = false;
         this._lastAirYaw = this.camera.rotation.y;
+
+        // —— NEW: stuck-in-air detection fields —— 
+        this._lastY = null;
+        this._yStuckTimer = 0;
     }
 
     /**
@@ -752,13 +754,13 @@ _updatePlayerPhysics(delta) {
      * @returns {object} An object containing current player state information.
      */
     update(deltaTime, input) {
-        deltaTime = Math.min(0.1, deltaTime); // Cap deltaTime to prevent "explosions"
-
+        deltaTime = Math.min(0.1, deltaTime);
         this.accumulator += deltaTime;
 
-        // Store previous ground state before physics updates
+        // Store grounded state for sounds/logic
         this.prevPlayerIsOnGround = this.isGrounded;
 
+        // Fixed-step physics
         let stepsTaken = 0;
         while (this.accumulator >= FIXED_TIME_STEP && stepsTaken < MAX_PHYSICS_STEPS) {
             this._applyControls(FIXED_TIME_STEP, input);
@@ -767,32 +769,58 @@ _updatePlayerPhysics(delta) {
             stepsTaken++;
         }
 
-        // Calculate horizontal speed for footstep sounds (after all physics steps)
-        const currentSpeedXZ = Math.sqrt(this.playerVelocity.x * this.playerVelocity.x + this.playerVelocity.z * this.playerVelocity.z);
-
+        // Footsteps & landing & rotation & OOB
+        const currentSpeedXZ = Math.hypot(this.playerVelocity.x, this.playerVelocity.z);
         this._handleFootsteps(currentSpeedXZ, deltaTime, input);
         this._handleLandingSound();
-        this._rotatePlayerModel(); // Player model rotation for visual feedback
+        this._rotatePlayerModel();
         this.teleportIfOob();
 
-        // Return current player state
+        // —— NEW: stuck-in-air logic ——
+        // Initialize lastY on first frame
+        if (this._lastY === null) {
+            this._lastY = this.player.position.y;
+        }
+
+        if (!this.isGrounded) {
+            const currentY = this.player.position.y;
+            const dy = Math.abs(currentY - this._lastY);
+
+            if (dy > 0.01) {
+                // Y moved ⇒ reset timer
+                this._lastY = currentY;
+                this._yStuckTimer = 0;
+            } else {
+                // Y stagnant ⇒ accumulate time
+                this._yStuckTimer += deltaTime;
+                if (this._yStuckTimer >= 1.0) {
+                    // stuck ≥1s: clear velocity
+                    this.playerVelocity.set(0, 0, 0);
+                    this._lastY = currentY;
+                    this._yStuckTimer = 0;
+                }
+            }
+        } else {
+            // grounded ⇒ reset detection
+            this._lastY = this.player.position.y;
+            this._yStuckTimer = 0;
+        }
+
+        // Return state
         return {
             x: this.player.position.x,
             y: this.player.position.y,
             z: this.player.position.z,
-            rotY: this.camera.rotation.y, // Camera rotation is still the primary rotation for view
+            rotY: this.camera.rotation.y,
             isGrounded: this.isGrounded,
             velocity: this.playerVelocity.clone(),
             velocityY: this.playerVelocity.y
         };
     }
 
-    /**
-     * Returns the current player position as a simple object.
-     * @returns {object} Player position {x, y, z}.
-     */
     _pos() {
-        const p = this.player.position; // Use player.position
+        const p = this.player.position;
         return { x: p.x, y: p.y, z: p.z };
     }
+
 }
