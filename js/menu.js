@@ -1389,9 +1389,9 @@ window.togglePauseMenuUI = togglePauseMenuUI; // This makes it accessible from i
 // Listen for the 'P' key press to toggle the pause menu
 window.addEventListener("keydown", e => {
 
-    console.log("  currentKeybinds.togglePause:", currentKeybinds.togglePause);
-    console.log("  inputState.isPaused:", inputState.isPaused);
-    console.log("  document.activeElement:", document.activeElement);
+ //   console.log("  currentKeybinds.togglePause:", currentKeybinds.togglePause);
+ //   console.log("  inputState.isPaused:", inputState.isPaused);
+ //   console.log("  document.activeElement:", document.activeElement);
     // Check if the pressed key matches the currently configured togglePause keybind
     // and if the game is active and not chat-focused (assuming checkInGame is available)
     if (checkInGame && e.code === currentKeybinds.togglePause) {
