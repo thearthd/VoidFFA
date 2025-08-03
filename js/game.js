@@ -2189,7 +2189,6 @@ export function animate(timestamp) {
             window.worldFog.position.z += Math.cos(nowMs * 0.0001) * delta * 2;
         }
 
-        updateKillFeed();
         
         // Physics & Input Update
         const physState = physicsController.update(delta, inputState, window.collidables);
@@ -2319,7 +2318,7 @@ export function animate(timestamp) {
 
         // Render the scene
         composer.render();
-
+                updateKillFeed();
     } catch (err) {
         console.error("Error in animate:", err);
     } finally {
@@ -2742,6 +2741,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
