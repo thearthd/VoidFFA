@@ -727,13 +727,31 @@ update(inputState, delta, playerState) {
           let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
           let recoilMultipler = 4;
           let appliedRecoilAngle = rawRecoil*recoilMultipler;
-          if (this.currentKey === "ak-47" && shotIndex >= 7) appliedRecoilAngle = 0.008*recoilMultipler;
-          if (this.currentKey === "ak-47" && shotIndex == 9) appliedRecoilAngle = 0.007*recoilMultipler;
-          if (this.currentKey === "ak-47" && shotIndex >= 11) appliedRecoilAngle = 0.005*recoilMultipler;
 
-          if (this.currentKey === "viper" && shotIndex >= 7) appliedRecoilAngle = 0.024*recoilMultipler;
-          if (this.currentKey === "viper" && shotIndex == 9) appliedRecoilAngle = 0.020*recoilMultipler;
-          if (this.currentKey === "viper" && shotIndex >= 11) appliedRecoilAngle = 0.016*recoilMultipler;
+        // —— FALL OFF ——
+        if (this.currentKey === "ak-47") {
+          if (shotIndex >= 7)  appliedRecoilAngle = 0.018 * recoilMultipler;
+          if (shotIndex >= 8)  appliedRecoilAngle = 0.017 * recoilMultipler;
+          if (shotIndex >= 9)  appliedRecoilAngle = 0.016 * recoilMultipler;
+          if (shotIndex >= 10) appliedRecoilAngle = 0.015 * recoilMultipler;
+          if (shotIndex >= 11) appliedRecoilAngle = 0.014 * recoilMultipler;
+          if (shotIndex >= 12) appliedRecoilAngle = 0.013 * recoilMultipler;
+          if (shotIndex >= 13) appliedRecoilAngle = 0.012 * recoilMultipler;
+          if (shotIndex >= 14) appliedRecoilAngle = 0.011 * recoilMultipler;
+          if (shotIndex >= 15) appliedRecoilAngle = 0.010 * recoilMultipler;
+        }
+        
+        if (this.currentKey === "viper") {
+          if (shotIndex >= 7)  appliedRecoilAngle = 0.028 * recoilMultipler;
+          if (shotIndex >= 8)  appliedRecoilAngle = 0.0265 * recoilMultipler;
+          if (shotIndex >= 9)  appliedRecoilAngle = 0.025 * recoilMultipler;
+          if (shotIndex >= 10) appliedRecoilAngle = 0.0235 * recoilMultipler;
+          if (shotIndex >= 11) appliedRecoilAngle = 0.022 * recoilMultipler;
+          if (shotIndex >= 12) appliedRecoilAngle = 0.0205 * recoilMultipler;
+          if (shotIndex >= 13) appliedRecoilAngle = 0.019 * recoilMultipler;
+          if (shotIndex >= 14) appliedRecoilAngle = 0.0175 * recoilMultipler;
+          if (shotIndex >= 15) appliedRecoilAngle = 0.016 * recoilMultipler;
+        }
           
           if (this._aiming) appliedRecoilAngle /= 2;
 
