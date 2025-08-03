@@ -6,7 +6,7 @@ import { AnimatedTracer } from "./weapons.js";
 
 
 // Global variable to hold the Firebase database references for UI operations
-let uiDbRefs = null;
+export let uiDbRefs = null;
 
 const weaponIcons = {
   ak47: 'https://codehs.com/uploads/36178d893bc2c622e7b343bbbdb8c1f1',
