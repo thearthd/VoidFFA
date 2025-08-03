@@ -726,9 +726,9 @@ update(inputState, delta, playerState) {
           const shotIndex = this.burstCount - 1;
           let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
           let appliedRecoilAngle = rawRecoil*4;
-          if (this.currentKey === "ak-47" && shotIndex >= 7) appliedRecoilAngle = 0.008;
-          if (this.currentKey === "ak-47" && shotIndex == 9) appliedRecoilAngle = 0.007;
-          if (this.currentKey === "ak-47" && shotIndex >= 11) appliedRecoilAngle = 0.005;
+          if (this.currentKey === "ak-47" && shotIndex >= 7) appliedRecoilAngle = 0.010;
+          if (this.currentKey === "ak-47" && shotIndex == 9) appliedRecoilAngle = 0.009;
+          if (this.currentKey === "ak-47" && shotIndex >= 11) appliedRecoilAngle = 0.008;
 
           if (this.currentKey === "viper" && shotIndex >= 7) appliedRecoilAngle = 0.024;
           if (this.currentKey === "viper" && shotIndex == 9) appliedRecoilAngle = 0.020;
