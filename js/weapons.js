@@ -698,16 +698,20 @@ update(inputState, delta, playerState) {
     const secsPerShot = 60 / this.stats.fireRateRPM;
     const sinceLast   = now - this.lastShotTime;
     const isSemi      = ["deagle","marshal","m79"].includes(this.currentKey);
-const canFire = this.stats.isMelee
-  ? (justClicked && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime))
+  const justFired = inputState.fire && !this._prevFire;
 
-  : (isSemi
-      // semis: only on the click‐edge
-      ? (justClicked && sinceLast > secsPerShot)
+  // ——— Compute canFire with “edge vs hold” split ———
+  const canFire = this.stats.isMelee
+    // melee still wants the same “edge + timing” logic
+    ? (justFired && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime))
 
-      // full-auto: must still be holding fire
-      : (inputState.fire && sinceLast > secsPerShot)
-    );
+    : (isSemi
+        // semis: only on the **edge**
+        ? (justFired && sinceLast > secsPerShot)
+
+        // full-autos: must be **holding** fire
+        : (inputState.fire && sinceLast > secsPerShot)
+      );
 
     if (canFire) {
       // —— MELEE KNIFE SWING ——
