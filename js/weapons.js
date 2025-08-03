@@ -122,7 +122,7 @@ export class WeaponController {
       heavySwingTime: 300/600,
       pullDuration: 300/600/2,
       reloadDuration: null,
-      speedModifier: 1.2 + 0.0,
+      speedModifier: 1.2 - 0.1,
       rpm: 120,
       tracerLength: 0,
     },
@@ -138,7 +138,7 @@ export class WeaponController {
       recoilDistance: 0.08,
       recoilDuration: 0.08,
       tracerLength: 100,
-      speedModifier: 0.9 + 0.0,
+      speedModifier: 0.9 - 0.1,
     },
     "ak-47": {
       name: "AK-47",
@@ -152,7 +152,7 @@ export class WeaponController {
       recoilDistance: 0.07,
       recoilDuration: 0.06,
       tracerLength: 100,
-      speedModifier: 0.7 + 0.0,
+      speedModifier: 0.7 - 0.1,
     },
     "viper": {
       name: "Viper",
@@ -166,7 +166,7 @@ export class WeaponController {
       recoilDistance: 0.07,
       recoilDuration: 0.06,
       tracerLength: 50,
-      speedModifier: 0.8 + 0.0,
+      speedModifier: 0.8 - 0.1,
     },
     marshal: {
       name: "Marshal",
@@ -181,7 +181,7 @@ export class WeaponController {
       recoilDuration: 0.1,
       isSniper: true,
       tracerLength: 100,
-      speedModifier: 0.55 + 0.0,
+      speedModifier: 0.55 - 0.1,
     },
     m79: {
       name: "M-79",
@@ -194,7 +194,7 @@ export class WeaponController {
       pullDuration: 125/600*1.5,
       recoilDistance: 0.08,
       recoilDuration: 0.08,
-      speedModifier: 1 + 0.0,
+      speedModifier: 1 - 0.1,
       tracerLength: 20,
     },
   };
