@@ -112,7 +112,7 @@ export function getSpreadMultiplier(
     currentSpreadAngle += recoilPatternValue * 1;
   }
 
-  if (weaponKey === "ak-47") {
+  if (weaponKey === "viper") {
     const recoilPatternValue = getRecoilAngle(weaponKey, shotIndex);
     currentSpreadAngle += recoilPatternValue * 1;
   }
