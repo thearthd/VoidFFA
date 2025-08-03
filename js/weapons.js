@@ -263,11 +263,10 @@ export class WeaponController {
     this.raycaster = new THREE.Raycaster();
 
 this._recoil = {
-  baseCameraX: 0,         // camera.x at time of shot
-  peakOffset: 0,          // how far up recoil kicks
-  lastOffset: 0,          // last recoil value applied
+  currentOffset: 0,
+  peakOffset:    0,
   recoilStartTime: 0,
-  recoilDuration: 0.4
+  recoilDuration:  0.1
 };
   }
 
@@ -515,17 +514,6 @@ update(inputState, delta, playerState) {
     return;
   }
 
-  // --- Initialize _recoil properties if not already done (preferably in constructor) ---
-  if (!this._recoil || typeof this._recoil.currentOffset === 'undefined') {
-    this._recoil = {
-      currentOffset: 0,
-      peakOffset: 0,
-      recoilStartTime: 0,
-      recoilDuration: 0.1,
-      startRotation: 0
-    };
-  }
-
   const velocity      = playerState.velocity;
   const isCrouched    = playerState.isCrouched;
   const wishAim       = inputState.aim;
@@ -702,7 +690,6 @@ update(inputState, delta, playerState) {
           if (this.currentKey === "ak-47" && shotIndex >= 10) appliedRecoilAngle = 0.005;
           if (this._aiming) appliedRecoilAngle /= 2;
 
-          this._recoil.startRotation   = this.camera.rotation.x;
           this._recoil.peakOffset      = appliedRecoilAngle * 2;
           this._recoil.recoilStartTime = now;
 
@@ -814,20 +801,23 @@ update(inputState, delta, playerState) {
   });
 
   // Camera recoil recovery & application
-  if (this._recoil.peakOffset > 0 || this._recoil.currentOffset !== 0) {
-    const elapsedRecoil = now - this._recoil.recoilStartTime;
-    if (elapsedRecoil >= this._recoil.recoilDuration) {
-      this._recoil.currentOffset = 0;
-      this._recoil.peakOffset    = 0;
-    } else {
-      const t      = elapsedRecoil / this._recoil.recoilDuration;
-      const easedT = 1 - (t * t * (3 - 2 * t));
-      this._recoil.currentOffset = this._recoil.peakOffset * easedT;
-    }
+if (this._recoil.peakOffset > 0 || this._recoil.currentOffset !== 0) {
+  const elapsed = now - this._recoil.recoilStartTime;
+  let newOffset;
+  if (elapsed >= this._recoil.recoilDuration) {
+    newOffset = 0;
+    this._recoil.peakOffset = 0;
+  } else {
+    const t = elapsed / this._recoil.recoilDuration;
+    const easedT = 1 - (t * t * (3 - 2 * t));  // inverse smoothstep
+    newOffset = this._recoil.peakOffset * easedT;
   }
 
-  // apply offset relative to the captured startRotation
-  this.camera.rotation.x = this._recoil.startRotation + this._recoil.currentOffset;
+  // apply *only* the delta change this frame
+  const deltaOffset = newOffset - this._recoil.currentOffset;
+  this.camera.rotation.x += deltaOffset;
+  this._recoil.currentOffset = newOffset;
+}
 
 }
 
