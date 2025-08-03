@@ -698,9 +698,16 @@ update(inputState, delta, playerState) {
     const secsPerShot = 60 / this.stats.fireRateRPM;
     const sinceLast   = now - this.lastShotTime;
     const isSemi      = ["deagle","marshal","m79"].includes(this.currentKey);
-    const canFire     = this.stats.isMelee
-                        ? justClicked && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime)
-                        : (isSemi ? justClicked && sinceLast > secsPerShot : sinceLast > secsPerShot);
+const canFire = this.stats.isMelee
+  ? (justClicked && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime))
+
+  : (isSemi
+      // semis: only on the click‐edge
+      ? (justClicked && sinceLast > secsPerShot)
+
+      // full-auto: must still be holding fire
+      : (inputState.fire && sinceLast > secsPerShot)
+    );
 
     if (canFire) {
       // —— MELEE KNIFE SWING ——
