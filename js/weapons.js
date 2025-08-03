@@ -740,7 +740,7 @@ update(inputState, delta, playerState) {
     
     if (this.currentKey === "viper") {
       if (shotIndex >= 6) {
-        const decayFactor = 0.8; // Adjust this value to change the rate of decay
+        const decayFactor = 1.6; // Adjust this value to change the rate of decay
         const baseRecoil = 0.028; // The starting recoil at shotIndex 6
         const recoilDecay = baseRecoil * Math.pow(decayFactor, shotIndex - 6);
         appliedRecoilAngle = recoilDecay * recoilMultipler;
