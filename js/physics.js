@@ -421,6 +421,7 @@ _stepUpIfPossible() {
     // ——————————————————————————————
     // 3) Snap down if you’re hovering with almost zero vertical speed
     // ——————————————————————————————
+    /*
     const targetY = actualGroundY + playerHeight - 0.51;
     const deltaToTarget = this.player.position.y - targetY;
     if (Math.abs(deltaToTarget) < 0.05 && Math.abs(this.playerVelocity.y) < 0.1) {
@@ -428,6 +429,7 @@ _stepUpIfPossible() {
         this.playerVelocity.y = 0;
         this.isGrounded = true;
     }
+    */
 }
 
     
