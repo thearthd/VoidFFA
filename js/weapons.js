@@ -571,9 +571,9 @@ update(inputState, delta, playerState) {
             ? ADS_FOV.deagle
             : this.currentKey === "m79"
               ? ADS_FOV.m79
-              : this.currentKey === "viper"
-                ? ADS_FOV.viper
-                : ADS_FOV.default;
+              : this.currentKey === "viper"
+                ? ADS_FOV.viper
+                : ADS_FOV.default;
 
       const toPos = this.currentKey === "marshal"
         ? new THREE.Vector3(-0.025, -0.035, -0.2)
@@ -733,29 +733,29 @@ update(inputState, delta, playerState) {
           if (this.currentKey === "viper" && shotIndex >= 7) appliedRecoilAngle = 0.024;
           if (this.currentKey === "viper" && shotIndex == 9) appliedRecoilAngle = 0.020;
           if (this.currentKey === "viper" && shotIndex >= 11) appliedRecoilAngle = 0.016;
-          
+          
           if (this._aiming) appliedRecoilAngle /= 2;
 
+          // Store the recoil properties for the animation
           this._recoil.peakOffset      = appliedRecoilAngle;
           this._recoil.recoilStartTime = now;
-          this._recoil.recoveryPoint = this.camera.rotation.clone();
-
+          
           // View-model kickback
           this.state.recoiling   = true;
           this.state.recoilStart = now;
 
-            // --- UPDATED: Deagle Recoil Animation Trigger with Z-axis rotation ---
-            if (this.currentKey === 'deagle') {
-                this.state.deagleRecoil = {
-                    active: true,
-                    startTime: now,
-                    startRotation: this.viewModel.rotation.clone(),
-                    durationUp: 0.03, // A very fast upward kick
-                    durationDown: 0.25, // A slower downward recovery
-                    maxAngleUp: THREE.MathUtils.degToRad(60), // Subtly kick up on the X-axis
-                    maxAngleSide: THREE.MathUtils.degToRad(3), // Kick hard on the Z-axis (sideways)
-                };
-            }
+            // --- UPDATED: Deagle Recoil Animation Trigger with Z-axis rotation ---
+            if (this.currentKey === 'deagle') {
+                this.state.deagleRecoil = {
+                    active: true,
+                    startTime: now,
+                    startRotation: this.viewModel.rotation.clone(),
+                    durationUp: 0.03, // A very fast upward kick
+                    durationDown: 0.25, // A slower downward recovery
+                    maxAngleUp: THREE.MathUtils.degToRad(60), // Subtly kick up on the X-axis
+                    maxAngleSide: THREE.MathUtils.degToRad(3), // Kick hard on the Z-axis (sideways)
+                };
+            }
 
         } else {
           // Start reload
@@ -771,38 +771,38 @@ update(inputState, delta, playerState) {
 
 // --- UPDATED: Deagle Recoil Animation Logic with Z-axis rotation ---
 if (this.state.deagleRecoil && this.state.deagleRecoil.active) {
-    const { deagleRecoil } = this.state;
-    const elapsed = now - deagleRecoil.startTime;
-    const { durationUp, durationDown, maxAngleUp, maxAngleSide, startRotation } = deagleRecoil;
-    const totalDuration = durationUp + durationDown;
+    const { deagleRecoil } = this.state;
+    const elapsed = now - deagleRecoil.startTime;
+    const { durationUp, durationDown, maxAngleUp, maxAngleSide, startRotation } = deagleRecoil;
+    const totalDuration = durationUp + durationDown;
 
-    if (elapsed < totalDuration) {
-        let xAngle = 0;
-        let zAngle = 0;
+    if (elapsed < totalDuration) {
+        let xAngle = 0;
+        let zAngle = 0;
 
-        if (elapsed < durationUp) {
-            // Upward kick phase (fast exponential curve)
-            const progress = elapsed / durationUp;
-            const easedProgress = 1 - Math.exp(-progress * 5); // Exponential curve
-            xAngle = -maxAngleUp * easedProgress; // Small upward kick
-            zAngle = -maxAngleSide * easedProgress; // Hard sideways kick
-        } else {
-            // Downward recovery phase (slower exponential curve)
-            const downElapsed = elapsed - durationUp;
-            const progress = downElapsed / durationDown;
-            const easedProgress = Math.exp(-progress * 5); // Exponential decay
-            xAngle = -maxAngleUp * easedProgress; // Upward kick recovers
-            zAngle = -maxAngleSide * easedProgress; // Sideways kick recovers
-        }
+        if (elapsed < durationUp) {
+            // Upward kick phase (fast exponential curve)
+            const progress = elapsed / durationUp;
+            const easedProgress = 1 - Math.exp(-progress * 5); // Exponential curve
+            xAngle = -maxAngleUp * easedProgress; // Small upward kick
+            zAngle = -maxAngleSide * easedProgress; // Hard sideways kick
+        } else {
+            // Downward recovery phase (slower exponential curve)
+            const downElapsed = elapsed - durationUp;
+            const progress = downElapsed / durationDown;
+            const easedProgress = Math.exp(-progress * 5); // Exponential decay
+            xAngle = -maxAngleUp * easedProgress; // Upward kick recovers
+            zAngle = -maxAngleSide * easedProgress; // Sideways kick recovers
+        }
 
-        this.viewModel.rotation.x = startRotation.x - xAngle;
-        this.viewModel.rotation.z = startRotation.z - zAngle;
+        this.viewModel.rotation.x = startRotation.x - xAngle;
+        this.viewModel.rotation.z = startRotation.z - zAngle;
 
-    } else {
-        // Animation finished, reset to initial rotation
-        this.viewModel.rotation.copy(startRotation);
-        this.state.deagleRecoil.active = false;
-    }
+    } else {
+        // Animation finished, reset to initial rotation
+        this.viewModel.rotation.copy(startRotation);
+        this.state.deagleRecoil.active = false;
+    }
 }
 
   // —— VIEW-MODEL RECOIL ANIMATION FOR GUNS ——
@@ -898,23 +898,43 @@ if (this.state.deagleRecoil && this.state.deagleRecoil.active) {
   });
 
   // --- Camera recoil recovery & application ---
-  // Check if a recoil animation is in progress
+  // The recoil should be an additive effect.
+  // We'll calculate the vertical recoil and add it to the camera's rotation.
+  // The player's mouse input should be processed elsewhere and also added to the camera's rotation.
+  // Assuming `_recoil.recoilOffset` is a new property to store the current recoil value.
+  
   const elapsed = now - this._recoil.recoilStartTime;
   if (elapsed < this._recoil.recoilDuration) {
     // Calculate the animation progress
     const t = elapsed / this._recoil.recoilDuration;
     const easedT = 1 - (t * t * (3 - 2 * t)); // inverse smoothstep for a natural recovery curve
-    
+    
     // Calculate the new recoil offset based on the eased progress
     const newOffset = this._recoil.peakOffset * easedT;
-    
-    // Apply the recoil to the camera's rotation, using the recoveryPoint
-    this.camera.rotation.x = this._recoil.recoveryPoint.x + newOffset;
+    
+    // The previous line that was locking the camera has been removed:
+    // this.camera.rotation.x = this._recoil.recoveryPoint.x + newOffset;
+
+    // Now, we will simply store the new offset.
+    // This assumes that the main camera control loop takes this offset into account.
+    // E.g., this.camera.rotation.x = playerInput.rotation.x + this._recoil.recoilOffset;
+    // We update this value to be used in the next frame.
+    this._recoil.recoilOffset = newOffset;
+
   } else if (this._recoil.peakOffset > 0) {
-    // Recoil animation is finished. Reset to the original recovery point.
-this.camera.rotation.x = this._recoil.recoveryPoint.x;
+    // Recoil animation is finished. Reset the offset.
+    this._recoil.recoilOffset = 0;
     this._recoil.peakOffset = 0;
   }
+
+  // Applying the recoil to the camera
+  // This line is a crucial addition to link the recoil logic with the camera.
+  // It assumes the player's vertical rotation is stored in `playerState.cameraRotation.x`
+  // and we're adding the recoil offset on top of that.
+  // You would need to ensure `playerState.cameraRotation.x` is updated by your mouse input.
+  if (playerState.cameraRotation) {
+      this.camera.rotation.x = playerState.cameraRotation.x + this._recoil.recoilOffset;
+  }
 }
   
 
