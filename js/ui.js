@@ -360,32 +360,51 @@ export function addChatMessage(username, text, chatId) {
 
 
 // Kill Feed: show last 5 entries
-export function updateKillFeed(killer, victim, weaponKey, isHeadshot, isPenetrationShot, killId) {
+export function updateKillFeed(
+  killer,
+  victim,
+  weaponKey,
+  isHeadshot = false,
+  isPenetrationShot = false,
+  killId
+) {
+  // ---- 1) detect old 4-arg signature and shift ----
+  // old: (killer, victim, weaponKey, killId)
+  if (typeof isHeadshot === 'string' && killId === undefined) {
+    killId         = isHeadshot;
+    isHeadshot     = false;
+    isPenetrationShot = false;
+  }
+
   const feed = document.getElementById("kill-feed");
   if (!feed) {
     console.error("Kill feed container not found! ID: 'kill-feed'");
     return;
   }
 
-  // --- build entry ---
+  // ---- 2) build entry ----
   const entry = document.createElement("div");
   entry.classList.add("kill-entry");
-  entry.dataset.killId = killId;
+  if (killId) entry.dataset.killId = killId;
 
   // killer name
-  const killerSpan = document.createElement("span");
-  killerSpan.textContent = killer;
-  entry.appendChild(killerSpan);
+  const ks = document.createElement("span");
+  ks.textContent = killer;
+  entry.appendChild(ks);
 
-  // weapon icon
-  const wkey = weaponKey.toLowerCase();
+  // weapon icon (safe toLowerCase & fallback)
+  let wkey = 'knife'; // default if missing
+  if (typeof weaponKey === 'string') {
+    wkey = weaponKey.toLowerCase();
+  }
+  const wurl = weaponIcons[wkey] || weaponIcons['knife'];
   const wimg = document.createElement("img");
-  wimg.src = weaponIcons[wkey] || '';
+  wimg.src = wurl;
   wimg.alt = wkey;
   wimg.classList.add("kill-icon", "weapon-icon");
   entry.appendChild(wimg);
 
-  // optional headshot icon
+  // optional headshot
   if (isHeadshot) {
     const himg = document.createElement("img");
     himg.src = headshotIcon;
@@ -394,7 +413,7 @@ export function updateKillFeed(killer, victim, weaponKey, isHeadshot, isPenetrat
     entry.appendChild(himg);
   }
 
-  // optional penetration icon
+  // optional penetration
   if (isPenetrationShot) {
     const pimg = document.createElement("img");
     pimg.src = penetrationIcon;
@@ -404,29 +423,27 @@ export function updateKillFeed(killer, victim, weaponKey, isHeadshot, isPenetrat
   }
 
   // victim name
-  const victimSpan = document.createElement("span");
-  victimSpan.textContent = victim;
-  entry.appendChild(victimSpan);
+  const vs = document.createElement("span");
+  vs.textContent = victim;
+  entry.appendChild(vs);
 
-  // add to feed
+  // append & prune
   feed.appendChild(entry);
-
-  // prune if >5
   if (feed.children.length > 5) {
-    const oldest = feed.firstElementChild;
-    const oldId  = oldest.dataset.killId;
-    oldest.remove();
+    const old = feed.firstElementChild;
+    const oldId = old.dataset.killId;
+    old.remove();
     if (uiDbRefs?.killsRef && oldId) {
       uiDbRefs.killsRef.child(oldId).remove().catch(e => console.error("Prune failed:", e));
     }
   }
 
-  // auto‐expire after 10s
+  // auto-expire
   setTimeout(() => {
     if (entry.parentNode) {
       entry.remove();
-      if (uiDbRefs?.killsRef) {
-        uiDbRefs.killsRef.child(killId).remove().catch(e => console.error("Timeout remove failed:", e));
+      if (uiDbRefs?.killsRef && killId) {
+        uiDbRefs.killsRef.child(killId).remove().catch(e => console.error("Timeout removal failed:", e));
       }
     }
   }, 10000);
