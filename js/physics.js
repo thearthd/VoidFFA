@@ -355,76 +355,67 @@ _applyAirControl(dt) {
     }
 
 _stepUpIfPossible() {
-  //  if (!this.isGrounded || !this.collider) return;
     if (!this.collider) return;
-    // 1. Determine player's horizontal movement direction and magnitude
+
+    // 1. Only proceed if the player is moving significantly horizontally
     const horizVel = new THREE.Vector3(this.playerVelocity.x, 0, this.playerVelocity.z);
-    // Only attempt step-up if there's significant horizontal movement
-    if (horizVel.lengthSq() < 0.1 * 0.1) return; // Threshold squared (0.01)
+    if (horizVel.lengthSq() < 0.1 * 0.1) return;
     const dir = horizVel.normalize();
 
-    // Calculate current scaled dimensions
-    const currentScaledPlayerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
-    const currentScaledCapsuleRadius = this.player.capsuleInfo.radius * this.player.scale.y;
-
-    // 2. Find the actual ground level directly beneath the player
-    const groundCheckRay = new THREE.Raycaster(
+    // 2. Cast downward from the player's current position to find the true ground level
+    const playerBottom = this.player.position.clone().add(new THREE.Vector3(0, -PLAYER_TOTAL_HEIGHT * this.player.scale.y, 0));
+    const groundRay = new THREE.Raycaster(
         this.player.position.clone(),
         new THREE.Vector3(0, -1, 0),
         0,
-        currentScaledPlayerHeight + 0.1
+        PLAYER_TOTAL_HEIGHT * this.player.scale.y + 0.2
     );
-    const groundHits = groundCheckRay.intersectObject(this.collider, true);
+    const groundHits = groundRay.intersectObject(this.collider, true);
+    const actualGroundY = groundHits.length
+        ? groundHits[0].point.y
+        : playerBottom.y;
 
-    let actualGroundY;
-    if (groundHits.length > 0) {
-        actualGroundY = groundHits[0].point.y;
-    } else {
-        actualGroundY = this.player.position.y - currentScaledPlayerHeight;
-    }
-
-    // 3. Setup the step-up raycast in front of the player
-    const rayOriginForwardOffset = currentScaledCapsuleRadius + STEP_FORWARD_OFFSET;
-    const rayOrigin = new THREE.Vector3(
-        this.player.position.x + dir.x * rayOriginForwardOffset,
-        actualGroundY + STEP_HEIGHT + 0.05,
-        this.player.position.z + dir.z * rayOriginForwardOffset
-    );
+    // 3. Project forward to see if there's an obstacle we can step onto
+    const capsuleRadius = this.player.capsuleInfo.radius * this.player.scale.y;
+    const forwardOrigin = this.player.position.clone()
+        .setY(actualGroundY + STEP_HEIGHT + 0.05)
+        .add(dir.clone().multiplyScalar(capsuleRadius + STEP_FORWARD_OFFSET));
     const stepRay = new THREE.Raycaster(
-        rayOrigin,
+        forwardOrigin,
         new THREE.Vector3(0, -1, 0),
         0,
         STEP_HEIGHT + 0.3
     );
     const stepHits = stepRay.intersectObject(this.collider, true);
-    if (stepHits.length === 0) return;
-    const stepTopY = stepHits[0].point.y;
+    if (!stepHits.length) return;
 
-    // 4. Calculate the vertical difference between the detected step and actual ground
+    const stepTopY = stepHits[0].point.y;
     const deltaY = stepTopY - actualGroundY;
 
-    // 5. Conditions for performing the step-up
-    if (deltaY > 1e-5 && deltaY <= STEP_HEIGHT && deltaY >= 0.15) {
-        // 6. Headroom Check
-        const newPlayerTopY = stepTopY + currentScaledPlayerHeight;
+    // 4. Only step if the height is within bounds
+    if (deltaY > 0.05 && deltaY <= STEP_HEIGHT + 0.01) {
+        // 5. Check for headroom above the new position
+        const playerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
         const headCheckOrigin = new THREE.Vector3(
             this.player.position.x,
-            newPlayerTopY + 0.01,
+            stepTopY + playerHeight + 0.02,
             this.player.position.z
         );
-        const headRay = new THREE.Raycaster(headCheckOrigin, new THREE.Vector3(0, 1, 0), 0, 0.02);
-        const headHits = headRay.intersectObject(this.collider, true);
-
-        if (headHits.length === 0) {
-            // Perform the step: adjust player's Y
-            this.player.position.y = stepTopY + currentScaledPlayerHeight - 0.510;
+        const headRay = new THREE.Raycaster(headCheckOrigin, new THREE.Vector3(0, 1, 0), 0, 0.1);
+        if (headRay.intersectObject(this.collider, true).length === 0) {
+            // 6. Snap the player up onto the step
+            this.player.position.y = stepTopY + playerHeight - 0.51;
             this.playerVelocity.y = 0;
             this.isGrounded = true;
 
-            // Nudge forward to clear the foot on the ledge
-            this.player.position.x += dir.x * STEP_FORWARD_PUSH;
-            this.player.position.z += dir.z * STEP_FORWARD_PUSH;
+            // 7. Nudge forward so the foot clears the edge
+            this.player.position.add(dir.multiplyScalar(STEP_FORWARD_PUSH));
         }
+    } else if (Math.abs(this.player.position.y - (actualGroundY + playerBottom.y)) < 0.1) {
+        // 8. If we're floating slightly off the ground (e.g. <10cm), snap down
+        this.player.position.y = actualGroundY + playerBottom.y;
+        this.playerVelocity.y = 0;
+        this.isGrounded = true;
     }
 }
 
