@@ -1149,7 +1149,7 @@ fireBullet(spreadAngle) {
 
       let realPenetrate = false;
       
-      if (baseDamage != this.stats.bodyDamage) {
+      if (damageToApply != baseDamage) {
           realPenetrate = true;
       }
       
