@@ -75,40 +75,36 @@ export let menuConfigRef = null;
 export let requiredGameVersion = "v1.00"; // Default version, will be updated from DB
 
 export function initializeMenuFirebase() {
-  if (menuApp) return;
-
-  // 1) Initialize (or get) your named app
-  try {
-    menuApp = firebase.app("menuApp");
-  } catch {
-    menuApp = firebase.initializeApp(menuConfig, "menuApp");
-  }
-
-  // 2) Activate App Check **on that specific app**
-  //    (use the compat SDK method that takes your app instance)
-  firebase
+    if (menuApp) return;
+    try {
+        menuApp = firebase.app("menuApp");
+          firebase
     .appCheck(menuApp)
     .activate(
-      "6Le2kZsrAAAAAOfMuZvLnZrYKpeF5SHsBdrVscMy",
+      "6Le2kZsrAAAAAKNO4sMWPEQvH9xPWe7a2drtbQsl",
       /* enableTokenAutoRefresh */ true
     );
-
-  // 3) Grab your database refs from menuApp
-  const db = menuApp.database();
-  gamesRef      = db.ref("games");
-  usersRef      = db.ref("users");
-  slotsRef      = db.ref("slots");
-  menuConfigRef = db.ref("menu");
-
-  // 4) Fetch required game version…
-  menuConfigRef.child("gameVersion").on("value", (snapshot) => {
-    if (snapshot.exists()) {
-      requiredGameVersion = snapshot.val();
-      console.log("Required Game Version:", requiredGameVersion);
+    } catch {
+        menuApp = firebase.initializeApp(menuConfig, "menuApp");
     }
-  });
-}
+    const db = menuApp.database();
+    gamesRef = db.ref("games");
+    usersRef = db.ref("users");
+    slotsRef = db.ref("slots");
+    menuConfigRef = db.ref("menu");
 
+    // Fetch the required game version from the database
+    menuConfigRef.child("gameVersion").on("value", (snapshot) => {
+        if (snapshot.exists()) {
+            requiredGameVersion = snapshot.val();
+            console.log("Required Game Version:", requiredGameVersion);
+        } else {
+            console.warn("No 'gameVersion' found in menu database. Defaulting to", requiredGameVersion);
+            // Optionally, you could set it in the DB if it doesn't exist
+            // menuConfigRef.child("gameVersion").set(requiredGameVersion);
+        }
+    });
+}
 initializeMenuFirebase();
 
 export let activeGameId = null;
