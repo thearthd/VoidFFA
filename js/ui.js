@@ -380,7 +380,7 @@ export function updateKillFeed(killer, victim, weapon, killId, isHeadshot, isPen
     deagle:  "https://codehs.com/uploads/d616d247f6764ad2275c96395beb21a8",
     knife:   "https://codehs.com/uploads/d0ca87fe37301b4b81c5db8d10cac10a",
     m79:     "https://codehs.com/uploads/78b318e3e11e59fc133477a0d9fdae14",
-    marhsal: "https://codehs.com/uploads/0677c14ed85f07c6d950f75bb95a4db2",
+    marshal: "https://codehs.com/uploads/0677c14ed85f07c6d950f75bb95a4db2",
     viper:   "https://codehs.com/uploads/bc7d35cd4ca88fdfaa8b2097471e526b",
     legion:  "https://codehs.com/uploads/6ca90ea3f9fc74532def50869eabe30f",
   };
