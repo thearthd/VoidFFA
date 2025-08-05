@@ -84,7 +84,7 @@ export function initializeMenuFirebase() {
   firebase
     .appCheck(menuApp)
     .activate(
-      "77264185-1C93-4B90-AC8A-94C39906AE39", // your reCAPTCHA v3 site key
+      "6LfqnpsrAAAAAG0z8Zjmz0_97_YjV5g-MWt2RYTZ", // your reCAPTCHA v3 site key
       true                                        // enable auto-refresh
     );
     const db = menuApp.database();
