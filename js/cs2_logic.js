@@ -25,6 +25,7 @@ export const ADS_FOV = {
   ak47: 60,
   viper: 65,
   marshal: 10,
+  legion: 30,
   m79: 70,
 };
 
