@@ -608,41 +608,35 @@ update(inputState, delta, playerState) {
         "marshal": new THREE.Vector3(-0.025, -0.035, -0.2) // Special position for sniper scope
     };
 
-    // Handle weapon switch & ADS positioning
-    if (this.currentKey !== this._prevKey) {
-        // If the player was ADS, start a smooth zoom-out tween.
-        if (this._aiming) {
-            // Set up a tween to smoothly move from the old ADS position to the default ready position
-            this._fovTween = {
-                active: true,
-                fromFov: this.camera.fov,
-                toFov: ADS_FOV.default,
-                fromScale: this.viewModel.scale.clone(),
-                toScale: this._baseScale.clone(),
-                fromPos: this.viewModel.position.clone(),
-                toPos: this.readyPos.clone(),
-                startTime: now,
-                duration: 0.2 // Match this duration to your normal zoom-in/out tween
-            };
-            // Set aiming to false so the new weapon is equipped in the normal state
-            this._aiming = false;
-        }
+    // Handle weapon switch & ADS positioning
+    if (this.currentKey !== this._prevKey) {
+      if (this._aiming) {
+        // If the player was ADS, start a smooth zoom-out tween.
+        this._fovTween = {
+            active: true,
+            fromFov: this.camera.fov,
+            toFov: ADS_FOV.default,
+            fromScale: this.viewModel.scale.clone(),
+            toScale: this.viewModel.scale.clone(),
+            fromPos: this.viewModel.position.clone(),
+            toPos: this.readyPos.clone(),
+            startTime: now,
+            duration: 0.2 // Match this duration to your normal zoom-in/out tween
+        };
+        // Correctly reset aiming flag immediately on weapon swap
+        this._aiming = false;
+      }
 
-        // Hide the sniper scope if the previous weapon was the Marshal and the player was aiming.
-        if (this._prevKey === "marshal" && this._aiming) {
-            scopeOverlay.style.display = 'none';
-        }
-        
-        // Equip the new weapon. This will happen after the zoom-out tween is initiated.
-        this.equipWeapon(this.currentKey);
-        
-        // Make sure the new weapon's scope overlay is hidden if it's not a sniper.
-        if (this.currentKey !== "marshal") {
-            scopeOverlay.style.display = 'none';
-        }
+      if (this._prevKey === "marshal" && this._aiming) {
+        scopeOverlay.style.display = 'none';
+      }
+      this._prevKey = this.currentKey;
+      this.equipWeapon(this.currentKey);
 
-        this._prevKey = this.currentKey;
-    }
+      if (this.currentKey !== "marshal") {
+        scopeOverlay.style.display = 'none';
+      }
+    }
 
     // Handle slide-pull animation
     if (this.state.pulling) {
@@ -677,48 +671,59 @@ update(inputState, delta, playerState) {
 
     // Aim toggle tweening
     if (wishAim !== this._prevWishAim) {
-        this._baseFov    = this.camera.fov;
-        this._baseScale  = this.viewModel.scale.clone();
-        this._fromPos    = this.viewModel.position.clone();
+      // NEW: Prevent ADS if the weapon is still in the pullout or reload animation.
+      if (this.state.pulling || this.isReloadingFlag) {
+          this._prevWishAim = wishAim;
+          return;
+      }
+      // Check if the current gun is aimable. If the player wants to aim but the
+      // weapon is not in the list, we do nothing and exit.
+      const aimableGuns = ["ak-47", "deagle", "m79", "viper", "legion", "marshal"];
+      if (wishAim && !aimableGuns.includes(this.currentKey)) {
+        // Update the previous wishAim state to prevent this from triggering every frame
+        this._prevWishAim = wishAim;
+        return;
+      }
 
-        const adsFovMap = {
-            "ak-47": ADS_FOV.ak47,
-            "viper": ADS_FOV.viper,
-            "deagle": ADS_FOV.deagle,
-            "m79": ADS_FOV.m79,
-            "legion": ADS_FOV.legion,
-        };
+      this._baseFov    = this.camera.fov;
+      this._baseScale  = this.viewModel.scale.clone();
+      this._fromPos    = this.viewModel.position.clone();
 
-        const targetFov = wishAim
-            ? (this.stats.isSniper 
-                ? ADS_FOV.marshal 
-                : adsFovMap[this.currentKey] || ADS_FOV.default)
-            : ADS_FOV.default;
+      const adsFovMap = {
+          "ak-47": ADS_FOV.ak47,
+          "viper": ADS_FOV.viper,
+          "deagle": ADS_FOV.deagle,
+          "m79": ADS_FOV.m79,
+          "legion": ADS_FOV.legion,
+      };
 
-        const toPos = wishAim
-            ? gunAimPos[this.currentKey].clone()
-            : this.readyPos.clone();
+      const targetFov = wishAim
+          ? (this.stats.isSniper 
+              ? ADS_FOV.marshal 
+              : adsFovMap[this.currentKey] || ADS_FOV.default)
+          : ADS_FOV.default;
 
-        this._fovTween = {
-            active: true,
-            fromFov: this._baseFov,
-            toFov: targetFov,
-            fromScale: this._baseScale.clone(),
-            toScale: this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
-            fromPos: this._fromPos.clone(),
-            toPos: toPos,
-            startTime: now,
-            duration: 0.2
-        };
+      const toPos = wishAim
+          ? gunAimPos[this.currentKey].clone()
+          : this.readyPos.clone();
 
-        // --- UPDATED LOGIC HERE ---
-        // Only hide the scope overlay if it's NOT the marshal, as the marshal's scope
-        // will be handled at the end of the tween.
-        if (this.currentKey !== "marshal") {
-            scopeOverlay.style.display = 'none';
-        }
-        // --- END OF UPDATED LOGIC ---
+      this._fovTween = {
+          active: true,
+          fromFov: this._baseFov,
+          toFov: targetFov,
+          fromScale: this._baseScale.clone(),
+          toScale: this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
+          fromPos: this._fromPos.clone(),
+          toPos: toPos,
+          startTime: now,
+          duration: 0.2
+      };
 
+      // Only hide the scope overlay if it's NOT the marshal, as the marshal's scope
+      // will be handled at the end of the tween.
+      if (this.currentKey !== "marshal") {
+          scopeOverlay.style.display = 'none';
+      }
     }
 this._prevWishAim = wishAim;
 
@@ -974,7 +979,7 @@ this._prevWishAim = wishAim;
       this._recoil.recoilStartTime = 0;
       this._recoil.previousRecoilOffset = 0;
     }
-  }
+}
   
 
   getCurrentAmmo() {
