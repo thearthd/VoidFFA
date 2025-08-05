@@ -602,7 +602,7 @@ update(inputState, delta, playerState) {
     const gunAimPos = {
         "ak-47": new THREE.Vector3(0, -0.3, -0.5),
         "deagle": new THREE.Vector3(0, -0.3, -0.5),
-        "m79": new THREE.Vector3(0, -0.6, -0.8),
+        "m79": new THREE.Vector3(0, -0.45, -0.3),
         "viper": new THREE.Vector3(0, -0.3, -0.5),
         "legion": new THREE.Vector3(0, -0.15, -0.5),
         "marshal": new THREE.Vector3(-0.025, -0.035, -0.2) // Special position for sniper scope
