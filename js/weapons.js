@@ -671,16 +671,14 @@ update(inputState, delta, playerState) {
 
     // Aim toggle tweening
     if (wishAim !== this._prevWishAim) {
-      // NEW: Prevent ADS if the weapon is still in the pullout or reload animation.
+      // Prevent ADS if the weapon is still in the pullout or reload animation.
       if (this.state.pulling || this.isReloadingFlag) {
           this._prevWishAim = wishAim;
           return;
       }
-      // Check if the current gun is aimable. If the player wants to aim but the
-      // weapon is not in the list, we do nothing and exit.
+      // Check if the current gun is aimable.
       const aimableGuns = ["ak-47", "deagle", "m79", "viper", "legion", "marshal"];
       if (wishAim && !aimableGuns.includes(this.currentKey)) {
-        // Update the previous wishAim state to prevent this from triggering every frame
         this._prevWishAim = wishAim;
         return;
       }
@@ -719,13 +717,15 @@ update(inputState, delta, playerState) {
           duration: 0.2
       };
 
-      // Only hide the scope overlay if it's NOT the marshal, as the marshal's scope
-      // will be handled at the end of the tween.
       if (this.currentKey !== "marshal") {
           scopeOverlay.style.display = 'none';
       }
     }
 this._prevWishAim = wishAim;
+
+    // FIX: Initialize _fovTween if it doesn't exist to prevent the TypeError.
+    // This ensures the object exists before we try to read its properties.
+    this._fovTween = this._fovTween || { active: false };
 
     if (this._fovTween.active) {
       const t  = (now - this._fovTween.startTime) / this._fovTween.duration;
