@@ -1148,6 +1148,9 @@ fireBullet(spreadAngle) {
       const damageToApply   = baseDamage * (traj.isPenetrationShot ? 0.5 : 1.0);
 
       let realPenetrate = false;
+
+      console.log(damageToApply);
+      console.log(baseDamage);
       
       if (damageToApply != baseDamage) {
           realPenetrate = true;
