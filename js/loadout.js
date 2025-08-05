@@ -11,6 +11,7 @@ const PRIMARIES = [
 ];
 const SECONDARIES = [
   { key: 'm79',     img: 'https://codehs.com/uploads/967700dec4457f4bf0461e723d74550d' },
+  { key: 'legion',  img: 'https://codehs.com/uploads/04cfb2d131578fa21a385c03c4d701cf' },
 ];
 
 function initLoadout() {
