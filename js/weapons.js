@@ -577,393 +577,398 @@ equipWeapon(weaponKey) {
     }
   }
 
-  update(inputState, delta, playerState) {
-    // --- Lazy initialize any weapon (incl. knife) if we haven't yet ---
-    if (!this.viewModel) {
-      this.equipWeapon(this.currentKey || "knife");
-      return;
-    }
+update(inputState, delta, playerState) {
+    // --- Lazy initialize any weapon (incl. knife) if we haven't yet ---
+    if (!this.viewModel) {
+      this.equipWeapon(this.currentKey || "knife");
+      return;
+    }
 
-    // --- EDGE DETECTION: build our own “justPressed” for semi-autos ---
-    const rawFire     = inputState.fire;
-    const justPressed = rawFire && !this._prevFire;
-    this._prevFire    = rawFire;
+    // --- EDGE DETECTION: build our own “justPressed” for semi-autos ---
+    const rawFire     = inputState.fire;
+    const justPressed = rawFire && !this._prevFire;
+    this._prevFire    = rawFire;
 
-    // --- Gather common state ---
-    const velocity      = playerState.velocity;
-    const isCrouched    = playerState.isCrouched;
-    const wishAim       = inputState.aim;
-    const isGrounded    = playerState.physicsController.isGrounded;
-    const now           = performance.now() / 1000;
-    const sinceLast     = now - this.lastShotTime;
-    const defaultAimPos = new THREE.Vector3(0, -0.3, -0.5);
+    // --- Gather common state ---
+    const velocity      = playerState.velocity;
+    const isCrouched    = playerState.isCrouched;
+    const wishAim       = inputState.aim;
+    const isGrounded    = playerState.physicsController.isGrounded;
+    const now           = performance.now() / 1000;
+    const sinceLast     = now - this.lastShotTime;
+    const defaultAimPos = new THREE.Vector3(0, -0.3, -0.5);
 
-    // Handle weapon switch & ADS positioning
-    if (this.currentKey !== this._prevKey) {
-      if (this._prevKey === "marshal" && this._aiming) {
-        scopeOverlay.style.display = 'none';
-      }
-      this._prevKey = this.currentKey;
+    // --- NEW: Define aiming positions for each gun ---
+    const gunAimPos = {
+        "ak-47": new THREE.Vector3(0, -0.3, -0.5),
+        "deagle": new THREE.Vector3(0, -0.3, -0.5),
+        "m79": new THREE.Vector3(0, -0.3, -0.5),
+        "viper": new THREE.Vector3(0, -0.3, -0.5),
+        "legion": new THREE.Vector3(0, -0.3, -0.5),
+        "marshal": new THREE.Vector3(-0.025, -0.035, -0.2) // Special position for sniper scope
+    };
 
-if (this._aiming) {
-  // Use a map to handle the various FOV values.
-  const adsFovMap = {
-    "ak-47": ADS_FOV.ak47,
-    "deagle": ADS_FOV.deagle,
-    "m79": ADS_FOV.m79,
-    "viper": ADS_FOV.viper,
-    "legion": ADS_FOV.legion,
-  };
+    // Handle weapon switch & ADS positioning
+    if (this.currentKey !== this._prevKey) {
+      if (this._prevKey === "marshal" && this._aiming) {
+        scopeOverlay.style.display = 'none';
+      }
+      this._prevKey = this.currentKey;
 
-  // Check if the current weapon is a sniper.
-  const targetFov = this.stats.isSniper 
-    ? ADS_FOV.marshal 
-    : adsFovMap[this.currentKey] || ADS_FOV.default;
+      if (this._aiming) {
+        // Use a map to handle the various FOV values.
+        const adsFovMap = {
+          "ak-47": ADS_FOV.ak47,
+          "deagle": ADS_FOV.deagle,
+          "m79": ADS_FOV.m79,
+          "viper": ADS_FOV.viper,
+          "legion": ADS_FOV.legion,
+        };
 
-        const toPos = this.currentKey === "marshal"
-          ? new THREE.Vector3(-0.025, -0.035, -0.2)
-          : defaultAimPos.clone();
+        // Check if the current weapon is a sniper.
+        const targetFov = this.stats.isSniper 
+          ? ADS_FOV.marshal 
+          : adsFovMap[this.currentKey] || ADS_FOV.default;
 
-        const scaleFactor = targetFov / this._baseFov;
-        this.camera.fov = targetFov;
-        this.camera.updateProjectionMatrix();
-        this.viewModel.scale.copy(this._baseScale.clone().multiplyScalar(scaleFactor));
-        this.viewModel.position.copy(toPos);
+        // Use the new gunAimPos map
+        const toPos = gunAimPos[this.currentKey].clone();
 
-        if (this.currentKey === "marshal") {
-          scopeOverlay.style.display = 'block';
-          this.viewModel.visible = false;
-        } else {
-          this.viewModel.visible = true;
-        }
-      }
-    }
+        const scaleFactor = targetFov / this._baseFov;
+        this.camera.fov = targetFov;
+        this.camera.updateProjectionMatrix();
+        this.viewModel.scale.copy(this._baseScale.clone().multiplyScalar(scaleFactor));
+        this.viewModel.position.copy(toPos);
 
-    // Handle slide-pull animation
-    if (this.state.pulling) {
-      const tPull = (now - this.state.pullStart) / this.stats.pullDuration;
-      if (tPull >= 1) {
-        this.viewModel.position.copy(this.state.pullTo);
-        this.state.pulling = false;
-      } else {
-        this.viewModel.position.lerpVectors(this.state.pullFrom, this.state.pullTo, tPull);
-      }
-    }
+        if (this.currentKey === "marshal") {
+          scopeOverlay.style.display = 'block';
+          this.viewModel.visible = false;
+        } else {
+          this.viewModel.visible = true;
+        }
+      }
+    }
 
-    // Crosshair spread
-    let spreadAngle = getSpreadMultiplier(
-      this.currentKey,
-      velocity,
-      isCrouched,
-      this._aiming,
-      isGrounded,
-      this.burstCount
-    );
-    updateCrosshair(spreadAngle);
-    playerState.isAirborne = !isGrounded;
+    // Handle slide-pull animation
+    if (this.state.pulling) {
+      const tPull = (now - this.state.pullStart) / this.stats.pullDuration;
+      if (tPull >= 1) {
+        this.viewModel.position.copy(this.state.pullTo);
+        this.state.pulling = false;
+      } else {
+        this.viewModel.position.lerpVectors(this.state.pullFrom, this.state.pullTo, tPull);
+      }
+    }
 
-    // Reset burst count on release for full-auto weapons
-    if (!rawFire && this.currentKey === "ak-47") {
-      this.burstCount = 0;
-    }
-    if (!rawFire && this.currentKey === "viper") {
-      this.burstCount = 0;
-    }
+    // Crosshair spread
+    let spreadAngle = getSpreadMultiplier(
+      this.currentKey,
+      velocity,
+      isCrouched,
+      this._aiming,
+      isGrounded,
+      this.burstCount
+    );
+    updateCrosshair(spreadAngle);
+    playerState.isAirborne = !isGrounded;
 
-    // Aim toggle tweening
-    if (wishAim !== this._prevWishAim) {
-      this._baseFov    = this.camera.fov;
-      this._baseScale  = this.viewModel.scale.clone();
-      this._fromPos    = this.viewModel.position.clone();
+    // Reset burst count on release for full-auto weapons
+    if (!rawFire && this.currentKey === "ak-47") {
+      this.burstCount = 0;
+    }
+    if (!rawFire && this.currentKey === "viper") {
+      this.burstCount = 0;
+    }
 
-const adsFovMap = {
-  "ak-47": ADS_FOV.ak47,
-  "viper": ADS_FOV.viper,
-  "deagle": ADS_FOV.deagle,
-  "m79": ADS_FOV.m79,
-  "legion": ADS_FOV.legion,
-};
+    // Aim toggle tweening
+    if (wishAim !== this._prevWishAim) {
+      this._baseFov    = this.camera.fov;
+      this._baseScale  = this.viewModel.scale.clone();
+      this._fromPos    = this.viewModel.position.clone();
 
-// Determine the target FOV based on whether the player is aiming.
-const targetFov = wishAim
-  ? (this.stats.isSniper 
-    ? ADS_FOV.marshal 
-    : adsFovMap[this.currentKey] || ADS_FOV.default)
-  : ADS_FOV.default;
+      const adsFovMap = {
+        "ak-47": ADS_FOV.ak47,
+        "viper": ADS_FOV.viper,
+        "deagle": ADS_FOV.deagle,
+        "m79": ADS_FOV.m79,
+        "legion": ADS_FOV.legion,
+      };
 
-      const toPos = wishAim
-        ? (this.currentKey === "marshal"
-            ? new THREE.Vector3(-0.025, -0.035, -0.2)
-            : defaultAimPos.clone())
-        : this.readyPos.clone();
+      // Determine the target FOV based on whether the player is aiming.
+      const targetFov = wishAim
+        ? (this.stats.isSniper 
+          ? ADS_FOV.marshal 
+          : adsFovMap[this.currentKey] || ADS_FOV.default)
+        : ADS_FOV.default;
 
-      this._fovTween = {
-        active:    true,
-        fromFov:   this._baseFov,
-        toFov:     targetFov,
-        fromScale: this._baseScale.clone(),
-        toScale:   this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
-        fromPos:   this._fromPos.clone(),
-        toPos:     toPos,
-        startTime: now,
-        duration:  0.2
-      };
+      const toPos = wishAim
+          ? gunAimPos[this.currentKey].clone() // Use the new object here
+          : this.readyPos.clone();
 
-      scopeOverlay.style.display = 'none';
-    }
-    this._prevWishAim = wishAim;
+      this._fovTween = {
+        active:    true,
+        fromFov:   this._baseFov,
+        toFov:     targetFov,
+        fromScale: this._baseScale.clone(),
+        toScale:   this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
+        fromPos:   this._fromPos.clone(),
+        toPos:     toPos,
+        startTime: now,
+        duration:  0.2
+      };
 
-    if (this._fovTween.active) {
-      const t  = (now - this._fovTween.startTime) / this._fovTween.duration;
-      const s  = t >= 1 ? 1 : t * t * (3 - 2 * t);
-      if (t >= 1) {
-        this._fovTween.active = false;
-        this._aiming = wishAim;
-        if (this.currentKey === "marshal") {
-          if (this._aiming) {
-            scopeOverlay.style.display = 'block';
-            this.viewModel.visible = false;
-          } else {
-            this.viewModel.visible = true;
-          }
-        }
-      }
-      this.camera.fov = THREE.MathUtils.lerp(this._fovTween.fromFov, this._fovTween.toFov, s);
-      this.camera.updateProjectionMatrix();
-      this.viewModel.scale.copy(
-        this._fovTween.fromScale.clone().lerp(this._fovTween.toScale, s)
-      );
-      this.viewModel.position.copy(
-        this._fovTween.fromPos.clone().lerp(this._fovTween.toPos, s)
-      );
-    }
+      scopeOverlay.style.display = 'none';
+    }
+    this._prevWishAim = wishAim;
 
-    // --- FIRING / SWINGING LOGIC ---
-    const isSemi      = ["deagle","marshal","m79","legion"].includes(this.currentKey);
-    const secsPerShot = 60 / this.stats.fireRateRPM;
-    const canFire     = this.stats.isMelee
-      ? justPressed && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime)
-      : (isSemi
-          ? justPressed && sinceLast > secsPerShot
-          : sinceLast > secsPerShot
-        );
+    if (this._fovTween.active) {
+      const t  = (now - this._fovTween.startTime) / this._fovTween.duration;
+      const s  = t >= 1 ? 1 : t * t * (3 - 2 * t);
+      if (t >= 1) {
+        this._fovTween.active = false;
+        this._aiming = wishAim;
+        if (this.currentKey === "marshal") {
+          if (this._aiming) {
+            scopeOverlay.style.display = 'block';
+            this.viewModel.visible = false;
+          } else {
+            this.viewModel.visible = true;
+          }
+        }
+      }
+      this.camera.fov = THREE.MathUtils.lerp(this._fovTween.fromFov, this._fovTween.toFov, s);
+      this.camera.updateProjectionMatrix();
+      this.viewModel.scale.copy(
+        this._fovTween.fromScale.clone().lerp(this._fovTween.toScale, s)
+      );
+      this.viewModel.position.copy(
+        this._fovTween.fromPos.clone().lerp(this._fovTween.toPos, s)
+      );
+    }
 
-    if (!this.state.pulling && rawFire && !this.isReloadingFlag && canFire) {
-      // —— MELEE KNIFE SWING ——
-      if (this.stats.isMelee) {
-        this.state.knifeSwing      = true;
-        this.state.knifeSwingStart = now;
-        this.state.knifeHeavy      = this._aiming;
-        this.playWeaponSound("shot");
-        this.checkMeleeHit(playerState.collidables);
-        this.lastShotTime         = now;
+    // --- FIRING / SWINGING LOGIC ---
+    const isSemi      = ["deagle","marshal","m79","legion"].includes(this.currentKey);
+    const secsPerShot = 60 / this.stats.fireRateRPM;
+    const canFire     = this.stats.isMelee
+      ? justPressed && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime)
+      : (isSemi
+          ? justPressed && sinceLast > secsPerShot
+          : sinceLast > secsPerShot
+        );
 
-      } else {
-        // —— BULLET FIRE ——
-        if (this.ammoInMagazine > 0) {
-          this.lastShotTime    = now;
-          this.ammoInMagazine--;
-          this.burstCount++;
+    if (!this.state.pulling && rawFire && !this.isReloadingFlag && canFire) {
+      // —— MELEE KNIFE SWING ——
+      if (this.stats.isMelee) {
+        this.state.knifeSwing      = true;
+        this.state.knifeSwingStart = now;
+        this.state.knifeHeavy      = this._aiming;
+        this.playWeaponSound("shot");
+        this.checkMeleeHit(playerState.collidables);
+        this.lastShotTime         = now;
 
-          this.fireBullet(spreadAngle, playerState.collidables);
-          this.playWeaponSound("shot");
-          updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
+      } else {
+        // —— BULLET FIRE ——
+        if (this.ammoInMagazine > 0) {
+          this.lastShotTime    = now;
+          this.ammoInMagazine--;
+          this.burstCount++;
 
-          // Camera recoil: capture start rotation so recovery returns from here
-          const shotIndex = this.burstCount - 1;
-          let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
-          let recoilMultipler = 4;
-          let appliedRecoilAngle = rawRecoil * recoilMultipler;
+          this.fireBullet(spreadAngle, playerState.collidables);
+          this.playWeaponSound("shot");
+          updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
 
-          // —— FALL OFF ——
-          if (this.currentKey === "ak-47") {
-            if (shotIndex >= 3) {
-              const decayFactor = 0.8;
-              const minRecoil   = 0.005 * recoilMultipler;
-              const recoilDecay = appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
-              appliedRecoilAngle = Math.max(recoilDecay, minRecoil);
-            }
-          }
-          if (this.currentKey === "viper") {
-            if (shotIndex >= 3) {
-              const decayFactor = 0.8;
-              const minRecoil   = 0.007 * recoilMultipler;
-              const recoilDecay = appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
-              appliedRecoilAngle = Math.max(recoilDecay, minRecoil);
-            }
-          }
+          // Camera recoil: capture start rotation so recovery returns from here
+          const shotIndex = this.burstCount - 1;
+          let rawRecoil = getRecoilAngle(this.currentKey, shotIndex);
+          let recoilMultipler = 4;
+          let appliedRecoilAngle = rawRecoil * recoilMultipler;
 
-          // Store the recoil properties for the animation
-          this._recoil.peakOffset         = appliedRecoilAngle;
-          this._recoil.recoilStartTime   = now;
-          this._recoil.previousRecoilOffset = 0;
+          // —— FALL OFF ——
+          if (this.currentKey === "ak-47") {
+            if (shotIndex >= 3) {
+              const decayFactor = 0.8;
+              const minRecoil   = 0.005 * recoilMultipler;
+              const recoilDecay = appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
+              appliedRecoilAngle = Math.max(recoilDecay, minRecoil);
+            }
+          }
+          if (this.currentKey === "viper") {
+            if (shotIndex >= 3) {
+              const decayFactor = 0.8;
+              const minRecoil   = 0.007 * recoilMultipler;
+              const recoilDecay = appliedRecoilAngle * Math.pow(decayFactor, shotIndex - 3);
+              appliedRecoilAngle = Math.max(recoilDecay, minRecoil);
+            }
+          }
 
-          // View-model kickback
-          this.state.recoiling  = true;
-          this.state.recoilStart = now;
+          // Store the recoil properties for the animation
+          this._recoil.peakOffset         = appliedRecoilAngle;
+          this._recoil.recoilStartTime   = now;
+          this._recoil.previousRecoilOffset = 0;
 
-          // Deagle-specific Z-axis recoil animation trigger
-          if (this.currentKey === 'deagle' || this.currentKey === 'legion') {
-            this.state.deagleRecoil = {
-              active:     true,
-              startTime:  now,
-              startRotation: this.viewModel.rotation.clone(),
-              durationUp:  0.03,
-              durationDown: 0.25,
-              maxAngleUp: THREE.MathUtils.degToRad(60),
-              maxAngleSide: THREE.MathUtils.degToRad(3),
-            };
-          }
+          // View-model kickback
+          this.state.recoiling  = true;
+          this.state.recoilStart = now;
 
-        } else {
-          // Start reload
-          this.isReloadingFlag = true;
-          this.state.reloading  = true;
-          this.state.reloadStart = now;
-          this._reloadEndPlayed = false;
-          this.playWeaponSound("reloadStart");
-        }
-      }
-    }
+          // Deagle-specific Z-axis recoil animation trigger
+          if (this.currentKey === 'deagle' || this.currentKey === 'legion') {
+            this.state.deagleRecoil = {
+              active:     true,
+              startTime:  now,
+              startRotation: this.viewModel.rotation.clone(),
+              durationUp:  0.03,
+              durationDown: 0.25,
+              maxAngleUp: THREE.MathUtils.degToRad(60),
+              maxAngleSide: THREE.MathUtils.degToRad(3),
+            };
+          }
 
-    // --- Deagle Recoil Animation Logic with Z-axis rotation ---
-    if (this.state.deagleRecoil && this.state.deagleRecoil.active) {
-      const { deagleRecoil } = this.state;
-      const elapsed = now - deagleRecoil.startTime;
-      const { durationUp, durationDown, maxAngleUp, maxAngleSide, startRotation } = deagleRecoil;
-      const totalDuration = durationUp + durationDown;
+        } else {
+          // Start reload
+          this.isReloadingFlag = true;
+          this.state.reloading  = true;
+          this.state.reloadStart = now;
+          this._reloadEndPlayed = false;
+          this.playWeaponSound("reloadStart");
+        }
+      }
+    }
 
-      if (elapsed < totalDuration) {
-        let xAngle = 0, zAngle = 0;
-        if (elapsed < durationUp) {
-          const progress = elapsed / durationUp;
-          const easedProgress = 1 - Math.exp(-progress * 5);
-          xAngle = -maxAngleUp * easedProgress;
-          zAngle = -maxAngleSide * easedProgress;
-        } else {
-          const downElapsed = elapsed - durationUp;
-          const progress = downElapsed / durationDown;
-          const easedProgress = Math.exp(-progress * 5);
-          xAngle = -maxAngleUp * easedProgress;
-          zAngle = -maxAngleSide * easedProgress;
-        }
-        this.viewModel.rotation.x = startRotation.x - xAngle;
-        this.viewModel.rotation.z = startRotation.z - zAngle;
-      } else {
-        this.viewModel.rotation.copy(startRotation);
-        this.state.deagleRecoil.active = false;
-      }
-    }
+    // --- Deagle Recoil Animation Logic with Z-axis rotation ---
+    if (this.state.deagleRecoil && this.state.deagleRecoil.active) {
+      const { deagleRecoil } = this.state;
+      const elapsed = now - deagleRecoil.startTime;
+      const { durationUp, durationDown, maxAngleUp, maxAngleSide, startRotation } = deagleRecoil;
+      const totalDuration = durationUp + durationDown;
 
-    // —— VIEW-MODEL RECOIL ANIMATION FOR GUNS ——
-    if (this.state.recoiling && !this.stats.isMelee) {
-      const VIEWER_RECOIL_ANIM_DURATION = 0.15;
-      const tR = (now - this.state.recoilStart) / VIEWER_RECOIL_ANIM_DURATION;
-      if (tR >= 1) {
-        const backTo = this._aiming
-          ? (this.currentKey === "marshal"
-              ? new THREE.Vector3(0.1, -0.25, -0.45)
-              : defaultAimPos)
-          : this.readyPos;
-        this.viewModel.position.copy(backTo);
-        this.state.recoiling = false;
-      } else {
-        const baseZ = this._aiming ? -0.5 : this.readyPos.z;
-        const kick  = this.stats.recoilDistance * Math.sin(Math.PI * tR);
-        const x     = this._aiming
-          ? (this.currentKey === "marshal" ? 0.1 : 0)
-          : this.readyPos.x;
-        const y     = this._aiming ? -0.3 : this.readyPos.y;
-        this.viewModel.position.set(x, y, baseZ + kick);
-      }
-    }
+      if (elapsed < totalDuration) {
+        let xAngle = 0, zAngle = 0;
+        if (elapsed < durationUp) {
+          const progress = elapsed / durationUp;
+          const easedProgress = 1 - Math.exp(-progress * 5);
+          xAngle = -maxAngleUp * easedProgress;
+          zAngle = -maxAngleSide * easedProgress;
+        } else {
+          const downElapsed = elapsed - durationUp;
+          const progress = downElapsed / durationDown;
+          const easedProgress = Math.exp(-progress * 5);
+          xAngle = -maxAngleUp * easedProgress;
+          zAngle = -maxAngleSide * easedProgress;
+        }
+        this.viewModel.rotation.x = startRotation.x - xAngle;
+        this.viewModel.rotation.z = startRotation.z - zAngle;
+      } else {
+        this.viewModel.rotation.copy(startRotation);
+        this.state.deagleRecoil.active = false;
+      }
+    }
 
-    // —— KNIFE SWING ANIMATION ——
-    if (this.state.knifeSwing && this.stats.isMelee) {
-      const { MathUtils } = THREE;
-      const restX = MathUtils.degToRad(90),
-            restY = MathUtils.degToRad(160),
-            restZ = MathUtils.degToRad(0);
-      const elapsed = now - this.state.knifeSwingStart;
-      const dur     = this.state.knifeHeavy ? this.stats.heavySwingTime : this.stats.swingTime;
+    // —— VIEW-MODEL RECOIL ANIMATION FOR GUNS ——
+    if (this.state.recoiling && !this.stats.isMelee) {
+      const VIEWER_RECOIL_ANIM_DURATION = 0.15;
+      const tR = (now - this.state.recoilStart) / VIEWER_RECOIL_ANIM_DURATION;
+      if (tR >= 1) {
+        const backTo = this._aiming
+          ? gunAimPos[this.currentKey] // Use the new object here
+          : this.readyPos;
+        this.viewModel.position.copy(backTo);
+        this.state.recoiling = false;
+      } else {
+        const baseZ = this._aiming ? gunAimPos[this.currentKey].z : this.readyPos.z;
+        const kick  = this.stats.recoilDistance * Math.sin(Math.PI * tR);
+        const x     = this._aiming
+          ? gunAimPos[this.currentKey].x
+          : this.readyPos.x;
+        const y     = this._aiming ? gunAimPos[this.currentKey].y : this.readyPos.y;
+        this.viewModel.position.set(x, y, baseZ + kick);
+      }
+    }
 
-      if (elapsed >= dur) {
-        this.weaponModel.rotation.set(restX, restY, restZ);
-        this.state.knifeSwing = false;
-      } else {
-        const progress = elapsed / dur;
-        const maxF     = this.state.knifeHeavy ? 0.9 : 1.2;
-        const swingAng = maxF * Math.sin(Math.PI * progress);
-        const sideAng  = swingAng * 0.5;
-        const yOffset  = 0.5 * Math.sin(Math.PI * progress);
-        this.weaponModel.rotation.set(
-          restX - swingAng,
-          restY + yOffset,
-          restZ + sideAng
-        );
-      }
-    }
+    // —— KNIFE SWING ANIMATION ——
+    if (this.state.knifeSwing && this.stats.isMelee) {
+      const { MathUtils } = THREE;
+      const restX = MathUtils.degToRad(90),
+            restY = MathUtils.degToRad(160),
+            restZ = MathUtils.degToRad(0);
+      const elapsed = now - this.state.knifeSwingStart;
+      const dur     = this.state.knifeHeavy ? this.stats.heavySwingTime : this.stats.swingTime;
 
-    // Reload handling
-    if (inputState.reload && !this.isReloadingFlag && this.ammoInMagazine < this.stats.magazineSize) {
-      this.isReloadingFlag = true;
-      this.state.reloading  = true;
-      this.state.reloadStart = now;
-      this._reloadEndPlayed = false;
-      this.playWeaponSound("reloadStart");
-    }
-    if (this.state.reloading && !this.stats.isMelee) {
-      const elapsed = now - this.state.reloadStart;
-      const half    = this.stats.reloadDuration / 2;
-      if (!this._reloadEndPlayed && elapsed >= half) {
-        this.playWeaponSound("reloadEnd");
-        this._reloadEndPlayed = true;
-      }
+      if (elapsed >= dur) {
+        this.weaponModel.rotation.set(restX, restY, restZ);
+        this.state.knifeSwing = false;
+      } else {
+        const progress = elapsed / dur;
+        const maxF     = this.state.knifeHeavy ? 0.9 : 1.2;
+        const swingAng = maxF * Math.sin(Math.PI * progress);
+        const sideAng  = swingAng * 0.5;
+        const yOffset  = 0.5 * Math.sin(Math.PI * progress);
+        this.weaponModel.rotation.set(
+          restX - swingAng,
+          restY + yOffset,
+          restZ + sideAng
+        );
+      }
+    }
 
-      if (elapsed >= this.stats.reloadDuration) {
-        this.ammoInMagazine  = this.stats.magazineSize;
-        this.isReloadingFlag = false;
-        this.state.reloading = false;
-        if (this.parts.slide) this.parts.slide.position.setZ(0);
-        updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
-      } else if (elapsed <= half) {
-        const angle = (Math.PI / 180) * 40 * (elapsed / half);
-        this.viewModel.rotation.x = angle;
-        if (this.parts.slide) this.parts.slide.position.setZ(-0.05 * (elapsed / half));
-      } else {
-        const t2   = (elapsed - half) / half;
-        const angle = (Math.PI / 180) * 40 * (1 - t2);
-        this.viewModel.rotation.x = angle;
-        if (this.parts.slide) this.parts.slide.position.setZ(-0.05 * (1 - t2));
-      }
-    }
+    // Reload handling
+    if (inputState.reload && !this.isReloadingFlag && this.ammoInMagazine < this.stats.magazineSize) {
+      this.isReloadingFlag = true;
+      this.state.reloading  = true;
+      this.state.reloadStart = now;
+      this._reloadEndPlayed = false;
+      this.playWeaponSound("reloadStart");
+    }
+    if (this.state.reloading && !this.stats.isMelee) {
+      const elapsed = now - this.state.reloadStart;
+      const half    = this.stats.reloadDuration / 2;
+      if (!this._reloadEndPlayed && elapsed >= half) {
+        this.playWeaponSound("reloadEnd");
+        this._reloadEndPlayed = true;
+      }
 
-    // Tracer cleanup
-    this.state.tracerObjects = this.state.tracerObjects.filter(entry => {
-      if (now - entry.startTime > 0.2 && entry.lineMesh.parent) {
-        entry.lineMesh.parent.remove(entry.lineMesh);
-        return false;
-      }
-      return true;
-    });
+      if (elapsed >= this.stats.reloadDuration) {
+        this.ammoInMagazine  = this.stats.magazineSize;
+        this.isReloadingFlag = false;
+        this.state.reloading = false;
+        if (this.parts.slide) this.parts.slide.position.setZ(0);
+        updateAmmoDisplay(this.ammoInMagazine, this.stats.magazineSize);
+      } else if (elapsed <= half) {
+        const angle = (Math.PI / 180) * 40 * (elapsed / half);
+        this.viewModel.rotation.x = angle;
+        if (this.parts.slide) this.parts.slide.position.setZ(-0.05 * (elapsed / half));
+      } else {
+        const t2   = (elapsed - half) / half;
+        const angle = (Math.PI / 180) * 40 * (1 - t2);
+        this.viewModel.rotation.x = angle;
+        if (this.parts.slide) this.parts.slide.position.setZ(-0.05 * (1 - t2));
+      }
+    }
 
-    // --- Camera recoil recovery & application ---
-    const elapsedRec = now - this._recoil.recoilStartTime;
-    if (elapsedRec < this._recoil.recoilDuration) {
-      const t    = elapsedRec / this._recoil.recoilDuration;
-      const easedT = 1 - (t * t * (3 - 2 * t));
-      const currentRecoilOffset = this._recoil.peakOffset * easedT;
-      const recoilDelta = currentRecoilOffset - (this._recoil.previousRecoilOffset || 0);
+    // Tracer cleanup
+    this.state.tracerObjects = this.state.tracerObjects.filter(entry => {
+      if (now - entry.startTime > 0.2 && entry.lineMesh.parent) {
+        entry.lineMesh.parent.remove(entry.lineMesh);
+        return false;
+      }
+      return true;
+    });
 
-      this.camera.rotation.x += recoilDelta;
-      this._recoil.previousRecoilOffset = currentRecoilOffset;
+    // --- Camera recoil recovery & application ---
+    const elapsedRec = now - this._recoil.recoilStartTime;
+    if (elapsedRec < this._recoil.recoilDuration) {
+      const t    = elapsedRec / this._recoil.recoilDuration;
+      const easedT = 1 - (t * t * (3 - 2 * t));
+      const currentRecoilOffset = this._recoil.peakOffset * easedT;
+      const recoilDelta = currentRecoilOffset - (this._recoil.previousRecoilOffset || 0);
 
-    } else if (this._recoil.peakOffset > 0) {
-      this._recoil.peakOffset = 0;
-      this._recoil.recoilStartTime = 0;
-      this._recoil.previousRecoilOffset = 0;
-    }
-  }
+      this.camera.rotation.x += recoilDelta;
+      this._recoil.previousRecoilOffset = currentRecoilOffset;
+
+    } else if (this._recoil.peakOffset > 0) {
+      this._recoil.peakOffset = 0;
+      this._recoil.recoilStartTime = 0;
+      this._recoil.previousRecoilOffset = 0;
+    }
+  }
   
 
   getCurrentAmmo() {
