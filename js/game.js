@@ -2343,6 +2343,12 @@ function resetWeaponPose(weaponKey, mesh) {
             mesh.position.set(0.5, 0.8 - 1.4, 0);
             break;
 
+        case "legion":
+            mesh.scale.set(0.5, 0.5, 0.5);
+            mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
+            mesh.position.set(0.5, 0.8 - 1.4, 0);
+            break;
+
         case "ak-47":
             mesh.scale.set(0.4, 0.4, 0.4);
             mesh.rotation.set(M.degToRad(0), M.degToRad(180), 0);
@@ -2404,6 +2410,16 @@ function attachWeaponToPlayer(playerId, weaponName) {
                 break;
             }
             case "deagle":
+                clone.scale.set(0.5, 0.5, 0.5);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(0),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(0.5, 0.8 - 1.4, 0);
+                break;
+
+            case "legion":
                 clone.scale.set(0.5, 0.5, 0.5);
                 clone.rotation.set(
                     THREE.MathUtils.degToRad(0),
@@ -2749,6 +2765,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
