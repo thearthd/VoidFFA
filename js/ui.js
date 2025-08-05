@@ -5,7 +5,7 @@ import { sendChatMessage } from "./network.js";
 import { AnimatedTracer } from "./weapons.js";
 
 
-// Global variable to hold the Firebase database references for UI operations
+// Global variable to hold the Firebase database references for UI operations f
 export let uiDbRefs = null;
 
 const weaponIcons = {
