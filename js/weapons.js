@@ -1338,7 +1338,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                     // These coordinates are relative to the 'model's' local space after centering
                     // You'll likely need to adjust these values (`-box2.max.x, box2.max.y, 1`)
                     // until the debug dot appears at the very tip of your gun's muzzle.
-                    muzzle.position.set(-box2.max.x, box2.max.y, 1); 
+                    muzzle.position.set(-box2.max.x, box2.max.y, 1);
                     this.weaponModel.add(muzzle);
                     this.parts.muzzle = muzzle;
 
@@ -1388,7 +1388,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                     // These coordinates are relative to the 'model's' local space after centering
                     // You'll likely need to adjust these values (`-box2.max.x, box2.max.y, 1`)
                     // until the debug dot appears at the very tip of your gun's muzzle.
-                    muzzle.position.set(-box2.max.x, box2.max.y, 1); 
+                    muzzle.position.set(-box2.max.x, box2.max.y, 1);
                     this.weaponModel.add(muzzle);
                     this.parts.muzzle = muzzle;
 
@@ -1414,19 +1414,8 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                 gltf => {
                     this.weaponModel = new THREE.Group();
                     this.parts = {};
-                    const metalM = createMetalMaterial(0x888888);
-                    const woodM = createWoodMaterial(0x8B4513);
-                    const plasticM = createPlasticMaterial(0x666666);
+                    // Original model materials will now be used.
                     const model = gltf.scene;
-                    model.traverse(child => {
-                        if (!child.isMesh) return;
-                        const nm = child.name.toLowerCase();
-                        child.material = (nm.includes('wood')||nm.includes('stock')||nm.includes('handguard'))
-                            ? woodM
-                            : (nm.includes('grip')||nm.includes('handle'))
-                                ? plasticM
-                                : metalM;
-                    });
                     const before = new THREE.Box3().setFromObject(model);
                     const center = before.getCenter(new THREE.Vector3());
                     model.position.sub(center);
@@ -1474,19 +1463,8 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                 gltf => {
                     this.weaponModel = new THREE.Group();
                     this.parts = {};
-                    const metalM = createMetalMaterial(0x888888);
-                    const woodM = createWoodMaterial(0x8B4513);
-                    const plasticM = createPlasticMaterial(0x666666);
+                    // Original model materials will now be used.
                     const model = gltf.scene;
-                    model.traverse(child => {
-                        if (!child.isMesh) return;
-                        const nm = child.name.toLowerCase();
-                        child.material = (nm.includes('wood')||nm.includes('stock')||nm.includes('handguard'))
-                            ? woodM
-                            : (nm.includes('grip')||nm.includes('handle'))
-                                ? plasticM
-                                : metalM;
-                    });
                     const before = new THREE.Box3().setFromObject(model);
                     const center = before.getCenter(new THREE.Vector3());
                     model.position.sub(center);
@@ -1534,18 +1512,9 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                 gltf => {
                     this.weaponModel = new THREE.Group();
                     this.parts = {};
-                    const woodM = createWoodMaterial(0x8B4513);
-                    const metalM = createMetalMaterial(0x888888);
-                    const plasticM = createPlasticMaterial(0x666666);
-                    const defaultM = createMetalMaterial(0x555555);
+                    // Original model materials will now be used.
+                    // Removed custom material assignments and traversal for original materials
                     const model = gltf.scene;
-                    model.children.forEach((child,i) => {
-                        if (!child.isMesh) return;
-                        const mats = [woodM, metalM, plasticM, metalM];
-                        child.material = mats[i]||defaultM;
-                        child.geometry.computeVertexNormals();
-                        child.material.needsUpdate = true;
-                    });
                     const b1 = new THREE.Box3().setFromObject(model);
                     const center = b1.getCenter(new THREE.Vector3());
                     model.position.sub(center);
@@ -1553,7 +1522,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                     const muzzle = new THREE.Object3D();
                     muzzle.name = 'Muzzle';
                     // Adjust these values until the debug dot appears at the very tip.
-                    muzzle.position.set(0, b2.max.y, -b2.max.z); 
+                    muzzle.position.set(0, b2.max.y, -b2.max.z);
                     model.add(muzzle);
                     this.parts.muzzle = muzzle;
                     this.weaponModel.add(model);
@@ -1612,7 +1581,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
                     // These coordinates are relative to the 'model's' local space after centering
                     // You'll likely need to adjust these values (`-box2.max.x, box2.max.y, 1`)
                     // until the debug dot appears at the very tip of your gun's muzzle.
-                    muzzle.position.set(-box2.max.x, box2.max.y, 1); 
+                    muzzle.position.set(-box2.max.x, box2.max.y, 1);
                     this.weaponModel.add(muzzle);
                     this.parts.muzzle = muzzle;
 
