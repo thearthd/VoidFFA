@@ -680,45 +680,58 @@ update(inputState, delta, playerState) {
     }
 
     // Aim toggle tweening
-    if (wishAim !== this._prevWishAim) {
-      this._baseFov    = this.camera.fov;
-      this._baseScale  = this.viewModel.scale.clone();
-      this._fromPos    = this.viewModel.position.clone();
+if (wishAim !== this._prevWishAim) {
+    this._baseFov    = this.camera.fov;
+    this._baseScale  = this.viewModel.scale.clone();
+    this._fromPos    = this.viewModel.position.clone();
 
-      const adsFovMap = {
-        "ak-47": ADS_FOV.ak47,
-        "viper": ADS_FOV.viper,
-        "deagle": ADS_FOV.deagle,
-        "m79": ADS_FOV.m79,
-        "legion": ADS_FOV.legion,
-      };
+    const adsFovMap = {
+        "ak-47": ADS_FOV.ak47,
+        "viper": ADS_FOV.viper,
+        "deagle": ADS_FOV.deagle,
+        "m79": ADS_FOV.m79,
+        "legion": ADS_FOV.legion,
+    };
 
-      // Determine the target FOV based on whether the player is aiming.
-      const targetFov = wishAim
-        ? (this.stats.isSniper 
-          ? ADS_FOV.marshal 
-          : adsFovMap[this.currentKey] || ADS_FOV.default)
-        : ADS_FOV.default;
+    // Determine the target FOV based on whether the player is aiming.
+    const targetFov = wishAim
+        ? (this.stats.isSniper 
+            ? ADS_FOV.marshal 
+            : adsFovMap[this.currentKey] || ADS_FOV.default)
+        : ADS_FOV.default;
 
-      const toPos = wishAim
-          ? gunAimPos[this.currentKey].clone() // Use the new object here
-          : this.readyPos.clone();
+    const toPos = wishAim
+        ? gunAimPos[this.currentKey].clone()
+        : this.readyPos.clone();
 
-      this._fovTween = {
-        active:    true,
-        fromFov:   this._baseFov,
-        toFov:     targetFov,
-        fromScale: this._baseScale.clone(),
-        toScale:   this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
-        fromPos:   this._fromPos.clone(),
-        toPos:     toPos,
-        startTime: now,
-        duration:  0.2
-      };
+    this._fovTween = {
+        active: true,
+        fromFov: this._baseFov,
+        toFov: targetFov,
+        fromScale: this._baseScale.clone(),
+        toScale: this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
+        fromPos: this._fromPos.clone(),
+        toPos: toPos,
+        startTime: now,
+        duration: 0.2
+    };
 
-      scopeOverlay.style.display = 'none';
-    }
-    this._prevWishAim = wishAim;
+    // --- UPDATED LOGIC HERE ---
+    if (this.currentKey === "marshal") {
+        if (wishAim) {
+            scopeOverlay.style.display = 'block';
+            this.viewModel.visible = false;
+        } else {
+            scopeOverlay.style.display = 'none';
+            this.viewModel.visible = true;
+        }
+    } else {
+        scopeOverlay.style.display = 'none'; // Keep this for other weapons
+    }
+    // --- END OF UPDATED LOGIC ---
+
+}
+this._prevWishAim = wishAim;
 
     if (this._fovTween.active) {
       const t  = (now - this._fovTween.startTime) / this._fovTween.duration;
