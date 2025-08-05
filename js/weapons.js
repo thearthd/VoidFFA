@@ -1058,86 +1058,66 @@ this._prevWishAim = wishAim;
     };
   }
 
-checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
-  if (!this.physicsController.worldBVH || !this.physicsController.collider) {
-    console.error("World BVH or collider mesh not available.");
-    return { playerHitResult: null, allWorldHits: [], penetrationCount: 0, isPenetrationShot: false };
-  }
-
-  let currentOrigin       = origin.clone();
-  let worldPenetrationCount = 0;
-  const allWorldHits      = [];
-  let playerHitResult     = null;
-
-  // We’ll need a function that tests only “true” world geometry:
-  const raycastWorld = (o, d) => {
-    const hits = new THREE.Raycaster(o, d)
-      .intersectObject(this.physicsController.collider, true)
-      // *** filter out anything that is a player body part ***
-      .filter(h => !h.object.userData.isPlayerBodyPart);
-    return hits;
-  };
-
-  for (let i = 0; i <= maxWorldPenetrations; i++) {
-    // 1) raycast world (excluding players)
-    const worldHits = raycastWorld(currentOrigin, direction);
-    const worldIntersection = worldHits.length ? worldHits[0] : null;
-
-    // 2) raycast players
-    const playerHit = this.checkBulletHit(currentOrigin, direction);
-
-    // 3) decide which is closer
-    let closest, hitType;
-    if (worldIntersection && (!playerHit || worldIntersection.distance <= playerHit.distance)) {
-      closest = worldIntersection;
-      hitType = 'world';
-    } else if (playerHit) {
-      closest = playerHit;
-      hitType = 'player';
-    } else {
-      break;
+ checkBulletPenetration(origin, direction, maxWorldPenetrations = 1) {
+    if (!this.physicsController.worldBVH || !this.physicsController.collider) {
+      console.error("World BVH or collider mesh not available.");
+      return { playerHitResult: null, allWorldHits: [], penetrationCount: 0, isPenetrationShot: false };
     }
 
-    // 4) if we actually hit the player, we’re done
-    if (hitType === 'player') {
-      playerHitResult = {
-        mesh:    closest.mesh,
-        isHead:  closest.isHead,
-        intersection: closest.intersection.clone(),
-        distance: origin.distanceTo(closest.intersection)
-      };
-      break;
+    let currentOrigin = origin.clone();
+    let worldPenetrationCount = 0;
+    const allWorldHits = [];
+    let playerHitResult = null;
+
+    for (let i = 0; i <= maxWorldPenetrations; i++) {
+      const raycaster = new THREE.Raycaster(currentOrigin.clone(), direction.clone());
+      const worldHits = raycaster.intersectObject(this.physicsController.collider, true);
+      const worldIntersection = worldHits.length ? worldHits[0] : null;
+      const playerHit = this.checkBulletHit(currentOrigin, direction);
+
+      let closestHit, hitType;
+      if (worldIntersection && (!playerHit || worldIntersection.distance <= playerHit.distance)) {
+        closestHit = worldIntersection;
+        hitType = 'world';
+      } else if (playerHit) {
+        closestHit = playerHit;
+        hitType = 'player';
+      } else break;
+
+      if (hitType === 'player') {
+        playerHitResult = {
+          mesh: closestHit.mesh,
+          isHead: closestHit.isHead,
+          intersection: closestHit.intersection.clone(),
+          distance: origin.distanceTo(closestHit.intersection)
+        };
+        break;
+      }
+
+      // world hit
+      worldPenetrationCount++;
+      const normal = (closestHit.face && closestHit.object)
+        ? closestHit.face.normal.clone().transformDirection(closestHit.object.matrixWorld).normalize()
+        : direction.clone().negate();
+
+      allWorldHits.push({
+        point: closestHit.point.clone(),
+        normal,
+        distance: currentOrigin.distanceTo(closestHit.point),
+        object: closestHit.object
+      });
+
+      if (worldPenetrationCount > maxWorldPenetrations) break;
+      currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
     }
 
-    // 5) otherwise it really was a world hit
-    worldPenetrationCount++;
-
-    // compute the world‐hit normal in world space
-    const normal = closest.face
-      ? closest.face.normal.clone()
-          .transformDirection(closest.object.matrixWorld)
-          .normalize()
-      : direction.clone().negate();
-
-    allWorldHits.push({
-      point:    closest.point.clone(),
-      normal,
-      distance: currentOrigin.distanceTo(closest.point),
-      object:   closest.object
-    });
-
-    // 6) move the origin slightly past the hit point and loop again
-    if (worldPenetrationCount > maxWorldPenetrations) break;
-    currentOrigin.copy(closest.point).add(direction.clone().multiplyScalar(0.01));
+    return {
+      playerHitResult,
+      allWorldHits,
+      penetrationCount: worldPenetrationCount,
+      isPenetrationShot: !!(playerHitResult && worldPenetrationCount > 0)
+    };
   }
-
-  return {
-    playerHitResult,
-    allWorldHits,
-    penetrationCount: worldPenetrationCount,
-    isPenetrationShot: !!(playerHitResult && worldPenetrationCount > 0)
-  };
-}
 
 fireBullet(spreadAngle) {
   if (!this.physicsController.worldBVH) {
@@ -1167,6 +1147,12 @@ fireBullet(spreadAngle) {
       // halve damage on penetration
       const damageToApply   = baseDamage * (traj.isPenetrationShot ? 0.5 : 1.0);
 
+      let realPenetrate = false;
+      
+      if (traj.isPenetrationShot) {
+          realPenetrate = true;
+      }
+      
       window.applyDamageToRemote?.(
         mesh.userData.playerId,
         damageToApply,
@@ -1175,7 +1161,7 @@ fireBullet(spreadAngle) {
           username: window.localPlayer?.username ?? "Unknown",
           weapon: this.currentKey,
           isHeadshot: isHead,
-          isPenetrationShot: traj.isPenetrationShot
+          isPenetrationShot: realPenetrate
         }
       );
 
