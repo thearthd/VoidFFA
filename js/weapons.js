@@ -1303,10 +1303,10 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
         // Add it to the muzzle Object3D, so it moves with the muzzle
         muzzleObject3D.add(debugDot);
     }
-
+  
     buildDeagle(onProgressRegistrar) {
         const loader = new GLTFLoader();
-        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/Legion.glb';
+        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/desert-eagle_gun.glb';
         let prog = () => {};
         const promise = new Promise((res, rej) => {
             loader.load(
@@ -1356,7 +1356,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
 
     buildLegion(onProgressRegistrar) {
         const loader = new GLTFLoader();
-        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/desert-eagle_gun.glb';
+        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/Legion.glb';
         let prog = () => {};
         const promise = new Promise((res, rej) => {
             loader.load(
