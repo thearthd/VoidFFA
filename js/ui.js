@@ -7,7 +7,7 @@ import { AnimatedTracer } from "./weapons.js";
 
 // Global variable to hold the Firebase database references for UI operations f f
 export let uiDbRefs = null;
-
+/*
 const weaponIcons = {
   ak47: 'https://codehs.com/uploads/36178d893bc2c622e7b343bbbdb8c1f1',
   'ak-47': 'https://codehs.com/uploads/36178d893bc2c622e7b343bbbdb8c1f1',
@@ -20,7 +20,7 @@ const weaponIcons = {
 };
 const headshotIcon    = 'https://codehs.com/uploads/097af549eede2dcb2df129f1763e6592';
 const penetrationIcon = 'https://codehs.com/uploads/0856e475bd3b85a992f4359dae0b0adf';
-
+*/
 
 /**
  * Sets the Firebase database references for UI operations.
@@ -381,7 +381,7 @@ export function updateKillFeed(killer, victim, weapon, killId, isHeadshot, isPen
     m79:     "https://codehs.com/uploads/78b318e3e11e59fc133477a0d9fdae14",
     marhsal: "https://codehs.com/uploads/0677c14ed85f07c6d950f75bb95a4db2",
     viper:   "https://codehs.com/uploads/bc7d35cd4ca88fdfaa8b2097471e526b",
-    legion:   "https://codehs.com/uploads/04cfb2d131578fa21a385c03c4d701cf",
+    legion:  "https://codehs.com/uploads/6ca90ea3f9fc74532def50869eabe30f",
   };
 
   const iconImgs = {
@@ -603,6 +603,7 @@ const DEFAULT_SECONDARY = 'm79';
 const WEAPON_IMAGES = {
     'ak-47': 'https://codehs.com/uploads/7aab0473bfe25a8df97fee546120aa5d',
     'deagle': 'https://codehs.com/uploads/3a742a06b29233afdce01154d0c2247d',
+    'legion': 'https://codehs.com/uploads/04cfb2d131578fa21a385c03c4d701cf',
     'marshal': 'https://codehs.com/uploads/231ea31e130955d00410d9b3d5f3a3b5',
     'm79': 'https://codehs.com/uploads/967700dec4457f4bf0461e723d74550d',
     'viper': 'https://codehs.com/uploads/5a61c6c1dbc2c08d392b11d27c97930e',
