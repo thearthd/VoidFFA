@@ -680,57 +680,50 @@ update(inputState, delta, playerState) {
     }
 
     // Aim toggle tweening
-if (wishAim !== this._prevWishAim) {
-    this._baseFov    = this.camera.fov;
-    this._baseScale  = this.viewModel.scale.clone();
-    this._fromPos    = this.viewModel.position.clone();
+    if (wishAim !== this._prevWishAim) {
+        this._baseFov    = this.camera.fov;
+        this._baseScale  = this.viewModel.scale.clone();
+        this._fromPos    = this.viewModel.position.clone();
 
-    const adsFovMap = {
-        "ak-47": ADS_FOV.ak47,
-        "viper": ADS_FOV.viper,
-        "deagle": ADS_FOV.deagle,
-        "m79": ADS_FOV.m79,
-        "legion": ADS_FOV.legion,
-    };
+        const adsFovMap = {
+            "ak-47": ADS_FOV.ak47,
+            "viper": ADS_FOV.viper,
+            "deagle": ADS_FOV.deagle,
+            "m79": ADS_FOV.m79,
+            "legion": ADS_FOV.legion,
+        };
 
-    // Determine the target FOV based on whether the player is aiming.
-    const targetFov = wishAim
-        ? (this.stats.isSniper 
-            ? ADS_FOV.marshal 
-            : adsFovMap[this.currentKey] || ADS_FOV.default)
-        : ADS_FOV.default;
+        const targetFov = wishAim
+            ? (this.stats.isSniper 
+                ? ADS_FOV.marshal 
+                : adsFovMap[this.currentKey] || ADS_FOV.default)
+            : ADS_FOV.default;
 
-    const toPos = wishAim
-        ? gunAimPos[this.currentKey].clone()
-        : this.readyPos.clone();
+        const toPos = wishAim
+            ? gunAimPos[this.currentKey].clone()
+            : this.readyPos.clone();
 
-    this._fovTween = {
-        active: true,
-        fromFov: this._baseFov,
-        toFov: targetFov,
-        fromScale: this._baseScale.clone(),
-        toScale: this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
-        fromPos: this._fromPos.clone(),
-        toPos: toPos,
-        startTime: now,
-        duration: 0.2
-    };
+        this._fovTween = {
+            active: true,
+            fromFov: this._baseFov,
+            toFov: targetFov,
+            fromScale: this._baseScale.clone(),
+            toScale: this._baseScale.clone().multiplyScalar(targetFov / this._baseFov),
+            fromPos: this._fromPos.clone(),
+            toPos: toPos,
+            startTime: now,
+            duration: 0.2
+        };
 
-    // --- UPDATED LOGIC HERE ---
-    if (this.currentKey === "marshal") {
-        if (wishAim) {
-            scopeOverlay.style.display = 'block';
-            this.viewModel.visible = false;
-        } else {
+        // --- UPDATED LOGIC HERE ---
+        // Only hide the scope overlay if it's NOT the marshal, as the marshal's scope
+        // will be handled at the end of the tween.
+        if (this.currentKey !== "marshal") {
             scopeOverlay.style.display = 'none';
-            this.viewModel.visible = true;
         }
-    } else {
-        scopeOverlay.style.display = 'none'; // Keep this for other weapons
-    }
-    // --- END OF UPDATED LOGIC ---
+        // --- END OF UPDATED LOGIC ---
 
-}
+    }
 this._prevWishAim = wishAim;
 
     if (this._fovTween.active) {
@@ -739,14 +732,15 @@ this._prevWishAim = wishAim;
       if (t >= 1) {
         this._fovTween.active = false;
         this._aiming = wishAim;
-        if (this.currentKey === "marshal") {
-          if (this._aiming) {
-            scopeOverlay.style.display = 'block';
-            this.viewModel.visible = false;
-          } else {
-            this.viewModel.visible = true;
-          }
-        }
+            if (this.currentKey === "marshal") {
+                if (this._aiming) {
+                    scopeOverlay.style.display = 'block';
+                    this.viewModel.visible = false;
+                } else {
+                    this.viewModel.visible = true;
+                    scopeOverlay.style.display = 'none'; // Added to ensure it hides when no longer aiming
+                }
+            }
       }
       this.camera.fov = THREE.MathUtils.lerp(this._fovTween.fromFov, this._fovTween.toFov, s);
       this.camera.updateProjectionMatrix();
