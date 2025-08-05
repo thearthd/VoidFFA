@@ -89,7 +89,7 @@ export function initializeMenuFirebase() {
   firebase
     .appCheck(menuApp)
     .activate(
-      "6Le2kZsrAAAAAKNO4sMWPEQvH9xPWe7a2drtbQsl",
+      "6Le2kZsrAAAAAOfMuZvLnZrYKpeF5SHsBdrVscMy",
       /* enableTokenAutoRefresh */ true
     );
 
