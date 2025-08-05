@@ -197,6 +197,20 @@ export class WeaponController {
       speedModifier: 1 - 0.1,
       tracerLength: 20,
     },
+    legion: {
+      name: "Legion",
+      isMelee: false,
+      headshotDamage: 104,
+      bodyDamage: 64,
+      fireRateRPM: 45,
+      magazineSize: 2,
+      reloadDuration: 3,
+      pullDuration: 1.33, // 60000/45/1000
+      recoilDistance: 0.08,
+      recoilDuration: 0.08,
+      tracerLength: 100,
+      speedModifier: 0.9 - 0.1,
+    },
   };
 
   static SOUNDS = {
@@ -235,6 +249,12 @@ export class WeaponController {
       pull: 'https://codehs.com/uploads/6305a83477d217c2575c59e90b8273fd',
       reloadStart: 'https://codehs.com/uploads/bceedd01e90d49150d6d0c33f8107066',
       reloadEnd: 'https://codehs.com/uploads/bc0dfbadc36ac155b7944c788c827135',
+    },
+    legion: {
+      shot: 'https://codehs.com/uploads/616e8771754822be53dd1448f9856623',
+      pull: 'https://codehs.com/uploads/fe236825318fcd2a9adfc60224701585',
+      reloadStart: 'https://codehs.com/uploads/9f62af374bd5d875478b4c5164257a1a',
+      reloadEnd: 'https://codehs.com/uploads/d656c6f3c369fbc977122a575c172468',
     },
   };
 
@@ -429,6 +449,19 @@ equipWeapon(weaponKey) {
                     -0.1 * (window.innerWidth / 1920)
                 );
                 break;
+            case "legion":
+                clone.scale.set(0.3, 0.3, 0.3);
+                clone.rotation.set(
+                    THREE.MathUtils.degToRad(7),
+                    THREE.MathUtils.degToRad(180),
+                    0
+                );
+                clone.position.set(
+                    0.15 * (window.innerWidth / 1920),
+                    0.10 * (window.innerHeight / 1080),
+                    -0.1 * (window.innerWidth / 1920)
+                );
+                break;
             case "ak47":
                 clone.scale.set(0.4, 0.4, 0.4);
                 clone.rotation.set(
@@ -496,6 +529,10 @@ equipWeapon(weaponKey) {
                 break;
             case "deagle":
                 this.buildDeagle();
+                onModelReady(this.weaponModel);
+                break;
+            case "legion":
+                this.buildLegion();
                 onModelReady(this.weaponModel);
                 break;
             case "ak47":
@@ -568,18 +605,20 @@ equipWeapon(weaponKey) {
       }
       this._prevKey = this.currentKey;
 
-      if (this._aiming) {
-        const targetFov = this.stats.isSniper
-          ? ADS_FOV.marshal
-          : this.currentKey === "ak-47"
-            ? ADS_FOV.ak47
-            : this.currentKey === "deagle"
-              ? ADS_FOV.deagle
-              : this.currentKey === "m79"
-                ? ADS_FOV.m79
-                : this.currentKey === "viper"
-                  ? ADS_FOV.viper
-                  : ADS_FOV.default;
+if (this._aiming) {
+  // Use a map to handle the various FOV values.
+  const adsFovMap = {
+    "ak-47": ADS_FOV.ak47,
+    "deagle": ADS_FOV.deagle,
+    "m79": ADS_FOV.m79,
+    "viper": ADS_FOV.viper,
+    "legion": ADS_FOV.legion,
+  };
+
+  // Check if the current weapon is a sniper.
+  const targetFov = this.stats.isSniper 
+    ? ADS_FOV.marshal 
+    : adsFovMap[this.currentKey] || ADS_FOV.default;
 
         const toPos = this.currentKey === "marshal"
           ? new THREE.Vector3(-0.025, -0.035, -0.2)
@@ -637,19 +676,20 @@ equipWeapon(weaponKey) {
       this._baseScale  = this.viewModel.scale.clone();
       this._fromPos    = this.viewModel.position.clone();
 
-      const targetFov = wishAim
-        ? (this.stats.isSniper
-            ? ADS_FOV.marshal
-            : this.currentKey === "ak-47"
-              ? ADS_FOV.ak47
-              : this.currentKey === "viper"
-                ? ADS_FOV.viper
-                : this.currentKey === "deagle"
-                  ? ADS_FOV.deagle
-                  : this.currentKey === "m79"
-                    ? ADS_FOV.m79
-                    : ADS_FOV.default)
-        : ADS_FOV.default;
+const adsFovMap = {
+  "ak-47": ADS_FOV.ak47,
+  "viper": ADS_FOV.viper,
+  "deagle": ADS_FOV.deagle,
+  "m79": ADS_FOV.m79,
+  "legion": ADS_FOV.legion,
+};
+
+// Determine the target FOV based on whether the player is aiming.
+const targetFov = wishAim
+  ? (this.stats.isSniper 
+    ? ADS_FOV.marshal 
+    : adsFovMap[this.currentKey] || ADS_FOV.default)
+  : ADS_FOV.default;
 
       const toPos = wishAim
         ? (this.currentKey === "marshal"
@@ -699,7 +739,7 @@ equipWeapon(weaponKey) {
     }
 
     // --- FIRING / SWINGING LOGIC ---
-    const isSemi      = ["deagle","marshal","m79"].includes(this.currentKey);
+    const isSemi      = ["deagle","marshal","m79","legion"].includes(this.currentKey);
     const secsPerShot = 60 / this.stats.fireRateRPM;
     const canFire     = this.stats.isMelee
       ? justPressed && sinceLast > (this._aiming ? this.stats.heavySwingTime : this.stats.swingTime)
@@ -765,7 +805,7 @@ equipWeapon(weaponKey) {
           this.state.recoilStart = now;
 
           // Deagle-specific Z-axis recoil animation trigger
-          if (this.currentKey === 'deagle') {
+          if (this.currentKey === 'deagle' || this.currentKey === 'legion') {
             this.state.deagleRecoil = {
               active:     true,
               startTime:  now,
@@ -1314,6 +1354,56 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
         return { promise, register: cb => prog = cb };
     }
 
+    buildLegion(onProgressRegistrar) {
+        const loader = new GLTFLoader();
+        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/desert-eagle_gun.glb';
+        let prog = () => {};
+        const promise = new Promise((res, rej) => {
+            loader.load(
+                url,
+                gltf => {
+                    this.weaponModel = new THREE.Group();
+                    this.parts = {};
+                    if (this.viewModel) this.viewModel.add(this.weaponModel);
+                    const model = gltf.scene;
+                    const box = new THREE.Box3().setFromObject(model);
+                    const center = box.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+                    this.weaponModel.add(model);
+                    this.weaponModel.scale.set(5, 5, 5);
+                    this.weaponModel.rotation.set(
+                        THREE.MathUtils.degToRad(7),
+                        THREE.MathUtils.degToRad(180),
+                        0
+                    );
+                    const sw = window.innerWidth, sh = window.innerHeight;
+                    this.weaponModel.position.set(
+                        0.15 * (sw/1920),
+                        0.1 * (sh/1080),
+                        -0.1 * (sw/1920)
+                    );
+                    const box2 = new THREE.Box3().setFromObject(model);
+                    const muzzle = new THREE.Object3D();
+                    muzzle.name = 'Muzzle';
+                    // These coordinates are relative to the 'model's' local space after centering
+                    // You'll likely need to adjust these values (`-box2.max.x, box2.max.y, 1`)
+                    // until the debug dot appears at the very tip of your gun's muzzle.
+                    muzzle.position.set(-box2.max.x, box2.max.y, 1); 
+                    this.weaponModel.add(muzzle);
+                    this.parts.muzzle = muzzle;
+
+                    // --- ADD THE DEBUG DOT HERE ---
+
+
+                    res(this.weaponModel);
+                },
+                evt => { if (evt.lengthComputable) prog(evt); },
+                err => rej(err)
+            );
+        });
+        return { promise, register: cb => prog = cb };
+    }
+
     buildAK47(onProgressRegistrar) {
         const loader = new GLTFLoader();
         const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/leave_a_like__ak47_game_ready_free.glb';
@@ -1543,7 +1633,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
 
 
 export async function preloadWeaponPrototypes(onComplete) {
-  const names = ['knife','deagle','ak47','marshal','m79','viper',];
+  const names = ['knife','deagle','ak47','marshal','m79','viper','legion',];
   const dummyCam = new THREE.Group();
   const loaderUI = new Loader();
   const itemPercentages = names.map(() => 1 / names.length);
