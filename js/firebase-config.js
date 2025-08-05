@@ -75,30 +75,36 @@ export let menuConfigRef = null;
 export let requiredGameVersion = "v1.00"; // Default version, will be updated from DB
 
 export function initializeMenuFirebase() {
-    if (menuApp) return;
-    try {
-        menuApp = firebase.app("menuApp");
-    } catch {
-        menuApp = firebase.initializeApp(menuConfig, "menuApp");
-    }
-    const db = menuApp.database();
-    gamesRef = db.ref("games");
-    usersRef = db.ref("users");
-    slotsRef = db.ref("slots");
-    menuConfigRef = db.ref("menu");
+  if (menuApp) return;
 
-    // Fetch the required game version from the database
-    menuConfigRef.child("gameVersion").on("value", (snapshot) => {
-        if (snapshot.exists()) {
-            requiredGameVersion = snapshot.val();
-            console.log("Required Game Version:", requiredGameVersion);
-        } else {
-            console.warn("No 'gameVersion' found in menu database. Defaulting to", requiredGameVersion);
-            // Optionally, you could set it in the DB if it doesn't exist
-            // menuConfigRef.child("gameVersion").set(requiredGameVersion);
-        }
-    });
+  try {
+    menuApp = firebase.app("menuApp");
+  } catch {
+    // initialize the menu app
+    menuApp = firebase.initializeApp(menuConfig, "menuApp");
+
+    // ★ Activate App Check using reCAPTCHA v3 ★
+    firebase.appCheck().activate(
+      "6Le2kZsrAAAAAKNO4sMWPEQvH9xPWe7a2drtbQsl",
+      /* enableTokenAutoRefresh */ true
+    );
+  }
+
+  const db = menuApp.database();
+  gamesRef      = db.ref("games");
+  usersRef      = db.ref("users");
+  slotsRef      = db.ref("slots");
+  menuConfigRef = db.ref("menu");
+
+  // fetch required game version…
+  menuConfigRef.child("gameVersion").on("value", (snapshot) => {
+    if (snapshot.exists()) {
+      requiredGameVersion = snapshot.val();
+      console.log("Required Game Version:", requiredGameVersion);
+    }
+  });
 }
+
 initializeMenuFirebase();
 
 export let activeGameId = null;
