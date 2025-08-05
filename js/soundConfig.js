@@ -29,6 +29,12 @@ export const SOUND_CONFIG = {
         'reloadEnd': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'pull': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
+    'legion': { // Assuming 'marshal' is a shotgun/rifle type
+        'shot': { volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadStart': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadEnd': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'pull': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
+    },
     'm79': {
         'shot': { volume: 1, hearingRange: 55, rolloffFactor: 2, distanceModel: 'linear' },
         'reloadStart': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
