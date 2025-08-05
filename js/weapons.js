@@ -581,6 +581,9 @@ update(inputState, delta, playerState) {
     // --- Lazy initialize any weapon (incl. knife) if we haven't yet ---
     if (!this.viewModel) {
       this.equipWeapon(this.currentKey || "knife");
+      // You should also initialize _baseScale and other properties here
+      this._baseScale = this.viewModel.scale.clone();
+      this.readyPos = this.viewModel.position.clone();
       return;
     }
 
@@ -618,14 +621,15 @@ update(inputState, delta, playerState) {
             this._fovTween.active = false;
         }
 
-        // Hide the marshal scope overlay and make the model visible
-        // before starting any new tween. This ensures a clean transition.
+        // Before starting a new tween, ensure the previous weapon state is clean.
+        // This is important for smooth transitions, especially from the marshal.
         scopeOverlay.style.display = 'none';
         this.viewModel.visible = true;
 
         this._aiming = wishAim;
         this._baseFov = this.camera.fov;
-        this._baseScale = this.viewModel.scale.clone();
+        // Correctly get the current scale and position for the 'from' values.
+        this._baseScale = this.viewModel.scale.clone(); 
         this._fromPos = this.viewModel.position.clone();
 
         const adsFovMap = {
@@ -646,14 +650,15 @@ update(inputState, delta, playerState) {
             ? gunAimPos[this.currentKey].clone()
             : this.readyPos.clone();
 
-        const newBaseScale = this.stats.isSniper ? this._baseScaleForMarshal : this._baseScale;
-        const newToScale = newBaseScale.clone().multiplyScalar(targetFov / this._baseFov);
+        // Calculate the 'to' scale correctly.
+        const newToScale = this._baseScale.clone().multiplyScalar(targetFov / this._baseFov);
         
+        // Correct the `fromScale` to use `this._baseScale`.
         this._fovTween = {
             active: true,
             fromFov: this._baseFov,
             toFov: targetFov,
-            fromScale: this._fromPos.clone(),
+            fromScale: this._baseScale.clone(), // FIXED: Use _baseScale for scale
             toScale: newToScale,
             fromPos: this._fromPos.clone(),
             toPos: toPos,
