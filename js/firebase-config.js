@@ -77,26 +77,30 @@ export let requiredGameVersion = "v1.00"; // Default version, will be updated fr
 export function initializeMenuFirebase() {
   if (menuApp) return;
 
+  // 1) Initialize (or get) your named app
   try {
     menuApp = firebase.app("menuApp");
   } catch {
-    // initialize the menu app
     menuApp = firebase.initializeApp(menuConfig, "menuApp");
+  }
 
-    // ★ Activate App Check using reCAPTCHA v3 ★
-    firebase.appCheck().activate(
+  // 2) Activate App Check **on that specific app**
+  //    (use the compat SDK method that takes your app instance)
+  firebase
+    .appCheck(menuApp)
+    .activate(
       "6Le2kZsrAAAAAKNO4sMWPEQvH9xPWe7a2drtbQsl",
       /* enableTokenAutoRefresh */ true
     );
-  }
 
+  // 3) Grab your database refs from menuApp
   const db = menuApp.database();
   gamesRef      = db.ref("games");
   usersRef      = db.ref("users");
   slotsRef      = db.ref("slots");
   menuConfigRef = db.ref("menu");
 
-  // fetch required game version…
+  // 4) Fetch required game version…
   menuConfigRef.child("gameVersion").on("value", (snapshot) => {
     if (snapshot.exists()) {
       requiredGameVersion = snapshot.val();
