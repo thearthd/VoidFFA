@@ -1356,7 +1356,7 @@ addDebugMuzzleDot(muzzleObject3D, dotSize = 0.5) {
 
     buildLegion(onProgressRegistrar) {
         const loader = new GLTFLoader();
-        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/Legion.glb';
+        const url = 'https://raw.githubusercontent.com/thearthd/3d-models/main/Legion1212.glb';
         let prog = () => {};
         const promise = new Promise((res, rej) => {
             loader.load(
