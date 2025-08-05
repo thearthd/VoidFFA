@@ -1149,7 +1149,7 @@ fireBullet(spreadAngle) {
 
       let realPenetrate = false;
       
-      if (traj.isPenetrationShot) {
+      if (baseDamage != this.stats.bodyDamage) {
           realPenetrate = true;
       }
       
@@ -1166,9 +1166,9 @@ fireBullet(spreadAngle) {
       );
 
       // play sound
-      traj.isPenetrationShot
-        ? playBodyHit()                    // still body‐hit sound if it went through
-        : (isHead ? playBodyHeadshot() 
+    traj.isPenetrationShot
+        ? {} // Do nothing if it's a penetration shot
+        : (isHead ? playBodyHeadshot()
                   : playBodyHit());
     }
 
