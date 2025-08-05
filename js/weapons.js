@@ -737,8 +737,6 @@ this._prevWishAim = wishAim;
                     scopeOverlay.style.display = 'block';
                     this.viewModel.visible = false;
                 } else {
-                    this.viewModel.visible = true;
-                    scopeOverlay.style.display = 'none'; // Added to ensure it hides when no longer aiming
                 }
             }
       }
@@ -751,6 +749,11 @@ this._prevWishAim = wishAim;
         this._fovTween.fromPos.clone().lerp(this._fovTween.toPos, s)
       );
     }
+
+  if (!wishAim) {
+      this.viewModel.visible = true;
+      scopeOverlay.style.display = 'none'; // Added to ensure it hides when no longer aiming
+  }
 
     // --- FIRING / SWINGING LOGIC ---
     const isSemi      = ["deagle","marshal","m79","legion"].includes(this.currentKey);
