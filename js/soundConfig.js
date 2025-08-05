@@ -12,6 +12,12 @@ export const SOUND_CONFIG = {
         'reloadEnd': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'pull': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
     },
+    'viper': {
+        'shot': { volume: 1, hearingRange: 75, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadStart': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'reloadEnd': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
+        'pull': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' }
+    },
     'knife': {
         'shot': { volume: 0.5, hearingRange: 25, rolloffFactor: 2, distanceModel: 'linear' },
         'hit': { volume: 1, hearingRange: 100, rolloffFactor: 2, distanceModel: 'linear' }, // e.g., hitting another player or surface
