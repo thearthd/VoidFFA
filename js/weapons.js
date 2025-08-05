@@ -793,8 +793,6 @@ const targetFov = wishAim
             }
           }
 
-          if (this._aiming) appliedRecoilAngle /= 2;
-
           // Store the recoil properties for the animation
           this._recoil.peakOffset         = appliedRecoilAngle;
           this._recoil.recoilStartTime   = now;
