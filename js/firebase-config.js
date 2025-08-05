@@ -75,18 +75,12 @@ export let menuConfigRef = null;
 export let requiredGameVersion = "v1.00"; // Default version, will be updated from DB
 
 export function initializeMenuFirebase() {
-  if (menuApp) return;
-
-  // 3) Always initialize the App first:
-  menuApp = firebase.initializeApp(menuConfig, "menuApp");
-
-  // 4) Then immediately activate App Check:
-  firebase
-    .appCheck(menuApp)
-    .activate(
-      "6LfqnpsrAAAAAG0z8Zjmz0_97_YjV5g-MWt2RYTZ", // your reCAPTCHA v3 site key
-      true                                        // enable auto-refresh
-    );
+    if (menuApp) return;
+    try {
+        menuApp = firebase.app("menuApp");
+    } catch {
+        menuApp = firebase.initializeApp(menuConfig, "menuApp");
+    }
     const db = menuApp.database();
     gamesRef = db.ref("games");
     usersRef = db.ref("users");
