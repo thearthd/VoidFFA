@@ -2637,6 +2637,8 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
               handleLocalDeath();
             }
           })
+
+            console.log(isPenetrationShot);
           // ---- finally push into kills log ----
           .then(() => {
             const killLog = {
@@ -2765,6 +2767,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
