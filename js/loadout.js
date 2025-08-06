@@ -94,22 +94,48 @@ Swal.fire({
 
 function populateWeaponGrid(containerId, list, slotType) {
   const container = document.getElementById(containerId);
+
   list.forEach(w => {
     const btn = document.createElement('div');
     btn.className = 'weapon-button';
     btn.style.backgroundImage = `url(${w.img})`;
-    btn.dataset.key = w.key;
+    btn.dataset.key  = w.key;
     btn.dataset.slot = slotType;
-    // new data- attrs:
+
+    // stats data-attrs
     btn.dataset.name = w.name;
     btn.dataset.body = w.bodyDamage;
     btn.dataset.head = w.headDamage;
-    btn.dataset.mag = w.magSize;
+    btn.dataset.mag  = w.magSize;
     btn.dataset.diff = w.difficulty;
 
+    // 1) show & populate on hover enter
+    btn.addEventListener('mouseenter', e => {
+      fields.name.textContent = e.currentTarget.dataset.name;
+      fields.body.textContent = e.currentTarget.dataset.body;
+      fields.head.textContent = e.currentTarget.dataset.head;
+      fields.mag.textContent  = e.currentTarget.dataset.mag;
+      fields.diff.textContent = e.currentTarget.dataset.diff;
+      infoPanel.classList.add('visible');
+    });
+
+    // 2) update panel position on every mouse move
+    btn.addEventListener('mousemove', e => {
+      const rect = loadoutScreen.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      infoPanel.style.left = `${x}px`;
+      infoPanel.style.top  = `${y}px`;
+    });
+
+    // 3) hide on hover leave
+    btn.addEventListener('mouseleave', () => {
+      infoPanel.classList.remove('visible');
+    });
+
+    // original click handler to select loadout…
     btn.addEventListener('click', () => selectButton(w.key, slotType));
-    btn.addEventListener('mouseenter', showWeaponInfo);
-    btn.addEventListener('mouseleave', hideWeaponInfo);
+
     container.appendChild(btn);
   });
 }
