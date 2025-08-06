@@ -122,8 +122,8 @@ function populateWeaponGrid(containerId, list, slotType) {
     // 2) update panel position on every mouse move
     btn.addEventListener('mousemove', e => {
       const rect = loadoutScreen.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const x = e.clientX;
+      const y = e.clientY;
       infoPanel.style.left = `${x}px`;
       infoPanel.style.top  = `${y}px`;
     });
