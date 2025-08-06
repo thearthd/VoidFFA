@@ -1652,6 +1652,8 @@ let chatListener = null;
 
 function createMenuChatElements() {
     const box = document.createElement("chat-box");
+    const hud = document.createElement("hud");
+     hud.style.display = 'flex';
      box.style.display = 'flex';
      box.style.zIndex = '500';
      box.style.top = '50%';
@@ -1679,6 +1681,11 @@ function initChatUI() {
 function destroyMenuChatElements() {
     const box = document.getElementById("chat-box");
      box.style.display = 'none';
+    const hud = document.getElementById("hud");
+     hud.style.display = 'none';
+     box.style.top = '20px';
+     box.style.left = '20px';
+     
     if (menuChatRef && chatListener) {
         menuChatRef.off("child_added", chatListener);
         chatListener = null;
