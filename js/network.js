@@ -616,6 +616,9 @@ function setupPlayersListener(playersRef) {
     playersRef.off("child_changed");
     playersRef.off("child_removed");
 
+        const data = snap.val();
+        const id = data.id;
+    
     if (id !== localPlayerId && data.username === window.localUsername) {
       location.reload();
     }
