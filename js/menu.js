@@ -1651,12 +1651,13 @@ function playButtonHit() {
 let chatListener = null;
 
 function createMenuChatElements() {
-    const box = document.createElement("chat-box");
-     hud.style.display = 'flex';
-     box.style.display = 'flex';
-     box.style.zIndex = '500';
-     box.style.top = '50%';
-     box.style.left = '50%';
+  const box = document.createElement("chat-box");
+  hud.style.display = 'flex';
+  box.style.display = 'flex';
+  box.style.zIndex = '500';
+  box.style.position = 'absolute'; // Add this line
+  box.style.top = '50%';
+  box.style.left = '50%';
 }
 
 function initChatUI() {
