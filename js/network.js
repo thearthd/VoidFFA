@@ -721,14 +721,14 @@ function setupKillsListener(killsRef) {
     .on("child_added", (snap) => {
       const k = snap.val() || {};
 
-      updateKillFeed(
-        k.killer,
-        k.victim,
-        k.weapon,
-        /* isHeadshot: */       Boolean(k.isHeadshot),
-        /* isPenetrationShot: */Boolean(k.isPenetrationShot),
-        /* killId: */           snap.key
-      );
+    updateKillFeed(
+      k.killer,
+      k.victim,
+      k.weapon,
+      /* killId: */           snap.key,
+      /* isHeadshot: */       Boolean(k.isHeadshot),
+      /* isPenetrationShot: */Boolean(k.isPenetrationShot),
+    );
 
       // Also refresh your scoreboard
       updateScoreboard(dbRefs.playersRef);
