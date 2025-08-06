@@ -86,6 +86,7 @@ export function initializeMenuFirebase() {
     usersRef = db.ref("users");
     slotsRef = db.ref("slots");
     menuConfigRef = db.ref("menu");
+    menuChatRef = db.ref("menuChat");
 
     // Fetch the required game version from the database
     menuConfigRef.child("gameVersion").on("value", (snapshot) => {
