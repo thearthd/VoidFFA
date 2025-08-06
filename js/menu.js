@@ -5,7 +5,7 @@
 ,~(  )  , )~~\ |        |/~( ,  (  )~;
 ' / / --`--,          .--'-- \ \ `
   /  \    | '          ` |    /  \
-// fff fff f f f
+// fff fff f f ffff
 horse power
 */
 
