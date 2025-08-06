@@ -1533,6 +1533,7 @@ add(disclaimerText);
 
    settingsBox.style.display = "none"; // Or "flex", depending on your CSS layout
 hud.style.display = "none";
+chatBox.style.display = "none";
 menuBG.style.display = "flex";
  loadMenu.style.display = "none";
      
@@ -1590,6 +1591,7 @@ async function initAndStartGame(username, mapName, gameId = null) {
      checkInGame = true; 
      dontyetpls = 0;
      hud.style.display = "block";
+     chatBox.style.display = "flex";
   // Read your UI flags up front
   const detailsEnabled = localStorage.getItem("detailsEnabled") === true;
   const ffaEnabled     = true; // ← or read from your HTML toggle if you have one
@@ -1651,14 +1653,9 @@ function playButtonHit() {
 let chatListener = null;
 
 function createMenuChatElements() {
-  hud.style.display = 'flex';
-  hud.style.position = 'absolute';
-
-  const width = chatBox.offsetWidth;
-  const height = chatBox.offsetHeight;
-
-  hud.style.left = `calc(50% - ${width / 2}px)`;
-  hud.style.top = `calc(50% - ${height / 2}px)`;
+  chatBox.style.display = 'flex'; // This line seems to be affecting the 'hud' element
+  chatBox.style.top = '50%';
+  chatBox.style.left = '50%';
 }
 
 let chatCooldown = false;
@@ -1684,9 +1681,9 @@ function initChatUI() {
 }
 
 function destroyMenuChatElements() {
-    hud.style.display = 'none';
-    hud.style.top = '';
-    hud.style.left = '';
+    chatBox.style.display = 'none';
+    chatBox.style.top = '';
+    chatBox.style.left = '';
     
     // 1) Remove Firebase listener
     if (menuChatRef && chatListener) {
