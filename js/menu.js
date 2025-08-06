@@ -57,7 +57,7 @@ export const preload = src => {
 
 let dbRefs = {};
 let dontyetpls = 0;
-  const chatBox = document.createElement("chat-box");
+const chatBox = document.getElementById("chat-box");
 // Get the canvas element and its 2D rendering context
 const canvas = document.getElementById('menuCanvas');
 const ctx = canvas.getContext('2d');
