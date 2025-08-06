@@ -8,7 +8,7 @@
 // fff fff f f fffffff f
 horse power
 */
-
+const CLIENT_GAME_VERSION = "v1.00";
 // --- All imports moved to the top ---
 // IMPORTANT: Ensure firebase-config.js is loaded BEFORE this script in your HTML
 // or that `gamesRef` is otherwise globally accessible.
@@ -24,7 +24,7 @@ horse power
 // const gamesRef = firebase.app("menuApp").database().ref("games");
 
 import { addChatMessage } from "./ui.js";   // wherever you keep your chat helpers
-const CLIENT_GAME_VERSION = "v1.00";
+import { isChatting } from './input.js';
 // Placeholder for external imports, adjust paths as needed
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { createGameUI, initBulletHoles } from "./ui.js";
@@ -1411,7 +1411,7 @@ window.togglePauseMenuUI = togglePauseMenuUI; // This makes it accessible from i
 
 // Listen for the 'P' key press to toggle the pause menu
 window.addEventListener("keydown", e => {
-
+  if (isChatting()) return;
  //   console.log("  currentKeybinds.togglePause:", currentKeybinds.togglePause);
  //   console.log("  inputState.isPaused:", inputState.isPaused);
  //   console.log("  document.activeElement:", document.activeElement);
