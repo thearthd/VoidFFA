@@ -1700,27 +1700,41 @@ function createMenuChatElements() {
     document.body.append(box);
 }
 
+function destroyMenuChatElements() {
+    const box = document.getElementById("chat-box");
+    if (box) box.remove();
+    // detach listener
+    // This now uses menuChatRef, which is globally defined
+    if (menuChatRef && chatListener) {
+        menuChatRef.off("child_added", chatListener);
+        chatListener = null;
+    }
+}
+
 function initMenuChat() {
-    // 2) point at /menuChat
-    dbRefs.chatRef = firebase.database().ref("chat");
+    // 2) The chatRef is already initialized as a global variable
+    // We just need to make sure dbRefs is set up correctly for this session
+    dbRefs.chatRef = menuChatRef;
 
     // 3) create DOM
     createMenuChatElements();
 
     // 4) wire up your helper code
-    dbRefs.chatRef.on('child_added', snapshot => {
+    initChatUI();
+    
+    // The onChildAdded listener is attached directly to the global menuChatRef
+    chatListener = menuChatRef.on('child_added', snapshot => {
         const { username, text } = snapshot.val();
         addChatMessage(username, text, snapshot.key);
     });
-
-    initChatUI();
 }
 
 export function sendChatMessage(username, text) {
-    if (!dbRefs.chatRef) {
+    // Ensure the global menuChatRef is available before pushing
+    if (!menuChatRef) {
         return console.warn("Chat not initialized yet");
     }
-    dbRefs.chatRef.push({ username, text, timestamp: Date.now() })
+    menuChatRef.push({ username, text, timestamp: Date.now() })
         .catch(err => console.error("Failed to send chat:", err));
 }
 
@@ -1733,16 +1747,6 @@ export function chatButtonHit() {
     });
 
     initMenuChat();
-}
-
-function destroyMenuChatElements() {
-    const box = document.getElementById("chat-box");
-    if (box) box.remove();
-    // detach listener
-    if (dbRefs.chatRef) {
-        dbRefs.chatRef.off("child_added");
-        chatListener = null;
-    }
 }
 
 function feedbackButtonHit() {
