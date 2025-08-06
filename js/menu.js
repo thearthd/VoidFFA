@@ -2235,25 +2235,42 @@ export function initMenuUI() {
     }
 
     // --- Initial Menu State Setup ---
-    function initializeMenuDisplay() {
-        // If username exists, hide prompt and show canvas menu
-        if (username && username.trim().length > 0) {
-            showPanel(null); // Hide all HTML panels
-            menu(); // Show canvas-drawn main menu
-            document.getElementById("game-logo").classList.add("hidden"); // Hide the HTML game logo
-            const menuOverlayElement = document.getElementById('menu-overlay');
-            menuOverlayElement.style.display = 'none';
+  async function initializeMenuDisplay() {
+    // re-load in case anything changed
+    username = localStorage.getItem("username") || "";
 
-            canvas.style.display = 'block'; // Ensure canvas is visible
-        } else {
-            // If no username, show the prompt
-            showPanel(usernamePrompt);
-            // Hide the canvas, as the username prompt is an HTML overlay
-            canvas.style.display = 'none';
-            // Show the HTML game logo above the username prompt
-            document.getElementById("game-logo").classList.remove("hidden");
+    // If we have a username locally, check it against the DB
+    if (username && username.trim().length > 0) {
+      const key = username.toLowerCase();
+      try {
+        const snap = await usersRef.child(key).once('value');
+        if (!snap.exists()) {
+          // not in DB → clear localStorage and force prompt
+          console.warn(`Username "${username}" not found in DB; reprompting.`);
+          localStorage.removeItem("username");
+          username = "";
         }
+      } catch (err) {
+        console.error("Error checking username in DB:", err);
+        // (optional) treat as “not found” or allow offline play
+        localStorage.removeItem("username");
+        username = "";
+      }
     }
+
+    // After DB-check, decide which panel to show
+    if (username && username.trim().length > 0) {
+      showPanel(null);              // hide HTML panels
+      menu();                       // show canvas menu
+      document.getElementById("game-logo").classList.add("hidden");
+      menuOverlay.style.display = 'none';
+      canvas.style.display = 'block';
+    } else {
+      showPanel(usernamePrompt);    // force the username prompt
+      canvas.style.display = 'none';
+      document.getElementById("game-logo").classList.remove("hidden");
+    }
+  }
 
     // --- Event Listeners for Main Menu Buttons (HTML-based) ---
     // These HTML buttons are distinct from the canvas buttons.
