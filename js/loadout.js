@@ -123,7 +123,7 @@ function populateWeaponGrid(containerId, list, slotType) {
     btn.addEventListener('mousemove', e => {
       const rect = loadoutScreen.getBoundingClientRect();
       const x = e.clientX;
-      const y = e.clientY;
+      const y = e.clientY - rect/2;
       infoPanel.style.left = `${x}px`;
       infoPanel.style.top  = `${y}px`;
     });
