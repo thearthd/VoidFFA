@@ -124,8 +124,14 @@ function populateWeaponGrid(containerId, list, slotType) {
       const rect = loadoutScreen.getBoundingClientRect();
       const x = e.clientX;
       const y = e.clientY;
+
+    const panelHeight = infoPanel.getBoundingClientRect().height;
+
+    // Calculate the new 'top' position to center the panel vertically on the cursor
+    const newTop = y - (panelHeight / 2);
+      
       infoPanel.style.left = `${x}px`;
-      infoPanel.style.top  = `${y+80}px`;
+    infoPanel.style.top  = `${newTop}px`;
     });
 
     // 3) hide on hover leave
