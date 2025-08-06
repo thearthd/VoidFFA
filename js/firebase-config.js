@@ -72,6 +72,7 @@ export let gamesRef = null;
 export let usersRef = null;
 export let slotsRef = null;
 export let menuConfigRef = null;
+export let menuChatRef = null;
 export let requiredGameVersion = "v1.00"; // Default version, will be updated from DB
 
 export function initializeMenuFirebase() {
