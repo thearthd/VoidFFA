@@ -14,7 +14,8 @@ const PRIMARIES = [
     bodyDamage: 100,
     headDamage: 30,
     magSize: 25,
-    difficulty: 'Medium'
+    difficulty: 'Medium',
+    desc: 'The default AR.'
   },
   {
     key: 'deagle',
@@ -23,7 +24,8 @@ const PRIMARIES = [
     bodyDamage: 86,
     headDamage: 180,
     magSize: 8,
-    difficulty: 'Hard'
+    difficulty: 'Hard',
+    desc: 'Only for good aim days'
   },
   {
     key: 'marshal',
@@ -32,7 +34,8 @@ const PRIMARIES = [
     bodyDamage: 100,
     headDamage: 250,
     magSize: 5,
-    difficulty: 'Hard'
+    difficulty: 'Hard',
+    desc: 'Slow paced, secondary based.'
   },
   {
     key: 'viper',
@@ -41,7 +44,8 @@ const PRIMARIES = [
     bodyDamage: 20,
     headDamage: 60,
     magSize: 35,
-    difficulty: 'Easy'
+    difficulty: 'Easy',
+    desc: 'Spray em'
   }
 ];
 
@@ -53,7 +57,8 @@ const SECONDARIES = [
     bodyDamage: 54,
     headDamage: 20,
     magSize: 1,
-    difficulty: 'Easy'
+    difficulty: 'Easy',
+    desc: 'The default pistol'
   },
   {
     key: 'legion',
@@ -62,7 +67,8 @@ const SECONDARIES = [
     bodyDamage: 64,
     headDamage: 105,
     magSize: 2,
-    difficulty: 'Hard'
+    difficulty: 'Hard',
+    desc: 'High risk, high reward.'
   }
 ];
 
@@ -108,6 +114,7 @@ function populateWeaponGrid(containerId, list, slotType) {
     btn.dataset.head = w.headDamage;
     btn.dataset.mag  = w.magSize;
     btn.dataset.diff = w.difficulty;
+    btn.dataset.desc = w.description;
 
     // 1) show & populate on hover enter
     btn.addEventListener('mouseenter', e => {
@@ -116,6 +123,7 @@ function populateWeaponGrid(containerId, list, slotType) {
       fields.head.textContent = e.currentTarget.dataset.head;
       fields.mag.textContent  = e.currentTarget.dataset.mag;
       fields.diff.textContent = e.currentTarget.dataset.diff;
+      fields.desc.textContent = e.currentTarget.dataset.desc;
       infoPanel.classList.add('visible');
     });
 
@@ -196,6 +204,7 @@ const fields = {
   head: document.getElementById('wi-head'),
   mag:  document.getElementById('wi-mag'),
   diff: document.getElementById('wi-diff'),
+  desc: document.getElementById('wi-desc'),
 };
 
 function showWeaponInfo(e) {
@@ -205,6 +214,7 @@ function showWeaponInfo(e) {
   fields.head.textContent = e.currentTarget.dataset.head;
   fields.mag.textContent  = e.currentTarget.dataset.mag;
   fields.diff.textContent = e.currentTarget.dataset.diff;
+  fields.desc.textContent = e.currentTarget.dataset.desc;
 
   // 2) compute mouse pos relative to loadout-screen
   const rect = loadoutScreen.getBoundingClientRect();
