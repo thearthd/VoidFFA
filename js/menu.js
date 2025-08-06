@@ -57,7 +57,7 @@ export const preload = src => {
 
 let dbRefs = {};
 let dontyetpls = 0;
-
+  const box = document.createElement("chat-box");
 // Get the canvas element and its 2D rendering context
 const canvas = document.getElementById('menuCanvas');
 const ctx = canvas.getContext('2d');
@@ -1651,18 +1651,12 @@ function playButtonHit() {
 let chatListener = null;
 
 function createMenuChatElements() {
-  const box = document.createElement("chat-box");
-  const hud = document.getElementById("hud"); // Assuming hud is an existing element
-
   hud.style.display = 'flex'; // This line seems to be affecting the 'hud' element
   box.style.display = 'flex';
   box.style.zIndex = '500';
   box.style.position = 'absolute'; // Use 'absolute' if you want it relative to the 'hud' element
   box.style.top = '50%';
   box.style.left = '50%';
-  box.style.transform = 'translate(-50%, -50%)'; // Add this line for perfect centering
-
-  hud.appendChild(box); // Add this line to append the new element to the 'hud'
 }
 
 function initChatUI() {
@@ -1684,7 +1678,6 @@ function initChatUI() {
 }
 
 function destroyMenuChatElements() {
-    const box = document.getElementById("chat-box");
      box.style.display = 'none';
      hud.style.display = 'none';
      box.style.top = '20px';
