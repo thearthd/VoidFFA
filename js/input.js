@@ -15,6 +15,28 @@ const settingsBox = document.getElementById("settings-box"); // Get settings box
 const keybindsContainer = document.getElementById("keybinds-container"); // Container for keybind settings
 const resetKeybindsBtn = document.getElementById("reset-keybinds-btn"); // Reset button
 
+
+chatInput.addEventListener('focus', () => {
+    // 1) remove all of your game key/mouse handlers
+    removeGameEventListeners();
+    // 2) if you’re currently pointer‐locked, exit it so mouse is free
+    if (document.pointerLockElement === elementToLock) {
+        document.exitPointerLock();
+    }
+});
+
+// Re-enable game inputs when chat is closed/blurs:
+chatInput.addEventListener('blur', () => {
+    // Only re-add if game isn’t paused or in a death‐pause
+    if (!inputState.isPaused && document.pointerLockElement !== elementToLock) {
+        // 1) request pointer lock again
+        elementToLock.requestPointerLock();
+    }
+    // 2) re-attach all your game handlers
+    addGameEventListeners();
+});
+
+
 export const inputState = {
     forward: false,
     backward: false,
