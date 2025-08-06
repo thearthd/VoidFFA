@@ -1717,7 +1717,7 @@ function initChatUI() {
 
 function destroyMenuChatElements() {
     const box = document.getElementById("chat-box");
-     box.style.display = none;
+     box.style.display = 'none';
     if (menuChatRef && chatListener) {
         menuChatRef.off("child_added", chatListener);
         chatListener = null;
