@@ -1651,50 +1651,7 @@ function playButtonHit() {
 let chatListener = null;
 
 function createMenuChatElements() {
-    const box = document.createElement("div");
-    box.id = "chat-box";
-    Object.assign(box.style, {
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: "80vw",
-        maxWidth: "400px",
-        background: "rgba(0,0,0,0.6)",
-        border: "1px solid #444",
-        borderRadius: "6px",
-        zIndex: "9999",
-        display: "flex",
-        flexDirection: "column",
-    });
-
-    const messages = document.createElement("div");
-    messages.id = "chat-messages";
-    Object.assign(messages.style, {
-        flex: "1 1 auto",
-        padding: "8px",
-        overflowY: "auto",
-        color: "#fff",
-        fontSize: "0.85rem",
-        whiteSpace: "pre-wrap",
-        wordWrap: "break-word",
-    });
-
-    const input = document.createElement("input");
-    input.id = "chat-input";
-    input.placeholder = "Type a message…";
-    Object.assign(input.style, {
-        flex: "0 0 auto",
-        border: "none",
-        padding: "6px",
-        fontSize: "0.9rem",
-        outline: "none",
-        background: "rgba(20,20,20,0.8)",
-        color: "#fff",
-    });
-
-    box.append(messages, input);
-    document.body.append(box);
+    const box = document.createElement("chat-box");
 }
 
 function initChatUI() {
