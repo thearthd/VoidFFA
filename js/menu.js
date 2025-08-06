@@ -25,6 +25,7 @@ const CLIENT_GAME_VERSION = "v1.00";
 
 import { addChatMessage } from "./ui.js";   // wherever you keep your chat helpers
 import { isChatting } from './input.js';
+import { isMessageClean } from './chatFilter.js';
 // Placeholder for external imports, adjust paths as needed
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { createGameUI, initBulletHoles } from "./ui.js";
@@ -1723,51 +1724,6 @@ function initMenuChat() {
     });
 }
 
-function isMessageClean(text) {
-    // Lowercase and normalize text
-    const normalized = text
-        .toLowerCase()
-        .normalize("NFD") // remove accents
-        .replace(/[\u0300-\u036f]/g, "") // strip diacritics
-        .replace(/[^a-z0-9\s]/g, ""); // remove special characters
-
-    // Profanity/Slur list
-    const bannedWords = [
-        // Core swears
-        "fuck", "shit", "bitch", "bastard", "cunt", "dick", "pussy",
-        "cock", "whore", "slut", "twat", "bollocks", "bugger", "prick",
-
-        // Slurs
-        "nigger", "nigga", "faggot", "tranny", "spic", "kike", "chink", "gook",
-        "wetback", "coon", "raghead", "sandnigger", "porchmonkey", "beaner", "cracker", "honky",
-
-        // Expanded
-        "fag", "dyke", "mong", "gyp", "heeb", "abo"
-    ];
-
-    // Leetspeak replacements
-    const leetMap = {
-        "1": "i",
-        "3": "e",
-        "4": "a",
-        "@": "a",
-        "0": "o",
-        "$": "s",
-        "5": "s",
-        "7": "t"
-    };
-
-    let leetNormalized = normalized.replace(/[013457@$]/g, c => leetMap[c] || c);
-
-    // Allow "ass" but block when part of insults
-    const containsBadAss = /\bass\b/.test(leetNormalized) &&
-        (/\b(?:dumbass|jackass|smartass|lazyass|asshole)\b/.test(leetNormalized));
-
-    // Check banned words
-    const containsBanned = bannedWords.some(word => leetNormalized.includes(word));
-
-    return !(containsBanned || containsBadAss);
-}
 
 export function sendChatMessage(username, text) {
     if (!menuChatRef) {
