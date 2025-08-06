@@ -33,7 +33,6 @@ export class Loader {
   }
 
   show(label = 'Starting', itemPercentages = []) {
-    loadBG.style.display = 'block';
     this.reset();
     this.currentLabel = label;
     this.itemPercentages = itemPercentages;
@@ -50,6 +49,7 @@ export class Loader {
   }
 
   _animateProgress() {
+    loadBG.style.display = 'flex';
     // interpolate displayedPct toward targetPct
     this.displayedPct += (this.targetPct - this.displayedPct) * this.animationSpeed;
     this.displayedPct = Math.max(0, Math.min(100, this.displayedPct));
