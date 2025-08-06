@@ -1897,15 +1897,20 @@ tbody.appendChild(row);
 });
 
 // 5) Toggle with T, ignoring repeats
-window.addEventListener("keydown", e => {
-// Prevent leaderboard toggle if user is typing in chat
-if (document.activeElement === chatInput) return;
+import { currentKeybinds } from "./input.js";
 
-if (e.key.toLowerCase() === "t" && !e.repeat) {
-overlay.style.display = overlay.style.display === "none" ? "block" : "none";
-}
+// …
+
+window.addEventListener("keydown", e => {
+  // don’t toggle while typing in chat
+  if (document.activeElement === chatInput) return;
+
+  // this checks the _current_ binding, whatever the user set it to
+  if (e.code === currentKeybinds.toggleLeaderboard && !e.repeat) {
+    overlay.style.display = overlay.style.display === "none" ? "block" : "none";
+    e.preventDefault();
+  }
 });
-}
 
 
 
@@ -2768,6 +2773,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
