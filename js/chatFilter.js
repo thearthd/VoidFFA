@@ -1,7 +1,6 @@
-import bannedWords from './bannedWords.json' assert { type: 'json' };
+import { bannedWords } from './bannedWords.js';
 
-function isMessageClean(text) {
-    // Normalize for matching
+export function isMessageClean(text) {
     const normalized = text
         .toLowerCase()
         .normalize("NFD")
@@ -30,5 +29,3 @@ function isMessageClean(text) {
 
     return !(containsBanned || containsBadAss);
 }
-
-export { isMessageClean };
