@@ -1751,10 +1751,7 @@ export function sendChatMessage(username, text) {
 export function chatButtonHit() {
     clearMenuCanvas();
     add(logo);
-    addBackButton(() => {
-        destroyMenuChatElements();
-        menu();
-    });
+  addBackButton(menu, destroyMenuChatElements);
     initMenuChat();
 }
 
