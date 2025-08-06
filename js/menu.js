@@ -1682,8 +1682,8 @@ function initChatUI() {
 
 function destroyMenuChatElements() {
     chatBox.style.display = 'none';
-    chatBox.style.top = '';
-    chatBox.style.left = '';
+    chatBox.style.top = '20px';
+    chatBox.style.left = '20px';
     
     // 1) Remove Firebase listener
     if (menuChatRef && chatListener) {
