@@ -1655,7 +1655,7 @@ function createMenuChatElements() {
   box.style.display = 'flex';
   box.style.zIndex = '500';
   box.style.position = 'absolute'; // Use 'absolute' if you want it relative to the 'hud' element
-  box.style.top = '50%';
+  box.style.top = '500px';
   box.style.left = '50%';
 }
 
