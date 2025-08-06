@@ -1679,16 +1679,22 @@ function initChatUI() {
 }
 
 function destroyMenuChatElements() {
-     hud.style.display = 'none';
-  hud.style.top = '';
-  hud.style.left = '';
-     
+    hud.style.display = 'none';
+    hud.style.top = '';
+    hud.style.left = '';
+    
+    // 1) Remove Firebase listener
     if (menuChatRef && chatListener) {
         menuChatRef.off("child_added", chatListener);
         chatListener = null;
     }
-}
 
+    // 2) Clear chat messages for the local player
+    const messagesBox = document.getElementById("chat-messages");
+    if (messagesBox) {
+        messagesBox.innerHTML = ""; // Removes all messages from DOM
+    }
+}
 function initMenuChat() {
     // 1) Build the DOM
     createMenuChatElements();
