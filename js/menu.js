@@ -55,6 +55,7 @@ export const preload = src => {
     img.src = src;
 };
 
+let dbRef = null;
 let dontyetpls = 0;
 
 // Get the canvas element and its 2D rendering context
