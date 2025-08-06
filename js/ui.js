@@ -415,6 +415,8 @@ export function updateKillFeed(killer, victim, weapon, killId, isHeadshot, isPen
     entry.appendChild(icon);
   }
 
+console.log(isPenetrationShot);
+  
   // Append penetration icon if applicable
   if (isPenetrationShot) {
     const icon = document.createElement("img");
