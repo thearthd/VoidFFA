@@ -1651,7 +1651,6 @@ function playButtonHit() {
 let chatListener = null;
 
 function createMenuChatElements() {
-    // container
     const box = document.createElement("div");
     box.id = "chat-box";
     Object.assign(box.style, {
@@ -1669,7 +1668,6 @@ function createMenuChatElements() {
         flexDirection: "column",
     });
 
-    // messages
     const messages = document.createElement("div");
     messages.id = "chat-messages";
     Object.assign(messages.style, {
@@ -1682,7 +1680,6 @@ function createMenuChatElements() {
         wordWrap: "break-word",
     });
 
-    // input
     const input = document.createElement("input");
     input.id = "chat-input";
     input.placeholder = "Type a message…";
@@ -1704,30 +1701,23 @@ function initChatUI() {
     const input = document.getElementById("chat-input");
     const messagesBox = document.getElementById("chat-messages");
 
-    // Add event listener for the 'Enter' key
-    input.addEventListener("keyup", function(event) {
-        // Check if the key pressed is 'Enter' (key code 13 or key property 'Enter')
+    input.addEventListener("keyup", event => {
         if (event.key === "Enter") {
             const text = input.value.trim();
-            if (text) {
-                const username = localStorage.getItem("username") || "Guest";
-                sendChatMessage(username, text);
-                input.value = ""; // Clear the input field after sending
-            }
+            if (!text) return;
+            const username = localStorage.getItem("username") || "Guest";
+            sendChatMessage(username, text);
+            input.value = "";
         }
     });
 
-    // You can also add other UI logic here, like auto-scrolling
-    // to the bottom of the message box when a new message arrives.
-    // This is already being handled by `addChatMessage` in some implementations.
+    // scroll-down helper whenever addChatMessage runs
     messagesBox.scrollTop = messagesBox.scrollHeight;
 }
 
 function destroyMenuChatElements() {
     const box = document.getElementById("chat-box");
     if (box) box.remove();
-    // detach listener
-    // This now uses menuChatRef, which is globally defined
     if (menuChatRef && chatListener) {
         menuChatRef.off("child_added", chatListener);
         chatListener = null;
@@ -1735,29 +1725,22 @@ function destroyMenuChatElements() {
 }
 
 function initMenuChat() {
-    // 2) The chatRef is already initialized as a global variable
-    menuChatRef = dbRefs.chatRef;
-
-    // 3) create DOM
+    // 1) Build the DOM
     createMenuChatElements();
 
-    // 4) wire up your helper code
-    initChatUI(); // This is the function that now sets up the 'Enter' key listener
-    
-    // The onChildAdded listener is attached directly to the global menuChatRef
+    // 2) Wire up Enter-key send
+    initChatUI();
+
+    // 3) Listen for incoming messages
     chatListener = menuChatRef.on('child_added', snapshot => {
         const { username, text } = snapshot.val();
         addChatMessage(username, text, snapshot.key);
-        // Scroll to the bottom when a new message is added
         const messagesBox = document.getElementById("chat-messages");
-        if (messagesBox) {
-            messagesBox.scrollTop = messagesBox.scrollHeight;
-        }
+        messagesBox.scrollTop = messagesBox.scrollHeight;
     });
 }
 
 export function sendChatMessage(username, text) {
-    // Ensure the global menuChatRef is available before pushing
     if (!menuChatRef) {
         return console.warn("Chat not initialized yet");
     }
@@ -1772,7 +1755,6 @@ export function chatButtonHit() {
         destroyMenuChatElements();
         menu();
     });
-
     initMenuChat();
 }
 
