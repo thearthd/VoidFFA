@@ -86,10 +86,6 @@ export function createGameUI(gameWrapper) {
     const killFeed = document.createElement('kill-feed');
     hud.appendChild(killFeed);
 
-    // --- Append Chat Box to HUD ---
-    const chatBox = document.createElement('chat-box');
-    hud.appendChild(chatBox);
-
 
     // --- Append Scoreboard to HUD ---
     const scoreboard = document.createElement('div');
