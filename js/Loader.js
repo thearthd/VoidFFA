@@ -33,7 +33,7 @@ export class Loader {
   }
 
   show(label = 'Starting', itemPercentages = []) {
-    loadBG.style.display = 'flex';
+    loadBG.style.display = 'block';
     this.reset();
     this.currentLabel = label;
     this.itemPercentages = itemPercentages;
