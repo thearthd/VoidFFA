@@ -19,22 +19,28 @@ const resetKeybindsBtn = document.getElementById("reset-keybinds-btn"); // Reset
 let blockAllExceptChat = null;
 
 function createBlocker() {
-  // we capture on the way *down*, before any other listener
   blockAllExceptChat = function(e) {
-    const allowed = new Set([
-      currentKeybinds.toggleChat,     // Backquote for focusing/unfocusing
-      currentKeybinds.toggleChatUI,   // Chat UI show/hide
-      'Escape'                        // allow Esc to unfocus
-    ]);
-    if (allowed.has(e.code)) {
-      // let our chat handlers and blur logic run
+    // if the event is coming from inside the chat input, let it through
+    if (e.target === chatInput) {
       return;
     }
+
+    // otherwise only allow chat‐toggle keys
+    const allowed = new Set([
+      currentKeybinds.toggleChat,   // backquote to blur/unblur
+      currentKeybinds.toggleChatUI, // C to hide/show container
+      'Escape'                      // ESC to blur
+    ]);
+    if (allowed.has(e.code)) {
+      return;
+    }
+
     // block everything else
     e.stopImmediatePropagation();
     e.preventDefault();
   };
-  window.addEventListener('keydown', blockAllExceptChat, /* capture */ true);
+
+  window.addEventListener('keydown', blockAllExceptChat, true);
 }
 
 function removeBlocker() {
