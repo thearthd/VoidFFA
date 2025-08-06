@@ -1713,19 +1713,23 @@ function destroyMenuChatElements() {
 
 function initMenuChat() {
     // 2) The chatRef is already initialized as a global variable
-    // We just need to make sure dbRefs is set up correctly for this session
     dbRefs.chatRef = menuChatRef;
 
     // 3) create DOM
     createMenuChatElements();
 
     // 4) wire up your helper code
-    initChatUI();
+    initChatUI(); // This is the function that now sets up the 'Enter' key listener
     
     // The onChildAdded listener is attached directly to the global menuChatRef
     chatListener = menuChatRef.on('child_added', snapshot => {
         const { username, text } = snapshot.val();
         addChatMessage(username, text, snapshot.key);
+        // Scroll to the bottom when a new message is added
+        const messagesBox = document.getElementById("chat-messages");
+        if (messagesBox) {
+            messagesBox.scrollTop = messagesBox.scrollHeight;
+        }
     });
 }
 
