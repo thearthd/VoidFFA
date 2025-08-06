@@ -1081,7 +1081,7 @@ let playButton = createAnimatedButton(
 let settingsButton = createAnimatedButton(
     "https://codehs.com/uploads/d1dabc10cb92069825cc3905b184c617",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 - leftbuttonSpacing * 0, // Position below Games
+    25, getHeight() / 2 - leftbuttonSpacing * 1.5, // Position below Games
     1920 / 8, 1080 / 10,
     () => {
         console.log("Settings button hit");
@@ -1094,7 +1094,7 @@ let settingsButton = createAnimatedButton(
 let careerButton = createAnimatedButton(
     "https://codehs.com/uploads/eca6f39e9e72335f5f8118e7eaad8dc3",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 + leftbuttonSpacing * 0, // Position below Settings
+    25, getHeight() / 2 - leftbuttonSpacing * 0.5, // Position below Settings
     1920 / 8, 1080 / 10,
     () => {
         console.log("Career button hit");
@@ -1107,7 +1107,7 @@ let careerButton = createAnimatedButton(
 let loadoutButton = createAnimatedButton(
     "https://codehs.com/uploads/8afd7d32fa74078c305bb952e4d7659b",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 + leftbuttonSpacing * 1, // Position below Career
+    25, getHeight() / 2 + leftbuttonSpacing * 0.5, // Position below Career
     1920 / 8, 1080 / 10,
     () => {
         console.log("Loadout button hit");
@@ -1119,7 +1119,7 @@ let loadoutButton = createAnimatedButton(
 let chatButton = createAnimatedButton(
     "https://codehs.com/uploads/755a17d7ba978d6bbe369953990c8e85",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 + leftbuttonSpacing * 2, // Position below Career
+    25, getHeight() / 2 + leftbuttonSpacing * 1.5, // Position below Career
     1920 / 8, 1080 / 10,
     () => {
         console.log("Chat button hit");
@@ -1131,7 +1131,7 @@ let chatButton = createAnimatedButton(
 let feedbackButton = createAnimatedButton(
     "https://codehs.com/uploads/7aadd2b35084d4d5d7dc63d16c1df045",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 + leftbuttonSpacing * 3, // Position below Career
+    25, getHeight() / 2 + leftbuttonSpacing * 2.5, // Position below Career
     1920 / 8, 1080 / 10,
     () => {
         console.log("Chat button hit");
