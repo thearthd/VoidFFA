@@ -25,7 +25,6 @@ export function isChatting() {
 
 chatInput.addEventListener('focus', () => {
     chatting = true;
-    removeGameEventListeners();
     if (document.pointerLockElement === elementToLock) {
         document.exitPointerLock();
     }
@@ -36,7 +35,6 @@ chatInput.addEventListener('blur', () => {
     if (!inputState.isPaused && document.pointerLockElement !== elementToLock) {
         elementToLock.requestPointerLock();
     }
-    addGameEventListeners();
 });
 
 export const inputState = {
