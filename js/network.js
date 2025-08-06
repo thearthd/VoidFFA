@@ -615,7 +615,7 @@ function setupPlayersListener(playersRef) {
     playersRef.off("child_added");
     playersRef.off("child_changed");
     playersRef.off("child_removed");
-    
+
     playersListener = playersRef.on("value", (fullSnap) => {
         const allIds = [];
         fullSnap.forEach(s => allIds.push(s.key));
@@ -626,20 +626,8 @@ function setupPlayersListener(playersRef) {
 
     playersRef.on("child_added", (snap) => {
         const data = snap.val();
-        const id   = snap.key;
+        const id = data.id;
         console.log(`[playersRef:child_added] Event for player ID: ${id}`);
-
-        // —– USERNAME COLLISION CHECK —–
-        // If someone else (different id) joins with your username, reload
-        if (id !== localPlayerId && data.username === window.localUsername) {
-            console.warn(
-              `Username collision: another player (${id}) joined as "${data.username}". Reloading…`
-            );
-            // remove stored ID so initNetwork generates a fresh one
-            localStorage.removeItem(`playerId-${activeGameSlotName}`);
-            location.reload();
-            return;
-        }
 
         if (id === localPlayerId) {
             console.log(`[playersRef:child_added] Skipping local player ${id}.`);
@@ -669,7 +657,7 @@ function setupPlayersListener(playersRef) {
 
     playersRef.on("child_changed", (snap) => {
         const data = snap.val();
-        const id   = data.id;
+        const id = data.id;
 
         if (permanentlyRemoved.has(id)) {
             removeRemotePlayerModel(id); // Ensure we don't update models of removed players
