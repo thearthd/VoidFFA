@@ -45,7 +45,7 @@ const PRIMARIES = [
     headDamage: 60,
     magSize: 35,
     difficulty: 'Easy',
-    description: 'Spray em'
+    description: 'Spray em.'
   }
 ];
 
