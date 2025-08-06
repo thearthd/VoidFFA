@@ -1647,6 +1647,8 @@ function playButtonHit() {
     addBackButton(menu); // Add back button to this screen
 }
 
+const database = getDatabase(menuApp); // Assuming menuApp is your Firebase app instance
+const dbRefs = {};
 let chatListener = null;
 
 function createMenuChatElements() {
@@ -1654,31 +1656,31 @@ function createMenuChatElements() {
     const box = document.createElement("div");
     box.id = "chat-box";
     Object.assign(box.style, {
-      position: "fixed",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      width: "80vw",
-      maxWidth: "400px",
-      background: "rgba(0,0,0,0.6)",
-      border: "1px solid #444",
-      borderRadius: "6px",
-      zIndex: "9999",
-      display: "flex",
-      flexDirection: "column",
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: "80vw",
+        maxWidth: "400px",
+        background: "rgba(0,0,0,0.6)",
+        border: "1px solid #444",
+        borderRadius: "6px",
+        zIndex: "9999",
+        display: "flex",
+        flexDirection: "column",
     });
 
     // messages
     const messages = document.createElement("div");
     messages.id = "chat-messages";
     Object.assign(messages.style, {
-      flex: "1 1 auto",
-      padding: "8px",
-      overflowY: "auto",
-      color: "#fff",
-      fontSize: "0.85rem",
-      whiteSpace: "pre-wrap",
-      wordWrap: "break-word",
+        flex: "1 1 auto",
+        padding: "8px",
+        overflowY: "auto",
+        color: "#fff",
+        fontSize: "0.85rem",
+        whiteSpace: "pre-wrap",
+        wordWrap: "break-word",
     });
 
     // input
@@ -1686,13 +1688,13 @@ function createMenuChatElements() {
     input.id = "chat-input";
     input.placeholder = "Type a message…";
     Object.assign(input.style, {
-      flex: "0 0 auto",
-      border: "none",
-      padding: "6px",
-      fontSize: "0.9rem",
-      outline: "none",
-      background: "rgba(20,20,20,0.8)",
-      color: "#fff",
+        flex: "0 0 auto",
+        border: "none",
+        padding: "6px",
+        fontSize: "0.9rem",
+        outline: "none",
+        background: "rgba(20,20,20,0.8)",
+        color: "#fff",
     });
 
     box.append(messages, input);
@@ -1703,42 +1705,47 @@ function destroyMenuChatElements() {
     const box = document.getElementById("chat-box");
     if (box) box.remove();
     // detach listener
-    if (chatRef && chatListener) {
-        chatRef.off("child_added", chatListener);
+    if (dbRefs.chatRef && chatListener) {
+        off(dbRefs.chatRef, 'child_added', chatListener); // Use the `off` function to detach the listener
         chatListener = null;
     }
 }
 
 function initMenuChat() {
     // 2) point at /menuChat
-const rootRef = menuApp.database().ref();
-     
-dbRefs = { chatRef: rootRef.child("chat") };
+    dbRefs.chatRef = ref(database, "chat");
 
     // 3) create DOM
     createMenuChatElements();
 
     // 4) wire up your helper code
-    initChatUI();                             // sets up Enter key + sendChatMessage
-    chatListener = onChildAdded(chatRef, snap => {
-      const { username, text } = snap.val();
-      addChatMessage(username, text, snap.key);
+    // The onChildAdded listener returns an unsubscribe function. We store it in `chatListener`.
+    chatListener = onChildAdded(dbRefs.chatRef, (snapshot) => {
+        const { username, text } = snapshot.val();
+        addChatMessage(username, text, snapshot.key);
     });
+
+    // The provided `initChatUI` and `addChatMessage` functions are assumed to be defined elsewhere.
+    initChatUI();
 }
 
 export function sendChatMessage(username, text) {
-    if (!chatRef) return console.warn("Chat not initialized yet");
-    push(chatRef, { username, text, timestamp: Date.now() })
-      .catch(err => console.error("Failed to send chat:", err));
+    if (!dbRefs.chatRef) {
+        return console.warn("Chat not initialized yet");
+    }
+
+    // `push` is a modular function and is already imported at the top.
+    push(dbRefs.chatRef, { username, text, timestamp: Date.now() })
+        .catch(err => console.error("Failed to send chat:", err));
 }
 
 export function chatButtonHit() {
     clearMenuCanvas();
     add(logo);
     addBackButton(() => {
-      destroyMenuChatElements();
-      // then go back to your main menu logic…
-      menu();
+        destroyMenuChatElements();
+        // then go back to your main menu logic…
+        menu();
     });
 
     // finally, pop in the chat UI:
