@@ -1709,11 +1709,6 @@ function destroyMenuChatElements() {
 }
 
 function initMenuChat() {
-    // 1) init Firebase (only once)
-    if (!firebaseApp) {
-        firebaseApp = initializeApp(menuConfig);
-        database = getDatabase(firebaseApp);
-    }
     // 2) point at /menuChat
     chatRef = dbRef(database, "menuChat");
 
