@@ -1405,7 +1405,7 @@ function togglePauseMenuUI(shouldPause) {
 }
 
 // Global variable to track if the game is "in-game" and therefore eligible for pausing.
-let checkInGame = false;
+export let checkInGame = false;
 
 // Expose togglePauseMenuUI globally if it needs to be called from input.js or other modules
 window.togglePauseMenuUI = togglePauseMenuUI; // This makes it accessible from input.js
