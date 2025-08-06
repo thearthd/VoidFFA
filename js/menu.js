@@ -2203,11 +2203,8 @@ export function initMenuUI() {
     const menuOverlay = document.getElementById("menu-overlay");
     const usernamePrompt = document.getElementById("username-prompt");
     const mapSelect = document.getElementById("map-menu");
-    const controlsMenu = document.getElementById("menu-controls-menu"); // Corrected ID
+    const controlsMenu = document.getElementById("menu-controls-menu");
 
-
-    // These elements are assumed to be part of the HTML structure,
-    // distinct from the canvas-drawn buttons.
     const htmlPlayButton = document.getElementById("play-button");
     const htmlSettingsButton = document.getElementById("settings-button");
     const htmlCareerButton = document.getElementById("career-button");
@@ -2216,69 +2213,68 @@ export function initMenuUI() {
     const usernameInput = document.getElementById("username-input");
 
     const toggleDetailsBtn = document.getElementById("toggle-details-btn");
+    const mapButtons = document.querySelectorAll(".map-btn");
 
-    const mapButtons = document.querySelectorAll(".map-btn"); // HTML map selection buttons
-
-    username = localStorage.getItem("username") || ""; // Ensure username is updated for HTML side
-    let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
-
-    /**
-     * Helper function to show a specific panel and hide others.
-     * @param {HTMLElement|null} panelToShow - The panel element to display, or null to hide all.
-     */
-    function showPanel(panelToShow) {
-        // Hide all potential panels first
-        [usernamePrompt, mapSelect, controlsMenu].forEach(panel => {
-            if (panel) panel.classList.add("hidden");
-        });
-        // Show the desired panel
-        if (panelToShow) {
-            panelToShow.classList.remove("hidden");
-            // Ensure display is set to flex for panels that use it for centering
-            panelToShow.style.display = 'flex';
+    // --- Authentication State Listener ---
+    onAuthStateChanged(auth, async (user) => {
+        firebaseUser = user;
+        if (user) {
+            console.log("Firebase user authenticated:", user.uid);
+            await initializeMenuDisplay();
+        } else {
+            console.log("No Firebase user found, signing in anonymously...");
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Anonymous sign-in failed:", error);
+                Swal.fire('Error', 'Could not connect to the game server. Please try again later.', 'error');
+            }
         }
-    }
+    });
 
     // --- Initial Menu State Setup ---
-  async function initializeMenuDisplay() {
-    // re-load in case anything changed
-    username = localStorage.getItem("username") || "";
-
-    // If we have a username locally, check it against the DB
-    if (username && username.trim().length > 0) {
-      const key = username.toLowerCase();
-      try {
-        const snap = await usersRef.child(key).once('value');
-        if (!snap.exists()) {
-          // not in DB → clear localStorage and force prompt
-          console.warn(`Username "${username}" not found in DB; reprompting.`);
-          localStorage.removeItem("username");
-          username = "";
+    async function initializeMenuDisplay() {
+        if (!firebaseUser) {
+            console.warn("User not authenticated yet. Waiting for Firebase auth state.");
+            return;
         }
-      } catch (err) {
-        console.error("Error checking username in DB:", err);
-        // (optional) treat as “not found” or allow offline play
-        localStorage.removeItem("username");
-        username = "";
-      }
-    }
+        
+        username = localStorage.getItem("username") || "";
+        let usernameExistsInDB = false;
 
-    // After DB-check, decide which panel to show
-    if (username && username.trim().length > 0) {
-      showPanel(null);              // hide HTML panels
-      menu();                       // show canvas menu
-      document.getElementById("game-logo").classList.add("hidden");
-      menuOverlay.style.display = 'none';
-      canvas.style.display = 'block';
-    } else {
-      showPanel(usernamePrompt);    // force the username prompt
-      canvas.style.display = 'none';
-      document.getElementById("game-logo").classList.remove("hidden");
+        if (username && username.trim().length > 0) {
+            try {
+                const userRef = ref(db, `users/${firebaseUser.uid}`);
+                const snap = await get(userRef);
+
+                if (snap.exists() && snap.val().username === username) {
+                    usernameExistsInDB = true;
+                } else {
+                    console.warn(`Local username "${username}" does not match DB or is not found; reprompting.`);
+                    localStorage.removeItem("username");
+                    username = "";
+                }
+            } catch (err) {
+                console.error("Error checking username in DB:", err);
+                localStorage.removeItem("username");
+                username = "";
+            }
+        }
+
+        if (username && usernameExistsInDB) {
+            showPanel(null);
+            menu();
+            document.getElementById("game-logo").classList.add("hidden");
+            menuOverlay.style.display = 'none';
+            canvas.style.display = 'block';
+        } else {
+            showPanel(usernamePrompt);
+            canvas.style.display = 'none';
+            document.getElementById("game-logo").classList.remove("hidden");
+        }
     }
-  }
 
     // --- Event Listeners for Main Menu Buttons (HTML-based) ---
-    // These HTML buttons are distinct from the canvas buttons.
     if (htmlPlayButton) {
         htmlPlayButton.addEventListener("click", () => {
             console.log("HTML Play button clicked (showing map selection)");
@@ -2303,75 +2299,78 @@ export function initMenuUI() {
         usernameInput.value = username;
     }
 
-if (saveUsernameBtn) {
-  saveUsernameBtn.addEventListener("click", async () => {
-    const raw = usernameInput.value.trim();
-    const val = raw; // already trimmed
-    const alphaNumRegex = /^[A-Za-z0-9_]+$/;
+    if (saveUsernameBtn) {
+        saveUsernameBtn.addEventListener("click", async () => {
+            if (!firebaseUser) {
+                Swal.fire('Error', 'Not authenticated. Please refresh and try again.', 'error');
+                return;
+            }
 
-    // 1) Basic format validation
-    if (!alphaNumRegex.test(val)) {
-      return Swal.fire(
-        'Invalid Username',
-        'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_), with no spaces or other symbols.',
-        'error'
-      );
+            const raw = usernameInput.value.trim();
+            const val = raw;
+            const alphaNumRegex = /^[A-Za-z0-9_]+$/;
+
+            if (!alphaNumRegex.test(val)) {
+                return Swal.fire(
+                    'Invalid Username',
+                    'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_), with no spaces or other symbols.',
+                    'error'
+                );
+            }
+
+            const key = val.toLowerCase();
+
+            // 1) Uniqueness check using the lookup table
+            try {
+                const uniqueCheckRef = ref(db, `usernames_lookup/${key}`);
+                const snap = await get(uniqueCheckRef);
+
+                if (snap.exists()) {
+                    return Swal.fire(
+                        'Name Taken',
+                        `“${val}” is already in use. Please choose another.`,
+                        'warning'
+                    );
+                }
+            } catch (err) {
+                console.error("Error checking existing usernames:", err);
+                return Swal.fire(
+                    'Error',
+                    'Could not verify username uniqueness. Please try again in a moment.',
+                    'error'
+                );
+            }
+
+            // 2) Save locally and to the database
+            try {
+                localStorage.setItem("username", val);
+                username = val;
+                // Assuming playerCard is a global object or imported
+                playerCard.setText(username);
+
+                const userRef = ref(db, `users/${firebaseUser.uid}`);
+                await set(userRef, {
+                    username: val,
+                    savedAt: serverTimestamp()
+                });
+
+                const usernameLookupRef = ref(db, `usernames_lookup/${key}`);
+                await set(usernameLookupRef, firebaseUser.uid);
+
+                showPanel(null);
+                canvas.style.display = 'block';
+                menu();
+                document.getElementById("game-logo").classList.add("hidden");
+                if (menuOverlay) {
+                    menuOverlay.style.display = 'none';
+                }
+
+            } catch (err) {
+                console.error("Error saving username to DB:", err);
+                Swal.fire('Error', 'Failed to save username. Please try again.', 'error');
+            }
+        });
     }
-
-    // Normalize to lowercase for the DB key so that "Jar" and "jar" collide
-    const key = val.toLowerCase();
-
-    // 2) Uniqueness check by directly looking at usersRef/<key>
-    try {
-      const userNode = usersRef.child(key);
-      const snap     = await userNode.once('value');
-
-      if (snap.exists()) {
-        return Swal.fire(
-          'Name Taken',
-          `“${val}” is already in use. Please choose another.`,
-          'warning'
-        );
-      }
-    } catch (err) {
-      console.error("Error checking existing usernames:", err);
-      return Swal.fire(
-        'Error',
-        'Could not verify username uniqueness. Please try again in a moment.',
-        'error'
-      );
-    }
-
-    // 3) Save locally
-    localStorage.setItem("username", val);
-    username = val;
-    playerCard.setText(username);
-
-    // 4) Write to menu DB under the username key
-    //    this will create /users/<lowercase-username> instead of a push-id
-    usersRef
-      .child(key)
-      .set({
-        username: val,
-        savedAt:  firebase.database.ServerValue.TIMESTAMP
-      })
-      .catch(err => {
-        console.error("Error saving username to DB:", err);
-        // you could show another Swal here if you want
-      });
-
-    // 5) Hide prompt and show game
-    showPanel(null);
-    canvas.style.display = 'block';
-    menu();
-    document.getElementById("game-logo").classList.add("hidden");
-    const menuOverlayElement = document.getElementById('menu-overlay');
-    if (menuOverlayElement) {
-      menuOverlayElement.style.display = 'none';
-    }
-  });
-}
-
 
     // --- Details Toggle Logic ---
     if (toggleDetailsBtn) {
@@ -2385,7 +2384,6 @@ if (saveUsernameBtn) {
                 ? "Details: On"
                 : "Details: Off";
 
-            // Directly call toggleSceneDetails from game.js
             toggleSceneDetails(currentDetailsEnabled);
         });
     }
@@ -2393,9 +2391,9 @@ if (saveUsernameBtn) {
     // --- Map Selection Logic (for HTML buttons) ---
     mapButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
-            username = localStorage.getItem("username");
-            if (!username) {
-                showPanel(usernamePrompt); // Prompt for username if not set
+            const currentUsername = localStorage.getItem("username");
+            if (!currentUsername) {
+                showPanel(usernamePrompt);
                 Swal.fire('Warning', 'Please enter your username before starting a game!', 'warning');
                 return;
             }
@@ -2403,35 +2401,30 @@ if (saveUsernameBtn) {
             const mapName = btn.dataset.map;
             localStorage.setItem("detailsEnabled", currentDetailsEnabled.toString());
 
-            console.log(`Player clicked HTML map button for map: ${mapName}, Username: ${username}, Details Enabled: ${currentDetailsEnabled}`);
+            console.log(`Player clicked HTML map button for map: ${mapName}, Username: ${currentUsername}, Details Enabled: ${currentDetailsEnabled}`);
 
-            // Hide the menu overlay to reveal the game
             if (menuOverlay) {
                 menuOverlay.classList.add("hidden");
             }
-            // Hide the canvas if the HTML menu is taking over
             if (canvas) {
                 canvas.style.display = 'none';
             }
 
-            // Initialize game UI and start the game
             const gameWrapper = document.getElementById('game-container');
             if (gameWrapper) {
                 let ffaEnabled = true;
                 menuSong.pause();
-                gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
-                createGameUI(gameWrapper); // Create game UI elements
-               // initNetwork(username, mapName); // Initialize network for multiplayer
-              //  startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true", ffaEnabled); // Start the game
-
+                gameWrapper.style.display = 'block';
+                createGameUI(gameWrapper);
+                // The following functions should be defined elsewhere
+                // initNetwork(currentUsername, mapName);
+                // startGame(currentUsername, mapName, localStorage.getItem("detailsEnabled") === "true", ffaEnabled);
                 console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
             } else {
                 console.error("game-container element not found in index.html! Make sure your game elements are present.");
             }
         });
     });
-
-    initializeMenuDisplay(); // Set initial display state for menu panels
 }
 
 // --- Main execution logic ---
