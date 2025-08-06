@@ -1152,6 +1152,8 @@ fireBullet(spreadAngle) {
       if (damageToApply != baseDamage) {
           realPenetrate = true;
       }
+
+      console.log(realPenetrate);
       
       window.applyDamageToRemote?.(
         mesh.userData.playerId,
@@ -1224,6 +1226,8 @@ checkMeleeHit(collidables) {
       const targetPos = new THREE.Vector3();
       targetGroup.getWorldPosition(targetPos);
 
+      console.log(realPenetrate);
+      
       if (playerPos.distanceTo(targetPos) <= meleeRange) {
       window.applyDamageToRemote?.(
         mesh.userData.playerId,
