@@ -1,3 +1,4 @@
+
 import { bannedWords } from './bannedWords.js';
 
 export function isMessageClean(text) {
@@ -27,5 +28,15 @@ export function isMessageClean(text) {
     // Check banned list
     const containsBanned = bannedWords.some(word => leetNormalized.includes(word));
 
-    return !(containsBanned || containsBadAss);
+    if (containsBanned || containsBadAss) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Message Blocked',
+            text: 'Your message was blocked by the autofilter. Please review your message for inappropriate content.',
+            confirmButtonText: 'OK'
+        });
+        return false;
+    }
+
+    return true;
 }
