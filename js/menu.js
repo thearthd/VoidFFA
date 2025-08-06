@@ -1647,8 +1647,7 @@ function playButtonHit() {
     addBackButton(menu); // Add back button to this screen
 }
 
-const database = getDatabase(menuApp); // Assuming menuApp is your Firebase app instance
-const dbRefs = {};
+
 let chatListener = null;
 
 function createMenuChatElements() {
@@ -1701,31 +1700,19 @@ function createMenuChatElements() {
     document.body.append(box);
 }
 
-function destroyMenuChatElements() {
-    const box = document.getElementById("chat-box");
-    if (box) box.remove();
-    // detach listener
-    if (dbRefs.chatRef && chatListener) {
-        off(dbRefs.chatRef, 'child_added', chatListener); // Use the `off` function to detach the listener
-        chatListener = null;
-    }
-}
-
 function initMenuChat() {
     // 2) point at /menuChat
-    dbRefs.chatRef = ref(database, "chat");
+    dbRefs.chatRef = firebase.database().ref("chat");
 
     // 3) create DOM
     createMenuChatElements();
 
     // 4) wire up your helper code
-    // The onChildAdded listener returns an unsubscribe function. We store it in `chatListener`.
-    chatListener = onChildAdded(dbRefs.chatRef, (snapshot) => {
+    dbRefs.chatRef.on('child_added', snapshot => {
         const { username, text } = snapshot.val();
         addChatMessage(username, text, snapshot.key);
     });
 
-    // The provided `initChatUI` and `addChatMessage` functions are assumed to be defined elsewhere.
     initChatUI();
 }
 
@@ -1733,9 +1720,7 @@ export function sendChatMessage(username, text) {
     if (!dbRefs.chatRef) {
         return console.warn("Chat not initialized yet");
     }
-
-    // `push` is a modular function and is already imported at the top.
-    push(dbRefs.chatRef, { username, text, timestamp: Date.now() })
+    dbRefs.chatRef.push({ username, text, timestamp: Date.now() })
         .catch(err => console.error("Failed to send chat:", err));
 }
 
@@ -1744,14 +1729,21 @@ export function chatButtonHit() {
     add(logo);
     addBackButton(() => {
         destroyMenuChatElements();
-        // then go back to your main menu logic…
         menu();
     });
 
-    // finally, pop in the chat UI:
     initMenuChat();
 }
 
+function destroyMenuChatElements() {
+    const box = document.getElementById("chat-box");
+    if (box) box.remove();
+    // detach listener
+    if (dbRefs.chatRef) {
+        dbRefs.chatRef.off("child_added");
+        chatListener = null;
+    }
+}
 
 function feedbackButtonHit() {
     clearMenuCanvas(); // Clear all current canvas objects
