@@ -16,23 +16,55 @@ const keybindsContainer = document.getElementById("keybinds-container"); // Cont
 const resetKeybindsBtn = document.getElementById("reset-keybinds-btn"); // Reset button
 
 
+let blockAllExceptChat = null;
+
+function createBlocker() {
+  // we capture on the way *down*, before any other listener
+  blockAllExceptChat = function(e) {
+    const allowed = new Set([
+      currentKeybinds.toggleChat,     // Backquote for focusing/unfocusing
+      currentKeybinds.toggleChatUI,   // Chat UI show/hide
+      'Escape'                        // allow Esc to unfocus
+    ]);
+    if (allowed.has(e.code)) {
+      // let our chat handlers and blur logic run
+      return;
+    }
+    // block everything else
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  };
+  window.addEventListener('keydown', blockAllExceptChat, /* capture */ true);
+}
+
+function removeBlocker() {
+  if (blockAllExceptChat) {
+    window.removeEventListener('keydown', blockAllExceptChat, true);
+    blockAllExceptChat = null;
+  }
+}
+
+// …then down in your existing focus/blur hooks…
+
 chatInput.addEventListener('focus', () => {
     // 1) remove all of your game key/mouse handlers
     removeGameEventListeners();
-    // 2) if you’re currently pointer‐locked, exit it so mouse is free
+    // 2) exit pointer lock if needed
     if (document.pointerLockElement === elementToLock) {
         document.exitPointerLock();
     }
+    // 3) block *every* other keydown listener except chat toggles
+    createBlocker();
 });
 
-// Re-enable game inputs when chat is closed/blurs:
 chatInput.addEventListener('blur', () => {
-    // Only re-add if game isn’t paused or in a death‐pause
+    // 1) remove our global blocker so other key handlers come back
+    removeBlocker();
+    // 2) if game isn’t paused and not pointer-locked, re-lock
     if (!inputState.isPaused && document.pointerLockElement !== elementToLock) {
-        // 1) request pointer lock again
         elementToLock.requestPointerLock();
     }
-    // 2) re-attach all your game handlers
+    // 3) re-attach all your game handlers
     addGameEventListeners();
 });
 
