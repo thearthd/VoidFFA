@@ -1,4 +1,4 @@
-    const loadBG = document.getElementById('loading-menu');
+
 
 export class Loader {
   constructor() {
@@ -49,7 +49,6 @@ export class Loader {
   }
 
   _animateProgress() {
-    loadBG.style.display = 'flex';
     // interpolate displayedPct toward targetPct
     this.displayedPct += (this.targetPct - this.displayedPct) * this.animationSpeed;
     this.displayedPct = Math.max(0, Math.min(100, this.displayedPct));
@@ -130,7 +129,6 @@ export class Loader {
 
   onComplete(fn) {
     if (typeof fn === 'function') {
-      loadBG.style.display = 'none';
       this._onComplete = fn;
     } else {
       console.warn('Loader.onComplete expects a function');
