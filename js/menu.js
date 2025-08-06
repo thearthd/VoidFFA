@@ -1652,8 +1652,8 @@ let chatListener = null;
 
 function createMenuChatElements() {
   hud.style.display = 'flex'; // This line seems to be affecting the 'hud' element
-  hud.style.top = '50%';
-  hud.style.left = '50%';
+  hud.style.top = '40%';
+  hud.style.left = '40%';
 }
 
 let chatCooldown = false;
