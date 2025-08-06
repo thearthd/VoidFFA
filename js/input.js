@@ -1,13 +1,16 @@
 
 import { updateInventory } from "./ui.js";
+import { checkInGame } from "./menu.js";
 
 const originalRequestPointerLock = Element.prototype.requestPointerLock;
 
+/*
 Element.prototype.requestPointerLock = function() {
     console.warn('!!! Suspicious requestPointerLock called on element:', this);
     console.trace('!!! Full call stack for requestPointerLock:');
     return originalRequestPointerLock.apply(this, arguments);
 };
+*/
 
 const chatInput = document.getElementById("chat-input");
 const chatContainer = document.getElementById("chat-box");
@@ -25,6 +28,9 @@ export function isChatting() {
 
 chatInput.addEventListener('focus', () => {
     chatting = true;
+    if(!checkInGame) {
+        return;
+    }
     if (document.pointerLockElement === elementToLock) {
         document.exitPointerLock();
     }
@@ -32,6 +38,9 @@ chatInput.addEventListener('focus', () => {
 
 chatInput.addEventListener('blur', () => {
     chatting = false;
+    if(!checkInGame) {
+        return;
+    }
     if (!inputState.isPaused && document.pointerLockElement !== elementToLock) {
         elementToLock.requestPointerLock();
     }
