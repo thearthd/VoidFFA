@@ -1634,7 +1634,26 @@ async function initAndStartGame(username, mapName, gameId = null) {
  * Function called when the "Play" button (canvas-drawn) is clicked.
  * Clears the current menu and displays the canvas-based map selection options.
  */
-function _0x1170(_0x2b3749,_0x5673ba){var _0x2620e5=_0x2620();return _0x1170=function(_0x117041,_0x4b6cde){_0x117041=_0x117041-0x128;var _0xce9c5=_0x2620e5[_0x117041];return _0xce9c5;},_0x1170(_0x2b3749,_0x5673ba);}function _0x2620(){var _0x51dc47=['1382754ChOIpc','push','1377552AbbGzW','image','2zjjQTd','164610GcuTaE','357184XVfchd','564129aISsDY','text','7lUGhiE','hitbox','onClick','944592gNtqkq','2406555uZhGPe'];_0x2620=function(){return _0x51dc47;};return _0x2620();}(function(_0x2eedbe,_0x4c925b){var _0x1173b7=_0x1170,_0x46d64b=_0x2eedbe();while(!![]){try{var _0x3a6448=parseInt(_0x1173b7(0x135))/0x1+parseInt(_0x1173b7(0x132))/0x2*(-parseInt(_0x1173b7(0x130))/0x3)+parseInt(_0x1173b7(0x12c))/0x4+parseInt(_0x1173b7(0x133))/0x5+-parseInt(_0x1173b7(0x12e))/0x6*(-parseInt(_0x1173b7(0x129))/0x7)+-parseInt(_0x1173b7(0x134))/0x8+-parseInt(_0x1173b7(0x12d))/0x9;if(_0x3a6448===_0x4c925b)break;else _0x46d64b['push'](_0x46d64b['shift']());}catch(_0x11407c){_0x46d64b['push'](_0x46d64b['shift']());}}}(_0x2620,0x4764f));function playButtonHit(){var _0x3b03cc=_0x1170;clearMenuCanvas(),add(logo),add(playerCard[_0x3b03cc(0x131)]),add(playerCard[_0x3b03cc(0x128)]),makeButton(playerCard[_0x3b03cc(0x12a)],playerCard[_0x3b03cc(0x12a)][_0x3b03cc(0x12b)]),add(gamesButton['image']),makeButton(gamesButton[_0x3b03cc(0x12a)],gamesButton[_0x3b03cc(0x12a)][_0x3b03cc(0x12b)]),add(createGameBtn[_0x3b03cc(0x131)]),add(createGameBtn[_0x3b03cc(0x128)]),makeButton(createGameBtn['hitbox'],createGameBtn[_0x3b03cc(0x12a)][_0x3b03cc(0x12b)]),currentMenuObjects[_0x3b03cc(0x12f)](createGameBtn[_0x3b03cc(0x131)],createGameBtn[_0x3b03cc(0x128)],createGameBtn[_0x3b03cc(0x12a)]),addBackButton(menu);}
+function playButtonHit() {
+    clearMenuCanvas(); // Clear all current canvas objects
+
+    add(logo);
+
+     add(playerCard.image);
+     add(playerCard.text);
+    makeButton(playerCard.hitbox, playerCard.hitbox.onClick);
+
+    add(gamesButton.image);
+    // add(gamesButton.text); // REMOVED TEXT
+    makeButton(gamesButton.hitbox, gamesButton.hitbox.onClick);
+    // Add the "Create Game" button
+    add(createGameBtn.image);
+    add(createGameBtn.text);
+    makeButton(createGameBtn.hitbox, createGameBtn.hitbox.onClick);
+    currentMenuObjects.push(createGameBtn.image, createGameBtn.text, createGameBtn.hitbox);
+
+    addBackButton(menu); // Add back button to this screen
+}
 
 
 let chatListener = null;
