@@ -3,6 +3,9 @@ import { initInventory, } from "./ui.js";
 const DEFAULT_PRIMARY   = 'ak-47';
 const DEFAULT_SECONDARY = 'm79';
 
+const loadoutScreen = document.getElementById('loadout-screen');
+const infoPanel     = document.getElementById('weapon-info');
+
 const PRIMARIES = [
   {
     key: 'ak-47',
@@ -165,22 +168,30 @@ const fields = {
 };
 
 function showWeaponInfo(e) {
-  const btn = e.currentTarget;
-  fields.name.textContent = btn.dataset.name;
-  fields.body.textContent = btn.dataset.body;
-  fields.head.textContent = btn.dataset.head;
-  fields.mag.textContent  = btn.dataset.mag;
-  fields.diff.textContent = btn.dataset.diff;
+  // 1) populate text
+  fields.name.textContent = e.currentTarget.dataset.name;
+  fields.body.textContent = e.currentTarget.dataset.body;
+  fields.head.textContent = e.currentTarget.dataset.head;
+  fields.mag.textContent  = e.currentTarget.dataset.mag;
+  fields.diff.textContent = e.currentTarget.dataset.diff;
 
-  infoPanel.classList.remove('hidden');
+  // 2) compute mouse pos relative to loadout-screen
+  const rect = loadoutScreen.getBoundingClientRect();
+  // offsetX, offsetY inside the screen:
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  // 3) place panel so its bottom-left corner is at (x,y)
+  infoPanel.style.left = `${x}px`;
+  infoPanel.style.top  = `${y}px`;
+
+  // 4) show it
   infoPanel.classList.add('visible');
 }
 
 function hideWeaponInfo() {
   infoPanel.classList.remove('visible');
-  infoPanel.classList.add('hidden');
 }
-
 // simple show/hide helpers
 export function showLoadoutScreen() {
   document.getElementById('loadout-screen').style.display = 'block';
