@@ -1659,10 +1659,11 @@ function createMenuChatElements() {
   box.style.left = '50%';
 }
 
+let chatCooldown = false;
+
 function initChatUI() {
     const input = document.getElementById("chat-input");
     const messagesBox = document.getElementById("chat-messages");
-         let chatCooldown = false;
      
     input.addEventListener("keyup", event => {
         if (event.key === "Enter" && !chatCooldown) {
