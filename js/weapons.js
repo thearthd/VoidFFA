@@ -16,6 +16,7 @@ import { Loader } from './Loader.js';
 
 // ffff
 
+let realPenetrate = false;
 
 const scopeOverlay = document.getElementById('scopeOverlay');
 
@@ -1110,7 +1111,7 @@ this._prevWishAim = wishAim;
       if (worldPenetrationCount > maxWorldPenetrations) break;
       currentOrigin.copy(closestHit.point).add(direction.clone().multiplyScalar(0.01));
     }
-
+   
     return {
       playerHitResult,
       allWorldHits,
@@ -1147,7 +1148,6 @@ fireBullet(spreadAngle) {
       // halve damage on penetration
       const damageToApply   = baseDamage * (traj.isPenetrationShot ? 0.5 : 1.0);
 
-      let realPenetrate = false;
       
       if (damageToApply != baseDamage) {
           realPenetrate = true;
@@ -1233,7 +1233,7 @@ checkMeleeHit(collidables) {
           username: window.localPlayer?.username ?? "Unknown",
           weapon: this.currentKey,
           isHeadshot: isHead,
-          isPenetrationShot: traj.isPenetrationShot
+          isPenetrationShot: realPenetrate
         }
       );
         return;
