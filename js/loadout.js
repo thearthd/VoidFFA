@@ -123,9 +123,9 @@ function populateWeaponGrid(containerId, list, slotType) {
     btn.addEventListener('mousemove', e => {
       const rect = loadoutScreen.getBoundingClientRect();
       const x = e.clientX;
-      const y = e.clientY - rect/2;
+      const y = e.clientY;
       infoPanel.style.left = `${x}px`;
-      infoPanel.style.top  = `${y}px`;
+      infoPanel.style.top  = `${y+80}px`;
     });
 
     // 3) hide on hover leave
