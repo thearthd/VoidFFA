@@ -15,7 +15,7 @@ const PRIMARIES = [
     headDamage: 30,
     magSize: 25,
     difficulty: 'Medium',
-    desc: 'The default AR.'
+    description: 'The default AR.'
   },
   {
     key: 'deagle',
@@ -25,7 +25,7 @@ const PRIMARIES = [
     headDamage: 180,
     magSize: 8,
     difficulty: 'Hard',
-    desc: 'Only for good aim days'
+    description: 'Only for good aim days'
   },
   {
     key: 'marshal',
@@ -35,7 +35,7 @@ const PRIMARIES = [
     headDamage: 250,
     magSize: 5,
     difficulty: 'Hard',
-    desc: 'Slow paced, secondary based.'
+    description: 'Slow paced, secondary based.'
   },
   {
     key: 'viper',
@@ -45,7 +45,7 @@ const PRIMARIES = [
     headDamage: 60,
     magSize: 35,
     difficulty: 'Easy',
-    desc: 'Spray em'
+    description: 'Spray em'
   }
 ];
 
@@ -58,7 +58,7 @@ const SECONDARIES = [
     headDamage: 20,
     magSize: 1,
     difficulty: 'Easy',
-    desc: 'The default pistol'
+    description: 'The default pistol'
   },
   {
     key: 'legion',
@@ -68,7 +68,7 @@ const SECONDARIES = [
     headDamage: 105,
     magSize: 2,
     difficulty: 'Hard',
-    desc: 'High risk, high reward.'
+    description: 'High risk, high reward.'
   }
 ];
 
