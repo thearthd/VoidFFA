@@ -17,23 +17,26 @@ const keybindsContainer = document.getElementById("keybinds-container"); // Cont
 const resetKeybindsBtn = document.getElementById("reset-keybinds-btn"); // Reset button
 
 
+inputState.isChatting = false;
+
+// export a helper
+export function isChatting() {
+  return inputState.isChatting;
+}
+
 chatInput.addEventListener('focus', () => {
-    // 1) remove all of your game key/mouse handlers
+    inputState.isChatting = true;        // ← NEW
     removeGameEventListeners();
-    // 2) if you’re currently pointer‐locked, exit it so mouse is free
     if (document.pointerLockElement === elementToLock) {
         document.exitPointerLock();
     }
 });
 
-// Re-enable game inputs when chat is closed/blurs:
 chatInput.addEventListener('blur', () => {
-    // Only re-add if game isn’t paused or in a death‐pause
+    inputState.isChatting = false;       // ← NEW
     if (!inputState.isPaused && document.pointerLockElement !== elementToLock) {
-        // 1) request pointer lock again
         elementToLock.requestPointerLock();
     }
-    // 2) re-attach all your game handlers
     addGameEventListeners();
 });
 
