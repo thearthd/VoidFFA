@@ -1662,14 +1662,17 @@ function createMenuChatElements() {
 function initChatUI() {
     const input = document.getElementById("chat-input");
     const messagesBox = document.getElementById("chat-messages");
-
+         let chatCooldown = false;
+     
     input.addEventListener("keyup", event => {
-        if (event.key === "Enter") {
+        if (event.key === "Enter" && !chatCooldown) {
             const text = input.value.trim();
             if (!text) return;
             const username = localStorage.getItem("username") || "Guest";
             sendChatMessage(username, text);
             input.value = "";
+             chatCooldown = true;
+            setTimeout(() => (chatCooldown = false), 2000);
         }
     });
 
