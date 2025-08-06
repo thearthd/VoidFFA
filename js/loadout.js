@@ -11,36 +11,36 @@ const PRIMARIES = [
     key: 'ak-47',
     img: 'https://codehs.com/uploads/7aab0473bfe25a8df97fee546120aa5d',
     name: 'AK-47',
-    bodyDamage: 30,
-    headDamage: 90,
-    magSize: 30,
+    bodyDamage: 100,
+    headDamage: 30,
+    magSize: 25,
     difficulty: 'Medium'
   },
   {
     key: 'deagle',
     img: 'https://codehs.com/uploads/3a742a06b29233afdce01154d0c2247d',
-    name: 'Desert Eagle',
-    bodyDamage: 50,
-    headDamage: 150,
-    magSize: 7,
+    name: 'Deagle',
+    bodyDamage: 86,
+    headDamage: 180,
+    magSize: 8,
     difficulty: 'Hard'
   },
   {
     key: 'marshal',
     img: 'https://codehs.com/uploads/231ea31e130955d00410d9b3d5f3a3b5',
     name: 'Marshal',
-    bodyDamage: 80,
-    headDamage: 200,
+    bodyDamage: 100,
+    headDamage: 250,
     magSize: 5,
     difficulty: 'Hard'
   },
   {
     key: 'viper',
     img: 'https://codehs.com/uploads/5a61c6c1dbc2c08d392b11d27c97930e',
-    name: 'Viper SMG',
-    bodyDamage: 25,
-    headDamage: 75,
-    magSize: 40,
+    name: 'Viper',
+    bodyDamage: 20,
+    headDamage: 60,
+    magSize: 35,
     difficulty: 'Easy'
   }
 ];
@@ -49,20 +49,20 @@ const SECONDARIES = [
   {
     key: 'm79',
     img: 'https://codehs.com/uploads/967700dec4457f4bf0461e723d74550d',
-    name: 'M79 Grenade Launcher',
-    bodyDamage: 120,
-    headDamage: 120,
+    name: 'M79',
+    bodyDamage: 54,
+    headDamage: 20,
     magSize: 1,
-    difficulty: 'Hard'
+    difficulty: 'Easy'
   },
   {
     key: 'legion',
     img: 'https://codehs.com/uploads/04cfb2d131578fa21a385c03c4d701cf',
-    name: 'Legion Pistol',
-    bodyDamage: 35,
+    name: 'Legion',
+    bodyDamage: 64,
     headDamage: 105,
-    magSize: 16,
-    difficulty: 'Medium'
+    magSize: 2,
+    difficulty: 'Hard'
   }
 ];
 
