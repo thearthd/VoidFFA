@@ -1652,12 +1652,17 @@ let chatListener = null;
 
 function createMenuChatElements() {
   const box = document.createElement("chat-box");
-  hud.style.display = 'flex';
+  const hud = document.getElementById("hud"); // Assuming hud is an existing element
+
+  hud.style.display = 'flex'; // This line seems to be affecting the 'hud' element
   box.style.display = 'flex';
   box.style.zIndex = '500';
-  box.style.position = 'absolute'; // Add this line
+  box.style.position = 'absolute'; // Use 'absolute' if you want it relative to the 'hud' element
   box.style.top = '50%';
   box.style.left = '50%';
+  box.style.transform = 'translate(-50%, -50%)'; // Add this line for perfect centering
+
+  hud.appendChild(box); // Add this line to append the new element to the 'hud'
 }
 
 function initChatUI() {
