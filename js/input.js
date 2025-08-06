@@ -83,6 +83,7 @@ const defaultKeybinds = {
     'toggleChat': 'Backquote', // Tilde key
     'toggleChatUI': 'KeyC', // Toggle chat container visibility
     'togglePause': 'KeyP', // Added 'KeyP' for pause
+    'toggleLeaderboard': 'KeyT',
 };
 
 // Current active keybinds, initialized from localStorage or defaults
