@@ -1066,7 +1066,7 @@ let username = localStorage.getItem("username") || '';
 
 
 let playButton = createAnimatedButton(
-    "https://codehs.com/uploads/990902d0fe3f334a496c84d9d2b6f00a",
+    "https://codehs.com/uploads/5fee046b97d777d8c8021ad84cb6de20",
     1920 / 6, 1080 / 6, // Original width and height
     25 - 15, getHeight() / 2 - leftbuttonSpacing * 2, // Adjusted position
     1920 / 6 - 25, 1080 / 8, // Hitbox dimensions (slightly smaller than image)
@@ -1079,7 +1079,7 @@ let playButton = createAnimatedButton(
 // playButton.setText("Play"); // REMOVED TEXT
 
 let settingsButton = createAnimatedButton(
-    "https://codehs.com/uploads/b3e2a8dfe6107e2af96ce74f9799b0f8",
+    "https://codehs.com/uploads/d1dabc10cb92069825cc3905b184c617",
     1920 / 8, 1080 / 8,
     25, getHeight() / 2 - leftbuttonSpacing * 0.5, // Position below Games
     1920 / 8, 1080 / 10,
@@ -1092,7 +1092,7 @@ let settingsButton = createAnimatedButton(
 // settingsButton.setText("Settings"); // REMOVED TEXT
 
 let careerButton = createAnimatedButton(
-    "https://codehs.com/uploads/afd818ac19ff0bbd919c766a1625071e",
+    "https://codehs.com/uploads/eca6f39e9e72335f5f8118e7eaad8dc3",
     1920 / 8, 1080 / 8,
     25, getHeight() / 2 + leftbuttonSpacing * 0.5, // Position below Settings
     1920 / 8, 1080 / 10,
@@ -1105,7 +1105,7 @@ let careerButton = createAnimatedButton(
 // careerButton.setText("Career"); // REMOVED TEXT
 
 let loadoutButton = createAnimatedButton(
-    "https://codehs.com/uploads/765a0c87dc6d5d571ff25f139003227f",
+    "https://codehs.com/uploads/9089e904683574f2bede64b9beb984f1",
     1920 / 8, 1080 / 8,
     25, getHeight() / 2 + leftbuttonSpacing * 1.5, // Position below Career
     1920 / 8, 1080 / 10,
@@ -1118,7 +1118,7 @@ let loadoutButton = createAnimatedButton(
 
 // Main Create Game Button (will be on the map selection screen)
 let createGameBtn = createAnimatedButton(
-    "https://codehs.com/uploads/31eb8424a7b74d1266c4e1e210845583", // Example image
+    "https://codehs.com/uploads/66bc381a88433f3e4534a7e320539856", // Example image
     1920 / 6, 1080 / 6, // Original width and height
     getWidth() / 3 - 50, getHeight() - 250, // Position it below map options
     1920 / 6 - 25, 1080 / 8, // Hitbox dimensions
@@ -1130,7 +1130,7 @@ let createGameBtn = createAnimatedButton(
 );
 
 let gamesButton = createAnimatedButton(
-    "https://codehs.com/uploads/2fe6d45e0875e166cfe5f0e5343fc3b5", // Provided games button image
+    "https://codehs.com/uploads/4786a0bebeb982d5d9692099047e8c49", // Provided games button image
     1920 / 6, 1080 / 6,
     getWidth() / 2 + 50, getHeight() - 250, // Position below Play
     1920 / 6 - 25, 1080 / 8,
@@ -1886,7 +1886,7 @@ export async function gamesButtonHit() {
  */
 function addBackButton(destination, func) {
     let backButton = createAndAddButton(
-        "https://codehs.com/uploads/4bcd4b492845bb3587c71c211d29903d", // Left arrow image
+        "https://codehs.com/uploads/5c5306facf6c0ecf2e1e4b4d12a1e17d", // Left arrow image
         1080/16, 1080/16, // Top-left corner
         1920/16, 1080/16, // Size for back button
         () => {
