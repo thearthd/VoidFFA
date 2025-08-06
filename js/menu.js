@@ -26,7 +26,7 @@ horse power
 
 const CLIENT_GAME_VERSION = "v1.00";
 
-
+let hi = 1;
 // Placeholder for external imports, adjust paths as needed
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { createGameUI, initBulletHoles } from "./ui.js";
