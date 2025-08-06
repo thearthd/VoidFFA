@@ -1652,6 +1652,10 @@ let chatListener = null;
 
 function createMenuChatElements() {
     const box = document.createElement("chat-box");
+     box.style.display = 'flex';
+     box.style.zIndex = '500';
+     box.style.top = '50%';
+     box.style.left = '50%';
 }
 
 function initChatUI() {
