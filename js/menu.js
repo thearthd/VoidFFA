@@ -57,7 +57,7 @@ export const preload = src => {
 
 let dbRefs = {};
 let dontyetpls = 0;
-  const box = document.createElement("chat-box");
+  const chatBox = document.createElement("chat-box");
 // Get the canvas element and its 2D rendering context
 const canvas = document.getElementById('menuCanvas');
 const ctx = canvas.getContext('2d');
@@ -1652,11 +1652,11 @@ let chatListener = null;
 
 function createMenuChatElements() {
   hud.style.display = 'flex'; // This line seems to be affecting the 'hud' element
-  box.style.display = 'flex';
-  box.style.zIndex = '500';
-  box.style.position = 'absolute'; // Use 'absolute' if you want it relative to the 'hud' element
-  box.style.top = '500px';
-  box.style.left = '50%';
+  chatBox.style.display = 'flex';
+  chatBox.style.zIndex = '500';
+  chatBox.style.position = 'absolute'; // Use 'absolute' if you want it relative to the 'hud' element
+  chatBox.style.top = '50%';
+  chatBox.style.left = '50%';
 }
 
 let chatCooldown = false;
@@ -1682,10 +1682,10 @@ function initChatUI() {
 }
 
 function destroyMenuChatElements() {
-     box.style.display = 'none';
+     chatBox.style.display = 'none';
      hud.style.display = 'none';
-     box.style.top = '20px';
-     box.style.left = '20px';
+     chatBox.style.top = '20px';
+     chatBox.style.left = '20px';
      
     if (menuChatRef && chatListener) {
         menuChatRef.off("child_added", chatListener);
