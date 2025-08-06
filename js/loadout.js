@@ -25,7 +25,7 @@ const PRIMARIES = [
     headDamage: 180,
     magSize: 8,
     difficulty: 'Hard',
-    description: 'Only for good aim days'
+    description: 'God aim days only.'
   },
   {
     key: 'marshal',
@@ -58,7 +58,7 @@ const SECONDARIES = [
     headDamage: 20,
     magSize: 1,
     difficulty: 'Easy',
-    description: 'The default pistol'
+    description: 'The default pistol.'
   },
   {
     key: 'legion',
