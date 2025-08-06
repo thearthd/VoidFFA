@@ -17,15 +17,14 @@ const keybindsContainer = document.getElementById("keybinds-container"); // Cont
 const resetKeybindsBtn = document.getElementById("reset-keybinds-btn"); // Reset button
 
 
-inputState.isChatting = false;
+let chatting = false; // true when chat input is focused
 
-// export a helper
 export function isChatting() {
-  return inputState.isChatting;
+    return chatting;
 }
 
 chatInput.addEventListener('focus', () => {
-    inputState.isChatting = true;        // ← NEW
+    chatting = true;
     removeGameEventListeners();
     if (document.pointerLockElement === elementToLock) {
         document.exitPointerLock();
@@ -33,13 +32,12 @@ chatInput.addEventListener('focus', () => {
 });
 
 chatInput.addEventListener('blur', () => {
-    inputState.isChatting = false;       // ← NEW
+    chatting = false;
     if (!inputState.isPaused && document.pointerLockElement !== elementToLock) {
         elementToLock.requestPointerLock();
     }
     addGameEventListeners();
 });
-
 
 export const inputState = {
     forward: false,
