@@ -1652,10 +1652,16 @@ function playButtonHit() {
 
 let chatListener = null;
 
+function centerChatBox() {
+    const rect = chatBox.getBoundingClientRect();
+    chatBox.style.position = 'absolute';
+    chatBox.style.top = `calc(50% - ${rect.height / 2}px)`;
+    chatBox.style.left = `calc(50% - ${rect.width / 2}px)`;
+}
+
 function createMenuChatElements() {
-  chatBox.style.display = 'flex'; // This line seems to be affecting the 'hud' element
-  chatBox.style.top = '50%';
-  chatBox.style.left = '50%';
+    chatBox.style.display = 'flex';
+    centerChatBox(); // center when first created
 }
 
 let chatCooldown = false;
@@ -1708,8 +1714,12 @@ function initMenuChat() {
     chatListener = menuChatRef.on('child_added', snapshot => {
         const { username, text } = snapshot.val();
         addChatMessage(username, text, snapshot.key);
+        
         const messagesBox = document.getElementById("chat-messages");
         messagesBox.scrollTop = messagesBox.scrollHeight;
+
+        // recenter after new message changes size
+        centerChatBox();
     });
 }
 
