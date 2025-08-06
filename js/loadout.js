@@ -11,8 +11,8 @@ const PRIMARIES = [
     key: 'ak-47',
     img: 'https://codehs.com/uploads/7aab0473bfe25a8df97fee546120aa5d',
     name: 'AK-47',
-    bodyDamage: 100,
-    headDamage: 30,
+    bodyDamage: 30,
+    headDamage: 100,
     magSize: 25,
     difficulty: 'Medium',
     description: 'The default AR.'
@@ -56,7 +56,7 @@ const SECONDARIES = [
     name: 'M79',
     bodyDamage: 54,
     headDamage: 20,
-    magSize: 1,
+    magSize: 12,
     difficulty: 'Easy',
     description: 'The default pistol.'
   },
