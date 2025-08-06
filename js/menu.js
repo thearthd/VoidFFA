@@ -1131,7 +1131,7 @@ let chatButton = createAnimatedButton(
 let feedbackButton = createAnimatedButton(
     "https://codehs.com/uploads/7aadd2b35084d4d5d7dc63d16c1df045",
     1920 / 8, 1080 / 8,
-    25, getHeight() / 2 + leftbuttonSpacing * 2, // Position below Career
+    25, getHeight() / 2 + leftbuttonSpacing * 2.5, // Position below Career
     1920 / 8, 1080 / 10,
     () => {
         console.log("Chat button hit");
