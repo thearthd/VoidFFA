@@ -1899,16 +1899,14 @@ tbody.appendChild(row);
 // 5) Toggle with T, ignoring repeats
 
 
-    window.addEventListener("keydown", e => {
-      // don’t toggle while typing in chat
-      if (document.activeElement === chatInput) return;
-    
-      // this checks the _current_ binding, whatever the user set it to
-      if (e.code === currentKeybinds.toggleLeaderboard && !e.repeat) {
-        overlay.style.display = overlay.style.display === "none" ? "block" : "none";
-        e.preventDefault();
-      }
-    });
+window.addEventListener("keydown", e => {
+  if (isChatting()) return;    // ← if they’re typing, do nothing
+
+  if (e.code === currentKeybinds.toggleLeaderboard && !e.repeat) {
+    overlay.style.display = overlay.style.display === "none" ? "block" : "none";
+    e.preventDefault();
+  }
+});
 }
 
 
@@ -2772,6 +2770,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
