@@ -2556,9 +2556,11 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
     username: killerName,
     weapon,
     isHeadshot = false,
-    isPenetrationShot = false
+    isPenetrationShot = null
   } = killerInfo || {};
 
+
+    
   // 2) Remember last damage source for local‐player UI
   if (targetId === window.localPlayer.id) {
     const killerEntry = killerId != null && window.remotePlayers[killerId];
@@ -2766,6 +2768,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
