@@ -54,8 +54,8 @@ const SECONDARIES = [
     key: 'm79',
     img: 'https://codehs.com/uploads/967700dec4457f4bf0461e723d74550d',
     name: 'M79',
-    bodyDamage: 54,
-    headDamage: 20,
+    bodyDamage: 20,
+    headDamage: 54,
     magSize: 12,
     difficulty: 'Easy',
     description: 'The default pistol.'
