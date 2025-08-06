@@ -1652,11 +1652,8 @@ let chatListener = null;
 
 function createMenuChatElements() {
   hud.style.display = 'flex'; // This line seems to be affecting the 'hud' element
-  chatBox.style.display = 'flex';
-  chatBox.style.zIndex = '500';
-  chatBox.style.position = 'absolute'; // Use 'absolute' if you want it relative to the 'hud' element
-  chatBox.style.top = '50%';
-  chatBox.style.left = '50%';
+  hud.style.top = '50%';
+  hud.style.left = '50%';
 }
 
 let chatCooldown = false;
@@ -1682,10 +1679,9 @@ function initChatUI() {
 }
 
 function destroyMenuChatElements() {
-     chatBox.style.display = 'none';
      hud.style.display = 'none';
-     chatBox.style.top = '20px';
-     chatBox.style.left = '20px';
+  hud.style.top = '';
+  hud.style.left = '';
      
     if (menuChatRef && chatListener) {
         menuChatRef.off("child_added", chatListener);
