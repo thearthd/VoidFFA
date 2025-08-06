@@ -128,7 +128,7 @@ function populateWeaponGrid(containerId, list, slotType) {
     const panelHeight = infoPanel.getBoundingClientRect().height;
 
     // Calculate the new 'top' position to center the panel vertically on the cursor
-    const newTop = y - (panelHeight / 2);
+    const newTop = y - (panelHeight);
       
       infoPanel.style.left = `${x}px`;
     infoPanel.style.top  = `${newTop}px`;
