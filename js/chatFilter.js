@@ -1,37 +1,41 @@
 import { bannedWords } from './bannedWords.js';
 
+// Pre-process the banned words list for faster and more flexible pattern matching.
+const processedBannedWords = bannedWords.map(word => createCanonicalForm(word));
+
+function createCanonicalForm(word) {
+  // Normalize and remove diacritics
+  const normalized = word.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // Leetspeak and visual replacements
+  // 'ph' -> 'f', 'ck' -> 'k', 'ss' -> 's', etc.
+  let canonical = normalized
+    .replace(/ph/g, 'f')
+    .replace(/ck/g, 'k')
+    .replace(/ss/g, 's')
+    .replace(/z/g, 's') // 'z' often replaces 's'
+    .replace(/x/g, 'ks');
+
+  // Remove common filler characters and duplicate letters
+  canonical = canonical.replace(/[^a-z]/g, '');
+  canonical = canonical.replace(/(.)\1+/g, '$1'); // e.g., 'hello' -> 'helo'
+
+  return canonical;
+}
+
 export function isMessageClean(text) {
-  // Normalize the input text: lowercase, remove diacritics, and replace numbers/symbols with their letter equivalents.
-  const normalized = text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  const containsBadAss = /\b(dumbass|jackass|smartass|lazyass|asshole)\b/i.test(text);
 
-  // Leetspeak replacements
-  const leetMap = {
-    "1": "i",
-    "3": "e",
-    "4": "a",
-    "@": "a",
-    "0": "o",
-    "$": "s",
-    "5": "s",
-    "7": "t"
-  };
+  // Check the canonical form of the input text against the processed banned words.
+  const canonicalText = createCanonicalForm(text);
 
-  // Replace leet speak and remove all non-alphanumeric characters, including spaces.
-  let cleanedText = normalized.replace(/[013457@$]/g, c => leetMap[c] || c);
-  cleanedText = cleanedText.replace(/[^a-z]/g, "");
-
-  // Specific check for 'ass' as a standalone word (e.g., in 'dumbass').
-  // The word is only flagged if it's part of a known derogatory compound word.
-  // We need to re-evaluate the original text to maintain word boundaries.
-  const containsBadAss = text.toLowerCase().match(/\b(dumbass|jackass|smartass|lazyass|asshole)\b/);
-
-  // Check for banned words in the fully cleaned text.
-  const containsBanned = bannedWords.some(word => cleanedText.includes(word));
+  // Check for banned words in the canonical form
+  const containsBanned = processedBannedWords.some(bannedWord => canonicalText.includes(bannedWord));
 
   if (containsBanned || containsBadAss) {
+    // Swal.fire is not available in a backend context. 
+    // You should separate the UI logic from the core function.
+    // For now, let's assume this is client-side code and Swal.fire is available.
     Swal.fire({
       icon: 'error',
       title: 'Message Blocked',
