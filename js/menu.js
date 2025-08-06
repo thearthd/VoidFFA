@@ -1711,7 +1711,9 @@ function destroyMenuChatElements() {
 
 function initMenuChat() {
     // 2) point at /menuChat
-    chatRef = dbRef(database, "menuChat");
+const rootRef = menuApp.database().ref();
+     
+dbRefs = { chatRef: rootRef.child("chat") };
 
     // 3) create DOM
     createMenuChatElements();
