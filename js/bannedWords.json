@@ -1,4 +1,5 @@
-[
+export const bannedWords = [
+    // Core swears
     "fuck", "fuk", "f*ck", "f.u.c.k",
     "shit", "sh1t", "sh!t",
     "bitch", "biatch", "b!tch", "b1tch",
@@ -10,9 +11,12 @@
     "cock", "c0ck",
     "whore", "hoe", "h0e",
     "slut", "slutt", "slvtt",
+
+    // Slurs + variations
     "nigger", "nigga", "n1gger", "n1gga", "ni99er", "ni99a",
     "faggot", "fag", "fa99ot", "f@ggot", "f@g",
-    "tranny", "retard", "r3tard", "spic", "sp1c",
+    "tranny", "retard", "r3tard",
+    "spic", "sp1c",
     "kike", "chink", "gook", "wetback", "coon", "beaner", "cracker", "honky",
     "raghead", "sandnigger", "porchmonkey"
-]
+];
