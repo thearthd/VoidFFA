@@ -23,7 +23,7 @@ horse power
 // If `gamesRef` is not automatically global, uncomment and use this (requires Firebase SDK loaded):
 // const gamesRef = firebase.app("menuApp").database().ref("games");
 
-import { initChatUI, addChatMessage } from "./ui.js";   // wherever you keep your chat helpers
+import { addChatMessage } from "./ui.js";   // wherever you keep your chat helpers
 const CLIENT_GAME_VERSION = "v1.00";
 // Placeholder for external imports, adjust paths as needed
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
@@ -1698,6 +1698,29 @@ function createMenuChatElements() {
 
     box.append(messages, input);
     document.body.append(box);
+}
+
+function initChatUI() {
+    const input = document.getElementById("chat-input");
+    const messagesBox = document.getElementById("chat-messages");
+
+    // Add event listener for the 'Enter' key
+    input.addEventListener("keyup", function(event) {
+        // Check if the key pressed is 'Enter' (key code 13 or key property 'Enter')
+        if (event.key === "Enter") {
+            const text = input.value.trim();
+            if (text) {
+                const username = localStorage.getItem("username") || "Guest";
+                sendChatMessage(username, text);
+                input.value = ""; // Clear the input field after sending
+            }
+        }
+    });
+
+    // You can also add other UI logic here, like auto-scrolling
+    // to the bottom of the message box when a new message arrives.
+    // This is already being handled by `addChatMessage` in some implementations.
+    messagesBox.scrollTop = messagesBox.scrollHeight;
 }
 
 function destroyMenuChatElements() {
