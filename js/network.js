@@ -10,6 +10,8 @@ import {
     gameDatabaseConfigs
 } from "./firebase-config.js";
 
+import { isMessageClean } from './chatFilter.js';
+
 // Re-importing existing functions from game.js and ui.js
 // Ensure these paths are correct relative to network.js
 import {
@@ -196,13 +198,18 @@ export function sendTracer(tracerData) {
 }
 
 export function sendChatMessage(username, text) {
+    if (!isMessageClean(text)) {
+        console.warn("Message blocked due to profanity/slurs");
+        return;
+    }
+
     if (dbRefs.chatRef) { // Check for chatRef from the current game slot
-        dbRefs.chatRef.push({ username, text, timestamp: Date.now() }).catch((err) => console.error("Failed to send chat message:", err));
+        dbRefs.chatRef.push({ username, text, timestamp: Date.now() })
+            .catch((err) => console.error("Failed to send chat message:", err));
     } else {
         console.warn("Attempted to send chat message before network initialized.");
     }
 }
-
 export function sendBulletHole(pos) {
     if (dbRefs.mapStateRef) { // Check for mapStateRef from the current game slot
         dbRefs.mapStateRef.child("bullets").push({
