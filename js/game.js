@@ -2549,14 +2549,14 @@ function incrementUserStat(username, field, amount) {
     .catch(err => console.warn(`[Stats] ${username}.${field} update failed:`, err));
 }
 
-function applyDamageToRemote(targetId, damage, killerInfo, isPenetrated) {
+function applyDamageToRemote(targetId, damage, killerInfo) {
   // 1) Destructure killer info, with safe defaults
   const {
     id: killerId,
     username: killerName,
     weapon,
     isHeadshot = false,
-    isPenetrationShot = isPenetrated
+    isPenetrationShot = false
   } = killerInfo || {};
 
   // 2) Remember last damage source for local‐player UI
