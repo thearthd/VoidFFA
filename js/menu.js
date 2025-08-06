@@ -23,14 +23,14 @@ horse power
 // If `gamesRef` is not automatically global, uncomment and use this (requires Firebase SDK loaded):
 // const gamesRef = firebase.app("menuApp").database().ref("games");
 
-
+import { initChatUI, addChatMessage } from "./ui.js";   // wherever you keep your chat helpers
 const CLIENT_GAME_VERSION = "v1.00";
 // Placeholder for external imports, adjust paths as needed
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
 import { initNetwork, setActiveGameId } from "./network.js";
-import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, requiredGameVersion, assignPlayerVersion, } from './firebase-config.js';
+import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, requiredGameVersion, assignPlayerVersion, menuChatRef, } from './firebase-config.js';
 import { setPauseState, inputState, currentKeybinds } from "./input.js";
 import {  showLoadoutScreen, hideLoadoutScreen } from "./loadout.js";
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
@@ -1646,13 +1646,105 @@ function playButtonHit() {
     addBackButton(menu); // Add back button to this screen
 }
 
+let chatListener = null;
 
-function chatButtonHit() {
-    clearMenuCanvas(); // Clear all current canvas objects
+function createMenuChatElements() {
+    // container
+    const box = document.createElement("div");
+    box.id = "chat-box";
+    Object.assign(box.style, {
+      position: "fixed",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "80vw",
+      maxWidth: "400px",
+      background: "rgba(0,0,0,0.6)",
+      border: "1px solid #444",
+      borderRadius: "6px",
+      zIndex: "9999",
+      display: "flex",
+      flexDirection: "column",
+    });
 
+    // messages
+    const messages = document.createElement("div");
+    messages.id = "chat-messages";
+    Object.assign(messages.style, {
+      flex: "1 1 auto",
+      padding: "8px",
+      overflowY: "auto",
+      color: "#fff",
+      fontSize: "0.85rem",
+      whiteSpace: "pre-wrap",
+      wordWrap: "break-word",
+    });
+
+    // input
+    const input = document.createElement("input");
+    input.id = "chat-input";
+    input.placeholder = "Type a message…";
+    Object.assign(input.style, {
+      flex: "0 0 auto",
+      border: "none",
+      padding: "6px",
+      fontSize: "0.9rem",
+      outline: "none",
+      background: "rgba(20,20,20,0.8)",
+      color: "#fff",
+    });
+
+    box.append(messages, input);
+    document.body.append(box);
+}
+
+function destroyMenuChatElements() {
+    const box = document.getElementById("chat-box");
+    if (box) box.remove();
+    // detach listener
+    if (chatRef && chatListener) {
+        chatRef.off("child_added", chatListener);
+        chatListener = null;
+    }
+}
+
+function initMenuChat() {
+    // 1) init Firebase (only once)
+    if (!firebaseApp) {
+        firebaseApp = initializeApp(menuConfig);
+        database = getDatabase(firebaseApp);
+    }
+    // 2) point at /menuChat
+    chatRef = dbRef(database, "menuChat");
+
+    // 3) create DOM
+    createMenuChatElements();
+
+    // 4) wire up your helper code
+    initChatUI();                             // sets up Enter key + sendChatMessage
+    chatListener = onChildAdded(chatRef, snap => {
+      const { username, text } = snap.val();
+      addChatMessage(username, text, snap.key);
+    });
+}
+
+export function sendChatMessage(username, text) {
+    if (!chatRef) return console.warn("Chat not initialized yet");
+    push(chatRef, { username, text, timestamp: Date.now() })
+      .catch(err => console.error("Failed to send chat:", err));
+}
+
+export function chatButtonHit() {
+    clearMenuCanvas();
     add(logo);
+    addBackButton(() => {
+      destroyMenuChatElements();
+      // then go back to your main menu logic…
+      menu();
+    });
 
-    addBackButton(menu); // Add back button to this screen
+    // finally, pop in the chat UI:
+    initMenuChat();
 }
 
 
