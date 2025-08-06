@@ -1736,7 +1736,7 @@ function destroyMenuChatElements() {
 
 function initMenuChat() {
     // 2) The chatRef is already initialized as a global variable
-    dbRefs.chatRef = menuChatRef;
+    menuChatRef = dbRefs.chatRef;
 
     // 3) create DOM
     createMenuChatElements();
