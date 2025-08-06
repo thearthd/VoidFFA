@@ -1653,15 +1653,13 @@ let chatListener = null;
 function createMenuChatElements() {
   hud.style.display = 'flex';
   hud.style.position = 'absolute';
-
-  const chatBox = document.createElement("chat-box");
   document.body.appendChild(chatBox); // so it has dimensions
 
   const width = chatBox.offsetWidth;
   const height = chatBox.offsetHeight;
 
-  hud.style.left = `calc(50% - ${width / 2}px)`;
-  hud.style.top = `calc(50% - ${height / 2}px)`;
+  hud.style.left = `calc(50% + ${width / 2}px)`;
+  hud.style.top = `calc(50% + ${height / 2}px)`;
 }
 
 let chatCooldown = false;
