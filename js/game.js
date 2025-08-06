@@ -2559,7 +2559,7 @@ function applyDamageToRemote(targetId, damage, killerInfo) {
     isPenetrationShot = null
   } = killerInfo || {};
 
-
+console.log(isPenetrationShot);
     
   // 2) Remember last damage source for local‐player UI
   if (targetId === window.localPlayer.id) {
@@ -2768,6 +2768,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
