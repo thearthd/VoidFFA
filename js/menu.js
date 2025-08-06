@@ -1076,7 +1076,7 @@ let playButton = createAnimatedButton(
          playButtonClick();
     }
 );
-// playButton.setText("Play"); // REMOVED TEXT
+// playButton.setText("Play"); // REMOVED TEXTf
 
 let settingsButton = createAnimatedButton(
     "https://codehs.com/uploads/d1dabc10cb92069825cc3905b184c617",
