@@ -2199,6 +2199,8 @@ add(loadoutMenu);
  * sensitivity settings, and the details toggle. This function primarily
  * interacts with HTML elements for the menu.
  */
+let firebaseUser = null;
+
 export function initMenuUI() {
     const menuOverlay = document.getElementById("menu-overlay");
     const usernamePrompt = document.getElementById("username-prompt");
@@ -2216,7 +2218,7 @@ export function initMenuUI() {
     const mapButtons = document.querySelectorAll(".map-btn");
 
     // --- Authentication State Listener ---
-    onAuthStateChanged(auth, async (user) => {
+    firebase.auth().onAuthStateChanged(async (user) => {
         firebaseUser = user;
         if (user) {
             console.log("Firebase user authenticated:", user.uid);
@@ -2224,7 +2226,7 @@ export function initMenuUI() {
         } else {
             console.log("No Firebase user found, signing in anonymously...");
             try {
-                await signInAnonymously(auth);
+                await firebase.auth().signInAnonymously();
             } catch (error) {
                 console.error("Anonymous sign-in failed:", error);
                 Swal.fire('Error', 'Could not connect to the game server. Please try again later.', 'error');
@@ -2238,14 +2240,14 @@ export function initMenuUI() {
             console.warn("User not authenticated yet. Waiting for Firebase auth state.");
             return;
         }
-        
+
         username = localStorage.getItem("username") || "";
         let usernameExistsInDB = false;
 
         if (username && username.trim().length > 0) {
             try {
-                const userRef = ref(db, `users/${firebaseUser.uid}`);
-                const snap = await get(userRef);
+                const userRef = firebase.database().ref(`users/${firebaseUser.uid}`);
+                const snap = await userRef.once('value');
 
                 if (snap.exists() && snap.val().username === username) {
                     usernameExistsInDB = true;
@@ -2322,8 +2324,8 @@ export function initMenuUI() {
 
             // 1) Uniqueness check using the lookup table
             try {
-                const uniqueCheckRef = ref(db, `usernames_lookup/${key}`);
-                const snap = await get(uniqueCheckRef);
+                const uniqueCheckRef = firebase.database().ref(`usernames_lookup/${key}`);
+                const snap = await uniqueCheckRef.once('value');
 
                 if (snap.exists()) {
                     return Swal.fire(
@@ -2348,14 +2350,14 @@ export function initMenuUI() {
                 // Assuming playerCard is a global object or imported
                 playerCard.setText(username);
 
-                const userRef = ref(db, `users/${firebaseUser.uid}`);
-                await set(userRef, {
+                const userRef = firebase.database().ref(`users/${firebaseUser.uid}`);
+                await userRef.set({
                     username: val,
-                    savedAt: serverTimestamp()
+                    savedAt: firebase.database.ServerValue.TIMESTAMP
                 });
 
-                const usernameLookupRef = ref(db, `usernames_lookup/${key}`);
-                await set(usernameLookupRef, firebaseUser.uid);
+                const usernameLookupRef = firebase.database().ref(`usernames_lookup/${key}`);
+                await usernameLookupRef.set(firebaseUser.uid);
 
                 showPanel(null);
                 canvas.style.display = 'block';
@@ -2416,9 +2418,6 @@ export function initMenuUI() {
                 menuSong.pause();
                 gameWrapper.style.display = 'block';
                 createGameUI(gameWrapper);
-                // The following functions should be defined elsewhere
-                // initNetwork(currentUsername, mapName);
-                // startGame(currentUsername, mapName, localStorage.getItem("detailsEnabled") === "true", ffaEnabled);
                 console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
             } else {
                 console.error("game-container element not found in index.html! Make sure your game elements are present.");
