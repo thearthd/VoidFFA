@@ -1,3 +1,5 @@
+    const loadBG = document.getElementById('loading-menu');
+
 export class Loader {
   constructor() {
     this.overlay = document.getElementById('loading-overlay');
@@ -31,6 +33,7 @@ export class Loader {
   }
 
   show(label = 'Starting', itemPercentages = []) {
+    loadBG.style.display = 'flex';
     this.reset();
     this.currentLabel = label;
     this.itemPercentages = itemPercentages;
@@ -127,6 +130,7 @@ export class Loader {
 
   onComplete(fn) {
     if (typeof fn === 'function') {
+      loadBG.style.display = 'none';
       this._onComplete = fn;
     } else {
       console.warn('Loader.onComplete expects a function');
