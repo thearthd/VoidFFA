@@ -158,7 +158,6 @@ export function updateHUD() {
   });
 }
 
-const infoPanel = document.getElementById('weapon-info');
 const fields = {
   name: document.getElementById('wi-name'),
   body: document.getElementById('wi-body'),
