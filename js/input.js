@@ -1,3 +1,4 @@
+
 import { updateInventory } from "./ui.js";
 /*
 const originalRequestPointerLock = Element.prototype.requestPointerLock;
@@ -16,61 +17,23 @@ const keybindsContainer = document.getElementById("keybinds-container"); // Cont
 const resetKeybindsBtn = document.getElementById("reset-keybinds-btn"); // Reset button
 
 
-let blockAllExceptChat = null;
-
-function createBlocker() {
-  blockAllExceptChat = function(e) {
-    // if the event is coming from inside the chat input, let it through
-    if (e.target === chatInput) {
-      return;
-    }
-
-    // otherwise only allow chat‐toggle keys
-    const allowed = new Set([
-      currentKeybinds.toggleChat,   // backquote to blur/unblur
-      currentKeybinds.toggleChatUI, // C to hide/show container
-      'Escape'                      // ESC to blur
-    ]);
-    if (allowed.has(e.code)) {
-      return;
-    }
-
-    // block everything else
-    e.stopImmediatePropagation();
-    e.preventDefault();
-  };
-
-  window.addEventListener('keydown', blockAllExceptChat, true);
-}
-
-function removeBlocker() {
-  if (blockAllExceptChat) {
-    window.removeEventListener('keydown', blockAllExceptChat, true);
-    blockAllExceptChat = null;
-  }
-}
-
-// …then down in your existing focus/blur hooks…
-
 chatInput.addEventListener('focus', () => {
     // 1) remove all of your game key/mouse handlers
     removeGameEventListeners();
-    // 2) exit pointer lock if needed
+    // 2) if you’re currently pointer‐locked, exit it so mouse is free
     if (document.pointerLockElement === elementToLock) {
         document.exitPointerLock();
     }
-    // 3) block *every* other keydown listener except chat toggles
-    createBlocker();
 });
 
+// Re-enable game inputs when chat is closed/blurs:
 chatInput.addEventListener('blur', () => {
-    // 1) remove our global blocker so other key handlers come back
-    removeBlocker();
-    // 2) if game isn’t paused and not pointer-locked, re-lock
+    // Only re-add if game isn’t paused or in a death‐pause
     if (!inputState.isPaused && document.pointerLockElement !== elementToLock) {
+        // 1) request pointer lock again
         elementToLock.requestPointerLock();
     }
-    // 3) re-attach all your game handlers
+    // 2) re-attach all your game handlers
     addGameEventListeners();
 });
 
