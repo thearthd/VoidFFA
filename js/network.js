@@ -616,6 +616,10 @@ function setupPlayersListener(playersRef) {
     playersRef.off("child_changed");
     playersRef.off("child_removed");
 
+    if (id !== localPlayerId && data.username === window.localUsername) {
+      location.reload();
+    }
+    
     playersListener = playersRef.on("value", (fullSnap) => {
         const allIds = [];
         fullSnap.forEach(s => allIds.push(s.key));
