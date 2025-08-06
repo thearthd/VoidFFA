@@ -1068,7 +1068,7 @@ let username = localStorage.getItem("username") || '';
 let playButton = createAnimatedButton(
     "https://codehs.com/uploads/5fee046b97d777d8c8021ad84cb6de20",
     1920 / 6, 1080 / 6, // Original width and height
-    25 - 15, getHeight() / 2 - leftbuttonSpacing * 2, // Adjusted position
+    25, getHeight() / 2 - leftbuttonSpacing * 2, // Adjusted position
     1920 / 6 - 25, 1080 / 8, // Hitbox dimensions (slightly smaller than image)
     () => {
         console.log("Play button hit");
@@ -1105,13 +1105,37 @@ let careerButton = createAnimatedButton(
 // careerButton.setText("Career"); // REMOVED TEXT
 
 let loadoutButton = createAnimatedButton(
-    "https://codehs.com/uploads/9089e904683574f2bede64b9beb984f1",
+    "https://codehs.com/uploads/8afd7d32fa74078c305bb952e4d7659b",
     1920 / 8, 1080 / 8,
     25, getHeight() / 2 + leftbuttonSpacing * 1.5, // Position below Career
     1920 / 8, 1080 / 10,
     () => {
         console.log("Loadout button hit");
         loadoutButtonHit(); // Call new function for loadout screen
+         playButtonClick();
+    }
+);
+
+let chatButton = createAnimatedButton(
+    "https://codehs.com/uploads/755a17d7ba978d6bbe369953990c8e85",
+    1920 / 8, 1080 / 8,
+    25, getHeight() / 2 + leftbuttonSpacing * 2, // Position below Career
+    1920 / 8, 1080 / 10,
+    () => {
+        console.log("Chat button hit");
+        chatButtonHit(); // Call new function for loadout screen
+         playButtonClick();
+    }
+);
+
+let feedbackButton = createAnimatedButton(
+    "https://codehs.com/uploads/7aadd2b35084d4d5d7dc63d16c1df045",
+    1920 / 8, 1080 / 8,
+    25, getHeight() / 2 + leftbuttonSpacing * 2, // Position below Career
+    1920 / 8, 1080 / 10,
+    () => {
+        console.log("Chat button hit");
+        feedbackButtonHit(); // Call new function for loadout screen
          playButtonClick();
     }
 );
@@ -1534,7 +1558,14 @@ menuBG.style.display = "flex";
     // add(loadoutButton.text); // REMOVED TEXT
     makeButton(loadoutButton.hitbox, loadoutButton.hitbox.onClick);
 
-    currentMenuObjects.push(playButton.image, playButton.hitbox, gamesButton.image, gamesButton.hitbox, settingsButton.image, settingsButton.hitbox, careerButton.image, careerButton.hitbox, loadoutButton.image, loadoutButton.hitbox);
+    add(chatButton.image);
+    makeButton(chatButton.hitbox, chatButton.hitbox.onClick);
+
+    add(feedbackButton.image);
+    makeButton(feedbackButton.hitbox, feedbackButton.hitbox.onClick);
+     
+    currentMenuObjects.push(playButton.image, playButton.hitbox, gamesButton.image, gamesButton.hitbox, settingsButton.image, settingsButton.hitbox, careerButton.image, careerButton.hitbox, loadoutButton.image, loadoutButton.hitbox, chatButton.hitbox, chatButton.hitbox.onClick,
+                           feedbackButton.hitbox, feedbackButton.hitbox.onClick);
 }
 
 // Helper to start game after menu hides
@@ -1616,6 +1647,26 @@ function playButtonHit() {
 
     addBackButton(menu); // Add back button to this screen
 }
+
+
+function chatButtonHit() {
+    clearMenuCanvas(); // Clear all current canvas objects
+
+    add(logo);
+
+    addBackButton(menu); // Add back button to this screen
+}
+
+
+function feedbackButtonHit() {
+    clearMenuCanvas(); // Clear all current canvas objects
+
+    add(logo);
+
+    addBackButton(menu); // Add back button to this screen
+}
+
+
 
 /**
  * Handles the "Create Game" button click.
