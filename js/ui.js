@@ -3,6 +3,7 @@
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 import { sendChatMessage } from "./network.js";
 import { AnimatedTracer } from "./weapons.js";
+import { menuChatRef, } from './firebase-config.js';
 
 
 // Global variable to hold the Firebase database references for UI operations f ff
@@ -354,6 +355,13 @@ export function addChatMessage(username, text, chatId) {
             } else {
                 console.warn("Firebase chat reference not initialized in UI for pruning. Chat message not removed from Firebase.");
             }
+            if (typeof menuChatRef !== 'undefined') {
+                menuChatRef.child(oldId)
+                    .remove()
+                    .catch(err => console.error("Failed to remove old chat message from Firebase:", err));
+            } else {
+                console.warn("menuChatRef not defined; cannot prune old chats from Firebase.");
+            }
         }
     }
 
