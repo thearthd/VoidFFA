@@ -2217,6 +2217,19 @@ export function initMenuUI() {
     const toggleDetailsBtn = document.getElementById("toggle-details-btn");
     const mapButtons = document.querySelectorAll(".map-btn");
 
+         function showPanel(panelToShow) {
+        // Hide all potential panels first
+        [usernamePrompt, mapSelect, controlsMenu].forEach(panel => {
+            if (panel) panel.classList.add("hidden");
+        });
+        // Show the desired panel
+        if (panelToShow) {
+            panelToShow.classList.remove("hidden");
+            // Ensure display is set to flex for panels that use it for centering
+            panelToShow.style.display = 'flex';
+        }
+    }
+
     // --- Authentication State Listener ---
     firebase.auth().onAuthStateChanged(async (user) => {
         firebaseUser = user;
@@ -2371,22 +2384,6 @@ export function initMenuUI() {
                 console.error("Error saving username to DB:", err);
                 Swal.fire('Error', 'Failed to save username. Please try again.', 'error');
             }
-        });
-    }
-
-    // --- Details Toggle Logic ---
-    if (toggleDetailsBtn) {
-        toggleDetailsBtn.textContent = currentDetailsEnabled ? "Details: On" : "Details: Off";
-
-        toggleDetailsBtn.addEventListener("click", () => {
-            currentDetailsEnabled = !currentDetailsEnabled;
-            localStorage.setItem("detailsEnabled", currentDetailsEnabled.toString());
-
-            toggleDetailsBtn.textContent = currentDetailsEnabled
-                ? "Details: On"
-                : "Details: Off";
-
-            toggleSceneDetails(currentDetailsEnabled);
         });
     }
 
