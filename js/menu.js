@@ -1766,15 +1766,20 @@ function feedbackButtonHit() {
  * Uses SweetAlert2 for input and pushes game data to Firebase.
  */
 export async function createGameButtonHit() {
-    username = localStorage.getItem("username");
-
-    // Assign the player's current version when they attempt to create a game
-    localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
-    await assignPlayerVersion(username, CLIENT_GAME_VERSION);
-
+    const username = localStorage.getItem("username");
     if (!username || !username.trim()) {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
+    
+    // Check if the user is authenticated before proceeding.
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        return Swal.fire('Error', 'You are not authenticated. Please refresh and try again.', 'error');
+    }
+
+    // Assign the player's version to their profile using the secure function.
+    localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
+    await assignPlayerVersion(user, CLIENT_GAME_VERSION);
 
     if (CLIENT_GAME_VERSION !== requiredGameVersion) {
         return Swal.fire(
@@ -1816,7 +1821,8 @@ export async function createGameButtonHit() {
     }
 
     try {
-        // 🔍 Check if a game with the same name already exists
+        // 🔍 Use firebase.database().ref() to check for duplicate game names
+        const gamesRef = firebase.database().ref('games');
         const snapshot = await gamesRef.orderByChild("gameName").equalTo(formValues.gameName).once("value");
         if (snapshot.exists()) {
             return Swal.fire('Error', `A game named "${formValues.gameName}" already exists. Please choose a different name.`, 'error');
@@ -1833,7 +1839,7 @@ export async function createGameButtonHit() {
         };
 
         const newGameRef = gamesRef.push();
-          await newGameRef.set(gameData);
+        await newGameRef.set(gameData);
         const gameId = newGameRef.key;
         let ffaEnabled = true;
 
@@ -1877,22 +1883,23 @@ export async function gamesButtonHit() {
     add(loadingText);
     currentMenuObjects.push(loadingText);
 
-    username = localStorage.getItem("username");
-    // Assign player's current version when they attempt to browse games
-    localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
-    if (username) {
-        await assignPlayerVersion(username, CLIENT_GAME_VERSION);
+    const username = localStorage.getItem("username");
+    const user = firebase.auth().currentUser;
+
+    if (user && username) {
+        localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
+        await assignPlayerVersion(user, CLIENT_GAME_VERSION);
     }
 
     try {
+        const gamesRef = firebase.database().ref('games');
         const snapshot = await gamesRef.once('value');
         const gamesObj = snapshot.val() || {};
 
         const activeSlots = Object.entries(gamesObj)
             .filter(([id, game]) => {
-                // Filter out games that don't match the client's version
                 return (game.status === "waiting" || game.status === "starting") &&
-                    game.gameVersion === CLIENT_GAME_VERSION; // Only show games that match player's version
+                       game.gameVersion === CLIENT_GAME_VERSION;
             })
             .map(([id, game]) => ({
                 id,
@@ -1901,12 +1908,13 @@ export async function gamesButtonHit() {
                 map: game.map,
                 createdAt: game.createdAt,
                 slot: game.slot,
-                gameVersion: game.gameVersion // Include gameVersion in the slot info
+                gameVersion: game.gameVersion
             }))
             .sort((a, b) => b.createdAt - a.createdAt);
 
         remove(loadingText);
-
+        // ... (rest of your existing gamesButtonHit function logic remains the same)
+        // ...
         if (activeSlots.length === 0) {
             let none = new Text("No active games available for your version. Create one!", "30pt Arial");
             none.setColor("#ffffff");
@@ -1930,23 +1938,19 @@ export async function gamesButtonHit() {
             const mapName = slotInfo.map;
             const y = yStart + i * entryHeight;
 
-            // Background hitbox
             let gameBg = createClickableRectangle(
                 getWidth() * 0.1,
                 y - 50,
                 getWidth() * 0.8,
                 100,
                 "rgba(50,50,50,0.7)",
-                async () => { // Made the callback async
+                async () => {
                     console.log(`Joining game ${slotInfo.gameName} on map ${mapName}`);
-                    // Version check before joining a game
-                    const playerVersion = localStorage.getItem("playerVersion"); // The client's version
+                    const playerVersion = localStorage.getItem("playerVersion");
                     if (playerVersion !== slotInfo.gameVersion) {
                         Swal.fire('Version Mismatch', `This game requires version ${slotInfo.gameVersion}, but your game is version ${playerVersion || 'N/A'}. Please update to join.`, 'error');
-                        return; // Prevent joining the game
+                        return;
                     }
-
-                    // If versions match, proceed to join
                     setActiveGameId(gameId);
                     initAndStartGame(username, mapName, gameId);
                 }
@@ -1954,14 +1958,12 @@ export async function gamesButtonHit() {
             add(gameBg);
             currentMenuObjects.push(gameBg);
 
-            // Game name
             let titleText = new Text(`${slotInfo.gameName}`, "25pt Arial");
             titleText.setColor("#55eeff");
             titleText.setPosition(getWidth() * 0.5, y);
             add(titleText);
             currentMenuObjects.push(titleText);
 
-            // Map details with version info
             let detailsText = new Text(`Map: ${slotInfo.map} (Ver: ${slotInfo.gameVersion})`, "15pt Arial");
             detailsText.setColor("#999999");
             detailsText.setPosition(getWidth() * 0.5, y + 30);
