@@ -73,7 +73,7 @@ export let usersRef = null;
 export let slotsRef = null;
 export let menuConfigRef = null;
 export let menuChatRef = null;
-export let requiredGameVersion = "v1.00";
+export let requiredGameVersion = "v1.00"; // Default version, will be updated from DB
 
 export function initializeMenuFirebase() {
     if (menuApp) return;
@@ -89,12 +89,15 @@ export function initializeMenuFirebase() {
     menuConfigRef = db.ref("menu");
     menuChatRef = db.ref("chat");
 
+    // Fetch the required game version from the database
     menuConfigRef.child("gameVersion").on("value", (snapshot) => {
         if (snapshot.exists()) {
             requiredGameVersion = snapshot.val();
             console.log("Required Game Version:", requiredGameVersion);
         } else {
             console.warn("No 'gameVersion' found in menu database. Defaulting to", requiredGameVersion);
+            // Optionally, you could set it in the DB if it doesn't exist
+            // menuConfigRef.child("gameVersion").set(requiredGameVersion);
         }
     });
 }
@@ -104,31 +107,44 @@ export let activeGameId = null;
 
 const gameApps = {};
 
-export async function assignPlayerVersion(user, version) {
-    if (!usersRef || !user || !user.uid) {
-        console.error("Error: usersRef not initialized or user is missing. Cannot assign player version.");
+/**
+ * Assigns the player's current game version to their user profile in the menu database.
+ * This function should be called when the player logs in or their profile is loaded.
+ * @param {string} username The current player's username.
+ * @param {string} version The client's current game version (e.g., "v1.00").
+ */
+export async function assignPlayerVersion(username, version) {
+    if (!usersRef || !username) {
+        console.error("Error: usersRef not initialized or username is missing. Cannot assign player version.");
         return;
     }
     try {
-        await usersRef.child(user.uid).child("version").set(version);
-        console.log(`Player ${user.uid} assigned version: ${version}`);
+        await usersRef.child(username).child("version").set(version);
+        console.log(`Player ${username} assigned version: ${version}`);
     } catch (error) {
         console.error("Failed to assign player version:", error);
     }
 }
 
 
-export async function claimGameSlot(username, map, ffaEnabled, hostUid) { // üîç ADD hostUid to parameters
-    const playerVersion = localStorage.getItem("playerVersion");
+/**
+ * Claim the first free slot by inspecting its own /game node.
+ */
+export async function claimGameSlot(username, map, ffaEnabled) {
+    // Before claiming a slot, check if the player's version matches the required version
+    // The clientVersion is now passed explicitly or accessed via a shared mechanism.
+    const playerVersion = localStorage.getItem("playerVersion"); // Assuming it's still stored here.
 
     if (playerVersion !== requiredGameVersion) {
         Swal.fire('Update Required', `Your game version (${playerVersion || 'N/A'}) does not match the required version (${requiredGameVersion}). Please update your game.`, 'error');
         return null;
     }
 
+
     let chosenKey = null,
         chosenApp = null;
 
+    // Find the first free slot by checking its own /game node
     for (let slotName in gameDatabaseConfigs) {
         if (!gameDatabaseConfigs[slotName]) {
             console.warn(`No configuration found for slot: ${slotName}`);
@@ -137,8 +153,10 @@ export async function claimGameSlot(username, map, ffaEnabled, hostUid) { // üî
 
         if (!gameApps[slotName]) {
             try {
+                // Try to get an existing app instance if it was initialized elsewhere
                 gameApps[slotName] = firebase.app(slotName + "App");
             } catch (e) {
+                // If not found, initialize it
                 gameApps[slotName] = firebase.initializeApp(
                     gameDatabaseConfigs[slotName],
                     slotName + "App"
@@ -147,6 +165,7 @@ export async function claimGameSlot(username, map, ffaEnabled, hostUid) { // üî
         }
         const app = gameApps[slotName];
 
+        // Ensure the app is correctly initialized before proceeding
         if (!app) {
             console.error(`Failed to initialize Firebase app for slot: ${slotName}`);
             continue;
@@ -167,16 +186,17 @@ export async function claimGameSlot(username, map, ffaEnabled, hostUid) { // üî
 
     const rootRef = chosenApp.database().ref();
 
+    // Create game entry
     const gameRef = rootRef.child("game");
     await gameRef.set({
         host: username,
-        hostUid, // üîç PASS THE hostUid TO THE GAME SLOT DB ENTRY
         map,
         ffaEnabled,
         createdAt: firebase.database.ServerValue.TIMESTAMP,
-        gameVersion: requiredGameVersion
+        gameVersion: requiredGameVersion // Assign the current required game version to the game instance
     });
 
+    // Create gameConfig inside the /game node
     const startTime = Date.now();
     const gameDuration = 60; // seconds
     const endTime = startTime + gameDuration * 1000;
@@ -187,6 +207,7 @@ export async function claimGameSlot(username, map, ffaEnabled, hostUid) { // üî
         endTime
     });
 
+    // Return useful database references
     const dbRefs = {
         playersRef: gameRef.child("players"),
         chatRef: gameRef.child("chat"),
@@ -202,12 +223,17 @@ export async function claimGameSlot(username, map, ffaEnabled, hostUid) { // üî
         dbRefs
     };
 }
-
-export async function releaseGameSlot(slotName, gameId) { // üîç ADD gameId TO PARAMETERS
+/**
+ * Release the slot by clearing /game in its own DB and marking it free in lobby.
+ */
+export async function releaseGameSlot(slotName) {
+    // Ensure the Firebase app for this slot is initialized if it hasn't been already in this session.
     if (!gameApps[slotName]) {
         try {
+            // Try to get an existing app instance if it was initialized elsewhere
             gameApps[slotName] = firebase.app(slotName + "App");
         } catch (e) {
+            // If not found, initialize it, but only if config exists
             if (gameDatabaseConfigs[slotName]) {
                 gameApps[slotName] = firebase.initializeApp(
                     gameDatabaseConfigs[slotName],
@@ -215,24 +241,29 @@ export async function releaseGameSlot(slotName, gameId) { // üîç ADD gameId TO 
                 );
             } else {
                 console.error(`Error: Configuration for slot '${slotName}' not found. Cannot release.`);
-                return;
+                return; // Cannot proceed without config
             }
         }
     }
 
     const app = gameApps[slotName];
 
+    // If after all checks, app is still null/undefined, something is fundamentally wrong
     if (!app) {
         console.error(`Error: Firebase app for slot '${slotName}' could not be initialized. Cannot release.`);
         return;
     }
 
+    // 1) Mark the slot free in the menu database
+    // Ensure slotsRef is initialized. It depends on menuApp, which is initialized by initializeMenuFirebase().
+    // The user's code calls initializeMenuFirebase() at the end, so this should be fine.
     if (slotsRef) {
         await slotsRef.child(slotName).set({
             status: "free"
         });
     } else {
         console.error("Error: slotsRef is not initialized. Call initializeMenuFirebase() first.");
+        // Attempt to initialize if it's not. This might be redundant if the initial call is reliable.
         initializeMenuFirebase();
         if (slotsRef) {
             await slotsRef.child(slotName).set({
@@ -245,11 +276,13 @@ export async function releaseGameSlot(slotName, gameId) { // üîç ADD gameId TO 
     }
 
 
+    // 2) Clear the per-slot game data in its own database
     await app.database().ref("game").remove();
 
 
-    if (gameId && gamesRef) { // üîç USE gameId passed to the function
-        await gamesRef.child(gameId).remove();
+    // 3) Also remove the lobby node under /games/{activeGameId} in the menu database
+    if (activeGameId && gamesRef) {
+        await gamesRef.child(activeGameId).remove();
         activeGameId = null;
     } else {
         console.warn("Warning: activeGameId or gamesRef not available when trying to remove game from lobby.");
