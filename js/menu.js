@@ -2200,238 +2200,178 @@ add(loadoutMenu);
  * interacts with HTML elements for the menu.
  */
 export function initMenuUI() {
-    const menuOverlay = document.getElementById("menu-overlay");
-    const usernamePrompt = document.getElementById("username-prompt");
-    const mapSelect = document.getElementById("map-menu");
-    const controlsMenu = document.getElementById("menu-controls-menu"); // Corrected ID
-
-
-    // These elements are assumed to be part of the HTML structure,
-    // distinct from the canvas-drawn buttons.
-    const htmlPlayButton = document.getElementById("play-button");
+    const menuOverlay      = document.getElementById("menu-overlay");
+    const usernamePrompt   = document.getElementById("username-prompt");
+    const mapSelect        = document.getElementById("map-menu");
+    const controlsMenu     = document.getElementById("menu-controls-menu");
+    const htmlPlayButton   = document.getElementById("play-button");
     const htmlSettingsButton = document.getElementById("settings-button");
     const htmlCareerButton = document.getElementById("career-button");
-
-    const saveUsernameBtn = document.getElementById("save-username-btn");
-    const usernameInput = document.getElementById("username-input");
-
+    const saveUsernameBtn  = document.getElementById("save-username-btn");
+    const usernameInput    = document.getElementById("username-input");
     const toggleDetailsBtn = document.getElementById("toggle-details-btn");
-
-    const mapButtons = document.querySelectorAll(".map-btn"); // HTML map selection buttons
-
-    username = localStorage.getItem("username") || ""; // Ensure username is updated for HTML side
+    const mapButtons       = document.querySelectorAll(".map-btn");
+    let username           = localStorage.getItem("username") || "";
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
 
-    /**
-     * Helper function to show a specific panel and hide others.
-     * @param {HTMLElement|null} panelToShow - The panel element to display, or null to hide all.
+    /** 
+     * Throw if no valid username is set.
+     * Also forces the username prompt UI.
      */
+    function requireUsername() {
+        const u = localStorage.getItem("username");
+        if (!u || !u.trim()) {
+            showPanel(usernamePrompt);
+            throw new Error("Username required before proceeding.");
+        }
+        return u;
+    }
+
     function showPanel(panelToShow) {
-        // Hide all potential panels first
-        [usernamePrompt, mapSelect, controlsMenu].forEach(panel => {
-            if (panel) panel.classList.add("hidden");
+        [usernamePrompt, mapSelect, controlsMenu].forEach(p => {
+            if (p) p.classList.add("hidden");
         });
-        // Show the desired panel
         if (panelToShow) {
             panelToShow.classList.remove("hidden");
-            // Ensure display is set to flex for panels that use it for centering
-            panelToShow.style.display = 'flex';
+            panelToShow.style.display = "flex";
         }
     }
 
-    // --- Initial Menu State Setup ---
-  async function initializeMenuDisplay() {
-    // re-load in case anything changed
-    username = localStorage.getItem("username") || "";
-
-    // If we have a username locally, check it against the DB
-    if (username && username.trim().length > 0) {
-      const key = username.toLowerCase();
-      try {
-        const snap = await usersRef.child(key).once('value');
-        if (!snap.exists()) {
-          // not in DB → clear localStorage and force prompt
-          console.warn(`Username "${username}" not found in DB; reprompting.`);
-          localStorage.removeItem("username");
-          username = "";
+    async function initializeMenuDisplay() {
+        username = localStorage.getItem("username") || "";
+        if (username && username.trim()) {
+            const key = username.toLowerCase();
+            try {
+                const snap = await usersRef.child(key).once("value");
+                if (!snap.exists()) {
+                    localStorage.removeItem("username");
+                    username = "";
+                }
+            } catch {
+                localStorage.removeItem("username");
+                username = "";
+            }
         }
-      } catch (err) {
-        console.error("Error checking username in DB:", err);
-        // (optional) treat as “not found” or allow offline play
-        localStorage.removeItem("username");
-        username = "";
-      }
+
+        if (username && username.trim()) {
+            showPanel(null);
+            menu();
+            document.getElementById("game-logo").classList.add("hidden");
+            menuOverlay.style.display = "none";
+            canvas.style.display = "block";
+        } else {
+            showPanel(usernamePrompt);
+            canvas.style.display = "none";
+            document.getElementById("game-logo").classList.remove("hidden");
+        }
     }
 
-    // After DB-check, decide which panel to show
-    if (username && username.trim().length > 0) {
-      showPanel(null);              // hide HTML panels
-      menu();                       // show canvas menu
-      document.getElementById("game-logo").classList.add("hidden");
-      menuOverlay.style.display = 'none';
-      canvas.style.display = 'block';
-    } else {
-      showPanel(usernamePrompt);    // force the username prompt
-      canvas.style.display = 'none';
-      document.getElementById("game-logo").classList.remove("hidden");
-    }
-  }
-
-    // --- Event Listeners for Main Menu Buttons (HTML-based) ---
-    // These HTML buttons are distinct from the canvas buttons.
+    // HTML Play
     if (htmlPlayButton) {
-        htmlPlayButton.addEventListener("click", () => {
-            console.log("HTML Play button clicked (showing map selection)");
-            showPanel(mapSelect);
-        });
+        htmlPlayButton.addEventListener("click", () => showPanel(mapSelect));
     }
-
+    // HTML Settings
     if (htmlSettingsButton) {
-        htmlSettingsButton.addEventListener("click", () => {
-            showPanel(controlsMenu);
-        });
+        htmlSettingsButton.addEventListener("click", () => showPanel(controlsMenu));
     }
-
+    // HTML Career
     if (htmlCareerButton) {
-        htmlCareerButton.addEventListener("click", () => {
-            console.log("HTML Career button clicked!");
-        });
+        htmlCareerButton.addEventListener("click", () => console.log("Career clicked!"));
     }
 
-    // --- Username Prompt Logic ---
+    // Pre-fill username input if already set
     if (usernameInput && username) {
         usernameInput.value = username;
     }
 
-if (saveUsernameBtn) {
-  saveUsernameBtn.addEventListener("click", async () => {
-    const raw = usernameInput.value.trim();
-    const val = raw; // already trimmed
-    const alphaNumRegex = /^[A-Za-z0-9_]+$/;
+    // Save Username Button
+    if (saveUsernameBtn) {
+        saveUsernameBtn.addEventListener("click", async () => {
+            const raw = usernameInput.value.trim();
+            if (!/^[A-Za-z0-9_]+$/.test(raw)) {
+                return Swal.fire(
+                    'Invalid Username',
+                    'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
+                    'error'
+                );
+            }
+            const key = raw.toLowerCase();
+            try {
+                const snap = await usersRef.child(key).once("value");
+                if (snap.exists()) {
+                    return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
+                }
+            } catch (err) {
+                console.error(err);
+                return Swal.fire('Error', 'Could not verify username uniqueness.', 'error');
+            }
 
-    // 1) Basic format validation
-    if (!alphaNumRegex.test(val)) {
-      return Swal.fire(
-        'Invalid Username',
-        'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_), with no spaces or other symbols.',
-        'error'
-      );
+            // Save locally & to DB
+            localStorage.setItem("username", raw);
+            username = raw;
+            playerCard.setText(username);
+            try {
+                await usersRef.child(key).set({
+                    username: raw,
+                    savedAt: firebase.database.ServerValue.TIMESTAMP
+                });
+            } catch (err) {
+                console.error("Error saving to DB:", err);
+            }
+
+            // Hide prompt, show game
+            showPanel(null);
+            canvas.style.display = 'block';
+            menu();
+            document.getElementById("game-logo").classList.add("hidden");
+            menuOverlay.style.display = 'none';
+        });
     }
 
-    // Normalize to lowercase for the DB key so that "Jar" and "jar" collide
-    const key = val.toLowerCase();
-
-    // 2) Uniqueness check by directly looking at usersRef/<key>
-    try {
-      const userNode = usersRef.child(key);
-      const snap     = await userNode.once('value');
-
-      if (snap.exists()) {
-        return Swal.fire(
-          'Name Taken',
-          `“${val}” is already in use. Please choose another.`,
-          'warning'
-        );
-      }
-    } catch (err) {
-      console.error("Error checking existing usernames:", err);
-      return Swal.fire(
-        'Error',
-        'Could not verify username uniqueness. Please try again in a moment.',
-        'error'
-      );
-    }
-
-    // 3) Save locally
-    localStorage.setItem("username", val);
-    username = val;
-    playerCard.setText(username);
-
-    // 4) Write to menu DB under the username key
-    //    this will create /users/<lowercase-username> instead of a push-id
-    usersRef
-      .child(key)
-      .set({
-        username: val,
-        savedAt:  firebase.database.ServerValue.TIMESTAMP
-      })
-      .catch(err => {
-        console.error("Error saving username to DB:", err);
-        // you could show another Swal here if you want
-      });
-
-    // 5) Hide prompt and show game
-    showPanel(null);
-    canvas.style.display = 'block';
-    menu();
-    document.getElementById("game-logo").classList.add("hidden");
-    const menuOverlayElement = document.getElementById('menu-overlay');
-    if (menuOverlayElement) {
-      menuOverlayElement.style.display = 'none';
-    }
-  });
-}
-
-
-    // --- Details Toggle Logic ---
+    // Details Toggle
     if (toggleDetailsBtn) {
         toggleDetailsBtn.textContent = currentDetailsEnabled ? "Details: On" : "Details: Off";
-
         toggleDetailsBtn.addEventListener("click", () => {
             currentDetailsEnabled = !currentDetailsEnabled;
             localStorage.setItem("detailsEnabled", currentDetailsEnabled.toString());
-
-            toggleDetailsBtn.textContent = currentDetailsEnabled
-                ? "Details: On"
-                : "Details: Off";
-
-            // Directly call toggleSceneDetails from game.js
+            toggleDetailsBtn.textContent = currentDetailsEnabled ? "Details: On" : "Details: Off";
             toggleSceneDetails(currentDetailsEnabled);
         });
     }
 
-    // --- Map Selection Logic (for HTML buttons) ---
-    mapButtons.forEach((btn) => {
+    // Map Buttons (start game)
+    mapButtons.forEach(btn => {
         btn.addEventListener("click", () => {
-            username = localStorage.getItem("username");
-            if (!username) {
-                showPanel(usernamePrompt); // Prompt for username if not set
-                Swal.fire('Warning', 'Please enter your username before starting a game!', 'warning');
-                return;
+            let user;
+            try {
+                user = requireUsername();
+            } catch {
+                return Swal.fire('Warning', 'Please enter your username before starting a game!', 'warning');
             }
 
             const mapName = btn.dataset.map;
             localStorage.setItem("detailsEnabled", currentDetailsEnabled.toString());
 
-            console.log(`Player clicked HTML map button for map: ${mapName}, Username: ${username}, Details Enabled: ${currentDetailsEnabled}`);
+            menuOverlay.classList.add("hidden");
+            canvas.style.display = 'none';
 
-            // Hide the menu overlay to reveal the game
-            if (menuOverlay) {
-                menuOverlay.classList.add("hidden");
-            }
-            // Hide the canvas if the HTML menu is taking over
-            if (canvas) {
-                canvas.style.display = 'none';
-            }
-
-            // Initialize game UI and start the game
-            const gameWrapper = document.getElementById('game-container');
-            if (gameWrapper) {
+            const wrapper = document.getElementById('game-container');
+            if (wrapper) {
                 let ffaEnabled = true;
                 menuSong.pause();
-                gameWrapper.style.display = 'block'; // Or 'flex', depending on its CSS
-                createGameUI(gameWrapper); // Create game UI elements
-               // initNetwork(username, mapName); // Initialize network for multiplayer
-              //  startGame(username, mapName, localStorage.getItem("detailsEnabled") === "true", ffaEnabled); // Start the game
-
-                console.log(`Game UI and game initialized directly on index.html for map: ${mapName}.`);
+                wrapper.style.display = 'block';
+                createGameUI(wrapper);
+                // initNetwork(user, mapName);
+                // startGame(user, mapName, currentDetailsEnabled, ffaEnabled);
+                console.log(`Game initialized for ${user} on map ${mapName}`);
             } else {
-                console.error("game-container element not found in index.html! Make sure your game elements are present.");
+                console.error("game-container element not found!");
             }
         });
     });
 
-    initializeMenuDisplay(); // Set initial display state for menu panels
+    // Kick off initial state
+    initializeMenuDisplay();
 }
 
 // --- Main execution logic ---
