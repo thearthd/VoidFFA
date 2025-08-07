@@ -113,19 +113,18 @@ const gameApps = {};
  * @param {string} username The current player's username.
  * @param {string} version The client's current game version (e.g., "v1.00").
  */
-export async function assignPlayerVersion(username, version) {
-    if (!usersRef || !username) {
-        console.error("Error: usersRef not initialized or username is missing. Cannot assign player version.");
+export async function assignPlayerVersion(user, version) {
+    if (!usersRef || !user || !user.uid) {
+        console.error("Error: usersRef not initialized or user is missing. Cannot assign player version.");
         return;
     }
     try {
-        await usersRef.child(username).child("version").set(version);
-        console.log(`Player ${username} assigned version: ${version}`);
+        await usersRef.child(user.uid).child("version").set(version);
+        console.log(`Player ${user.uid} assigned version: ${version}`);
     } catch (error) {
         console.error("Failed to assign player version:", error);
     }
 }
-
 
 /**
  * Claim the first free slot by inspecting its own /game node.
