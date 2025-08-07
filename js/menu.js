@@ -1771,13 +1771,11 @@ export async function createGameButtonHit() {
         return Swal.fire('Error', 'Please set your username first.', 'error');
     }
     
-    // Check if the user is authenticated before proceeding.
     const user = firebase.auth().currentUser;
     if (!user) {
         return Swal.fire('Error', 'You are not authenticated. Please refresh and try again.', 'error');
     }
 
-    // Assign the player's version to their profile using the secure function.
     localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
     await assignPlayerVersion(user, CLIENT_GAME_VERSION);
 
@@ -1821,7 +1819,6 @@ export async function createGameButtonHit() {
     }
 
     try {
-        // 🔍 Use firebase.database().ref() to check for duplicate game names
         const gamesRef = firebase.database().ref('games');
         const snapshot = await gamesRef.orderByChild("gameName").equalTo(formValues.gameName).once("value");
         if (snapshot.exists()) {
@@ -1833,6 +1830,7 @@ export async function createGameButtonHit() {
             map: formValues.map,
             gamemode: formValues.gamemode,
             host: username,
+            hostUid: user.uid, // 🔍 ADD THE HOST'S UID
             createdAt: firebase.database.ServerValue.TIMESTAMP,
             status: "waiting",
             gameVersion: CLIENT_GAME_VERSION
@@ -1843,15 +1841,20 @@ export async function createGameButtonHit() {
         const gameId = newGameRef.key;
         let ffaEnabled = true;
 
-        const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled);
+        // 🔍 PASS THE HOST'S UID TO claimGameSlot
+        const slotResult = await claimGameSlot(username, formValues.map, ffaEnabled, user.uid);
+        
+        // This is a good place to update the game status to prevent others from joining while it's being set up
         await gamesRef.child(gameId).child('status').set("starting");
 
         if (!slotResult) {
+            // If claiming a slot fails, clean up the lobby entry
             await newGameRef.remove();
             Swal.fire('Error', 'No free slots available or version mismatch. Game discarded.', 'error');
             return;
         }
 
+        // Attach the slotName to the main game lobby entry
         await gamesRef.child(gameId).child('slot').set(slotResult.slotName);
 
         Swal.fire({
@@ -1861,9 +1864,7 @@ export async function createGameButtonHit() {
             confirmButtonText: 'Join Game'
         }).then(res => {
             if (res.isConfirmed) {
-                // nice
-            } else {
-                // nice
+                initAndStartGame(username, formValues.map, gameId);
             }
         });
 
