@@ -3,7 +3,7 @@
 // Configuration for your Firebase projects
 // Make sure these match your actual Firebase project configurations
 export const menuConfig = {
-    apiKey: "AIzaSyBmLJnsXye8oBBpbtTZu0W9-cmEl8QM8s",
+    apiKey: "AIzaSyBmLJjnsXye8oBBpbtTZu0W9-cmEl8QM8s",
     authDomain: "voidffa-menu.firebaseapp.com",
     databaseURL: "https://voidffa-menu-default-rtdb.firebaseio.com",
     projectId: "voidffa-menu",
