@@ -1914,40 +1914,50 @@ window.addEventListener("keydown", e => {
 
 // — DEATH & RESPAWN —
 export function handleLocalDeath() {
-//console.log("▶️ handleLocalDeath called! deathTheme exists?", !!deathTheme);
-document.getElementById("crosshair").style.display = "none";
-// console.log("[DEBUG] handleLocalDeath called.");
+    //console.log("▶️ handleLocalDeath called! deathTheme exists?", !!deathTheme);
+    document.getElementById("crosshair").style.display = "none";
+    // console.log("[DEBUG] handleLocalDeath called.");
 
-if (window.localPlayer) {
-// 1. Mark the player dead
-window.localPlayer.isDead = true;
-//  console.log("[DEBUG] window.localPlayer.isDead set to:", window.localPlayer.isDead);
+    if (window.localPlayer) {
+        // 1. Mark the player dead
+        window.localPlayer.isDead = true;
+        //   console.log("[DEBUG] window.localPlayer.isDead set to:", window.localPlayer.isDead);
 
-// 2. Remove any physics bodies (if you’re using a physics engine)
+        // 2. Remove any physics bodies (if you’re using a physics engine)
 
-// 3. Remove THREE.js colliders from collidables array
-window.collidables = window.collidables.filter(obj => {
-// assume each collider has userData.playerId === localPlayer.id
-return !(obj.userData.isPlayerBodyPart && obj.userData.playerId === window.localPlayer.id);
-});
-//  console.log("[DEBUG] Stripped out localPlayer collidables, remaining:", window.collidables.length);
+        // 3. Remove THREE.js colliders from collidables array
+        window.collidables = window.collidables.filter(obj => {
+            // assume each collider has userData.playerId === localPlayer.id
+            return !(obj.userData.isPlayerBodyPart && obj.userData.playerId === window.localPlayer.id);
+        });
+        //   console.log("[DEBUG] Stripped out localPlayer collidables, remaining:", window.collidables.length);
 
-// 4. Optionally hide the model in the scene (if you want)
-if (window.localPlayer.group && window.localPlayer.group.parent) {
-scene.remove(window.localPlayer.group);
-//  console.log("[DEBUG] Removed localPlayer model from scene");
-}
+        // 4. Optionally hide the model in the scene (if you want)
+        if (window.localPlayer.group && window.localPlayer.group.parent) {
+            scene.remove(window.localPlayer.group);
+            //   console.log("[DEBUG] Removed localPlayer model from scene");
+        }
 
-// 5. Trigger your respawn UI
-if (typeof showRespawn === "function") {
-showRespawn();
-//    console.log("[DEBUG] showRespawn() called.");
-} else {
-console.error("[DEBUG ERROR] showRespawn function is not defined!");
-}
-} else {
-console.error("[DEBUG ERROR] window.localPlayer is not defined in handleLocalDeath.");
-}
+        // ⭐ NEW: Increment the local player's death stat in both the game state and the menu database
+        if (typeof incrementUserStat === "function" && window.localPlayer.username) {
+            // Update the stat in the menu database
+            incrementUserStat(window.localPlayer.username, 'deaths', 1);
+            // Update the local game state
+            window.localPlayer.deaths = (window.localPlayer.deaths || 0) + 1;
+        } else {
+            console.error("[DEBUG ERROR] 'incrementUserStat' function or local player username is not defined.");
+        }
+
+        // 5. Trigger your respawn UI
+        if (typeof showRespawn === "function") {
+            showRespawn();
+            //     console.log("[DEBUG] showRespawn() called.");
+        } else {
+            console.error("[DEBUG ERROR] showRespawn function is not defined!");
+        }
+    } else {
+        console.error("[DEBUG ERROR] window.localPlayer is not defined in handleLocalDeath.");
+    }
 }
 
 
@@ -2796,6 +2806,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
