@@ -397,6 +397,15 @@ export async function initNetwork(user, username, mapName, gameId, ffaEnabled) {
     console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
     await endGameCleanup();
 
+    // A defensive check to correct for a known bug where gameId and ffaEnabled
+    // might be swapped in the function call.
+    if (typeof gameId === 'boolean' && typeof ffaEnabled === 'string') {
+        console.warn("[network.js] Detected swapped gameId and ffaEnabled. Correcting parameters.");
+        const temp = gameId;
+        gameId = ffaEnabled;
+        ffaEnabled = temp;
+    }
+    
     // Defensive check to ensure gameId is a string.
     if (typeof gameId !== 'string' || gameId.length === 0) {
         console.error("Invalid gameId received:", gameId);
