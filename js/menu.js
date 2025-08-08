@@ -1730,19 +1730,78 @@ function initMenuChat() {
 }
 
 
-export function sendChatMessage(username, text) {
+export async function sendChatMessage(username, text) {
     if (!menuChatRef) {
-        return console.warn("Chat not initialized yet");
+        console.warn("Chat not initialized yet");
+        return null;
     }
 
+    text = (text || "").trim();
+    if (!text) {
+        console.warn("Empty message; nothing to send.");
+        return null;
+    }
+
+    // Basic client-side guardrails
     if (!isMessageClean(text)) {
         console.warn("Message blocked due to profanity/slurs");
-        return;
+        return null;
+    }
+    if (text.length > 1000) {
+        console.warn("Message too long; limit is 1000 characters");
+        return null;
     }
 
-    menuChatRef.push({ username, text, timestamp: Date.now() })
-        .catch(err => console.error("Failed to send chat:", err));
+    const user = (typeof auth !== "undefined" && auth && auth.currentUser) ? auth.currentUser : null;
+    if (!user) {
+        console.warn("sendChatMessage: user not authenticated");
+        return null;
+    }
+    const uid = user.uid;
+
+    // Prefer the supplied username param, but fall back to localStorage if not provided
+    let usernameToUse = (username || "").trim();
+    if (!usernameToUse) {
+        usernameToUse = localStorage.getItem("username") || "";
+        usernameToUse = usernameToUse.trim();
+    }
+    if (!usernameToUse) {
+        console.warn("sendChatMessage: no username available. Please set a username first.");
+        return null;
+    }
+
+    const usernameKey = usernameToUse.toLowerCase();
+
+    // Verify ownership: /users/{usernameKey}/ids/{uid} === true
+    try {
+        const idSnap = await db.ref(`users/${usernameKey}/ids/${uid}`).once("value");
+        if (!idSnap.exists() || idSnap.val() !== true) {
+            console.warn(`sendChatMessage: username "${usernameToUse}" (key "${usernameKey}") is not owned by uid ${uid}.`);
+            return null;
+        }
+    } catch (err) {
+        console.error("sendChatMessage: failed to verify username ownership:", err);
+        return null;
+    }
+
+    // Build message payload (use server timestamp)
+    const msg = {
+        uid: uid,
+        usernameKey: usernameKey,
+        username: usernameToUse,
+        text: text,
+        ts: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    try {
+        const pushedRef = await menuChatRef.push(msg);
+        return pushedRef ? pushedRef.key : null;
+    } catch (err) {
+        console.error("Failed to send chat:", err);
+        return null;
+    }
 }
+
 
 export function chatButtonHit() {
     clearMenuCanvas();
