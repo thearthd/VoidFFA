@@ -37,50 +37,36 @@ export function createGameUI(gameWrapper) {
         return;
     }
 
-    // Query existing UI elements inside the wrapper
-    const crosshair = gameWrapper.querySelector('crosshair');
-    if (!crosshair) console.warn("Crosshair element not found.");
+    // Set display styles explicitly for elements that might be hidden
+    const elementsWithDisplay = [
+        { selector: 'crosshair', display: 'block' },
+        { selector: '#scopeOverlay', display: 'block' },  // or 'flex' or as needed
+        { selector: '#buy-menu', display: 'block' },
+        { selector: '#hud', display: 'block' },
+        { selector: '#scoreboard', display: 'block' },
+        { selector: '#inventory', display: 'flex' }, // inventory uses flex layout
+        { selector: '#health-shield-display', display: 'flex' },
+        { selector: '#ammo-display', display: 'block' },
+        { selector: 'kill-feed', display: 'block' },
+    ];
 
-    const scopeOverlay = gameWrapper.querySelector('#scopeOverlay');
-    if (!scopeOverlay) console.warn("Scope overlay element not found.");
+    elementsWithDisplay.forEach(({ selector, display }) => {
+        const el = gameWrapper.querySelector(selector);
+        if (el) {
+            el.classList.remove('hidden');
+            el.style.display = display;
+        }
+    });
 
-    const buyMenu = gameWrapper.querySelector('#buy-menu');
-    if (!buyMenu) console.warn("Buy menu element not found.");
-
-    const hud = gameWrapper.querySelector('#hud');
-    if (!hud) console.warn("HUD container not found.");
-
-    const killFeed = hud?.querySelector('kill-feed');
-    if (!killFeed) console.warn("Kill feed element not found.");
-
-    const scoreboard = hud?.querySelector('#scoreboard');
-    if (!scoreboard) console.warn("Scoreboard element not found.");
-
-    const inventory = hud?.querySelector('#inventory');
-    if (!inventory) console.warn("Inventory element not found.");
-
-    const healthShieldDisplay = hud?.querySelector('#health-shield-display');
-    if (!healthShieldDisplay) console.warn("Health and shield display not found.");
-
-    const ammoDiv = hud?.querySelector('#ammo-display');
-    if (!ammoDiv) console.warn("Ammo display not found.");
-
-    // Initialize listeners for interactive UI elements
     initChatUI();
     initBuyMenuEvents();
 
-    // Optionally return references for later use
-    return {
-        crosshair,
-        scopeOverlay,
-        buyMenu,
-        hud,
-        killFeed,
-        scoreboard,
-        inventory,
-        healthShieldDisplay,
-        ammoDiv,
-    };
+    // Return elements if needed
+    const refs = {};
+    elementsWithDisplay.forEach(({ selector }) => {
+        refs[selector.replace(/[#\.]/g, '')] = gameWrapper.querySelector(selector);
+    });
+    return refs;
 }
 /* —————————————————————————————————————————————————————————————————————
     HEALTH + SHIELD BAR (Three.js version – unchanged from your ui.js)
