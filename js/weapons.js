@@ -1207,15 +1207,15 @@ fireBullet(spreadAngle) {
 
 
 checkMeleeHit(collidables) {
-  const nowMs   = performance.now();
+  const nowMs = performance.now();
   const { rpm, bodyDamage } = WeaponController.WEAPONS.knife;
   const interval = 60000 / rpm;
   if (nowMs - this._lastKnifeSwingTime < interval) return;
   this._lastKnifeSwingTime = nowMs;
 
-  const meleeRange  = 3;
-  const meleeDamage = bodyDamage;
-  const playerPos   = new THREE.Vector3();
+  const meleeRange = 3;
+  const meleeDamage = bodyDamage; // Use the correct damage variable
+  const playerPos = new THREE.Vector3();
   this.camera.getWorldPosition(playerPos);
 
   for (const obj of collidables) {
@@ -1226,21 +1226,20 @@ checkMeleeHit(collidables) {
       const targetPos = new THREE.Vector3();
       targetGroup.getWorldPosition(targetPos);
 
-      console.log(realPenetrate);
-      
+      // Check if the target is within melee range
       if (playerPos.distanceTo(targetPos) <= meleeRange) {
-      window.applyDamageToRemote?.(
-        mesh.userData.playerId,
-        damageToApply,
-        {
-          id: this.localPlayerId,
-          username: window.localPlayer?.username ?? "Unknown",
-          weapon: this.currentKey,
-          isHeadshot: isHead,
-          isPenetrationShot: realPenetrate
-        }
-      );
-        return;
+        window.applyDamageToRemote?.(
+          obj.userData.playerId, // Use the playerId from the object that was hit
+          meleeDamage, // Use the correct meleeDamage variable
+          {
+            id: this.localPlayerId,
+            username: window.localPlayer?.username ?? "Unknown",
+            weapon: "knife", // Correctly identify the weapon as "knife"
+            isHeadshot: false, // Melee hits are not headshots in this context
+            isPenetrationShot: false // Melee hits don't penetrate
+          }
+        );
+        return; // Exit after hitting one player
       }
     }
   }
