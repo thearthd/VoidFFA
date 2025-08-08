@@ -2008,26 +2008,11 @@ export async function gamesButtonHit() {
                         Swal.fire('Version Mismatch', `This game requires version ${slotInfo.gameVersion}, but your game is version ${playerVersion || 'N/A'}. Please update to join.`, 'error');
                         return;
                     }
-
-                    // --- AUTHENTICATION CHECK MOVED HERE ---
-                    // Wait for the auth state to be confirmed before calling handleGameJoin
-                    const userAfterClick = await new Promise(resolve => {
-                        const unsubscribe = firebase.auth().onAuthStateChanged(user => {
-                            unsubscribe();
-                            resolve(user);
-                        });
-                    });
-
-                    if (userAfterClick) {
-                        setActiveGameId(gameId);
-                        handleGameJoin(username, mapName, gameId);
-                    } else {
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'Login Required',
-                            text: 'You must be logged in to join this game.'
-                        });
-                    }
+                    
+                    // The user is already authenticated from the main function scope.
+                    // We can directly call the game-joining logic.
+                    setActiveGameId(gameId);
+                    handleGameJoin(user, username, mapName, gameId);
                 }
             );
             add(gameBg);
@@ -2102,6 +2087,7 @@ export async function gamesButtonHit() {
         addBackButton(playButtonHit);
     }
 }
+
 
 
 /**
