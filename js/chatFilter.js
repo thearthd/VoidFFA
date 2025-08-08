@@ -31,6 +31,19 @@ function createCanonicalForm(word) {
 export function isMessageClean(text) {
   const containsBadAss = /\b(dumbass|jackass|smartass|lazyass|asshole)\b/i.test(text);
 
+  // Block characters not on a standard keyboard
+  // Allows: letters, numbers, space, common punctuation and symbols (`~!@#$%^&*()-_=+[]{}|;:'",.<>/?\)
+  const keyboardSafePattern = /^[a-zA-Z0-9 `~!@#$%^&*()\-_=+\[\]{}|;:'",.<>\/?\\]*$/;
+  if (!keyboardSafePattern.test(text)) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Invalid Characters',
+      text: 'Your message contains unsupported symbols. Please remove them and try again.',
+      confirmButtonText: 'OK'
+    });
+    return false;
+  }
+
   // Check the canonical form of the input text against the processed banned words.
   const canonicalText = createCanonicalForm(text);
 
@@ -38,9 +51,6 @@ export function isMessageClean(text) {
   const containsBanned = processedBannedWords.some(bannedWord => canonicalText.includes(bannedWord));
 
   if (containsBanned || containsBadAss) {
-    // Swal.fire is not available in a backend context. 
-    // You should separate the UI logic from the core function.
-    // For now, let's assume this is client-side code and Swal.fire is available.
     Swal.fire({
       icon: 'error',
       title: 'Message Blocked',
@@ -52,3 +62,4 @@ export function isMessageClean(text) {
 
   return true;
 }
+
