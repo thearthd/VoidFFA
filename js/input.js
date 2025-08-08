@@ -103,6 +103,24 @@ const defaultKeybinds = {
 // Current active keybinds, initialized from localStorage or defaults
 export let currentKeybinds = {}; // Export currentKeybinds so other files can access it
 
+let ignoreNextMouseDown = false;
+
+/**
+ * Call this instead of el.requestPointerLock().
+ * It sets a short-lived flag so the next mousedown is ignored (prevents accidental fire).
+ */
+export function safeRequestPointerLock(el) {
+    // suppress the next mousedown (capture-phase game handlers will see this)
+    ignoreNextMouseDown = true;
+
+    // Safety: clear the flag after a short timeout in case the event is lost
+    setTimeout(() => { ignoreNextMouseDown = false; }, 300);
+
+    if (el && el.requestPointerLock) {
+        el.requestPointerLock();
+    }
+}
+
 // --- Keybind Management Functions ---
 function loadKeybinds() {
     try {
@@ -676,6 +694,13 @@ function onMouseDownGame(e) {
         return;
     }
 
+    // If this mousedown was the one used to request pointer lock, ignore it.
+    if (ignoreNextMouseDown) {
+        ignoreNextMouseDown = false;
+        e.preventDefault();
+        return;
+    }
+
     // Use currentKeybinds for mouse clicks
     const mouseCode = `Mouse${e.button}`;
     if (mouseCode === currentKeybinds.fire) {
@@ -684,7 +709,7 @@ function onMouseDownGame(e) {
     } else if (mouseCode === currentKeybinds.aim) {
         inputState.aim = true;
     }
-    e.preventDefault(); // Crucial: Prevent default browser action like focus or selection
+    e.preventDefault();
 }
 
 function onMouseUpGame(e) {
