@@ -76,12 +76,20 @@ export let menuChatRef = null;
 export let requiredGameVersion = "v1.00"; // Default version, will be updated from DB
 
 export function initializeMenuFirebase() {
+    if (firebase.apps.length === 0) {
+        // Initialize the default app first
+        firebase.initializeApp(menuConfig);
+        console.log("Initialized DEFAULT Firebase App.");
+    }
+    
     if (menuApp) return;
+
     try {
         menuApp = firebase.app("menuApp");
     } catch {
         menuApp = firebase.initializeApp(menuConfig, "menuApp");
     }
+
     const db = menuApp.database();
     gamesRef = db.ref("games");
     usersRef = db.ref("users");
@@ -96,11 +104,10 @@ export function initializeMenuFirebase() {
             console.log("Required Game Version:", requiredGameVersion);
         } else {
             console.warn("No 'gameVersion' found in menu database. Defaulting to", requiredGameVersion);
-            // Optionally, you could set it in the DB if it doesn't exist
-            // menuConfigRef.child("gameVersion").set(requiredGameVersion);
         }
     });
 }
+
 initializeMenuFirebase();
 
 export let activeGameId = null;
