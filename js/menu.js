@@ -1631,7 +1631,7 @@ async function initAndStartGame(username, mapName, gameId = null) {
 }
 
 // This function should be in your main game logic file, like menu.js or app.js
-async function handleGameJoin(user, username, mapName, gameId) {
+async function handleGameJoin(user, username, mapName, gameId, ffaEnabled) {
     if (!user) {
         // This case should not be reached with the updated gamesButtonHit
         // but it remains as a safety net.
@@ -1644,7 +1644,7 @@ async function handleGameJoin(user, username, mapName, gameId) {
     }
 
     try {
-        await initAndStartGame(user, username, mapName, gameId);
+        await initAndStartGame(user, username, mapName, gameId, ffaEnabled);
     } catch (error) {
         console.error("Failed to start game:", error);
         Swal.fire({
@@ -1950,7 +1950,8 @@ export async function gamesButtonHit() {
                 map: game.map,
                 createdAt: game.createdAt,
                 slot: game.slot,
-                gameVersion: game.gameVersion
+                gameVersion: game.gameVersion,
+                ffaEnabled: game.ffaEnabled // Ensure ffaEnabled is also included in the object
             }))
             .sort((a, b) => b.createdAt - a.createdAt);
 
@@ -1993,9 +1994,10 @@ export async function gamesButtonHit() {
                         return;
                     }
                     
-                    // Call handleGameJoin with the authenticated user object.
+                    const ffaEnabled = slotInfo.ffaEnabled;
+                    // Call handleGameJoin with all five arguments in the correct order.
                     setActiveGameId(gameId);
-                    handleGameJoin(user, username, mapName, gameId);
+                    handleGameJoin(user, username, mapName, gameId, ffaEnabled);
                 }
             );
             add(gameBg);
@@ -2070,7 +2072,6 @@ export async function gamesButtonHit() {
         addBackButton(playButtonHit);
     }
 }
-
 
 
 /**
