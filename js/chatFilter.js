@@ -41,7 +41,11 @@ function createSortedCanonicalForm(word) {
 }
 
 // --- Pre-processing Banned Words ---
-const processedBannedWords = bannedWords.map(word => createCanonicalForm(word));
+// The old approach: this is NOT how you catch anagrams.
+// const processedBannedWords = bannedWords.map(word => createCanonicalForm(word));
+
+// FIX: Create two separate lists: one for direct matching, one for anagram matching.
+const processedCanonicalBannedWords = bannedWords.map(word => createCanonicalForm(word));
 const processedSortedBannedWords = bannedWords.map(word => createSortedCanonicalForm(word));
 
 // --- Main Filter Function ---
@@ -62,11 +66,11 @@ export function isMessageClean(text) {
     const canonicalText = createCanonicalForm(text);
     const sortedCanonicalText = createSortedCanonicalForm(text);
 
-    // 1. Check for canonical banned words
-    const containsBanned = processedBannedWords.some(bannedWord => canonicalText.includes(bannedWord));
+    // 1. Check for canonical banned words (direct match)
+    const containsBanned = processedCanonicalBannedWords.some(bannedWord => canonicalText.includes(bannedWord));
 
     // 2. Check for start/end patterns
-    const containsStartOrEndMatch = processedBannedWords.some(bw =>
+    const containsStartOrEndMatch = processedCanonicalBannedWords.some(bw =>
         canonicalText.startsWith(bw) || canonicalText.endsWith(bw)
     );
 
