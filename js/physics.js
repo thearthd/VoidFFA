@@ -370,7 +370,7 @@ _stepUpIfPossible() {
     const playerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
     const downRay = new THREE.Raycaster(
         this.player.position.clone(),
-        new THREE.Vector3(0, -1, 0),
+        new THREE.Vector3(0, -0.1, 0),
         0,
         playerHeight + 0.2
     );
@@ -402,7 +402,7 @@ _stepUpIfPossible() {
             const deltaY = stepTopY - actualGroundY;
 
             if (
-                deltaY > 0.6 &&
+                deltaY > 0.05 &&
                 deltaY <= STEP_HEIGHT + 0.01 &&
                 stepTopY >= this.player.position.y - PLAYER_TOTAL_HEIGHT + 0.5
             ) {
