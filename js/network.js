@@ -743,29 +743,19 @@ function setupTracerListener(tracersRef) {
 // -- Global Visibility Change Listener --
 //
 document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && dbRefs && dbRefs.playersRef) {
-        console.log("Tab is visible. Resyncing player data.");
-        dbRefs.playersRef.once("value").then(snapshot => {
-            const activeFirebasePlayers = new Set();
-            snapshot.forEach(snap => {
-                const data = snap.val();
-                activeFirebasePlayers.add(data.id);
-                if (data.id === localPlayerId) return;
-
-                if (remotePlayers[data.id]) {
-                    updateRemotePlayer(data);
-                } else if (!permanentlyRemoved.has(data.id)) {
-                    addRemotePlayer(data);
-                }
-            });
-
-            Object.keys(remotePlayers).forEach(id => {
-                if (!activeFirebasePlayers.has(id)) {
-                    console.log(`Resync: Player ${id} not found in Firebase. Removing model.`);
-                    removeRemotePlayerModel(id);
-                    permanentlyRemoved.add(id);
-                }
-            });
-        }).catch(err => console.error("Error during visibility change resync:", err));
-    }
+  if (!document.hidden && dbRefs && dbRefs.playersRef && localPlayerId) {
+    console.log("Tab is visible. Resyncing local player data.");
+    // Only refresh the local player's record, which is always permitted.
+    dbRefs.playersRef.child(localPlayerId).once("value").then(snapshot => {
+        const data = snapshot.val();
+        if (data && window.localPlayer) {
+            // Update local player state from the database
+            window.localPlayer.health = data.health;
+            window.localPlayer.shield = data.shield;
+            window.localPlayer.isDead = data.isDead;
+            updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+            // Additional sync logic for local player only
+        }
+    }).catch(err => console.error("Error during visibility change resync:", err));
+  }
 });
