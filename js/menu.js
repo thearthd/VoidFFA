@@ -2219,7 +2219,7 @@ export function initMenuUI() {
     const db = menuAppInstance.database();
     const auth = menuAppInstance.auth(); // auth tied to menuApp instance
     const usersRef = db.ref("users");
-    const usernamesRef = db.ref("usernames"); // still used for atomic reservation to guarantee uniqueness
+    const usernamesRef = db.ref("usernames"); // used for uniqueness reservation
 
     /** 
      * Throw if no valid username is set.
@@ -2278,43 +2278,24 @@ export function initMenuUI() {
             return;
         }
 
-        // Prefer canonical username from /users/$uid (server truth)
+        // If we have a local username, verify it is actually registered for this uid under /users/{name}/ids/{uid}
         username = localStorage.getItem("username") || "";
-        try {
-            const uidSnap = await usersRef.child(user.uid).once("value");
-            if (uidSnap.exists()) {
-                const data = uidSnap.val();
-                if (data && data.username) {
-                    // Keep server username as canonical value
-                    localStorage.setItem("username", data.username);
-                    username = data.username;
-                } else {
-                    // No username stored for this uid on server
-                    if (username && username.trim()) {
-                        // local username exists but not on server: remove it so user must re-save (avoid mismatch)
-                        localStorage.removeItem("username");
-                        username = "";
-                    }
-                }
-            } else {
-                // No /users/$uid node
-                if (username && username.trim()) {
-                    // local username exists but there's no server record for this uid
-                    // Remove it to force re-save (avoids claiming another user's name)
+        if (username && username.trim()) {
+            const key = username.toLowerCase();
+            try {
+                const idSnap = await usersRef.child(key).child("ids").child(user.uid).once("value");
+                if (!idSnap.exists()) {
+                    // Local username isn't registered for this uid — clear it to avoid mismatch
                     localStorage.removeItem("username");
                     username = "";
                 }
-            }
-        } catch (e) {
-            console.warn("Could not verify existing user record:", e);
-            // On error, clear local username to be safe (prevents accidental mismatch)
-            if (username && username.trim()) {
+            } catch (e) {
+                console.warn("Could not verify username ownership:", e);
                 localStorage.removeItem("username");
                 username = "";
             }
         }
 
-        // If user has a valid username locally after verification, proceed to menu
         if (username && username.trim()) {
             showPanel(null);
             if (typeof menu === "function") menu();
@@ -2369,9 +2350,7 @@ export function initMenuUI() {
             const uid = user.uid;
             const key = raw.toLowerCase();
 
-            // We will attempt to reserve the username in /usernames using a transaction
-            // and then write the canonical record to /users/$uid. This guarantees uniqueness
-            // while keeping the main profile data under /users (as you requested).
+            // Reserve the username atomically via transaction on /usernames/<key>
             try {
                 const transactionResult = await usernamesRef.child(key).transaction(current => {
                     // If empty or already owned by this uid, claim it.
@@ -2383,22 +2362,18 @@ export function initMenuUI() {
                 });
 
                 const committed = transactionResult.committed;
-                const snapshot = transactionResult.snapshot;
-
+                // If not committed, someone else owns it
                 if (!committed) {
-                    // Name taken by someone else
                     return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
                 }
 
-                // At this point, /usernames/<key> is set to our uid (or was already ours).
-                // Now write the canonical profile under /users/$uid with username and timestamp.
+                // Now persist the canonical user record under /users/{name}
+                // with an 'ids' subtree containing the uid as requested.
                 const updates = {};
-                updates[`/users/${uid}`] = {
-                    username: raw,
-                    savedAt: firebase.database.ServerValue.TIMESTAMP
-                };
+                updates[`/users/${key}/username`] = raw;
+                updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
+                updates[`/users/${key}/ids/${uid}`] = true;
 
-                // Use atomic update to write the user record (we already claimed the username)
                 await db.ref().update(updates);
 
                 // Update local state & UI (maintain the behavior you had earlier)
@@ -2419,11 +2394,10 @@ export function initMenuUI() {
             } catch (err) {
                 console.error("Error saving to DB:", err);
 
-                // If we claimed the username but failed to write /users/$uid, rollback the claim
+                // If we claimed the username but failed to write the /users tree, rollback the claim
                 try {
                     const claimedByMeSnap = await usernamesRef.child(key).once("value");
                     if (claimedByMeSnap.exists() && claimedByMeSnap.val() === auth.currentUser.uid) {
-                        // Only remove the reservation if it's still ours
                         await usernamesRef.child(key).remove();
                     }
                 } catch (rollbackErr) {
