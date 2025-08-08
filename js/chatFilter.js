@@ -31,15 +31,15 @@ function createCanonicalForm(word) {
 export function isMessageClean(text) {
   const containsBadAss = /\b(dumbass|jackass|smartass|lazyass|asshole)\b/i.test(text);
 
-  // Regex: Allows keyboard characters + emoji ranges
-  // Emoji ranges (partial but covers most common emojis): \u1F300-\u1F6FF, \u1F900-\u1F9FF, \u2600-\u26FF, \u2700-\u27BF
-  const keyboardAndEmojiPattern = /^[a-zA-Z0-9 `~!@#$%^&*()\-_=+\[\]{}|;:'",.<>\/?\\\u2600-\u26FF\u2700-\u27BF\u1F300-\u1F6FF\u1F900-\u1F9FF]*$/u;
+  // Regex: Allows keyboard characters, numbers, and any character with the 'Emoji' Unicode property
+  // The \p{Emoji} property is the most robust way to match all emojis.
+  const keyboardAndEmojiPattern = /^[a-zA-Z0-9 `~!@#$%^&*()\-_=+\[\]{}|;:'",.<>\/?\\\p{Emoji}\s]*$/u;
 
   if (!keyboardAndEmojiPattern.test(text)) {
     Swal.fire({
       icon: 'error',
       title: 'Invalid Characters',
-      text: 'Your message contains unsupported symbols (except emojis). Please remove them and try again.',
+      text: 'Your message contains unsupported symbols. Please remove them and try again.',
       confirmButtonText: 'OK'
     });
     return false;
