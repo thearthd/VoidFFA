@@ -59,6 +59,7 @@ export const inputState = {
     reload: false,
     aim: false,
     weaponSwitch: null,
+    weaponSwitchHeld: null,
     mouseDX: 0,
     mouseDY: 0,
     isPaused: false, // Added for pause functionality
@@ -488,140 +489,157 @@ function onPointerLockError(e) {
 }
 
 function onKeyDown(e) {
-    // Always allow Backquote for chat, using its customized keybind
-    if (e.code === currentKeybinds.toggleChat) {
-        if (document.activeElement === chatInput) {
-            chatInput.blur();
-        } else {
-            chatInput.focus();
-            // Clear movement inputs immediately when chat is opened.
-            inputState.forward =
-                inputState.backward =
-                inputState.left =
-                inputState.right =
-                inputState.fire =
-                false;
-        }
-        e.preventDefault();
-        return;
-    }
+    // Always allow Backquote for chat, using its customized keybind
+    if (e.code === currentKeybinds.toggleChat) {
+        if (document.activeElement === chatInput) {
+            chatInput.blur();
+        } else {
+            chatInput.focus();
+            // Clear movement inputs immediately when chat is opened.
+            inputState.forward =
+                inputState.backward =
+                inputState.left =
+                inputState.right =
+                inputState.fire =
+                false;
+        }
+        e.preventDefault();
+        return;
+    }
 
-    // IMPORTANT: Pause key handling is moved to the external file that had the original listener.
-    // This `onKeyDown` in the input.js file should NOT handle the pause key to avoid conflicts.
-    // If game is paused or chat is focused, ignore other game keys.
-    if (inputState.isPaused || document.activeElement === chatInput) return;
+    // IMPORTANT: Pause key handling is moved to the external file that had the original listener.
+    // This `onKeyDown` in the input.js file should NOT handle the pause key to avoid conflicts.
+    // If game is paused or chat is focused, ignore other game keys.
+    if (inputState.isPaused || document.activeElement === chatInput) return;
 
-    const { primary, secondary } = getSavedLoadout();
-    let handled = true;
+    const { primary, secondary } = getSavedLoadout();
+    let handled = true;
 
-    // Use currentKeybinds for comparison
-    switch (e.code) {
-        case currentKeybinds.moveForward:
-            inputState.forward = true;
-            break;
-        case currentKeybinds.moveBackward:
-            inputState.backward = true;
-            break;
-        case currentKeybinds.moveLeft:
-            inputState.left = true;
-            break;
-        case currentKeybinds.moveRight:
-            inputState.right = true;
-            break;
-        case currentKeybinds.jump:
-            if (!window.localPlayer || !window.localPlayer.isDead) { // Allow jump only if not dead
-                inputState.jump = true;
-            }
-            break;
-        case currentKeybinds.crouch:
-            inputState.crouch = true;
-            break;
-        case currentKeybinds.slowWalk:
-            inputState.slow = true;
-            break;
-        case currentKeybinds.reload:
-            inputState.reload = true;
-            break;
-        case currentKeybinds.aim: // Handling 'aim' for keyboard
-            inputState.aim = true;
-            break;
-        case currentKeybinds.fire: // Handling 'fire' for keyboard
-            inputState.fire = true;
-            inputState.fireJustPressed = true;
-            break;
-        case currentKeybinds.knife:
-            inputState.weaponSwitch = "knife";
-            break;
-        case currentKeybinds.primary:
-            if (primary) inputState.weaponSwitch = primary;
-            break;
-        case currentKeybinds.secondary:
-            if (secondary) inputState.weaponSwitch = secondary;
-            break;
-        // Aim and Fire are primarily mouse-driven, but could have keyboard binds too.
-        // We'll prioritize mouse for these in onMouseDownGame.
-        default:
-            handled = false;
-    }
+    // Use currentKeybinds for comparison
+    switch (e.code) {
+        case currentKeybinds.moveForward:
+            inputState.forward = true;
+            break;
+        case currentKeybinds.moveBackward:
+            inputState.backward = true;
+            break;
+        case currentKeybinds.moveLeft:
+            inputState.left = true;
+            break;
+        case currentKeybinds.moveRight:
+            inputState.right = true;
+            break;
+        case currentKeybinds.jump:
+            if (!window.localPlayer || !window.localPlayer.isDead) {
+                inputState.jump = true;
+            }
+            break;
+        case currentKeybinds.crouch:
+            inputState.crouch = true;
+            break;
+        case currentKeybinds.slowWalk:
+            inputState.slow = true;
+            break;
+        case currentKeybinds.reload:
+            inputState.reload = true;
+            break;
+        case currentKeybinds.aim:
+            inputState.aim = true;
+            break;
+        case currentKeybinds.fire:
+            inputState.fire = true;
+            inputState.fireJustPressed = true;
+            break;
+        case currentKeybinds.knife:
+            if (inputState.weaponSwitchHeld !== "knife") {
+                inputState.weaponSwitch = "knife";
+                inputState.weaponSwitchHeld = "knife";
+            }
+            break;
+        case currentKeybinds.primary:
+            if (primary && inputState.weaponSwitchHeld !== primary) {
+                inputState.weaponSwitch = primary;
+                inputState.weaponSwitchHeld = primary;
+            }
+            break;
+        case currentKeybinds.secondary:
+            if (secondary && inputState.weaponSwitchHeld !== secondary) {
+                inputState.weaponSwitch = secondary;
+                inputState.weaponSwitchHeld = secondary;
+            }
+            break;
+        default:
+            handled = false;
+    }
 
-    if (handled) {
-        e.preventDefault();
-    }
+    if (handled) {
+        e.preventDefault();
+    }
 }
 
 function onKeyUp(e) {
-    // Always allow Backquote for chat, or Escape (which is often used to close menus, not a game input itself).
-    // The `togglePause` key should NOT be handled here if its behavior is entirely on keydown in another file.
-    if (e.code === currentKeybinds.toggleChat) return;
+    // Always allow Backquote for chat, or Escape (which is often used to close menus, not a game input itself).
+    // The `togglePause` key should NOT be handled here if its behavior is entirely on keydown in another file.
+    if (e.code === currentKeybinds.toggleChat) return;
 
-    // If game is paused or chat is focused, ignore other game keys.
-    if (inputState.isPaused || document.activeElement === chatInput) return;
+    // If game is paused or chat is focused, ignore other game keys.
+    if (inputState.isPaused || document.activeElement === chatInput) return;
 
-    let handled = true;
-    // Use currentKeybinds for comparison
-    switch (e.code) {
-        case currentKeybinds.moveForward:
-            inputState.forward = false;
-            break;
-        case currentKeybinds.moveBackward:
-            inputState.backward = false;
-            break;
-        case currentKeybinds.moveLeft:
-            inputState.left = false;
-            break;
-        case currentKeybinds.moveRight:
-            inputState.right = false;
-            break;
-        case currentKeybinds.jump:
-            inputState.jump = false;
-            break;
-        case currentKeybinds.crouch:
-            inputState.crouch = false;
-            break;
-        case currentKeybinds.slowWalk:
-            inputState.slow = false;
-            break;
-        case currentKeybinds.reload:
-            inputState.reload = false;
-            break;
-        case currentKeybinds.aim: // Handling 'aim' for keyboard
-            inputState.aim = false;
-            break;
-        case currentKeybinds.fire: // Handling 'fire' for keyboard
-            inputState.fire = false;
-            break;
-        case currentKeybinds.knife:
-        case currentKeybinds.primary:
-        case currentKeybinds.secondary:
-            inputState.weaponSwitch = null;
-            break;
-        default:
-            handled = false;
-    }
+    let handled = true;
+    // Use currentKeybinds for comparison
+    switch (e.code) {
+        case currentKeybinds.moveForward:
+            inputState.forward = false;
+            break;
+        case currentKeybinds.moveBackward:
+            inputState.backward = false;
+            break;
+        case currentKeybinds.moveLeft:
+            inputState.left = false;
+            break;
+        case currentKeybinds.moveRight:
+            inputState.right = false;
+            break;
+        case currentKeybinds.jump:
+            inputState.jump = false;
+            break;
+        case currentKeybinds.crouch:
+            inputState.crouch = false;
+            break;
+        case currentKeybinds.slowWalk:
+            inputState.slow = false;
+            break;
+        case currentKeybinds.reload:
+            inputState.reload = false;
+            break;
+        case currentKeybinds.aim:
+            inputState.aim = false;
+            break;
+        case currentKeybinds.fire:
+            inputState.fire = false;
+            break;
+        case currentKeybinds.knife:
+            if (inputState.weaponSwitchHeld === "knife") {
+                inputState.weaponSwitchHeld = null;
+            }
+            break;
+        case currentKeybinds.primary:
+            if (inputState.weaponSwitchHeld === currentKeybinds.primary) {
+                inputState.weaponSwitchHeld = null;
+            }
+            break;
+        case currentKeybinds.secondary:
+            if (inputState.weaponSwitchHeld === currentKeybinds.secondary) {
+                inputState.weaponSwitchHeld = null;
+            }
+            break;
+        default:
+            handled = false;
+    }
 
-    if (handled) {
-        e.preventDefault();
-    }
+    if (handled) {
+        e.preventDefault();
+    }
 }
 
 function onMouseDownGame(e) {
