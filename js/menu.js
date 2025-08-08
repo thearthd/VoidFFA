@@ -1673,21 +1673,24 @@ function createMenuChatElements() {
 let chatCooldown = false;
 
 function initChatUI() {
-    const input = document.getElementById("chat-input");
-    const messagesBox = document.getElementById("chat-messages");
-     
-    input.addEventListener("keyup", event => {
-        if (event.key === "Enter" && !chatCooldown) {
-            const text = input.value.trim();
-            if (!text) return;
-            const username = localStorage.getItem("username") || "Guest";
-            sendChatMessage(username, text);
-            input.value = "";
-             chatCooldown = true;
-            setTimeout(() => (chatCooldown = false), 2000);
-        }
-    });
+const form = document.getElementById("chat-form");
 
+form.addEventListener("submit", event => {
+  event.preventDefault();  // Prevent the page reload!
+
+  const input = document.getElementById("chat-input");
+  if (chatCooldown) return;
+
+  const text = input.value.trim();
+  if (!text) return;
+
+  const username = localStorage.getItem("username") || "Guest";
+  sendChatMessage(username, text);
+  input.value = "";
+
+  chatCooldown = true;
+  setTimeout(() => (chatCooldown = false), 2000);
+});
     // scroll-down helper whenever addChatMessage runs
     messagesBox.scrollTop = messagesBox.scrollHeight;
 }
