@@ -2285,48 +2285,65 @@ export function initMenuUI() {
     }
 
     // Save Username Button
-    if (saveUsernameBtn) {
-        saveUsernameBtn.addEventListener("click", async () => {
-            const raw = usernameInput.value.trim();
-            if (!/^[A-Za-z0-9_]+$/.test(raw)) {
-                return Swal.fire(
-                    'Invalid Username',
-                    'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
-                    'error'
-                );
-            }
-            const key = raw.toLowerCase();
-            try {
-                const snap = await usersRef.child(key).once("value");
-                if (snap.exists()) {
-                    return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
-                }
-            } catch (err) {
-                console.error(err);
-                return Swal.fire('Error', 'Could not verify username uniqueness.', 'error');
+if (saveUsernameBtn) {
+    saveUsernameBtn.addEventListener("click", async () => {
+        const raw = usernameInput.value.trim();
+
+        // 1. Input validation
+        if (!/^[A-Za-z0-9_]+$/.test(raw)) {
+            return Swal.fire(
+                'Invalid Username',
+                'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
+                'error'
+            );
+        }
+
+        // 2. Get the authenticated user
+        // You MUST have a Firebase authentication flow in your app to get this object.
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            return Swal.fire('Error', 'Please log in to save a username.', 'error');
+        }
+
+        const uid = user.uid;
+        const key = raw.toLowerCase();
+
+        try {
+            // 3. Check if username is already taken
+            // This requires a new "usernames" node in your database rules.
+            const usernamesRef = firebase.database().ref('usernames');
+            const snap = await usernamesRef.child(key).once("value");
+
+            if (snap.exists() && snap.val() !== uid) {
+                // The username is taken by another user.
+                return Swal.fire('Name Taken', `${raw} is already in use.`, 'warning');
             }
 
-            // Save locally & to DB
+            // 4. Save the username under the user's UID and in the uniqueness check list
+            const usersRef = firebase.database().ref('users');
+            await usersRef.child(uid).set({
+                username: raw,
+                savedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            await usernamesRef.child(key).set(uid);
+
+            // 5. Update local state and UI
             localStorage.setItem("username", raw);
             username = raw;
             playerCard.setText(username);
-            try {
-                await usersRef.child(key).set({
-                    username: raw,
-                    savedAt: firebase.database.ServerValue.TIMESTAMP
-                });
-            } catch (err) {
-                console.error("Error saving to DB:", err);
-            }
 
-            // Hide prompt, show game
             showPanel(null);
             canvas.style.display = 'block';
             menu();
             document.getElementById("game-logo").classList.add("hidden");
             menuOverlay.style.display = 'none';
-        });
-    }
+
+        } catch (err) {
+            console.error("Error saving to DB:", err);
+            return Swal.fire('Error', 'Could not save username.', 'error');
+        }
+    });
+}
 
     // Details Toggle
     if (toggleDetailsBtn) {
