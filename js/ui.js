@@ -32,165 +32,55 @@ export function setUIDbRefs(dbRefsObject) {
  * @param {HTMLElement} gameWrapper - The DOM element to append game UI to.
  */
 export function createGameUI(gameWrapper) {
-    if (!gameWrapper) {
-        console.error("Game wrapper not found! Cannot create game UI elements.");
-        return;
-    }
+    if (!gameWrapper) {
+        console.error("Game wrapper not found! Cannot create game UI elements.");
+        return;
+    }
 
-    // --- Create and append Crosshair ---
-    const crosshair = document.createElement('crosshair');
-    crosshair.style.display = 'block'; // Or 'none' if dynamically shown
-    gameWrapper.appendChild(crosshair);
+    // Query existing UI elements inside the wrapper
+    const crosshair = gameWrapper.querySelector('crosshair');
+    if (!crosshair) console.warn("Crosshair element not found.");
 
-    // --- Create and append Scope Overlay ---
-    const scopeOverlay = document.createElement('div');
-    scopeOverlay.id = 'scopeOverlay';
-    scopeOverlay.innerHTML = `
-        <div class="reticle">
-            <div class="circle"></div>
-            <div class="line horizontal left"></div>
-            <div class="line horizontal right"></div>
-            <div class="line vertical up"></div>
-            <div class="line vertical down"></div>
-        </div>
-    `;
-    gameWrapper.appendChild(scopeOverlay);
+    const scopeOverlay = gameWrapper.querySelector('#scopeOverlay');
+    if (!scopeOverlay) console.warn("Scope overlay element not found.");
 
-    // --- Create and append Buy Menu ---
-    const buyMenu = document.createElement('div');
-    buyMenu.id = 'buy-menu';
-    buyMenu.classList.add('hidden'); // Start hidden
-    buyMenu.innerHTML = `
-        <h2>Buy Menu (FREE)</h2>
-        <button id="buy-deagle">Get Deagle</button>
-        <button id="buy-ak">Get AK-47</button>
-        <button id="close-buy">Close</button>
-    `;
-    gameWrapper.appendChild(buyMenu);
+    const buyMenu = gameWrapper.querySelector('#buy-menu');
+    if (!buyMenu) console.warn("Buy menu element not found.");
 
-    // --- Create and append HUD elements container ---
-    const hud = document.createElement('div');
-    hud.id = 'hud';
-    Object.assign(hud.style, {
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none', // Allow clicks to pass through by default
-        zIndex: '10',
-    });
-    gameWrapper.appendChild(hud);
+    const hud = gameWrapper.querySelector('#hud');
+    if (!hud) console.warn("HUD container not found.");
 
-    // --- Append Kill Feed to HUD ---
-    const killFeed = document.createElement('kill-feed');
-    hud.appendChild(killFeed);
+    const killFeed = hud?.querySelector('kill-feed');
+    if (!killFeed) console.warn("Kill feed element not found.");
 
+    const scoreboard = hud?.querySelector('#scoreboard');
+    if (!scoreboard) console.warn("Scoreboard element not found.");
 
-    // --- Append Scoreboard to HUD ---
-    const scoreboard = document.createElement('div');
-    scoreboard.id = 'scoreboard';
-    scoreboard.classList.add('hidden'); // Start hidden
-    Object.assign(scoreboard.style, {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        color: 'white',
-        padding: '20px',
-        borderRadius: '8px',
-        zIndex: '1000',
-        minWidth: '300px',
-        pointerEvents: 'auto', // Scoreboard should be interactive for scrolling
-    });
-    scoreboard.innerHTML = `
-        <h3>Scoreboard</h3>
-        <table id="score-table" style="width: 100%; border-collapse: collapse;">
-            <thead>
-                <tr>
-                    <th style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">Player</th>
-                    <th style="8px; border-bottom: 1px solid #444; text-align: left;">K</th>
-                    <th style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">D</th>
-                    <th style="padding: 8px; border-bottom: 1px solid #444; text-align: left;">KS</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    `;
-    hud.appendChild(scoreboard);
+    const inventory = hud?.querySelector('#inventory');
+    if (!inventory) console.warn("Inventory element not found.");
 
+    const healthShieldDisplay = hud?.querySelector('#health-shield-display');
+    if (!healthShieldDisplay) console.warn("Health and shield display not found.");
 
-    // --- Append Inventory to HUD ---
-    const inventory = document.createElement('div');
-    inventory.id = 'inventory';
-    Object.assign(inventory.style, {
-        position: 'absolute',
-        bottom: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        gap: '5px',
-        zIndex: '4',
-        pointerEvents: 'none', // Inventory elements should not block interaction
-    });
-    hud.appendChild(inventory); // Append to hud
+    const ammoDiv = hud?.querySelector('#ammo-display');
+    if (!ammoDiv) console.warn("Ammo display not found.");
 
-    // --- Create and append Health and Shield Display to HUD ---
-    const healthShieldDisplay = document.createElement('div');
-    healthShieldDisplay.id = 'health-shield-display';
-     Object.assign(healthShieldDisplay.style, {
-        position: 'absolute',
-        bottom: '90px', // Positioned above inventory, adjust as needed
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center', // Center align the bars
-        zIndex: '1000',
-        pointerEvents: 'none',
-        color: 'white',
-        fontFamily: 'Arial, sans-serif',
-        textShadow: '1px 1px 2px black',
-        // Added background, padding, and border-radius for a filled look
-        backgroundColor: 'rgba(0, 0, 0, 0.0)', // A semi-transparent dark background
-        padding: '10px 15px', // Add some padding around the bars
-        borderRadius: '8px', // Slightly rounded corners for the background
-    });
+    // Initialize listeners for interactive UI elements
+    initChatUI();
+    initBuyMenuEvents();
 
-    // Modified: Health and Shield text inside their bars, removed labels
-    healthShieldDisplay.innerHTML = `
-        <div style="width: 200px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative; margin-bottom: 5px;">
-            <div id="health-bar-fill" style="height: 100%; width: 100%; background-color: #4ed147; transition: width 0.1s linear;"></div>
-            <span id="health-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em;">100 / 100</span>
-        </div>
-        <div style="width: 200px; height: 20px; background-color: #555; border-radius: 3px; overflow: hidden; position: relative;">
-            <div id="shield-bar-fill" style="height: 100%; width: 100%; background-color: #4755d1; transition: width 0.1s linear;"></div>
-            <span id="shield-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.9em;">50 / 50</span>
-        </div>
-    `;
-    hud.appendChild(healthShieldDisplay);
-
-    // --- Create and append Ammo Display to HUD ---
-    const ammoDiv = document.createElement("div");
-    ammoDiv.id = "ammo-display";
-    Object.assign(ammoDiv.style, {
-        position: "absolute",
-        bottom: "20px", // Same bottom as inventory to be on its right
-        color: "white",
-        fontSize: "1.2rem",
-        fontFamily: "Arial, sans-serif",
-        textShadow: "1px 1px 2px black",
-        zIndex: "1000",
-        pointerEvents: "none",
-        // Removed background, padding, and border-radius
-    });
-    hud.appendChild(ammoDiv);
-
-
-    // Initialize listeners for interactive UI elements
-    initChatUI();
-    initBuyMenuEvents();
+    // Optionally return references for later use
+    return {
+        crosshair,
+        scopeOverlay,
+        buyMenu,
+        hud,
+        killFeed,
+        scoreboard,
+        inventory,
+        healthShieldDisplay,
+        ammoDiv,
+    };
 }
 /* —————————————————————————————————————————————————————————————————————
     HEALTH + SHIELD BAR (Three.js version – unchanged from your ui.js)
