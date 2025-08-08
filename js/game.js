@@ -2543,12 +2543,38 @@ entry.group.userData.velocityY = 0;
 // Applies damage and flashes red, then reverts to originalColor
 // -------------------------------------------------------------
 function incrementUserStat(username, field, amount) {
-  return usersRef
-    .child(username)
-    .child('stats')
-    .child(field)
-    .transaction(current => (current || 0) + amount)
-    .catch(err => console.warn(`[Stats] ${username}.${field} update failed:`, err));
+    if (!username || !field || typeof amount !== 'number' || isNaN(amount)) {
+        console.warn(`[incrementUserStat] Invalid call: username='${username}', field='${field}', amount='${amount}'`);
+        return Promise.resolve();
+    }
+    
+    if (!usersRef) {
+        console.warn('[incrementUserStat] usersRef not initialized. Cannot increment stat.');
+        return Promise.reject(new Error('usersRef not initialized'));
+    }
+    
+    const userStatRef = usersRef.child(username).child('stats').child(field);
+    
+    return userStatRef.transaction(currentValue => {
+        // If the stat doesn't exist, initialize it to the provided amount.
+        if (currentValue === null) {
+            return amount;
+        }
+        // Otherwise, increment the current value.
+        return (currentValue || 0) + amount;
+    })
+    .then(result => {
+        if (result.committed) {
+            console.log(`[incrementUserStat] Successfully incremented ${username}'s ${field} by ${amount}. New value: ${result.snapshot.val()}`);
+        } else {
+            console.warn(`[incrementUserStat] Transaction for ${username}'s ${field} was aborted.`);
+        }
+        return result;
+    })
+    .catch(err => {
+        console.error(`[incrementUserStat] Failed to update ${username}'s ${field}:`, err);
+        return Promise.reject(err);
+    });
 }
 
 function applyDamageToRemote(targetId, damage, killerInfo) {
@@ -2770,6 +2796,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
