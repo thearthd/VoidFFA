@@ -393,7 +393,7 @@ export async function endGameCleanup() {
 //
 // -- Game Initialization --
 //
-export async function initNetwork(username, mapName, gameId, ffaEnabled) {
+export async function initNetwork(user, username, mapName, gameId, ffaEnabled) {
     console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
     await endGameCleanup();
 
@@ -419,7 +419,8 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
         slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
     }
 
-    const user = firebase.auth().currentUser;
+    // REMOVED redundant check: `const user = firebase.auth().currentUser;`
+    // The user object is now passed as a parameter, so it's always available.
     if (!user) {
         console.error("No authenticated user found. Cannot join game.");
         Swal.fire('Error', 'You must be logged in to join a game.', 'error');
@@ -494,53 +495,6 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
 
     console.log("[network.js] Network initialization complete.");
     return true;
-}
-//
-// -- Main Cleanup & Player Listeners --
-//
-export async function fullCleanup(gameId) {
-    console.log("[fullCleanup] START, gameId =", gameId);
-
-    const initialSlotName = activeGameSlotName;
-    const initialLocalPlayerId = localPlayerId;
-
-    try {
-        await endGameCleanup();
-        console.log("[fullCleanup] ✓ endGameCleanup complete");
-        
-        if (gameId) {
-            await gamesRef.child(gameId).remove();
-            console.log(`[fullCleanup] ✓ removed lobby entry gamesRef/${gameId}`);
-        } else {
-            console.warn("[fullCleanup] no gameId provided, skipping lobby removal from main gamesRef");
-        }
-
-        if (window.scene) {
-            if (typeof disposeThreeScene === 'function') {
-                disposeThreeScene(window.scene);
-            } else {
-                console.warn("[fullCleanup] disposeThreeScene function not found. Skipping scene disposal.");
-                window.scene.clear();
-                window.scene = null;
-            }
-            console.log("[fullCleanup] ✓ Three.js scene disposed");
-        }
-        if (window.camera) {
-            window.camera = null;
-            console.log("[fullCleanup] ✓ camera reference cleared");
-        }
-
-        activeGameSlotName = null;
-        localPlayerId = null;
-
-        console.log("[fullCleanup] END");
-        location.reload();
-        return true;
-
-    } catch (err) {
-        console.error("[fullCleanup] ERROR during cleanup:", err);
-        throw err;
-    }
 }
 
 function setupPlayersListener(playersRef) {
@@ -736,6 +690,51 @@ function setupTracerListener(tracersRef) {
     tracersRef.on("child_removed", (snap) => {
         removeTracer(snap.key);
     });
+}
+
+export async function fullCleanup(gameId) {
+    console.log("[fullCleanup] START, gameId =", gameId);
+
+    const initialSlotName = activeGameSlotName;
+    const initialLocalPlayerId = localPlayerId;
+
+    try {
+        await endGameCleanup();
+        console.log("[fullCleanup] ✓ endGameCleanup complete");
+        
+        if (gameId) {
+            await gamesRef.child(gameId).remove();
+            console.log(`[fullCleanup] ✓ removed lobby entry gamesRef/${gameId}`);
+        } else {
+            console.warn("[fullCleanup] no gameId provided, skipping lobby removal from main gamesRef");
+        }
+
+        if (window.scene) {
+            if (typeof disposeThreeScene === 'function') {
+                disposeThreeScene(window.scene);
+            } else {
+                console.warn("[fullCleanup] disposeThreeScene function not found. Skipping scene disposal.");
+                window.scene.clear();
+                window.scene = null;
+            }
+            console.log("[fullCleanup] ✓ Three.js scene disposed");
+        }
+        if (window.camera) {
+            window.camera = null;
+            console.log("[fullCleanup] ✓ camera reference cleared");
+        }
+
+        activeGameSlotName = null;
+        localPlayerId = null;
+
+        console.log("[fullCleanup] END");
+        location.reload();
+        return true;
+
+    } catch (err) {
+        console.error("[fullCleanup] ERROR during cleanup:", err);
+        throw err;
+    }
 }
 
 //
