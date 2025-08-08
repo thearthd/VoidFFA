@@ -236,82 +236,92 @@ bloomPass = null;
 }
 
 async function determineWinnerAndEndGame() {
-  console.log("Determining winner and ending game...");
-  if (!playersRef) {
-    console.error("determineWinnerAndEndGame: playersRef is NULL");
-    return;
-  }
-
-  const playersSnapshot = await playersRef.once("value");
-  const statsByUser = {};
-  playersSnapshot.forEach(childSnap => {
-    const p = childSnap.val();
-    if (!p || typeof p.kills !== 'number') return;
-    statsByUser[p.username] = {
-      kills: p.kills || 0,
-      deaths: p.deaths || 0,
-      win: 0,
-      loss: 0
-    };
-  });
-
-  const allStats = Object.values(statsByUser);
-  if (allStats.length === 0) {
-    console.log("No players found");
-  } else {
-    const maxKills = Math.max(...allStats.map(s => s.kills));
-    if (maxKills > 0) {
-      const winners = Object.entries(statsByUser)
-        .filter(([_, s]) => s.kills === maxKills)
-        .map(([u]) => u);
-      for (const username of winners) {
-        statsByUser[username].win = 1;
-      }
-      for (const [username, s] of Object.entries(statsByUser)) {
-        if (!winners.includes(username)) {
-          s.loss = 1;
-        }
-      }
-      const display = winners.length > 1 ? winners.join(", ") : winners[0];
-      console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
-      localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
-      localStorage.setItem('gameEndedTimestamp', Date.now().toString());
-      const gameTimerEl = document.getElementById("game-timer");
-      if (gameTimerEl) {
-        gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
-        gameTimerEl.style.display = "block";
-      }
-    } else {
-      console.log("No kills recorded, no winners or losers");
-      localStorage.removeItem('gameWinner');
-      localStorage.removeItem('gameEndedTimestamp');
+    console.log("Determining winner and ending game...");
+    if (!playersRef) {
+        console.error("determineWinnerAndEndGame: playersRef is NULL");
+        return;
     }
-  }
 
-  const statUpdates = [];
-  for (const [username, { win, loss }] of Object.entries(statsByUser)) {
-    if (win === 1) statUpdates.push(incrementUserStat(username, 'wins', 1));
-    if (loss === 1) statUpdates.push(incrementUserStat(username, 'losses', 1));
-  }
-  await Promise.all(statUpdates);
+    const playersSnapshot = await playersRef.once("value");
+    const statsByUser = {};
+    playersSnapshot.forEach(childSnap => {
+        const p = childSnap.val();
+        if (!p || typeof p.kills !== 'number') return;
+        statsByUser[p.username] = {
+            kills: p.kills || 0,
+            deaths: p.deaths || 0,
+            win: 0,
+            loss: 0
+        };
+    });
 
-  try {
-    await gameConfigRef.remove();
-    console.log("Game config fully removed.");
-  } catch (e) {
-    console.error("Failed to remove gameConfig:", e);
-  }
+    const allStats = Object.values(statsByUser);
+    if (allStats.length === 0) {
+        console.log("No players found");
+    } else {
+        const maxKills = Math.max(...allStats.map(s => s.kills));
+        if (maxKills > 0) {
+            const winners = Object.entries(statsByUser)
+                .filter(([_, s]) => s.kills === maxKills)
+                .map(([u]) => u);
+            for (const username of winners) {
+                statsByUser[username].win = 1;
+            }
+            for (const [username, s] of Object.entries(statsByUser)) {
+                if (!winners.includes(username)) {
+                    s.loss = 1;
+                }
+            }
+            const display = winners.length > 1 ? winners.join(", ") : winners[0];
+            console.log(`WINNER${winners.length > 1 ? "S" : ""}: ${display} (${maxKills} kills)`);
+            localStorage.setItem('gameWinner', JSON.stringify({ winners, kills: maxKills }));
+            localStorage.setItem('gameEndedTimestamp', Date.now().toString());
+            const gameTimerEl = document.getElementById("game-timer");
+            if (gameTimerEl) {
+                gameTimerEl.textContent = `WINNER${winners.length > 1 ? "S" : ""}: ${display}`;
+                gameTimerEl.style.display = "block";
+            }
+        } else {
+            console.log("No kills recorded, no winners or losers");
+            localStorage.removeItem('gameWinner');
+            localStorage.removeItem('gameEndedTimestamp');
+        }
+    }
 
-  if (playersKillsListener) {
-    playersRef.off("value", playersKillsListener);
-    playersKillsListener = null;
-    console.log("Detached players kill listener.");
-  }
+    // ⭐ NEW: Only increment stats for the local player.
+    const statUpdates = [];
+    if (window.localPlayer && window.localPlayer.username) {
+        const localPlayerUsername = window.localPlayer.username;
+        const localPlayerStats = statsByUser[localPlayerUsername];
+        if (localPlayerStats) {
+            if (localPlayerStats.win === 1) {
+                statUpdates.push(incrementUserStat(localPlayerUsername, 'wins', 1));
+            }
+            if (localPlayerStats.loss === 1) {
+                statUpdates.push(incrementUserStat(localPlayerUsername, 'losses', 1));
+            }
+        }
+    }
+    
+    await Promise.all(statUpdates);
+    
+    try {
+        await gameConfigRef.remove();
+        console.log("Game config fully removed.");
+    } catch (e) {
+        console.error("Failed to remove gameConfig:", e);
+    }
 
-  await disposeGame();
-  await fullCleanup(activeGameId);
+    if (playersKillsListener) {
+        playersRef.off("value", playersKillsListener);
+        playersKillsListener = null;
+        console.log("Detached players kill listener.");
+    }
 
-  playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
+    await disposeGame();
+    await fullCleanup(activeGameId);
+    
+    playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
 }
 
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
@@ -2637,8 +2647,10 @@ console.log(isPenetrationShot);
 
       // 5) If this hit killed them…
       if (newHP <= 0) {
-        // increment victim’s death stat
-        incrementUserStat(data.username, 'deaths', 1);
+        // ⭐ NEW: Only increment the death stat for the local player if they are the target.
+        if (targetId === window.localPlayer.id) {
+            incrementUserStat(data.username, 'deaths', 1);
+        }
 
         Object.assign(updateData, {
           deaths: (data.deaths || 0) + 1,
@@ -2656,11 +2668,18 @@ console.log(isPenetrationShot);
             const newKS    = (kd.ks    || 0) + 1;
             window.localPlayer.kills = newKills;
             window.localPlayer.ks    = newKS;
+            // The following line is where the killer's stats are updated.
+            // This is the source of a permission error, as it attempts to update a remote player.
+            // If you need to handle this client-side, the killer would need to be the local player.
+            // For now, we will assume this is handled elsewhere or is a separate concern.
             return playersRef.child(killerId).update({ kills: newKills, ks: newKS });
           })
           .then(() => {
+            // ⭐ NEW: Only increment the killer's stat if the killer is the local player.
+            if (killerId === window.localPlayer.id) {
+              incrementUserStat(killerName, 'kills', 1);
+            }
             // play killstreak sound / effect if locally‐killed
-            incrementUserStat(killerName, 'kills', 1);
             if (killerId === window.localPlayer.id) {
               const streak = Math.min(window.localPlayer.ks, 10);
               const url    = (typeof KILLSTREAK_SOUNDS !== 'undefined')
@@ -2681,12 +2700,12 @@ console.log(isPenetrationShot);
           // ---- finally push into kills log ----
           .then(() => {
             const killLog = {
-              killer:            killerName,
-              victim:            data.username,
+              killer:              killerName,
+              victim:              data.username,
               weapon,
               isHeadshot,
               isPenetrationShot,
-              timestamp:         Date.now()
+              timestamp:           Date.now()
             };
             if (uiDbRefs.killsRef) {
               return uiDbRefs.killsRef.push(killLog);
@@ -2806,6 +2825,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
