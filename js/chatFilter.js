@@ -1,10 +1,5 @@
 // A simple profanity filter using canonicalization and fuzzy matching.
 
-// Banned words list. Expand this array with more words as needed.
-const bannedWords = [
-    'hitler'
-];
-
 // --- Canonicalization Functions ---
 /**
  * Creates a basic canonical form of a word by lowercasing, removing diacritics,
@@ -39,7 +34,7 @@ function createCanonicalForm(word) {
         .replace(/ss/g, 's');
 
     canonical = canonical.replace(/[^a-z]/g, '');
-    canonical = canonical.replace(/(.)\1+/g, '$1');
+    // Removed the line that collapsed repeated characters to fix the 'kkk' issue.
 
     return canonical;
 }
@@ -100,6 +95,7 @@ export function isMessageClean(text) {
     });
 
     if (containsBannedWord) {
+        // Swal must be loaded in your HTML for this to work
         Swal.fire({
             icon: 'error',
             title: 'Message Blocked',
