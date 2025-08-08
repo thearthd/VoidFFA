@@ -1771,7 +1771,7 @@ function initMenuChat() {
 
 export async function sendChatMessage(username, text) {
     if (!menuChatRef) {
-        console.warn("Chat not initialized yet");
+        console.warn("Chat not initialized yet (menuChatRef missing)");
         return null;
     }
 
@@ -1791,7 +1791,7 @@ export async function sendChatMessage(username, text) {
         return null;
     }
 
-    const user = (typeof auth !== "undefined" && auth && auth.currentUser) ? auth.currentUser : null;
+    const user = (typeof menuAuth !== "undefined" && menuAuth && menuAuth.currentUser) ? menuAuth.currentUser : null;
     if (!user) {
         console.warn("sendChatMessage: user not authenticated");
         return null;
@@ -1813,7 +1813,7 @@ export async function sendChatMessage(username, text) {
 
     // Verify ownership: /users/{usernameKey}/ids/{uid} === true
     try {
-        const idSnap = await db.ref(`users/${usernameKey}/ids/${uid}`).once("value");
+        const idSnap = await menuDb.ref(`users/${usernameKey}/ids/${uid}`).once("value");
         if (!idSnap.exists() || idSnap.val() !== true) {
             console.warn(`sendChatMessage: username "${usernameToUse}" (key "${usernameKey}") is not owned by uid ${uid}.`);
             return null;
@@ -1840,6 +1840,7 @@ export async function sendChatMessage(username, text) {
         return null;
     }
 }
+
 
 export function chatButtonHit() {
     clearMenuCanvas();
@@ -2313,16 +2314,22 @@ export function initMenuUI() {
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
 
     // Ensure we use the menuApp instance for both DB and Auth (safe fallback if not initialized)
-    let menuAppInstance;
     try {
+        // menuAppInstance is module-scoped and will be set here (declared outside this function)
         menuAppInstance = firebase.app("menuApp");
     } catch (e) {
         menuAppInstance = firebase.initializeApp(menuConfig, "menuApp");
     }
-    const db = menuAppInstance.database();
-    const auth = menuAppInstance.auth();
-    const usersRef = db.ref("users");
-    const usernamesRef = db.ref("usernames"); // index: name -> uid
+
+    // Set module-level db/auth so other functions (sendChatMessage, initMenuChat) can use them
+    menuDb = menuAppInstance.database();
+    menuAuth = menuAppInstance.auth();
+
+    // Set the chat ref (adjust path if your DB uses a different chat node)
+    menuChatRef = menuDb.ref("menuChat");
+
+    const usersRef = menuDb.ref("users");
+    const usernamesRef = menuDb.ref("usernames"); // index: name -> uid
 
     /** 
      * Throw if no valid username is set.
@@ -2349,9 +2356,9 @@ export function initMenuUI() {
 
     // Sign in anonymously (on the menuApp auth instance) if needed
     async function authenticateUser() {
-        if (!auth.currentUser) {
+        if (!menuAuth.currentUser) {
             try {
-                await auth.signInAnonymously();
+                await menuAuth.signInAnonymously();
                 console.log("Signed in anonymously (menuApp).");
             } catch (error) {
                 console.error("Authentication failed (menuApp):", error);
@@ -2363,7 +2370,7 @@ export function initMenuUI() {
     async function initializeMenuDisplay() {
         // Wait for auth state to be ready using the menuApp auth instance
         await new Promise(resolve => {
-            const unsubscribe = auth.onAuthStateChanged(user => {
+            const unsubscribe = menuAuth.onAuthStateChanged(user => {
                 if (user) {
                     unsubscribe();
                     resolve(user);
@@ -2373,7 +2380,7 @@ export function initMenuUI() {
             });
         });
 
-        const user = auth.currentUser;
+        const user = menuAuth.currentUser;
         if (!user) {
             console.error("Authentication failed. Cannot initialize menu.");
             showPanel(usernamePrompt);
@@ -2477,7 +2484,7 @@ export function initMenuUI() {
                 );
             }
 
-            const user = auth.currentUser;
+            const user = menuAuth.currentUser;
             if (!user) {
                 console.error("Firebase user not authenticated (menuApp).");
                 return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
@@ -2504,7 +2511,7 @@ export function initMenuUI() {
                 updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
                 updates[`/users/${key}/ids/${uid}`] = true;
 
-                await db.ref().update(updates);
+                await menuDb.ref().update(updates);
 
                 // success -> update local state & UI
                 localStorage.setItem("username", raw);
@@ -2527,7 +2534,7 @@ export function initMenuUI() {
                 // Rollback: if we claimed usernames/<key> but failed to write /users/{key}, remove claim (only if still ours)
                 try {
                     const claimedSnap = await usernamesRef.child(key).once("value");
-                    if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
+                    if (claimedSnap.exists() && claimedSnap.val() === menuAuth.currentUser.uid) {
                         await usernamesRef.child(key).remove();
                     }
                 } catch (rollbackErr) {
