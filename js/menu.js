@@ -2200,7 +2200,7 @@ add(loadoutMenu);
  * interacts with HTML elements for the menu.
  */
 export function initMenuUI() {
-    const menuOverlay      = document.getElementById("menu-overlay");
+    const menuOverlay     = document.getElementById("menu-overlay");
     const usernamePrompt   = document.getElementById("username-prompt");
     const mapSelect        = document.getElementById("map-menu");
     const controlsMenu     = document.getElementById("menu-controls-menu");
@@ -2226,8 +2226,7 @@ export function initMenuUI() {
     const usersRef = db.ref("users");
     const usernamesRef = db.ref("usernames"); // index: name -> uid
 
-    /** 
-     * Throw if no valid username is set.
+    /** * Throw if no valid username is set.
      * Also forces the username prompt UI.
      */
     function requireUsername() {
@@ -2368,83 +2367,82 @@ export function initMenuUI() {
     }
 
     // Save Username Button
-// Save Username Button
-if (saveUsernameBtn) {
-    saveUsernameBtn.addEventListener("click", async () => {
-        const raw = usernameInput.value.trim();
-        if (!/^[A-Za-z0-9_]+$/.test(raw)) {
-            return Swal.fire(
-                'Invalid Username',
-                'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
-                'error'
-            );
-        }
-
-        const user = auth.currentUser;
-        if (!user) {
-            console.error("Firebase user not authenticated (menuApp).");
-            return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
-        }
-        const uid = user.uid;
-        const key = raw.toLowerCase();
-
-        // 1) Claim username in /usernames/<key> via transaction
-        try {
-            const txResult = await usernamesRef.child(key).transaction(current => {
-                if (current === null || current === uid) {
-                    return uid;
-                }
-                return; // abort - someone else owns it
-            });
-
-            if (!txResult.committed) {
-                return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
+    if (saveUsernameBtn) {
+        saveUsernameBtn.addEventListener("click", async () => {
+            const raw = usernameInput.value.trim();
+            if (!/^[A-Za-z0-9_]+$/.test(raw)) {
+                return Swal.fire(
+                    'Invalid Username',
+                    'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
+                    'error'
+                );
             }
 
-            // 2) Write canonical profile to /users/{name} and include ids/{uid}=true in the same atomic update
-            const updates = {};
-            updates[`/users/${key}/username`] = raw;
-            updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
-            updates[`/users/${key}/ids/${uid}`] = true;
-            updates[`/users/${key}/version`] = CLIENT_GAME_VERSION; // This is the new line.
-
-            await db.ref().update(updates);
-
-            // success -> update local state & UI
-            localStorage.setItem("username", raw);
-            username = raw;
-            if (typeof playerCard !== "undefined" && playerCard && typeof playerCard.setText === "function") {
-                try { playerCard.setText(username); } catch (e) { /* ignore */ }
+            const user = auth.currentUser;
+            if (!user) {
+                console.error("Firebase user not authenticated (menuApp).");
+                return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
             }
+            const uid = user.uid;
+            const key = raw.toLowerCase();
 
-            // Hide prompt, show game
-            showPanel(null);
-            if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
-            if (typeof menu === "function") menu();
-            const logo = document.getElementById("game-logo");
-            if (logo) logo.classList.add("hidden");
-            if (menuOverlay) menuOverlay.style.display = 'none';
-
-        } catch (err) {
-            console.error("Error saving to DB:", err);
-
-            // Rollback: if we claimed usernames/<key> but failed to write /users/{key}, remove claim (only if still ours)
+            // 1) Claim username in /usernames/<key> via transaction (index: name -> uid)
             try {
-                const claimedSnap = await usernamesRef.child(key).once("value");
-                if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
-                    await usernamesRef.child(key).remove();
-                }
-            } catch (rollbackErr) {
-                console.error("Failed to rollback username reservation:", rollbackErr);
-            }
+                const txResult = await usernamesRef.child(key).transaction(current => {
+                    if (current === null || current === uid) {
+                        return uid;
+                    }
+                    return; // abort - someone else owns it
+                });
 
-            if (err && (err.code === "PERMISSION_DENIED" || (err.code && err.code.toLowerCase().includes("permission")))) {
-                return Swal.fire('Error', 'Could not save username. Check authentication or try a different name.', 'error');
+                if (!txResult.committed) {
+                    return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
+                }
+
+                // 2) Write canonical profile to /users/{name} and include ids/{uid}=true in the same atomic update
+                const updates = {};
+                updates[`/users/${key}/username`] = raw;
+                updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
+                updates[`/users/${key}/ids/${uid}`] = true;
+                updates[`/users/${key}/version`] = CLIENT_GAME_VERSION; // This is the new line to assign the version
+
+                await db.ref().update(updates);
+
+                // success -> update local state & UI
+                localStorage.setItem("username", raw);
+                username = raw;
+                if (typeof playerCard !== "undefined" && playerCard && typeof playerCard.setText === "function") {
+                    try { playerCard.setText(username); } catch (e) { /* ignore */ }
+                }
+
+                // Hide prompt, show game
+                showPanel(null);
+                if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
+                if (typeof menu === "function") menu();
+                const logo = document.getElementById("game-logo");
+                if (logo) logo.classList.add("hidden");
+                if (menuOverlay) menuOverlay.style.display = 'none';
+
+            } catch (err) {
+                console.error("Error saving to DB:", err);
+
+                // Rollback: if we claimed usernames/<key> but failed to write /users/{key}, remove claim (only if still ours)
+                try {
+                    const claimedSnap = await usernamesRef.child(key).once("value");
+                    if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
+                        await usernamesRef.child(key).remove();
+                    }
+                } catch (rollbackErr) {
+                    console.error("Failed to rollback username reservation:", rollbackErr);
+                }
+
+                if (err && (err.code === "PERMISSION_DENIED" || (err.code && err.code.toLowerCase().includes("permission")))) {
+                    return Swal.fire('Error', 'Could not save username. Check authentication or try a different name.', 'error');
+                }
+                return Swal.fire('Error', 'Could not save username. Please check your permissions.', 'error');
             }
-            return Swal.fire('Error', 'Could not save username. Please check your permissions.', 'error');
-        }
-    });
-}
+        });
+    }
 
     // Details Toggle
     if (toggleDetailsBtn) {
