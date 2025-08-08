@@ -1667,7 +1667,7 @@ function centerChatBox() {
 
 function createMenuChatElements() {
     chatBox.style.display = 'flex';
-document.getElementById('chat-box').style.transform = 'scale(1)';
+document.documentElement.style.setProperty('--scale', '1.5');
     centerChatBox(); // center when first created
 }
 
@@ -1701,7 +1701,7 @@ function initChatUI() {
 }
 
 function destroyMenuChatElements() {
-document.getElementById('chat-box').style.transform = 'scale(0.6)';
+document.documentElement.style.setProperty('--scale', '0.85');
     chatBox.style.display = 'none';
     chatBox.style.top = '20px';
     chatBox.style.left = '20px';
