@@ -5,7 +5,7 @@
 ,~(  )  , )~~\ |        |/~( ,  (  )~;
 ' / / --`--,          .--'-- \ \ `
   /  \    | '          ` |    /  \
-// fff fff f f fffffff ff
+// fff fff f f fffffff f
 horse power
 */
 const CLIENT_GAME_VERSION = "v1.00";
@@ -36,7 +36,7 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/
 import { createGameUI, initBulletHoles } from "./ui.js";
 import { startGame, toggleSceneDetails } from "./game.js";
 import { initNetwork, setActiveGameId } from "./network.js";
-import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, requiredGameVersion, assignPlayerVersion, menuChatRef, menuConfig} from './firebase-config.js';
+import { gamesRef, claimGameSlot, releaseGameSlot, slotsRef, usersRef, requiredGameVersion, assignPlayerVersion, menuChatRef, } from './firebase-config.js';
 import { setPauseState, inputState, currentKeybinds } from "./input.js";
 import {  showLoadoutScreen, hideLoadoutScreen } from "./loadout.js";
 // Make sure you have this script tag in your HTML <head> or before your menu.js script:
@@ -119,9 +119,6 @@ export function getHeight() { return canvasHeight; }
 
 // List of shapes to draw on the canvas
 const shapes = [];
-
-let menuDb = null;
-let menuAuth = null;
 
 /**
  * Adds a shape to the drawing list.
@@ -1660,10 +1657,8 @@ function playButtonHit() {
 
 
 let chatListener = null;
-let chatInputHandler = null;
 
 function centerChatBox() {
-    if (!chatBox) return;
     const rect = chatBox.getBoundingClientRect();
     chatBox.style.position = 'absolute';
     chatBox.style.top = `calc(50% - ${rect.height / 2}px)`;
@@ -1671,7 +1666,6 @@ function centerChatBox() {
 }
 
 function createMenuChatElements() {
-    if (!chatBox) return;
     chatBox.style.display = 'flex';
     centerChatBox(); // center when first created
 }
@@ -1681,100 +1675,64 @@ let chatCooldown = false;
 function initChatUI() {
     const input = document.getElementById("chat-input");
     const messagesBox = document.getElementById("chat-messages");
-    if (!input || !messagesBox) return;
-
-    // Remove previous handler if present to avoid duplicates
-    if (chatInputHandler) {
-        try { input.removeEventListener("keyup", chatInputHandler); } catch (e) { /* ignore */ }
-        chatInputHandler = null;
-    }
-
-    chatInputHandler = (event) => {
+     
+    input.addEventListener("keyup", event => {
         if (event.key === "Enter" && !chatCooldown) {
             const text = input.value.trim();
             if (!text) return;
             const username = localStorage.getItem("username") || "Guest";
             sendChatMessage(username, text);
             input.value = "";
-            chatCooldown = true;
-            setTimeout(() => (chatCooldown = false), 2000);
+             chatCooldown = true;
+            setTimeout(() => (chatCooldown = false), 2000);
         }
-    };
-
-    input.addEventListener("keyup", chatInputHandler);
+    });
 
     // scroll-down helper whenever addChatMessage runs
     messagesBox.scrollTop = messagesBox.scrollHeight;
 }
 
 function destroyMenuChatElements() {
-    if (chatBox) {
-        chatBox.style.display = 'none';
-        chatBox.style.top = '20px';
-        chatBox.style.left = '20px';
-    }
-
+    chatBox.style.display = 'none';
+    chatBox.style.top = '20px';
+    chatBox.style.left = '20px';
+    
     // 1) Remove Firebase listener
     if (menuChatRef && chatListener) {
-        try {
-            menuChatRef.off("child_added", chatListener);
-        } catch (e) { /* ignore */ }
+        menuChatRef.off("child_added", chatListener);
         chatListener = null;
     }
 
-    // 2) Remove input handler
-    const input = document.getElementById("chat-input");
-    if (input && chatInputHandler) {
-        try { input.removeEventListener("keyup", chatInputHandler); } catch (e) { /* ignore */ }
-        chatInputHandler = null;
-    }
-
-    // 3) Clear chat messages for the local player
+    // 2) Clear chat messages for the local player
     const messagesBox = document.getElementById("chat-messages");
     if (messagesBox) {
         messagesBox.innerHTML = ""; // Removes all messages from DOM
     }
 }
-
 function initMenuChat() {
-    if (!menuChatRef) {
-        console.warn("initMenuChat: menuChatRef not ready");
-        return;
-    }
-
-    // Avoid double-init: if listener already set, just show UI
-    if (chatListener) {
-        if (chatBox) chatBox.style.display = 'flex';
-        return;
-    }
-
     // 1) Build the DOM
     createMenuChatElements();
 
     // 2) Wire up Enter-key send
     initChatUI();
 
-    // 3) Listen for incoming messages (store handler so off() can remove it)
-    const handler = (snapshot) => {
-        const val = snapshot.val() || {};
-        const username = val.username || "Guest";
-        const text = val.text || "";
+    // 3) Listen for incoming messages
+    chatListener = menuChatRef.on('child_added', snapshot => {
+        const { username, text } = snapshot.val();
         addChatMessage(username, text, snapshot.key);
-
+        
         const messagesBox = document.getElementById("chat-messages");
-        if (messagesBox) messagesBox.scrollTop = messagesBox.scrollHeight;
+        messagesBox.scrollTop = messagesBox.scrollHeight;
 
         // recenter after new message changes size
         centerChatBox();
-    };
-
-    menuChatRef.on('child_added', handler);
-    chatListener = handler;
+    });
 }
+
 
 export async function sendChatMessage(username, text) {
     if (!menuChatRef) {
-        console.warn("Chat not initialized yet (menuChatRef missing)");
+        console.warn("Chat not initialized yet");
         return null;
     }
 
@@ -1785,7 +1743,7 @@ export async function sendChatMessage(username, text) {
     }
 
     // Basic client-side guardrails
-    if (typeof isMessageClean === "function" && !isMessageClean(text)) {
+    if (!isMessageClean(text)) {
         console.warn("Message blocked due to profanity/slurs");
         return null;
     }
@@ -1794,7 +1752,7 @@ export async function sendChatMessage(username, text) {
         return null;
     }
 
-    const user = (typeof menuAuth !== "undefined" && menuAuth && menuAuth.currentUser) ? menuAuth.currentUser : null;
+    const user = (typeof auth !== "undefined" && auth && auth.currentUser) ? auth.currentUser : null;
     if (!user) {
         console.warn("sendChatMessage: user not authenticated");
         return null;
@@ -1816,7 +1774,7 @@ export async function sendChatMessage(username, text) {
 
     // Verify ownership: /users/{usernameKey}/ids/{uid} === true
     try {
-        const idSnap = await menuDb.ref(`users/${usernameKey}/ids/${uid}`).once("value");
+        const idSnap = await db.ref(`users/${usernameKey}/ids/${uid}`).once("value");
         if (!idSnap.exists() || idSnap.val() !== true) {
             console.warn(`sendChatMessage: username "${usernameToUse}" (key "${usernameKey}") is not owned by uid ${uid}.`);
             return null;
@@ -1848,10 +1806,9 @@ export async function sendChatMessage(username, text) {
 export function chatButtonHit() {
     clearMenuCanvas();
     add(logo);
-    addBackButton(menu, destroyMenuChatElements);
+  addBackButton(menu, destroyMenuChatElements);
     initMenuChat();
 }
-
 
 function feedbackButtonHit() {
     clearMenuCanvas(); // Clear all current canvas objects
@@ -2316,39 +2273,25 @@ export function initMenuUI() {
     let username           = localStorage.getItem("username") || "";
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
 
-    // ------- Initialize Firebase safely -------
+    // Firebase app instance for menu UI (safe fallback)
+    let menuAppInstance;
     try {
-        // Prefer an already-initialized default app (no named app)
-        let app = (firebase.apps && firebase.apps.length > 0) ? firebase.app() : null;
-
-        // If no app and menuConfig is actually defined, initialize with it.
-        // NOTE: guard with typeof to avoid ReferenceError if menuConfig doesn't exist.
-        if (!app && typeof menuConfig !== "undefined") {
-            app = firebase.initializeApp(menuConfig);
-            console.log("Firebase initialized from menuConfig.");
-        }
-
-        if (app) {
-            menuDb = app.database();
-            menuAuth = app.auth();
-            // Chat node path - change if your DB uses a different path
-            menuChatRef = menuDb.ref("menuChat");
-        } else {
-            console.warn("Firebase not initialized (no existing app and no menuConfig). Running in local fallback mode.");
-            menuDb = null;
-            menuAuth = null;
-            menuChatRef = null;
-        }
-    } catch (err) {
-        console.error("Failed to initialize or access Firebase:", err);
-        menuDb = null;
-        menuAuth = null;
-        menuChatRef = null;
+        menuAppInstance = firebase.app("menuApp");
+    } catch (e) {
+        menuAppInstance = firebase.initializeApp(menuConfig, "menuApp");
     }
 
-    const usersRef = menuDb ? menuDb.ref("users") : null;
-    const usernamesRef = menuDb ? menuDb.ref("usernames") : null;
+    const db = menuAppInstance.database();
+    const auth = menuAppInstance.auth();
+    const usersRef = db.ref("users");
+    const usernamesRef = db.ref("usernames"); // index: name -> uid
 
+    // Chat ref (initialized after db is available)
+    let menuChatRef = db.ref("chat");
+
+    // -------------------------
+    // Utility & UI helpers
+    // -------------------------
     function showPanel(panelToShow) {
         [usernamePrompt, mapSelect, controlsMenu].forEach(p => {
             if (p) p.classList.add("hidden");
@@ -2359,10 +2302,6 @@ export function initMenuUI() {
         }
     }
 
-    /** 
-     * Throw if no valid username is set.
-     * Also forces the username prompt UI.
-     */
     function requireUsername() {
         const u = localStorage.getItem("username");
         if (!u || !u.trim()) {
@@ -2372,58 +2311,171 @@ export function initMenuUI() {
         return u;
     }
 
-    // Sign in anonymously (on the default auth instance) if needed
+    // Simple HTML escape for chat rendering
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // -------------------------
+    // Authentication helpers
+    // -------------------------
     async function authenticateUser() {
-        if (!menuAuth) {
-            console.warn("authenticateUser: menuAuth not available - skipping anonymous sign-in.");
-            return;
-        }
-        if (!menuAuth.currentUser) {
+        if (!auth.currentUser) {
             try {
-                await menuAuth.signInAnonymously();
-                console.log("Signed in anonymously.");
+                await auth.signInAnonymously();
+                console.log("Signed in anonymously (menuApp).");
             } catch (error) {
-                console.error("Authentication failed:", error);
-                try { Swal.fire('Error', 'Could not sign in. Please try again.', 'error'); } catch(e){/* ignore */ }
+                console.error("Authentication failed (menuApp):", error);
+                Swal.fire('Error', 'Could not sign in. Please try again.', 'error');
             }
         }
     }
 
-    async function initializeMenuDisplay() {
-        // If Firebase auth/DB isn't present, use local username fallback (no verification)
-        if (!menuAuth || !menuDb || !usernamesRef || !usersRef) {
-            console.warn("initializeMenuDisplay: Firebase unavailable — using local username fallback.");
-            if (username && username.trim()) {
-                // proceed to show game with local username
-                showPanel(null);
-                if (typeof menu === "function") try { menu(); } catch(e){/* ignore */ }
-                const logo = document.getElementById("game-logo");
-                if (logo) logo.classList.add("hidden");
-                if (menuOverlay) menuOverlay.style.display = "none";
-                if (typeof canvas !== "undefined" && canvas) canvas.style.display = "block";
-            } else {
-                showPanel(usernamePrompt);
-                if (typeof canvas !== "undefined" && canvas) canvas.style.display = "none";
-                const logo = document.getElementById("game-logo");
-                if (logo) logo.classList.remove("hidden");
+    // -------------------------
+    // Chat: send, init, UI
+    // -------------------------
+    // Updated sendChatMessage: verifies auth and username ownership, trims, profanity/length guard.
+    // Returns pushed key or null.
+    export async function sendChatMessage(usernameParam, text) {
+        if (!menuChatRef) {
+            console.warn("Chat not initialized yet");
+            return null;
+        }
+
+        text = (text || "").trim();
+        if (!text) {
+            console.warn("Empty message; nothing to send.");
+            return null;
+        }
+
+        // Client-side profanity/clean check if you have it
+        if (typeof isMessageClean === "function" && !isMessageClean(text)) {
+            console.warn("Message blocked due to profanity/slurs");
+            return null;
+        }
+
+        if (text.length > 1000) {
+            console.warn("Message too long; limit is 1000 characters");
+            return null;
+        }
+
+        const user = auth.currentUser;
+        if (!user) {
+            console.warn("sendChatMessage: user not authenticated");
+            return null;
+        }
+        const uid = user.uid;
+
+        let usernameToUse = (usernameParam || "").trim();
+        if (!usernameToUse) {
+            usernameToUse = (localStorage.getItem("username") || "").trim();
+        }
+        if (!usernameToUse) {
+            console.warn("sendChatMessage: no username available. Please set a username first.");
+            return null;
+        }
+        const usernameKey = usernameToUse.toLowerCase();
+
+        // Verify ownership: /users/{usernameKey}/ids/{uid} === true
+        try {
+            const idSnap = await db.ref(`users/${usernameKey}/ids/${uid}`).once("value");
+            if (!idSnap.exists() || idSnap.val() !== true) {
+                console.warn(`sendChatMessage: username "${usernameToUse}" (key "${usernameKey}") is not owned by uid ${uid}.`);
+                return null;
             }
+        } catch (err) {
+            console.error("sendChatMessage: failed to verify username ownership:", err);
+            return null;
+        }
+
+        const msg = {
+            uid: uid,
+            usernameKey: usernameKey,
+            username: usernameToUse,
+            text: text,
+            ts: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        try {
+            const pushedRef = await menuChatRef.push(msg);
+            return pushedRef ? pushedRef.key : null;
+        } catch (err) {
+            console.error("Failed to send chat:", err);
+            return null;
+        }
+    }
+
+    // Initialize chat UI: wires DOM and listens for new messages
+    function initChatUI() {
+        const chatList = document.getElementById("chat-list");
+        const chatInput = document.getElementById("chat-input");
+        const chatSend = document.getElementById("chat-send");
+
+        if (!chatList || !chatInput || !chatSend) {
+            console.warn("Chat UI elements not found (chat-list/chat-input/chat-send)");
             return;
         }
 
-        // Wait for auth state to be ready
+        // Send button
+        chatSend.addEventListener("click", async () => {
+            const txt = chatInput.value.trim();
+            if (!txt) return;
+            const key = await sendChatMessage(null, txt);
+            if (key) chatInput.value = "";
+        });
+
+        // Enter key to send (Shift+Enter -> newline)
+        chatInput.addEventListener("keydown", async (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                const txt = chatInput.value.trim();
+                if (!txt) return;
+                const key = await sendChatMessage(null, txt);
+                if (key) chatInput.value = "";
+            }
+        });
+
+        // Listen for last 200 messages
+        const chatQuery = db.ref("chat").orderByChild("ts").limitToLast(200);
+        chatQuery.off();
+        chatQuery.on("child_added", snap => {
+            const m = snap.val();
+            if (!m) return;
+            const item = document.createElement("div");
+            item.className = "chat-message";
+            const time = m.ts ? new Date(m.ts) : null;
+            const timeStr = time ? time.toLocaleTimeString() : "";
+            item.innerHTML = `<span class="chat-meta">[${escapeHtml(timeStr)}] <strong>${escapeHtml(m.username)}</strong>:</span> <span class="chat-text">${escapeHtml(m.text)}</span>`;
+            chatList.appendChild(item);
+            chatList.scrollTop = chatList.scrollHeight;
+        });
+
+        // Optional: child_changed / child_removed handlers could be added here.
+    }
+
+    // -------------------------
+    // Initialize menu display & username logic
+    // -------------------------
+    async function initializeMenuDisplay() {
+        // Ensure auth state is ready
         await new Promise(resolve => {
-            const unsubscribe = menuAuth.onAuthStateChanged(user => {
+            const unsubscribe = auth.onAuthStateChanged(user => {
                 if (user) {
                     unsubscribe();
                     resolve(user);
                 } else {
-                    // try to sign in anonymously, then resolve when done
                     authenticateUser().then(resolve);
                 }
             });
         });
 
-        const user = menuAuth.currentUser;
+        const user = auth.currentUser;
         if (!user) {
             console.error("Authentication failed. Cannot initialize menu.");
             showPanel(usernamePrompt);
@@ -2435,16 +2487,13 @@ export function initMenuUI() {
         try {
             const byUidSnap = await usernamesRef.orderByValue().equalTo(uid).once("value");
             if (byUidSnap.exists()) {
-                // pick first matching username key
                 const firstKey = Object.keys(byUidSnap.val())[0];
                 if (firstKey) {
-                    // double-check that /users/{name}/ids/{uid} exists
                     const idSnap = await usersRef.child(firstKey).child("ids").child(uid).once("value");
                     if (idSnap.exists()) {
                         username = firstKey;
                         localStorage.setItem("username", username);
                     } else {
-                        // If index pointed to uid but users record doesn't contain this id, clear both to avoid mismatch
                         try { await usernamesRef.child(firstKey).remove(); } catch(e) { /* ignore */ }
                         localStorage.removeItem("username");
                         username = "";
@@ -2464,7 +2513,6 @@ export function initMenuUI() {
             }
         } catch (err) {
             console.warn("Could not verify username/index:", err);
-            // fallback: clear local username to avoid accidental mismatches
             username = localStorage.getItem("username") || "";
             if (username && username.trim()) {
                 try {
@@ -2481,14 +2529,17 @@ export function initMenuUI() {
             }
         }
 
-        // Show/hide UI based on whether we have a username
+        // Show/hide UI and initialize chat only if username present
         if (username && username.trim()) {
             showPanel(null);
-            if (typeof menu === "function") try { menu(); } catch(e){/* ignore */ }
+            if (typeof menu === "function") menu();
             const logo = document.getElementById("game-logo");
             if (logo) logo.classList.add("hidden");
             if (menuOverlay) menuOverlay.style.display = "none";
             if (typeof canvas !== "undefined" && canvas) canvas.style.display = "block";
+
+            // Initialize chat UI (only when we have a canonical username)
+            initChatUI();
         } else {
             showPanel(usernamePrompt);
             if (typeof canvas !== "undefined" && canvas) canvas.style.display = "none";
@@ -2497,20 +2548,19 @@ export function initMenuUI() {
         }
     }
 
-    // HTML Play
+    // -------------------------
+    // Event wiring for menu
+    // -------------------------
     if (htmlPlayButton) {
         htmlPlayButton.addEventListener("click", () => showPanel(mapSelect));
     }
-    // HTML Settings
     if (htmlSettingsButton) {
         htmlSettingsButton.addEventListener("click", () => showPanel(controlsMenu));
     }
-    // HTML Career
     if (htmlCareerButton) {
         htmlCareerButton.addEventListener("click", () => console.log("Career clicked!"));
     }
 
-    // Pre-fill username input if already set
     if (usernameInput && username) {
         usernameInput.value = username;
     }
@@ -2527,30 +2577,14 @@ export function initMenuUI() {
                 );
             }
 
-            // If Firebase not available, fall back to saving locally only (no DB verification)
-            if (!menuDb || !menuAuth || !usernamesRef || !usersRef) {
-                localStorage.setItem("username", raw);
-                username = raw;
-                try { Swal.fire('Offline', 'Username saved locally (offline mode). Database unavailable.', 'info'); } catch(e){/* ignore */ }
-                // proceed to hide prompt & show game UI
-                showPanel(null);
-                if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
-                if (typeof menu === "function") try { menu(); } catch(e){/* ignore */ }
-                const logo = document.getElementById("game-logo");
-                if (logo) logo.classList.add("hidden");
-                if (menuOverlay) menuOverlay.style.display = 'none';
-                return;
-            }
-
-            const user = menuAuth.currentUser;
+            const user = auth.currentUser;
             if (!user) {
-                console.error("Firebase user not authenticated (menuAuth).");
+                console.error("Firebase user not authenticated (menuApp).");
                 return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
             }
             const uid = user.uid;
             const key = raw.toLowerCase();
 
-            // 1) Claim username in /usernames/<key> via transaction (index: name -> uid)
             try {
                 const txResult = await usernamesRef.child(key).transaction(current => {
                     if (current === null || current === uid) {
@@ -2560,16 +2594,15 @@ export function initMenuUI() {
                 });
 
                 if (!txResult.committed) {
-                    return Swal.fire('Name Taken', `${raw} is already in use.`, 'warning');
+                    return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
                 }
 
-                // 2) Write canonical profile to /users/{name} and include ids/{uid}=true in the same atomic update
                 const updates = {};
                 updates[`/users/${key}/username`] = raw;
                 updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
                 updates[`/users/${key}/ids/${uid}`] = true;
 
-                await menuDb.ref().update(updates);
+                await db.ref().update(updates);
 
                 // success -> update local state & UI
                 localStorage.setItem("username", raw);
@@ -2578,21 +2611,22 @@ export function initMenuUI() {
                     try { playerCard.setText(username); } catch (e) { /* ignore */ }
                 }
 
-                // Hide prompt, show game
+                // Hide prompt, show game and init chat UI
                 showPanel(null);
                 if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
-                if (typeof menu === "function") try { menu(); } catch(e){/* ignore */ }
+                if (typeof menu === "function") menu();
                 const logo = document.getElementById("game-logo");
                 if (logo) logo.classList.add("hidden");
                 if (menuOverlay) menuOverlay.style.display = 'none';
 
+                // Start chat now that username is set
+                initChatUI();
+
             } catch (err) {
                 console.error("Error saving to DB:", err);
-
-                // Rollback: if we claimed usernames/<key> but failed to write /users/{key}, remove claim (only if still ours)
                 try {
                     const claimedSnap = await usernamesRef.child(key).once("value");
-                    if (claimedSnap.exists() && menuAuth && claimedSnap.val() === menuAuth.currentUser.uid) {
+                    if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
                         await usernamesRef.child(key).remove();
                     }
                 } catch (rollbackErr) {
