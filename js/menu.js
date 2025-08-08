@@ -1673,25 +1673,29 @@ function createMenuChatElements() {
 let chatCooldown = false;
 
 function initChatUI() {
-const form = document.getElementById("chat-form");
+    const form = document.getElementById("chat-form");
+    const input = document.getElementById("chat-input");
+    const messagesBox = document.getElementById("chat-messages");
+    let chatCooldown = false;
 
-form.addEventListener("submit", event => {
-  event.preventDefault();  // Prevent the page reload!
+    form.addEventListener("submit", event => {
+        event.preventDefault();  // Prevent the page from refreshing
 
-  const input = document.getElementById("chat-input");
-  if (chatCooldown) return;
+        if (chatCooldown) return;
 
-  const text = input.value.trim();
-  if (!text) return;
+        const text = input.value.trim();
+        if (!text) return;
 
-  const username = localStorage.getItem("username") || "Guest";
-  sendChatMessage(username, text);
-  input.value = "";
+        const username = localStorage.getItem("username") || "Guest";
+        sendChatMessage(username, text);
 
-  chatCooldown = true;
-  setTimeout(() => (chatCooldown = false), 2000);
-});
-    // scroll-down helper whenever addChatMessage runs
+        input.value = "";
+
+        chatCooldown = true;
+        setTimeout(() => (chatCooldown = false), 2000);
+    });
+
+    // Optional: scroll down helper after messages added
     messagesBox.scrollTop = messagesBox.scrollHeight;
 }
 
