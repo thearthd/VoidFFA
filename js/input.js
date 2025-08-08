@@ -492,7 +492,7 @@ function onMouseDownGlobal(e) {
     }
     // Only request pointer lock if the game is *not* currently paused by any means.
     if (document.pointerLockElement !== elementToLock && !inputState.isPaused) {
-        elementToLock.requestPointerLock();
+            safeRequestPointerLock(elementToLock);
     }
 }
 
@@ -822,7 +822,7 @@ export function setPauseState(paused, byDeath = false) {
         // If the player is dead and the game is unpausing (manually), we don't try to get pointer lock.
         if (!window.localPlayer || !window.localPlayer.isDead) {
             if (document.pointerLockElement !== elementToLock) {
-                elementToLock.requestPointerLock();
+                    safeRequestPointerLock(elementToLock);
             }
         } else {
             // If player is dead and unpausing manually, ensure cursor is default.
