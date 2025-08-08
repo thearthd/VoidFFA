@@ -2214,12 +2214,12 @@ export function initMenuUI() {
     let username           = localStorage.getItem("username") || "";
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
 
-    // Ensure we use the menuApp instance for both DB and Auth
+    // menuApp DB + auth
     const menuAppInstance = firebase.app("menuApp");
     const db = menuAppInstance.database();
-    const auth = menuAppInstance.auth(); // auth tied to menuApp instance
+    const auth = menuAppInstance.auth();
     const usersRef = db.ref("users");
-    const usernamesRef = db.ref("usernames"); // used for uniqueness reservation
+    const usernamesRef = db.ref("usernames");
 
     /** 
      * Throw if no valid username is set.
@@ -2248,7 +2248,6 @@ export function initMenuUI() {
     async function authenticateUser() {
         if (!auth.currentUser) {
             try {
-                // Sign in anonymously to get a UID on the menuApp auth instance
                 await auth.signInAnonymously();
                 console.log("Signed in anonymously (menuApp).");
             } catch (error) {
@@ -2259,7 +2258,7 @@ export function initMenuUI() {
     }
 
     async function initializeMenuDisplay() {
-        // Ensure auth is ready
+        // Ensure auth ready
         await new Promise(resolve => {
             const unsubscribe = auth.onAuthStateChanged(user => {
                 if (user) {
@@ -2278,24 +2277,37 @@ export function initMenuUI() {
             return;
         }
 
-        // If we have a local username, verify it is actually registered for this uid under /users/{name}/ids/{uid}
+        // Prefer canonical username from /users/$uid (required by rules)
         username = localStorage.getItem("username") || "";
-        if (username && username.trim()) {
-            const key = username.toLowerCase();
-            try {
-                const idSnap = await usersRef.child(key).child("ids").child(user.uid).once("value");
-                if (!idSnap.exists()) {
-                    // Local username isn't registered for this uid — clear it to avoid mismatch
+        try {
+            const uidSnap = await usersRef.child(user.uid).once("value");
+            if (uidSnap.exists()) {
+                const data = uidSnap.val();
+                if (data && data.username) {
+                    localStorage.setItem("username", data.username);
+                    username = data.username;
+                } else {
+                    // no username on server for this uid
+                    if (username && username.trim()) {
+                        localStorage.removeItem("username");
+                        username = "";
+                    }
+                }
+            } else {
+                if (username && username.trim()) {
                     localStorage.removeItem("username");
                     username = "";
                 }
-            } catch (e) {
-                console.warn("Could not verify username ownership:", e);
+            }
+        } catch (e) {
+            console.warn("Could not verify existing user record:", e);
+            if (username && username.trim()) {
                 localStorage.removeItem("username");
                 username = "";
             }
         }
 
+        // Show/hide UI
         if (username && username.trim()) {
             showPanel(null);
             if (typeof menu === "function") menu();
@@ -2312,22 +2324,14 @@ export function initMenuUI() {
     }
 
     // HTML Play
-    if (htmlPlayButton) {
-        htmlPlayButton.addEventListener("click", () => showPanel(mapSelect));
-    }
+    if (htmlPlayButton) htmlPlayButton.addEventListener("click", () => showPanel(mapSelect));
     // HTML Settings
-    if (htmlSettingsButton) {
-        htmlSettingsButton.addEventListener("click", () => showPanel(controlsMenu));
-    }
+    if (htmlSettingsButton) htmlSettingsButton.addEventListener("click", () => showPanel(controlsMenu));
     // HTML Career
-    if (htmlCareerButton) {
-        htmlCareerButton.addEventListener("click", () => console.log("Career clicked!"));
-    }
+    if (htmlCareerButton) htmlCareerButton.addEventListener("click", () => console.log("Career clicked!"));
 
     // Pre-fill username input if already set
-    if (usernameInput && username) {
-        usernameInput.value = username;
-    }
+    if (usernameInput && username) usernameInput.value = username;
 
     // Save Username Button
     if (saveUsernameBtn) {
@@ -2341,7 +2345,6 @@ export function initMenuUI() {
                 );
             }
 
-            // Ensure auth ready and get uid
             const user = auth.currentUser;
             if (!user) {
                 console.error("Firebase user not authenticated (menuApp).");
@@ -2350,40 +2353,35 @@ export function initMenuUI() {
             const uid = user.uid;
             const key = raw.toLowerCase();
 
-            // Reserve the username atomically via transaction on /usernames/<key>
+            // 1) Claim username in /usernames/<key> via transaction (allowed by your rules)
             try {
                 const transactionResult = await usernamesRef.child(key).transaction(current => {
-                    // If empty or already owned by this uid, claim it.
                     if (current === null || current === uid) {
                         return uid;
                     }
-                    // Someone else owns it — abort by returning undefined (no change).
-                    return;
+                    return; // abort - someone else owns it
                 });
 
-                const committed = transactionResult.committed;
-                // If not committed, someone else owns it
-                if (!committed) {
+                if (!transactionResult.committed) {
                     return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
                 }
 
-                // Now persist the canonical user record under /users/{name}
-                // with an 'ids' subtree containing the uid as requested.
+                // 2) Write canonical profile to /users/<uid> (must use uid as key per rules)
+                //    Also add an ids subtree so you still have an id tree associated with the name
                 const updates = {};
-                updates[`/users/${key}/username`] = raw;
-                updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
-                updates[`/users/${key}/ids/${uid}`] = true;
+                updates[`/users/${uid}/username`] = raw;
+                updates[`/users/${uid}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
+                updates[`/users/${uid}/ids/${uid}`] = true;
 
                 await db.ref().update(updates);
 
-                // Update local state & UI (maintain the behavior you had earlier)
+                // success -> update local state & UI
                 localStorage.setItem("username", raw);
                 username = raw;
                 if (typeof playerCard !== "undefined" && playerCard && typeof playerCard.setText === "function") {
                     try { playerCard.setText(username); } catch (e) { /* ignore */ }
                 }
 
-                // Hide prompt, show game
                 showPanel(null);
                 if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
                 if (typeof menu === "function") menu();
@@ -2394,10 +2392,10 @@ export function initMenuUI() {
             } catch (err) {
                 console.error("Error saving to DB:", err);
 
-                // If we claimed the username but failed to write the /users tree, rollback the claim
+                // Rollback: if we claimed /usernames/<key> but failed to write /users/<uid>, remove claim
                 try {
-                    const claimedByMeSnap = await usernamesRef.child(key).once("value");
-                    if (claimedByMeSnap.exists() && claimedByMeSnap.val() === auth.currentUser.uid) {
+                    const claimedSnap = await usernamesRef.child(key).once("value");
+                    if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
                         await usernamesRef.child(key).remove();
                     }
                 } catch (rollbackErr) {
@@ -2405,7 +2403,7 @@ export function initMenuUI() {
                 }
 
                 if (err && (err.code === "PERMISSION_DENIED" || (err.code && err.code.toLowerCase().includes("permission")))) {
-                    return Swal.fire('Error', 'Could not save username. You may not be authenticated on this app instance or the name was taken by another player. Try again.', 'error');
+                    return Swal.fire('Error', 'Could not save username. Check authentication or try a different name.', 'error');
                 }
                 return Swal.fire('Error', 'Could not save username. Please check your permissions.', 'error');
             }
