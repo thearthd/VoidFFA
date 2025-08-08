@@ -1,7 +1,7 @@
 // network.js
 import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.0/three.module.js";
 
-// New imports for game slot management f
+// New imports for game slot management
 import {
     claimGameSlot,
     releaseGameSlot,
@@ -564,14 +564,23 @@ function setupPlayersListener(playersRef) {
     playersRef.off("child_removed");
 
     // The problematic "value" listener has been removed to prevent the permission_denied error.
+    
+    // We will now call purgeNamelessPlayers and updateScoreboard from the child listeners.
+    // We'll first get an initial snapshot to populate the scoreboard.
+    playersRef.once("value").then((snapshot) => {
+        const allIds = [];
+        snapshot.forEach(s => allIds.push(s.key));
+        latestValidIds = allIds;
+        purgeNamelessPlayers(latestValidIds);
+        updateScoreboard(playersRef);
+    });
 
     playersRef.on("child_added", (snap) => {
         const data = snap.val();
         const id = data.id;
         console.log(`[playersRef:child_added] Event for player ID: ${id}`);
         
-        // Update the scoreboard here when a new player joins
-        updateScoreboard(playersRef);
+        updateScoreboard(playersRef); // Update the scoreboard when a new player joins
 
         if (id === localPlayerId) {
             console.log(`[playersRef:child_added] Skipping local player ${id}.`);
@@ -600,8 +609,7 @@ function setupPlayersListener(playersRef) {
         const data = snap.val();
         const id = data.id;
         
-        // Update the scoreboard here when a player's data (e.g., kills, deaths) changes
-        updateScoreboard(playersRef);
+        updateScoreboard(playersRef); // Update the scoreboard when a player's data changes
 
         if (permanentlyRemoved.has(id)) {
             removeRemotePlayerModel(id);
@@ -635,8 +643,7 @@ function setupPlayersListener(playersRef) {
     playersRef.on("child_removed", (snap) => {
         const id = snap.key;
         
-        // Update the scoreboard here when a player leaves the game
-        updateScoreboard(playersRef);
+        updateScoreboard(playersRef); // Update the scoreboard when a player leaves the game
         
         if (id === localPlayerId) {
             console.warn("Local player removed from Firebase. Handling disconnection.");
@@ -748,19 +755,16 @@ function setupTracerListener(tracersRef) {
 // -- Global Visibility Change Listener --
 //
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && dbRefs && dbRefs.playersRef && localPlayerId) {
-    console.log("Tab is visible. Resyncing local player data.");
-    // Only refresh the local player's record, which is always permitted.
-    dbRefs.playersRef.child(localPlayerId).once("value").then(snapshot => {
-        const data = snapshot.val();
-        if (data && window.localPlayer) {
-            // Update local player state from the database
-            window.localPlayer.health = data.health;
-            window.localPlayer.shield = data.shield;
-            window.localPlayer.isDead = data.isDead;
-            updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
-            // Additional sync logic for local player only
-        }
-    }).catch(err => console.error("Error during visibility change resync:", err));
-  }
+    if (!document.hidden && dbRefs && dbRefs.playersRef && localPlayerId) {
+        console.log("Tab is visible. Resyncing local player data.");
+        dbRefs.playersRef.child(localPlayerId).once("value").then(snapshot => {
+            const data = snapshot.val();
+            if (data && window.localPlayer) {
+                window.localPlayer.health = data.health;
+                window.localPlayer.shield = data.shield;
+                window.localPlayer.isDead = data.isDead;
+                updateHealthShieldUI(window.localPlayer.health, window.localPlayer.shield);
+            }
+        }).catch(err => console.error("Error during visibility change resync:", err));
+    }
 });
