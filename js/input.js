@@ -500,6 +500,19 @@ function onPointerLockError(e) {
     }
 }
 
+function tryWeaponSwitch(targetWeapon, bindCode) {
+    // Don't switch to the weapon you're already holding
+    if (!targetWeapon || currentWeapon === targetWeapon) return;
+
+    // Set switch and mark the bind as held (used to avoid repeated triggers)
+    inputState.weaponSwitch = targetWeapon;
+    inputState.weaponSwitchHeld = bindCode;
+
+    // Immediately attempt the switch so lost keyup / timing doesn't block it
+    // handleWeaponSwitch is idempotent — it will only change weapon if different.
+    handleWeaponSwitch();
+}
+
 function onKeyDown(e) {
     // Always allow Backquote for chat, using its customized keybind
     if (e.code === currentKeybinds.toggleChat) {
@@ -563,26 +576,23 @@ function onKeyDown(e) {
             inputState.fireJustPressed = true;
             break;
         case currentKeybinds.knife:
-            // Check if the knife is already the current weapon
-            if (currentWeapon !== 'knife' && inputState.weaponSwitchHeld !== currentKeybinds.knife) {
-                inputState.weaponSwitch = 'knife';
-                inputState.weaponSwitchHeld = currentKeybinds.knife;
-            }
+            // Always try to pull out the knife if it's not already equipped.
+            tryWeaponSwitch('knife', currentKeybinds.knife);
             break;
-        case currentKeybinds.primary:
-            // Check if primary weapon is available and is not the current weapon
-            if (primary && currentWeapon !== primary && inputState.weaponSwitchHeld !== currentKeybinds.primary) {
-                inputState.weaponSwitch = primary;
-                inputState.weaponSwitchHeld = currentKeybinds.primary;
-            }
+        
+        case currentKeybinds.primary: {
+            const primary = getSavedLoadout().primary;
+            // Only attempt if there actually is a primary in the loadout
+            if (primary) tryWeaponSwitch(primary, currentKeybinds.primary);
             break;
-        case currentKeybinds.secondary:
-            // Check if secondary weapon is available and is not the current weapon
-            if (secondary && currentWeapon !== secondary && inputState.weaponSwitchHeld !== currentKeybinds.secondary) {
-                inputState.weaponSwitch = secondary;
-                inputState.weaponSwitchHeld = currentKeybinds.secondary;
-            }
+        }
+        
+        case currentKeybinds.secondary: {
+            const secondary = getSavedLoadout().secondary;
+            // Only attempt if there actually is a secondary in the loadout
+            if (secondary) tryWeaponSwitch(secondary, currentKeybinds.secondary);
             break;
+        }
         default:
             handled = false;
     }
@@ -633,21 +643,24 @@ function onKeyUp(e) {
         case currentKeybinds.fire:
             inputState.fire = false;
             break;
-        case currentKeybinds.knife:
-            if (inputState.weaponSwitchHeld === currentKeybinds.knife) {
-                inputState.weaponSwitchHeld = null;
-            }
-            break;
-        case currentKeybinds.primary:
-            if (inputState.weaponSwitchHeld === currentKeybinds.primary) {
-                inputState.weaponSwitchHeld = null;
-            }
-            break;
-        case currentKeybinds.secondary:
-            if (inputState.weaponSwitchHeld === currentKeybinds.secondary) {
-                inputState.weaponSwitchHeld = null;
-            }
-            break;
+case currentKeybinds.knife:
+    if (inputState.weaponSwitchHeld === currentKeybinds.knife) {
+        inputState.weaponSwitchHeld = null;
+        inputState.weaponSwitch = null; // clear any pending switch for this bind
+    }
+    break;
+case currentKeybinds.primary:
+    if (inputState.weaponSwitchHeld === currentKeybinds.primary) {
+        inputState.weaponSwitchHeld = null;
+        inputState.weaponSwitch = null;
+    }
+    break;
+case currentKeybinds.secondary:
+    if (inputState.weaponSwitchHeld === currentKeybinds.secondary) {
+        inputState.weaponSwitchHeld = null;
+        inputState.weaponSwitch = null;
+    }
+    break;
         default:
             handled = false;
     }
