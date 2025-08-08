@@ -431,15 +431,11 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     };
     setUIDbRefs(dbRefs);
     console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotConfig.databaseURL}`);
-    const currentPlayersSnap = await dbRefs.playersRef.once('value');
-    if (currentPlayersSnap.numChildren() >= 10) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Game Full',
-            text: 'Sorry, this game slot already has 10 players.'
-        });
-        return false;
-    }
+
+    // REMOVED THE PROBLEM CODE:
+    // const currentPlayersSnap = await dbRefs.playersRef.once('value');
+    // if (currentPlayersSnap.numChildren() >= 10) { ... }
+
     if (dbRefs.playersRef && dbRefs.playersRef.database && dbRefs.playersRef.database.app_ && dbRefs.playersRef.database.app_.options) {
         console.log(`[network.js] Game is connected to Firebase database: ${dbRefs.playersRef.database.app_.options.databaseURL}`);
     } else {
