@@ -5,7 +5,7 @@
 ,~(  )  , )~~\ |        |/~( ,  (  )~;
 ' / / --`--,          .--'-- \ \ `
   /  \    | '          ` |    /  \
-// fff fff f f fffffff f
+// fff fff f f fffffff ff
 horse power
 */
 const CLIENT_GAME_VERSION = "v1.00";
