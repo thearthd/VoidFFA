@@ -1630,48 +1630,39 @@ async function initAndStartGame(username, mapName, gameId = null) {
   );
 }
 
-async function handleGameJoin(username, mapName, gameId = null) {
-  // Show a loading or "Checking login..." message to the user
-  Swal.fire({
-    title: 'Connecting to Game...',
-    html: 'Please wait while we log you in and get the game ready.',
-    allowOutsideClick: false,
-    showConfirmButton: false,
-    onBeforeOpen: () => {
-      Swal.showLoading();
-    }
-  });
-
-  // Use onAuthStateChanged to wait for the authentication state to be confirmed
-  const authPromise = new Promise((resolve, reject) => {
+// This function should be in your main game logic file, like menu.js or app.js
+async function handleGameJoin(username, mapName, gameId) {
+  // Use a promise to wait for the authentication state change
+  const user = await new Promise(resolve => {
     const unsubscribe = firebase.auth().onAuthStateChanged(user => {
       unsubscribe(); // Stop listening after the first event
-      if (user) {
-        console.log("User authenticated, UID:", user.uid);
-        resolve(user);
-      } else {
-        console.error("No authenticated user found.");
-        reject(new Error("You must be logged in to play."));
-      }
+      resolve(user);
     });
   });
 
-  try {
-    const user = await authPromise;
-    // If we get here, the user is logged in. Now it's safe to start the game.
-    Swal.close(); // Close the loading modal
-    await initAndStartGame(username, mapName, gameId);
-  } catch (error) {
-    // If authentication fails, show an error and return to the menu
+  if (!user) {
+    // If there's no user, show an error and stop.
     Swal.fire({
       icon: 'error',
       title: 'Authentication Required',
-      text: error.message
+      text: 'You must be logged in to join a game.'
     });
-    return menu();
+    return;
+  }
+
+  // If a user is found, it is now safe to start the game.
+  // The 'initAndStartGame' function can now proceed without errors.
+  try {
+    await initAndStartGame(username, mapName, gameId);
+  } catch (error) {
+    console.error("Failed to start game:", error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Game Failed to Start',
+      text: 'There was an issue starting the game. Please try again.'
+    });
   }
 }
-
 /**
  * Function called when the "Play" button (canvas-drawn) is clicked.
  * Clears the current menu and displays the canvas-based map selection options.
