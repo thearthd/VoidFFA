@@ -397,6 +397,13 @@ export async function initNetwork(user, username, mapName, gameId, ffaEnabled) {
     console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
     await endGameCleanup();
 
+    // Defensive check to ensure gameId is a string.
+    if (typeof gameId !== 'string' || gameId.length === 0) {
+        console.error("Invalid gameId received:", gameId);
+        Swal.fire('Error', 'Invalid game ID received. Please try again.', 'error');
+        return false;
+    }
+
     const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
     const slotName = slotSnap.val();
     if (!slotName) {
@@ -419,8 +426,6 @@ export async function initNetwork(user, username, mapName, gameId, ffaEnabled) {
         slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
     }
 
-    // REMOVED redundant check: `const user = firebase.auth().currentUser;`
-    // The user object is now passed as a parameter, so it's always available.
     if (!user) {
         console.error("No authenticated user found. Cannot join game.");
         Swal.fire('Error', 'You must be logged in to join a game.', 'error');
