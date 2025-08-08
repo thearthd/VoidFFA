@@ -120,6 +120,9 @@ export function getHeight() { return canvasHeight; }
 // List of shapes to draw on the canvas
 const shapes = [];
 
+let menuDb = null;
+let menuAuth = null;
+
 /**
  * Adds a shape to the drawing list.
  * @param {Shape} shape - The shape object to add.
@@ -2313,23 +2316,48 @@ export function initMenuUI() {
     let username           = localStorage.getItem("username") || "";
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
 
-    // Ensure we use the menuApp instance for both DB and Auth (safe fallback if not initialized)
+    // ------- Initialize Firebase safely -------
     try {
-        // menuAppInstance is module-scoped and will be set here (declared outside this function)
-        menuAppInstance = firebase.app("menuApp");
-    } catch (e) {
-        menuAppInstance = firebase.initializeApp(menuConfig, "menuApp");
+        // Prefer an already-initialized default app (no named app)
+        let app = (firebase.apps && firebase.apps.length > 0) ? firebase.app() : null;
+
+        // If no app and menuConfig is actually defined, initialize with it.
+        // NOTE: guard with typeof to avoid ReferenceError if menuConfig doesn't exist.
+        if (!app && typeof menuConfig !== "undefined") {
+            app = firebase.initializeApp(menuConfig);
+            console.log("Firebase initialized from menuConfig.");
+        }
+
+        if (app) {
+            menuDb = app.database();
+            menuAuth = app.auth();
+            // Chat node path - change if your DB uses a different path
+            menuChatRef = menuDb.ref("menuChat");
+        } else {
+            console.warn("Firebase not initialized (no existing app and no menuConfig). Running in local fallback mode.");
+            menuDb = null;
+            menuAuth = null;
+            menuChatRef = null;
+        }
+    } catch (err) {
+        console.error("Failed to initialize or access Firebase:", err);
+        menuDb = null;
+        menuAuth = null;
+        menuChatRef = null;
     }
 
-    // Set module-level db/auth so other functions (sendChatMessage, initMenuChat) can use them
-    menuDb = menuAppInstance.database();
-    menuAuth = menuAppInstance.auth();
+    const usersRef = menuDb ? menuDb.ref("users") : null;
+    const usernamesRef = menuDb ? menuDb.ref("usernames") : null;
 
-    // Set the chat ref (adjust path if your DB uses a different chat node)
-    menuChatRef = menuDb.ref("menuChat");
-
-    const usersRef = menuDb.ref("users");
-    const usernamesRef = menuDb.ref("usernames"); // index: name -> uid
+    function showPanel(panelToShow) {
+        [usernamePrompt, mapSelect, controlsMenu].forEach(p => {
+            if (p) p.classList.add("hidden");
+        });
+        if (panelToShow) {
+            panelToShow.classList.remove("hidden");
+            panelToShow.style.display = "flex";
+        }
+    }
 
     /** 
      * Throw if no valid username is set.
@@ -2344,37 +2372,52 @@ export function initMenuUI() {
         return u;
     }
 
-    function showPanel(panelToShow) {
-        [usernamePrompt, mapSelect, controlsMenu].forEach(p => {
-            if (p) p.classList.add("hidden");
-        });
-        if (panelToShow) {
-            panelToShow.classList.remove("hidden");
-            panelToShow.style.display = "flex";
-        }
-    }
-
-    // Sign in anonymously (on the menuApp auth instance) if needed
+    // Sign in anonymously (on the default auth instance) if needed
     async function authenticateUser() {
+        if (!menuAuth) {
+            console.warn("authenticateUser: menuAuth not available - skipping anonymous sign-in.");
+            return;
+        }
         if (!menuAuth.currentUser) {
             try {
                 await menuAuth.signInAnonymously();
-                console.log("Signed in anonymously (menuApp).");
+                console.log("Signed in anonymously.");
             } catch (error) {
-                console.error("Authentication failed (menuApp):", error);
-                Swal.fire('Error', 'Could not sign in. Please try again.', 'error');
+                console.error("Authentication failed:", error);
+                try { Swal.fire('Error', 'Could not sign in. Please try again.', 'error'); } catch(e){/* ignore */ }
             }
         }
     }
 
     async function initializeMenuDisplay() {
-        // Wait for auth state to be ready using the menuApp auth instance
+        // If Firebase auth/DB isn't present, use local username fallback (no verification)
+        if (!menuAuth || !menuDb || !usernamesRef || !usersRef) {
+            console.warn("initializeMenuDisplay: Firebase unavailable — using local username fallback.");
+            if (username && username.trim()) {
+                // proceed to show game with local username
+                showPanel(null);
+                if (typeof menu === "function") try { menu(); } catch(e){/* ignore */ }
+                const logo = document.getElementById("game-logo");
+                if (logo) logo.classList.add("hidden");
+                if (menuOverlay) menuOverlay.style.display = "none";
+                if (typeof canvas !== "undefined" && canvas) canvas.style.display = "block";
+            } else {
+                showPanel(usernamePrompt);
+                if (typeof canvas !== "undefined" && canvas) canvas.style.display = "none";
+                const logo = document.getElementById("game-logo");
+                if (logo) logo.classList.remove("hidden");
+            }
+            return;
+        }
+
+        // Wait for auth state to be ready
         await new Promise(resolve => {
             const unsubscribe = menuAuth.onAuthStateChanged(user => {
                 if (user) {
                     unsubscribe();
                     resolve(user);
                 } else {
+                    // try to sign in anonymously, then resolve when done
                     authenticateUser().then(resolve);
                 }
             });
@@ -2438,10 +2481,10 @@ export function initMenuUI() {
             }
         }
 
-        // Show/hide UI
+        // Show/hide UI based on whether we have a username
         if (username && username.trim()) {
             showPanel(null);
-            if (typeof menu === "function") menu();
+            if (typeof menu === "function") try { menu(); } catch(e){/* ignore */ }
             const logo = document.getElementById("game-logo");
             if (logo) logo.classList.add("hidden");
             if (menuOverlay) menuOverlay.style.display = "none";
@@ -2484,9 +2527,24 @@ export function initMenuUI() {
                 );
             }
 
+            // If Firebase not available, fall back to saving locally only (no DB verification)
+            if (!menuDb || !menuAuth || !usernamesRef || !usersRef) {
+                localStorage.setItem("username", raw);
+                username = raw;
+                try { Swal.fire('Offline', 'Username saved locally (offline mode). Database unavailable.', 'info'); } catch(e){/* ignore */ }
+                // proceed to hide prompt & show game UI
+                showPanel(null);
+                if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
+                if (typeof menu === "function") try { menu(); } catch(e){/* ignore */ }
+                const logo = document.getElementById("game-logo");
+                if (logo) logo.classList.add("hidden");
+                if (menuOverlay) menuOverlay.style.display = 'none';
+                return;
+            }
+
             const user = menuAuth.currentUser;
             if (!user) {
-                console.error("Firebase user not authenticated (menuApp).");
+                console.error("Firebase user not authenticated (menuAuth).");
                 return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
             }
             const uid = user.uid;
@@ -2523,7 +2581,7 @@ export function initMenuUI() {
                 // Hide prompt, show game
                 showPanel(null);
                 if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
-                if (typeof menu === "function") menu();
+                if (typeof menu === "function") try { menu(); } catch(e){/* ignore */ }
                 const logo = document.getElementById("game-logo");
                 if (logo) logo.classList.add("hidden");
                 if (menuOverlay) menuOverlay.style.display = 'none';
@@ -2534,7 +2592,7 @@ export function initMenuUI() {
                 // Rollback: if we claimed usernames/<key> but failed to write /users/{key}, remove claim (only if still ours)
                 try {
                     const claimedSnap = await usernamesRef.child(key).once("value");
-                    if (claimedSnap.exists() && claimedSnap.val() === menuAuth.currentUser.uid) {
+                    if (claimedSnap.exists() && menuAuth && claimedSnap.val() === menuAuth.currentUser.uid) {
                         await usernamesRef.child(key).remove();
                     }
                 } catch (rollbackErr) {
