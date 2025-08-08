@@ -402,7 +402,7 @@ _stepUpIfPossible() {
             const deltaY = stepTopY - actualGroundY;
 
             if (
-                deltaY > 0.05 &&
+                deltaY > 0.15 &&
                 deltaY <= STEP_HEIGHT + 0.01 &&
                 stepTopY >= this.player.position.y - PLAYER_TOTAL_HEIGHT + 0.5
             ) {
