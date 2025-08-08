@@ -1630,6 +1630,48 @@ async function initAndStartGame(username, mapName, gameId = null) {
   );
 }
 
+async function handleGameJoin(username, mapName, gameId = null) {
+  // Show a loading or "Checking login..." message to the user
+  Swal.fire({
+    title: 'Connecting to Game...',
+    html: 'Please wait while we log you in and get the game ready.',
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    onBeforeOpen: () => {
+      Swal.showLoading();
+    }
+  });
+
+  // Use onAuthStateChanged to wait for the authentication state to be confirmed
+  const authPromise = new Promise((resolve, reject) => {
+    const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+      unsubscribe(); // Stop listening after the first event
+      if (user) {
+        console.log("User authenticated, UID:", user.uid);
+        resolve(user);
+      } else {
+        console.error("No authenticated user found.");
+        reject(new Error("You must be logged in to play."));
+      }
+    });
+  });
+
+  try {
+    const user = await authPromise;
+    // If we get here, the user is logged in. Now it's safe to start the game.
+    Swal.close(); // Close the loading modal
+    await initAndStartGame(username, mapName, gameId);
+  } catch (error) {
+    // If authentication fails, show an error and return to the menu
+    Swal.fire({
+      icon: 'error',
+      title: 'Authentication Required',
+      text: error.message
+    });
+    return menu();
+  }
+}
+
 /**
  * Function called when the "Play" button (canvas-drawn) is clicked.
  * Clears the current menu and displays the canvas-based map selection options.
@@ -1948,7 +1990,7 @@ export async function gamesButtonHit() {
 
                     // If versions match, proceed to join
                     setActiveGameId(gameId);
-                    initAndStartGame(username, mapName, gameId);
+                    handleGameJoin(username, mapName, gameId);
                 }
             );
             add(gameBg);
