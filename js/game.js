@@ -1814,12 +1814,16 @@ respawnPlayer();
 }
 
 function createLeaderboardOverlay() {
+  const overlay = document.getElementById("leaderboard-overlay");
   const tbody = document.getElementById("leaderboard-body");
-  
-  if (!tbody) {
-    console.error("Leaderboard body not found. Please ensure an element with id 'leaderboard-body' exists in your HTML.");
+
+  if (!overlay || !tbody) {
+    console.error("Leaderboard overlay or body not found. Please ensure elements with IDs 'leaderboard-overlay' and 'leaderboard-body' exist in your HTML.");
     return;
   }
+  
+  // Make the overlay visible
+  overlay.style.display = "block";
 
   // Firebase listener
   playersRef.on("value", snapshot => {
@@ -2769,6 +2773,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
