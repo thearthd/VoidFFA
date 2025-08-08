@@ -557,23 +557,21 @@ export async function fullCleanup(gameId) {
 }
 
 function setupPlayersListener(playersRef) {
+    // Detach previous listeners before attaching new ones
     playersRef.off("value");
     playersRef.off("child_added");
     playersRef.off("child_changed");
     playersRef.off("child_removed");
 
-    playersListener = playersRef.on("value", (fullSnap) => {
-        const allIds = [];
-        fullSnap.forEach(s => allIds.push(s.key));
-        latestValidIds = allIds;
-        purgeNamelessPlayers(latestValidIds);
-        updateScoreboard(playersRef);
-    });
+    // The problematic "value" listener has been removed to prevent the permission_denied error.
 
     playersRef.on("child_added", (snap) => {
         const data = snap.val();
         const id = data.id;
         console.log(`[playersRef:child_added] Event for player ID: ${id}`);
+        
+        // Update the scoreboard here when a new player joins
+        updateScoreboard(playersRef);
 
         if (id === localPlayerId) {
             console.log(`[playersRef:child_added] Skipping local player ${id}.`);
@@ -601,6 +599,9 @@ function setupPlayersListener(playersRef) {
     playersRef.on("child_changed", (snap) => {
         const data = snap.val();
         const id = data.id;
+        
+        // Update the scoreboard here when a player's data (e.g., kills, deaths) changes
+        updateScoreboard(playersRef);
 
         if (permanentlyRemoved.has(id)) {
             removeRemotePlayerModel(id);
@@ -633,6 +634,10 @@ function setupPlayersListener(playersRef) {
 
     playersRef.on("child_removed", (snap) => {
         const id = snap.key;
+        
+        // Update the scoreboard here when a player leaves the game
+        updateScoreboard(playersRef);
+        
         if (id === localPlayerId) {
             console.warn("Local player removed from Firebase. Handling disconnection.");
             localStorage.removeItem(`playerId-${activeGameSlotName}`);
