@@ -3,20 +3,19 @@ export const bannedWords = [
     "fuck","fuk","f*ck","f.u.c.k","f u c k","fucc","fukk","fux","phuck","f0ck","f0k","focker",
     "shit","sh1t","sh!t","s.h.i.t","shitt","shiit","shyt","shyte","shiet","shittie","bullshit","bs",
     "bitch","biatch","b!tch","b1tch","b*tch","b i t c h","bishes","betch","bitchez","b1chez",
-
     "cunt","kunt","c*nt","c u n t","cnt","qunt","q*nt","khunt",
     "dick","dik","d!ck","d1ck","d1k","diq","d!q","d1q","dic","dyke","dildo",
     "pussy","pusy","pussie","pussee","puzzy","puss","pussay","puss-e","p*ssy",
     "cock","c0ck","cok","c@ck","cokk","kok","k0k","cox","c0x","coque",
     "whore","hoe","h0e","hoar","ho3","wh0re","whoar","hore","hoochie","skank","harlot",
     "slut","slutt","slvtt","sl@t","s1ut","s1utt","s!ut","sk@nk","slag",
+    "motherfucker","m0therfucker","motherfuker","mutha","muthafucka","mofo","m0fo",
 
     // Racial / ethnic slurs & variations
     "nigger","nigga","n1gger","n1gga","ni99er","ni99a","niggah","nigguh","nibba","nibber","niger","nigg",
     "faggot","fag","fa99ot","f@ggot","f@g","fagg","f4g","f4ggot","feg","feget",
     "tranny","transvestite","shemale","ladyboy","he-she","genderbender",
     "retard","r3tard","ret@rd","rehtard","retarded",
-    // Removed idiot, moron
     "spic","sp1c","spik","sp!c",
     "kike","kyke","kiqe","k!ke","k1ke",
     "chink","ching","chingchong","ching-chong","chiink","ch1nk",
@@ -28,18 +27,53 @@ export const bannedWords = [
     "raghead","raghed","raghede",
     "sandnigger","sandnigga","sandn1gga","sandn1gger","sandni99er","sandni99a",
     "porchmonkey","porchm0nkey","porchm0nky","p0rchmonkey","p0rchm0nkey",
+    "gypsy","gyp","gyppo","g!p","g1p",
 
     // Sexual content
-    "cum","cumm","cumming","cumshot","cumslut","cumdump","cumwhore","cumbucket",
+    "cum","cumm","cumming","cumshot","cumslut","cumdump","cumwhore","cumbucket","cumqueen",
     "jizz","j1zz","j!zz","j1z","j!z",
     "orgasm","orcasm","orgazm","org@sm",
     "masturbate","masturbation","masturbating","mastrubate","mastrabate","mastrbate",
     "jerkoff","jerking","jerk-off","wank","w@nking",
-    // Removed wanker
     "blowjob","blow-job","blow j0b","bl0wj0b","bl0wjob","bj","b.j.","b jawb",
     "handjob","hand-job","h@ndjob",
     "anal","an@l","anus","buttsex","butt-sex","b00tysex",
     "rimjob","rim-job","rim j0b","r1mjob",
     "deepthroat","deep-throat","deep throat","dp","d.p.",
     "porn","p0rn","pr0n","p orn","p*rn","pornhub","xvideos","xnxx",
+    "sex","s3x","s ex","s e x","sexual","sexo","sexi","sexy","sexxy",
+    "boobs","boob","tits","t1ts","t!ts","tit","t1t","t!t","boobies","bewbs","b00bs","b00b",
+    "vagina","vaj","vajayjay","va-j-j","vajina","v@gina","v@g",
+    "clit","cl1t","cl!t","clitty","cl1tty",
+    "penis","p3nis","p3n1s","p3n!s","phallus",
+    "erection","erekt","erect","erecshun",
+    "fetish","bdsm","bondage",
+    "blumpkin","rustytrombone","dirtysanchez","hotcarl","clevelandsteamer",
+
+    // Violence / gore
+    "decapitate","decapitation","behead","beheading","blood","bloody","gore","gory",
+    "suicide","suiside","suis1de","selfharm","self-harm","kms","kys","k1llurself","killurself",
+
+    // Drug references
+    "weed","w33d","we3d","420","marijuana","maryjane","mj","ganja","pothead","pot","blunt","spliff","bong","kush",
+    "cocaine","c0caine","coke","c0ke","crack","meth","m3th","methamphetamine","heroin","h3roin","opium","lsd","acid","shrooms","ecstasy","molly","mdma",
+    "vape",
+
+    // Historical extremist / hate group references
+    "isis","taliban","alqaeda","al-qaeda","jihad",
+    "hitler","h1tler","adolf","ad0lf",
+    "nazi","naz1","n4zi","n@zi","n@z1",
+    "schutzstaffel","schutstaffel",
+    "goebbels","gobbels","g0ebbels","g0bbels",
+    "himmler","h1mmler","h!mmler",
+    "gestapo","g3stapo","g3stap0",
+    "auschwitz","aushwitz","auschwitz","aushw1tz","auschw1tz",
+    "bergenbelsen","belsen",
+    "holocaust","h0locaust","shoah",
+    "fuehrer","fuhrer","fuhre","fuerer","fuhr3r",
+    "stormfront","st0rmfront","stormfr0nt",
+    "kkk","k k k","klu klux klan","ku klux klan",
+    "neo-nazi","neonazi","neon4zi","neo n@zi",
+    "whitepower","white-power","white power","w!tepower",
+    "bloodandsoil","blutundboden"
 ];
