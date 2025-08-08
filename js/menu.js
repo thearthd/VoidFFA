@@ -2009,8 +2009,25 @@ export async function gamesButtonHit() {
                         return;
                     }
 
-                    setActiveGameId(gameId);
-                    handleGameJoin(username, mapName, gameId);
+                    // --- AUTHENTICATION CHECK MOVED HERE ---
+                    // Wait for the auth state to be confirmed before calling handleGameJoin
+                    const userAfterClick = await new Promise(resolve => {
+                        const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+                            unsubscribe();
+                            resolve(user);
+                        });
+                    });
+
+                    if (userAfterClick) {
+                        setActiveGameId(gameId);
+                        handleGameJoin(username, mapName, gameId);
+                    } else {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Login Required',
+                            text: 'You must be logged in to join this game.'
+                        });
+                    }
                 }
             );
             add(gameBg);
@@ -2085,6 +2102,7 @@ export async function gamesButtonHit() {
         addBackButton(playButtonHit);
     }
 }
+
 
 /**
  * Adds a "Back to Menu" button to the current screen.
