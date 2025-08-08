@@ -1869,6 +1869,30 @@ export async function createGameButtonHit() {
 
 
 export async function gamesButtonHit() {
+    // Small theme palette — tweak these if you want different purples
+    const COLORS = {
+        bgCard: "rgba(28,10,36,0.82)",         // card background
+        cardGlow: "rgba(124,58,237,0.12)",     // outer glow
+        thumbBg: "rgba(124,58,237,0.14)",      // thumbnail background
+        title: "#e9dbff",                      // title text
+        subtitle: "#cfc7e8",                   // subtitle text
+        muted: "#9b95a8",                      // muted text
+        joinBtn: "rgba(124,58,237,1)",         // join button fill
+        joinBtnText: "#fff",
+        statusWaiting: "#b794f4",
+        statusStarting: "#ffd166",
+        border: "rgba(255,255,255,0.04)",
+    };
+
+    // Helper: quick centered text factory
+    function makeText(str, font, color, x, y) {
+        const t = new Text(str, font);
+        t.setColor(color);
+        t.setPosition(x, y);
+        return t;
+    }
+
+    // Clear & show loading
     clearMenuCanvas();
     add(logo);
     let loadingText = new Text("Loading games...", "30pt Arial");
@@ -1878,7 +1902,6 @@ export async function gamesButtonHit() {
     currentMenuObjects.push(loadingText);
 
     username = localStorage.getItem("username");
-    // Assign player's current version when they attempt to browse games
     localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
     if (username) {
         await assignPlayerVersion(username, CLIENT_GAME_VERSION);
@@ -1890,9 +1913,8 @@ export async function gamesButtonHit() {
 
         const activeSlots = Object.entries(gamesObj)
             .filter(([id, game]) => {
-                // Filter out games that don't match the client's version
                 return (game.status === "waiting" || game.status === "starting") &&
-                    game.gameVersion === CLIENT_GAME_VERSION; // Only show games that match player's version
+                    game.gameVersion === CLIENT_GAME_VERSION;
             })
             .map(([id, game]) => ({
                 id,
@@ -1901,7 +1923,8 @@ export async function gamesButtonHit() {
                 map: game.map,
                 createdAt: game.createdAt,
                 slot: game.slot,
-                gameVersion: game.gameVersion // Include gameVersion in the slot info
+                gameVersion: game.gameVersion,
+                status: game.status
             }))
             .sort((a, b) => b.createdAt - a.createdAt);
 
@@ -1921,54 +1944,193 @@ export async function gamesButtonHit() {
         const startIndex = currentPage * GAMES_PER_PAGE;
         const pageSlots = activeSlots.slice(startIndex, startIndex + GAMES_PER_PAGE);
 
-        let yStart = 200;
-        const entryHeight = 150;
+        // Layout metrics
+        const cardX = getWidth() * 0.1;
+        const cardW = getWidth() * 0.8;
+        let yStart = 160;
+        const cardHeight = 120;
+        const cardGap = 22;
 
         for (let i = 0; i < pageSlots.length; i++) {
             const slotInfo = pageSlots[i];
             const gameId = slotInfo.id;
             const mapName = slotInfo.map;
-            const y = yStart + i * entryHeight;
+            const y = yStart + i * (cardHeight + cardGap);
 
-            // Background hitbox
-            let gameBg = createClickableRectangle(
-                getWidth() * 0.1,
-                y - 50,
-                getWidth() * 0.8,
-                100,
-                "rgba(50,50,50,0.7)",
-                async () => { // Made the callback async
-                    console.log(`Joining game ${slotInfo.gameName} on map ${mapName}`);
+            // --- Soft glow (under the card) ---
+            let glow = createClickableRectangle(
+                cardX - 6,
+                y - 6,
+                cardW + 12,
+                cardHeight + 12,
+                COLORS.cardGlow,
+                () => {}
+            );
+            // If setLayer exists, push behind
+            if (glow.setLayer) glow.setLayer(0);
+            add(glow);
+            currentMenuObjects.push(glow);
+
+            // --- Card background (clickable) ---
+            let cardBg = createClickableRectangle(
+                cardX,
+                y,
+                cardW,
+                cardHeight,
+                COLORS.bgCard,
+                async () => {
                     // Version check before joining a game
-                    const playerVersion = localStorage.getItem("playerVersion"); // The client's version
+                    const playerVersion = localStorage.getItem("playerVersion");
                     if (playerVersion !== slotInfo.gameVersion) {
                         Swal.fire('Version Mismatch', `This game requires version ${slotInfo.gameVersion}, but your game is version ${playerVersion || 'N/A'}. Please update to join.`, 'error');
-                        return; // Prevent joining the game
+                        return;
                     }
-
-                    // If versions match, proceed to join
                     setActiveGameId(gameId);
                     initAndStartGame(username, mapName, gameId);
                 }
             );
-            add(gameBg);
-            currentMenuObjects.push(gameBg);
+            // lightly outline the card
+            if (cardBg.setStroke) cardBg.setStroke(COLORS.border, 1);
+            add(cardBg);
+            currentMenuObjects.push(cardBg);
 
-            // Game name
-            let titleText = new Text(`${slotInfo.gameName}`, "25pt Arial");
-            titleText.setColor("#9c55ff");
-            titleText.setPosition(getWidth() * 0.5, y);
+            // --- Thumbnail (left column) ---
+            const thumbW = 110;
+            const thumbH = cardHeight - 24;
+            const thumbX = cardX + 14;
+            const thumbY = y + 12;
+            // Use a non-clickable visual rectangle as thumbnail (pass noop callback)
+            let thumb = createClickableRectangle(
+                thumbX,
+                thumbY,
+                thumbW,
+                thumbH,
+                COLORS.thumbBg,
+                () => {}
+            );
+            if (thumb.setLayer) thumb.setLayer(2);
+            // rounded effect if supported
+            if (thumb.setCornerRadius) thumb.setCornerRadius(10);
+            add(thumb);
+            currentMenuObjects.push(thumb);
+
+            // Put map initial/placeholder inside thumbnail
+            let mapInitial = (mapName && mapName[0]) ? mapName[0].toUpperCase() : "?";
+            let initialText = makeText(mapInitial, "34pt Arial", COLORS.title, thumbX + thumbW / 2, thumbY + thumbH / 2 - 6);
+            initialText.align = "center"; // if your Text supports alignment
+            add(initialText);
+            currentMenuObjects.push(initialText);
+
+            // --- Title (center) ---
+            const centerX = cardX + thumbW + 40;
+            const titleY = y + 24;
+            let titleText = makeText(slotInfo.gameName || "Untitled Game", "24pt Arial", COLORS.title, centerX, titleY);
+            titleText.align = "left";
             add(titleText);
             currentMenuObjects.push(titleText);
 
-            // Map details with version info
-            let detailsText = new Text(`Map: ${slotInfo.map} (Ver: ${slotInfo.gameVersion})`, "15pt Arial");
-            detailsText.setColor("#999999");
-            detailsText.setPosition(getWidth() * 0.5, y + 30);
-            add(detailsText);
-            currentMenuObjects.push(detailsText);
+            // --- Host / map / created time (center) ---
+            let hostText = makeText(`Host: ${slotInfo.host || "Unknown"}`, "14pt Arial", COLORS.subtitle, centerX, titleY + 28);
+            hostText.align = "left";
+            add(hostText);
+            currentMenuObjects.push(hostText);
+
+            let mapText = makeText(`Map: ${slotInfo.map || "—"} • Ver ${slotInfo.gameVersion}`, "13pt Arial", COLORS.muted, centerX, titleY + 50);
+            mapText.align = "left";
+            add(mapText);
+            currentMenuObjects.push(mapText);
+
+            // Optional: show "created at" relative time if present
+            if (slotInfo.createdAt) {
+                const created = new Date(slotInfo.createdAt);
+                const createdStr = `${created.toLocaleDateString()} ${created.toLocaleTimeString()}`;
+                let createdText = makeText(`Created: ${createdStr}`, "12pt Arial", COLORS.muted, centerX, titleY + 72);
+                createdText.align = "left";
+                add(createdText);
+                currentMenuObjects.push(createdText);
+            }
+
+            // --- Right column: join button + status badge ---
+            const rightX = cardX + cardW - 130;
+            const btnY = y + (cardHeight / 2) - 24;
+
+            // Join button (visually styled using rectangle + overlaid text)
+            let joinBtn = createClickableRectangle(
+                rightX,
+                btnY,
+                110,
+                48,
+                COLORS.joinBtn,
+                async () => {
+                    const playerVersion = localStorage.getItem("playerVersion");
+                    if (playerVersion !== slotInfo.gameVersion) {
+                        Swal.fire('Version Mismatch', `This game requires version ${slotInfo.gameVersion}, but your game is version ${playerVersion || 'N/A'}. Please update to join.`, 'error');
+                        return;
+                    }
+                    setActiveGameId(gameId);
+                    initAndStartGame(username, mapName, gameId);
+                }
+            );
+            // rounded join button if supported
+            if (joinBtn.setCornerRadius) joinBtn.setCornerRadius(8);
+            add(joinBtn);
+            currentMenuObjects.push(joinBtn);
+
+            let joinTxt = makeText("Join", "18pt Arial", COLORS.joinBtnText, rightX + 55, btnY + 26);
+            joinTxt.align = "center";
+            add(joinTxt);
+            currentMenuObjects.push(joinTxt);
+
+            // Status badge above join button
+            const badgeW = 90;
+            const badgeH = 28;
+            const badgeX = rightX + (110 - badgeW) / 2;
+            const badgeY = y + 12;
+            const statusColor = slotInfo.status === "starting" ? COLORS.statusStarting : COLORS.statusWaiting;
+
+            let statusBadge = createClickableRectangle(
+                badgeX,
+                badgeY,
+                badgeW,
+                badgeH,
+                statusColor,
+                () => {}
+            );
+            if (statusBadge.setCornerRadius) statusBadge.setCornerRadius(16);
+            if (statusBadge.setLayer) statusBadge.setLayer(6);
+            add(statusBadge);
+            currentMenuObjects.push(statusBadge);
+
+            let statusTxt = makeText(slotInfo.status ? slotInfo.status.toUpperCase() : "WAITING", "12pt Arial", "#1b0720", badgeX + badgeW / 2, badgeY + badgeH / 2 + 4);
+            statusTxt.align = "center";
+            add(statusTxt);
+            currentMenuObjects.push(statusTxt);
+
+            // small version badge under status
+            let verBadge = createClickableRectangle(
+                badgeX,
+                badgeY + badgeH + 6,
+                badgeW,
+                20,
+                "rgba(255,255,255,0.03)",
+                () => {}
+            );
+            if (verBadge.setCornerRadius) verBadge.setCornerRadius(10);
+            add(verBadge);
+            currentMenuObjects.push(verBadge);
+
+            let verTxt = makeText(`v${slotInfo.gameVersion}`, "11pt Arial", COLORS.muted, badgeX + badgeW / 2, badgeY + badgeH + 6 + 12);
+            verTxt.align = "center";
+            add(verTxt);
+            currentMenuObjects.push(verTxt);
+
+            // Optional: increase layering so card content appears above its glow
+            if (cardBg.setLayer) cardBg.setLayer(4);
+            if (thumb.setLayer) thumb.setLayer(5);
+            if (joinBtn.setLayer) joinBtn.setLayer(8);
         }
 
+        // --- Pagination (kept mostly as you had it) ---
         const maxPages = Math.ceil(activeSlots.length / GAMES_PER_PAGE);
         const paginationY = getHeight() - 100;
 
