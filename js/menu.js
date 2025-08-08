@@ -2214,12 +2214,17 @@ export function initMenuUI() {
     let username           = localStorage.getItem("username") || "";
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
 
-    // menuApp DB + auth
-    const menuAppInstance = firebase.app("menuApp");
+    // Ensure we use the menuApp instance for both DB and Auth (safe fallback if not initialized)
+    let menuAppInstance;
+    try {
+        menuAppInstance = firebase.app("menuApp");
+    } catch (e) {
+        menuAppInstance = firebase.initializeApp(menuConfig, "menuApp");
+    }
     const db = menuAppInstance.database();
     const auth = menuAppInstance.auth();
     const usersRef = db.ref("users");
-    const usernamesRef = db.ref("usernames");
+    const usernamesRef = db.ref("usernames"); // index: name -> uid
 
     /** 
      * Throw if no valid username is set.
@@ -2244,7 +2249,7 @@ export function initMenuUI() {
         }
     }
 
-    // New function to handle user authentication (tied to menuApp's auth)
+    // Sign in anonymously (on the menuApp auth instance) if needed
     async function authenticateUser() {
         if (!auth.currentUser) {
             try {
@@ -2258,7 +2263,7 @@ export function initMenuUI() {
     }
 
     async function initializeMenuDisplay() {
-        // Ensure auth ready
+        // Wait for auth state to be ready using the menuApp auth instance
         await new Promise(resolve => {
             const unsubscribe = auth.onAuthStateChanged(user => {
                 if (user) {
@@ -2276,34 +2281,55 @@ export function initMenuUI() {
             showPanel(usernamePrompt);
             return;
         }
+        const uid = user.uid;
 
-        // Prefer canonical username from /users/$uid (required by rules)
-        username = localStorage.getItem("username") || "";
+        // Attempt 1: find canonical name by looking up usernames index where value == uid
         try {
-            const uidSnap = await usersRef.child(user.uid).once("value");
-            if (uidSnap.exists()) {
-                const data = uidSnap.val();
-                if (data && data.username) {
-                    localStorage.setItem("username", data.username);
-                    username = data.username;
-                } else {
-                    // no username on server for this uid
-                    if (username && username.trim()) {
+            const byUidSnap = await usernamesRef.orderByValue().equalTo(uid).once("value");
+            if (byUidSnap.exists()) {
+                // pick first matching username key
+                const firstKey = Object.keys(byUidSnap.val())[0];
+                if (firstKey) {
+                    // double-check that /users/{name}/ids/{uid} exists
+                    const idSnap = await usersRef.child(firstKey).child("ids").child(uid).once("value");
+                    if (idSnap.exists()) {
+                        username = firstKey;
+                        localStorage.setItem("username", username);
+                    } else {
+                        // If index pointed to uid but users record doesn't contain this id, clear both to avoid mismatch
+                        try { await usernamesRef.child(firstKey).remove(); } catch(e) { /* ignore */ }
                         localStorage.removeItem("username");
                         username = "";
                     }
                 }
             } else {
+                // If no index entry, but a local username exists, verify ownership
+                username = localStorage.getItem("username") || "";
                 if (username && username.trim()) {
+                    const key = username.toLowerCase();
+                    const idSnap = await usersRef.child(key).child("ids").child(uid).once("value");
+                    if (!idSnap.exists()) {
+                        localStorage.removeItem("username");
+                        username = "";
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn("Could not verify username/index:", err);
+            // fallback: clear local username to avoid accidental mismatches
+            username = localStorage.getItem("username") || "";
+            if (username && username.trim()) {
+                try {
+                    const key = username.toLowerCase();
+                    const idSnap = await usersRef.child(key).child("ids").child(uid).once("value");
+                    if (!idSnap.exists()) {
+                        localStorage.removeItem("username");
+                        username = "";
+                    }
+                } catch (e) {
                     localStorage.removeItem("username");
                     username = "";
                 }
-            }
-        } catch (e) {
-            console.warn("Could not verify existing user record:", e);
-            if (username && username.trim()) {
-                localStorage.removeItem("username");
-                username = "";
             }
         }
 
@@ -2324,14 +2350,22 @@ export function initMenuUI() {
     }
 
     // HTML Play
-    if (htmlPlayButton) htmlPlayButton.addEventListener("click", () => showPanel(mapSelect));
+    if (htmlPlayButton) {
+        htmlPlayButton.addEventListener("click", () => showPanel(mapSelect));
+    }
     // HTML Settings
-    if (htmlSettingsButton) htmlSettingsButton.addEventListener("click", () => showPanel(controlsMenu));
+    if (htmlSettingsButton) {
+        htmlSettingsButton.addEventListener("click", () => showPanel(controlsMenu));
+    }
     // HTML Career
-    if (htmlCareerButton) htmlCareerButton.addEventListener("click", () => console.log("Career clicked!"));
+    if (htmlCareerButton) {
+        htmlCareerButton.addEventListener("click", () => console.log("Career clicked!"));
+    }
 
     // Pre-fill username input if already set
-    if (usernameInput && username) usernameInput.value = username;
+    if (usernameInput && username) {
+        usernameInput.value = username;
+    }
 
     // Save Username Button
     if (saveUsernameBtn) {
@@ -2353,25 +2387,24 @@ export function initMenuUI() {
             const uid = user.uid;
             const key = raw.toLowerCase();
 
-            // 1) Claim username in /usernames/<key> via transaction (allowed by your rules)
+            // 1) Claim username in /usernames/<key> via transaction (index: name -> uid)
             try {
-                const transactionResult = await usernamesRef.child(key).transaction(current => {
+                const txResult = await usernamesRef.child(key).transaction(current => {
                     if (current === null || current === uid) {
                         return uid;
                     }
                     return; // abort - someone else owns it
                 });
 
-                if (!transactionResult.committed) {
+                if (!txResult.committed) {
                     return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
                 }
 
-                // 2) Write canonical profile to /users/<uid> (must use uid as key per rules)
-                //    Also add an ids subtree so you still have an id tree associated with the name
+                // 2) Write canonical profile to /users/{name} and include ids/{uid}=true in the same atomic update
                 const updates = {};
-                updates[`/users/${uid}/username`] = raw;
-                updates[`/users/${uid}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
-                updates[`/users/${uid}/ids/${uid}`] = true;
+                updates[`/users/${key}/username`] = raw;
+                updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
+                updates[`/users/${key}/ids/${uid}`] = true;
 
                 await db.ref().update(updates);
 
@@ -2382,6 +2415,7 @@ export function initMenuUI() {
                     try { playerCard.setText(username); } catch (e) { /* ignore */ }
                 }
 
+                // Hide prompt, show game
                 showPanel(null);
                 if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
                 if (typeof menu === "function") menu();
@@ -2392,7 +2426,7 @@ export function initMenuUI() {
             } catch (err) {
                 console.error("Error saving to DB:", err);
 
-                // Rollback: if we claimed /usernames/<key> but failed to write /users/<uid>, remove claim
+                // Rollback: if we claimed usernames/<key> but failed to write /users/{key}, remove claim (only if still ours)
                 try {
                     const claimedSnap = await usernamesRef.child(key).once("value");
                     if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
