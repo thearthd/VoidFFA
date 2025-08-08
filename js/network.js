@@ -401,6 +401,10 @@ export async function initNetwork(user, username, mapName, gameId, ffaEnabled) {
     if (typeof gameId !== 'string' || gameId.length === 0) {
         console.error("Invalid gameId received:", gameId);
         Swal.fire('Error', 'Invalid game ID received. Please try again.', 'error');
+        // This error is likely caused by the function calling initNetwork
+        // passing its parameters in the wrong order. Check the call to
+        // initNetwork in initAndStartGame to ensure it matches the signature
+        // (user, username, mapName, gameId, ffaEnabled).
         return false;
     }
 
