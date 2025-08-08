@@ -1956,7 +1956,7 @@ export async function gamesButtonHit() {
 
             // Game name
             let titleText = new Text(`${slotInfo.gameName}`, "25pt Arial");
-            titleText.setColor("#55eeff");
+            titleText.setColor("#9c55ff");
             titleText.setPosition(getWidth() * 0.5, y);
             add(titleText);
             currentMenuObjects.push(titleText);
