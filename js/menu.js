@@ -1897,22 +1897,19 @@ export async function gamesButtonHit() {
     add(logo);
     
     // --- AUTHENTICATION CHECK ADDED HERE ---
-    // Show a loading text while we check the user's login status.
     let loadingText = new Text("Checking login status...", "30pt Arial");
     loadingText.setColor("#ffffff");
     loadingText.setPosition(getWidth() / 2, getHeight() / 2);
     add(loadingText);
     currentMenuObjects.push(loadingText);
 
-    // Wait for the authentication state to be confirmed.
     const user = await new Promise(resolve => {
         const unsubscribe = firebase.auth().onAuthStateChanged(user => {
-            unsubscribe(); // Stop listening after the first event
+            unsubscribe();
             resolve(user);
         });
     });
 
-    // If no user is logged in, show an error and return.
     if (!user) {
         remove(loadingText);
         Swal.fire({
@@ -1920,14 +1917,11 @@ export async function gamesButtonHit() {
             title: 'Login Required',
             text: 'You must be logged in to view games.'
         });
-        addBackButton(playButtonHit); // Go back to the main play screen
+        addBackButton(playButtonHit);
         return;
     }
     
-    // --- END OF AUTHENTICATION CHECK ---
-
-    // Now that the user is logged in, we can safely proceed.
-    remove(loadingText); // Remove the login check text.
+    remove(loadingText);
     loadingText = new Text("Loading games...", "30pt Arial");
     loadingText.setColor("#ffffff");
     loadingText.setPosition(getWidth() / 2, getHeight() / 2);
@@ -1941,7 +1935,6 @@ export async function gamesButtonHit() {
     }
 
     try {
-        // This is now safe to call because we know the user is authenticated.
         const snapshot = await gamesRef.once('value');
         const gamesObj = snapshot.val() || {};
 
@@ -2000,8 +1993,7 @@ export async function gamesButtonHit() {
                         return;
                     }
                     
-                    // The user is already authenticated from the main function scope.
-                    // We can directly call the game-joining logic.
+                    // Call handleGameJoin with the authenticated user object.
                     setActiveGameId(gameId);
                     handleGameJoin(user, username, mapName, gameId);
                 }
