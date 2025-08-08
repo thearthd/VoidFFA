@@ -550,27 +550,30 @@ function onKeyDown(e) {
             inputState.fire = true;
             inputState.fireJustPressed = true;
             break;
-        case currentKeybinds.knife:
-            if (inputState.weaponSwitchHeld !== currentKeybinds.knife) {
-                inputState.weaponSwitch = "knife";
-                inputState.weaponSwitchHeld = currentKeybinds.knife;
-            }
-            break;
-        case currentKeybinds.primary:
-            if (primary && inputState.weaponSwitchHeld !== currentKeybinds.primary) {
-                inputState.weaponSwitch = primary;
-                inputState.weaponSwitchHeld = currentKeybinds.primary;
-            }
-            break;
-        case currentKeybinds.secondary:
-            if (secondary && inputState.weaponSwitchHeld !== currentKeybinds.secondary) {
-                inputState.weaponSwitch = secondary;
-                inputState.weaponSwitchHeld = currentKeybinds.secondary;
-            }
-            break;
-        default:
-            handled = false;
-    }
+        case currentKeybinds.knife:
+            // Check if the current weapon is NOT the knife
+            if (currentPlayerWeaponKey !== "knife") {
+                inputState.weaponSwitch = "knife";
+                inputState.weaponSwitchHeld = currentKeybinds.knife;
+            }
+            break;
+        case currentKeybinds.primary:
+            // Check if the primary weapon exists AND the current weapon is NOT the primary weapon
+            if (primary && currentPlayerWeaponKey !== primary) {
+                inputState.weaponSwitch = primary;
+                inputState.weaponSwitchHeld = currentKeybinds.primary;
+            }
+            break;
+        case currentKeybinds.secondary:
+            // Check if the secondary weapon exists AND the current weapon is NOT the secondary weapon
+            if (secondary && currentPlayerWeaponKey !== secondary) {
+                inputState.weaponSwitch = secondary;
+                inputState.weaponSwitchHeld = currentKeybinds.secondary;
+            }
+            break;
+        default:
+            handled = false;
+    }
 
     if (handled) {
         e.preventDefault();
