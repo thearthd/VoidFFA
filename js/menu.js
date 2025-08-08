@@ -1913,28 +1913,60 @@ export async function createGameButtonHit() {
 export async function gamesButtonHit() {
     clearMenuCanvas();
     add(logo);
-    let loadingText = new Text("Loading games...", "30pt Arial");
+    
+    // --- AUTHENTICATION CHECK ADDED HERE ---
+    // Show a loading text while we check the user's login status.
+    let loadingText = new Text("Checking login status...", "30pt Arial");
+    loadingText.setColor("#ffffff");
+    loadingText.setPosition(getWidth() / 2, getHeight() / 2);
+    add(loadingText);
+    currentMenuObjects.push(loadingText);
+
+    // Wait for the authentication state to be confirmed.
+    const user = await new Promise(resolve => {
+        const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+            unsubscribe(); // Stop listening after the first event
+            resolve(user);
+        });
+    });
+
+    // If no user is logged in, show an error and return.
+    if (!user) {
+        remove(loadingText);
+        Swal.fire({
+            icon: 'warning',
+            title: 'Login Required',
+            text: 'You must be logged in to view games.'
+        });
+        addBackButton(playButtonHit); // Go back to the main play screen
+        return;
+    }
+    
+    // --- END OF AUTHENTICATION CHECK ---
+
+    // Now that the user is logged in, we can safely proceed.
+    remove(loadingText); // Remove the login check text.
+    loadingText = new Text("Loading games...", "30pt Arial");
     loadingText.setColor("#ffffff");
     loadingText.setPosition(getWidth() / 2, getHeight() / 2);
     add(loadingText);
     currentMenuObjects.push(loadingText);
 
     username = localStorage.getItem("username");
-    // Assign player's current version when they attempt to browse games
     localStorage.setItem("playerVersion", CLIENT_GAME_VERSION);
     if (username) {
         await assignPlayerVersion(username, CLIENT_GAME_VERSION);
     }
 
     try {
+        // This is now safe to call because we know the user is authenticated.
         const snapshot = await gamesRef.once('value');
         const gamesObj = snapshot.val() || {};
 
         const activeSlots = Object.entries(gamesObj)
             .filter(([id, game]) => {
-                // Filter out games that don't match the client's version
                 return (game.status === "waiting" || game.status === "starting") &&
-                    game.gameVersion === CLIENT_GAME_VERSION; // Only show games that match player's version
+                    game.gameVersion === CLIENT_GAME_VERSION;
             })
             .map(([id, game]) => ({
                 id,
@@ -1943,7 +1975,7 @@ export async function gamesButtonHit() {
                 map: game.map,
                 createdAt: game.createdAt,
                 slot: game.slot,
-                gameVersion: game.gameVersion // Include gameVersion in the slot info
+                gameVersion: game.gameVersion
             }))
             .sort((a, b) => b.createdAt - a.createdAt);
 
@@ -1972,23 +2004,20 @@ export async function gamesButtonHit() {
             const mapName = slotInfo.map;
             const y = yStart + i * entryHeight;
 
-            // Background hitbox
             let gameBg = createClickableRectangle(
                 getWidth() * 0.1,
                 y - 50,
                 getWidth() * 0.8,
                 100,
                 "rgba(50,50,50,0.7)",
-                async () => { // Made the callback async
+                async () => {
                     console.log(`Joining game ${slotInfo.gameName} on map ${mapName}`);
-                    // Version check before joining a game
-                    const playerVersion = localStorage.getItem("playerVersion"); // The client's version
+                    const playerVersion = localStorage.getItem("playerVersion");
                     if (playerVersion !== slotInfo.gameVersion) {
                         Swal.fire('Version Mismatch', `This game requires version ${slotInfo.gameVersion}, but your game is version ${playerVersion || 'N/A'}. Please update to join.`, 'error');
-                        return; // Prevent joining the game
+                        return;
                     }
 
-                    // If versions match, proceed to join
                     setActiveGameId(gameId);
                     handleGameJoin(username, mapName, gameId);
                 }
@@ -1996,14 +2025,12 @@ export async function gamesButtonHit() {
             add(gameBg);
             currentMenuObjects.push(gameBg);
 
-            // Game name
             let titleText = new Text(`${slotInfo.gameName}`, "25pt Arial");
             titleText.setColor("#55eeff");
             titleText.setPosition(getWidth() * 0.5, y);
             add(titleText);
             currentMenuObjects.push(titleText);
 
-            // Map details with version info
             let detailsText = new Text(`Map: ${slotInfo.map} (Ver: ${slotInfo.gameVersion})`, "15pt Arial");
             detailsText.setColor("#999999");
             detailsText.setPosition(getWidth() * 0.5, y + 30);
@@ -2067,6 +2094,7 @@ export async function gamesButtonHit() {
         addBackButton(playButtonHit);
     }
 }
+
 /**
  * Adds a "Back to Menu" button to the current screen.
  */
