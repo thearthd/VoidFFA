@@ -1,7 +1,17 @@
-import { bannedWords } from './bannedWords.js';
+// A simple profanity filter using canonicalization and fuzzy matching.
+
+// Banned words list. Expand this array with more words as needed.
+const bannedWords = [
+    'hitler'
+];
 
 // --- Canonicalization Functions ---
-// Create canonical form: lowercase, remove diacritics, normalize leetspeak, etc.
+/**
+ * Creates a basic canonical form of a word by lowercasing, removing diacritics,
+ * and normalizing leetspeak characters.
+ * @param {string} word The word to canonicalize.
+ * @returns {string} The canonicalized word.
+ */
 function createCanonicalForm(word) {
     const normalized = word
         .toLowerCase()
@@ -16,7 +26,7 @@ function createCanonicalForm(word) {
         .replace(/[6]/g, 'g')
         .replace(/[#]/g, 'h')
         .replace(/[1!|]/g, 'i')
-        .replace(/[l]/g, 'i')
+        .replace(/[l]/g, 'l')
         .replace(/[0]/g, 'o')
         .replace(/[r]/g, 'r')
         .replace(/[z5$]/g, 's')
@@ -34,52 +44,62 @@ function createCanonicalForm(word) {
     return canonical;
 }
 
-// Create a canonical form by sorting the letters alphabetically.
-function createSortedCanonicalForm(word) {
-    const canonical = createCanonicalForm(word);
-    return canonical.split('').sort().join('');
-}
-
-// --- Pre-processing Banned Words ---
-// The old approach: this is NOT how you catch anagrams.
-// const processedBannedWords = bannedWords.map(word => createCanonicalForm(word));
-
-// FIX: Create two separate lists: one for direct matching, one for anagram matching.
-const processedCanonicalBannedWords = bannedWords.map(word => createCanonicalForm(word));
-const processedSortedBannedWords = bannedWords.map(word => createSortedCanonicalForm(word));
-
-// --- Main Filter Function ---
-export function isMessageClean(text) {
-    const containsBadAss = /\b(dumbass|jackass|smartass|lazyass|asshole)\b/i.test(text);
-
-    const keyboardAndEmojiPattern = /^[a-zA-Z0-9 `~!@#$%^&*()\-_=+\[\]{}|;:'",.<>\/?\\\p{Emoji}\s]*$/u;
-    if (!keyboardAndEmojiPattern.test(text)) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Invalid Characters',
-            text: 'Your message contains unsupported symbols. Please remove them and try again.',
-            confirmButtonText: 'OK'
-        });
-        return false;
+// --- Fuzzy Matching Logic ---
+/**
+ * Determines if a given input is a close misspelling or variation of a banned word
+ * by checking for a high percentage of character overlap.
+ * @param {string} inputCanonical The canonical form of the user's input.
+ * @param {string} bannedCanonical The canonical form of a banned word.
+ * @returns {boolean} True if a fuzzy match is found.
+ */
+function isFuzzyMatch(inputCanonical, bannedCanonical) {
+    // A direct substring match is the strongest form of fuzzy match.
+    if (bannedCanonical.includes(inputCanonical) && inputCanonical.length > 3) {
+        return true;
     }
 
+    // Check for a high degree of character overlap.
+    const minOverlapPercentage = 0.75; // 75% of letters must match
+    let matchingCharacters = 0;
+    let bannedChars = bannedCanonical.split('');
+
+    for (const char of inputCanonical) {
+        const index = bannedChars.indexOf(char);
+        if (index !== -1) {
+            matchingCharacters++;
+            bannedChars.splice(index, 1);
+        }
+    }
+    
+    return matchingCharacters >= bannedCanonical.length * minOverlapPercentage;
+}
+
+// --- Main Filter Function ---
+/**
+ * Checks if a given text message contains any inappropriate content.
+ * @param {string} text The text message to check.
+ * @returns {boolean} True if the message is clean, false if it is blocked.
+ */
+export function isMessageClean(text) {
     const canonicalText = createCanonicalForm(text);
-    const sortedCanonicalText = createSortedCanonicalForm(text);
 
-    // 1. Check for canonical banned words (direct match)
-    const containsBanned = processedCanonicalBannedWords.some(bannedWord => canonicalText.includes(bannedWord));
+    const containsBannedWord = bannedWords.some(bannedWord => {
+        const canonicalBannedWord = createCanonicalForm(bannedWord);
 
-    // 2. Check for start/end patterns
-    const containsStartOrEndMatch = processedCanonicalBannedWords.some(bw =>
-        canonicalText.startsWith(bw) || canonicalText.endsWith(bw)
-    );
+        // Direct match or substring check
+        if (canonicalText.includes(canonicalBannedWord)) {
+            return true;
+        }
+        
+        // Fuzzy match for misspellings and variations
+        if (isFuzzyMatch(canonicalText, canonicalBannedWord)) {
+            return true;
+        }
+        
+        return false;
+    });
 
-    // 3. Check for letter swaps (anagrams)
-    const containsAnagram = processedSortedBannedWords.some(sortedBannedWord =>
-        sortedCanonicalText.includes(sortedBannedWord)
-    );
-
-    if (containsBanned || containsBadAss || containsStartOrEndMatch || containsAnagram) {
+    if (containsBannedWord) {
         Swal.fire({
             icon: 'error',
             title: 'Message Blocked',
