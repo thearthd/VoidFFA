@@ -2,6 +2,9 @@ import { bannedWords } from './bannedWords.js';
 
 // A simple profanity filter using canonicalization and fuzzy matching.
 
+// A list of common words that should never be blocked.
+const allowedWords = ["wassup", "ass"];
+
 // --- Canonicalization Functions ---
 /**
  * Creates a basic canonical form of a word by lowercasing, removing diacritics,
@@ -77,6 +80,15 @@ function isFuzzyMatch(inputCanonical, bannedCanonical) {
  * @returns {boolean} True if the message is clean, false if it is blocked.
  */
 export function isMessageClean(text) {
+    // Split the text into words and check if any word is on the whitelist.
+    const textWords = text.toLowerCase().split(/\s+/);
+    for (const word of textWords) {
+        if (allowedWords.includes(word)) {
+            return true;
+        }
+    }
+
+    // Continue with the original profanity filter logic if no allowed words are found.
     const canonicalText = createCanonicalForm(text);
 
     const containsBannedWord = bannedWords.some(bannedWord => {
