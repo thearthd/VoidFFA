@@ -2323,53 +2323,51 @@ export function initMenuUI() {
     }
 
     // Save Username Button
-    if (saveUsernameBtn) {
-        saveUsernameBtn.addEventListener("click", async () => {
-            const raw = usernameInput.value.trim();
-            if (!/^[A-Za-z0-9_]+$/.test(raw)) {
-                return Swal.fire(
-                    'Invalid Username',
-                    'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
-                    'error'
-                );
-            }
-            
-            const user = firebase.auth().currentUser;
-            if (!user) {
-                // This case should be rare, as we try to auth at start, but is a good fallback
-                return Swal.fire('Error', 'Please log in to save a username.', 'error');
+if (saveUsernameBtn) {
+    saveUsernameBtn.addEventListener("click", async () => {
+        const raw = usernameInput.value.trim();
+
+        if (!/^[A-Za-z0-9_]+$/.test(raw)) {
+            return Swal.fire(
+                'Invalid Username',
+                'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
+                'error'
+            );
+        }
+
+        // Get the authenticated user. This should be available from the initial call to initializeMenuDisplay().
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            // This is a fallback for the rare case where auth is still not complete.
+            console.error("Firebase user not authenticated.");
+            return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
+        }
+
+        const uid = user.uid;
+        const key = raw.toLowerCase();
+
+        try {
+            // Check if the username is taken by another user.
+            const snap = await usernamesRef.child(key).once("value");
+
+            // If the username exists AND the value is not the current user's UID, it's taken.
+            if (snap.exists() && snap.val() !== uid) {
+                return Swal.fire('Name Taken', `"${raw}" is already in use.`, 'warning');
             }
 
-            const uid = user.uid;
-            const key = raw.toLowerCase();
-
-            try {
-                const snap = await usernamesRef.child(key).once("value");
-                if (snap.exists() && snap.val() !== uid) {
-                    return Swal.fire('Name Taken', `"${raw}" is already in use.`, 'warning');
-                }
-            } catch (err) {
-                console.error(err);
-                return Swal.fire('Error', 'Could not verify username uniqueness.', 'error');
-            }
-
-            // Save locally & to DB
+            // Save locally & to DB.
             localStorage.setItem("username", raw);
             username = raw;
             // playerCard.setText(username); // You'll need to define playerCard
 
-            try {
-                // Use the UID as the key
-                await usersRef.child(uid).set({
-                    username: raw,
-                    savedAt: firebase.database.ServerValue.TIMESTAMP
-                });
-                // Create a secondary node for uniqueness check
-                await usernamesRef.child(key).set(uid);
-            } catch (err) {
-                console.error("Error saving to DB:", err);
-                return Swal.fire('Error', 'Could not save username.', 'error');
-            }
+            // Write to the database using the user's UID for security.
+            await usersRef.child(uid).set({
+                username: raw,
+                savedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            // Write to the usernames node for uniqueness checks.
+            await usernamesRef.child(key).set(uid);
 
             // Hide prompt, show game
             showPanel(null);
@@ -2377,8 +2375,14 @@ export function initMenuUI() {
             menu(); // Assuming this function exists and starts the game
             document.getElementById("game-logo").classList.add("hidden");
             menuOverlay.style.display = 'none';
-        });
-    }
+
+        } catch (err) {
+            // Catch and handle the specific permission denied error here.
+            console.error("Error saving to DB:", err);
+            return Swal.fire('Error', 'Could not save username. Please check your permissions.', 'error');
+        }
+    });
+}
 
     // Details Toggle
     if (toggleDetailsBtn) {
