@@ -2073,7 +2073,6 @@ export async function gamesButtonHit() {
     }
 }
 
-
 /**
  * Adds a "Back to Menu" button to the current screen.
  */
