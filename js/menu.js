@@ -1631,37 +1631,28 @@ async function initAndStartGame(username, mapName, gameId = null) {
 }
 
 // This function should be in your main game logic file, like menu.js or app.js
-async function handleGameJoin(username, mapName, gameId) {
-  // Use a promise to wait for the authentication state change
-  const user = await new Promise(resolve => {
-    const unsubscribe = firebase.auth().onAuthStateChanged(user => {
-      unsubscribe(); // Stop listening after the first event
-      resolve(user);
-    });
-  });
+async function handleGameJoin(user, username, mapName, gameId) {
+    if (!user) {
+        // This case should not be reached with the updated gamesButtonHit
+        // but it remains as a safety net.
+        Swal.fire({
+            icon: 'error',
+            title: 'Authentication Required',
+            text: 'You must be logged in to join a game.'
+        });
+        return;
+    }
 
-  if (!user) {
-    // If there's no user, show an error and stop.
-    Swal.fire({
-      icon: 'error',
-      title: 'Authentication Required',
-      text: 'You must be logged in to join a game.'
-    });
-    return;
-  }
-
-  // If a user is found, it is now safe to start the game.
-  // The 'initAndStartGame' function can now proceed without errors.
-  try {
-    await initAndStartGame(username, mapName, gameId);
-  } catch (error) {
-    console.error("Failed to start game:", error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Game Failed to Start',
-      text: 'There was an issue starting the game. Please try again.'
-    });
-  }
+    try {
+        await initAndStartGame(user, username, mapName, gameId);
+    } catch (error) {
+        console.error("Failed to start game:", error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Game Failed to Start',
+            text: 'There was an issue starting the game. Please try again.'
+        });
+    }
 }
 /**
  * Function called when the "Play" button (canvas-drawn) is clicked.
