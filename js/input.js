@@ -64,6 +64,9 @@ export const inputState = {
     mouseDY: 0,
     isPaused: false, // Added for pause functionality
     wasPausedByDeath: false, // Track if the pause was due to player death
+    knifeHeld: false,
+    primaryHeld: false,
+    secondaryHeld: false,
 };
 
 let debugCursor, debugX, debugY;
@@ -447,10 +450,18 @@ export function handleWeaponSwitch() {
     if (inputState.weaponSwitch !== null) {
         const newWeaponKey = inputState.weaponSwitch;
 
-        if (newWeaponKey !== currentPlayerWeaponKey) {
-            currentPlayerWeaponKey = newWeaponKey;
-            updateInventory(currentPlayerWeaponKey);
-            console.log(`Switched to weapon: ${currentPlayerWeaponKey}`);
+        // Only switch if the new weapon key is different from the current one
+        if (newWeaponKey !== currentWeapon) {
+            // Update the state for the new weapon
+            currentWeapon = newWeaponKey;
+            
+            // Set the appropriate 'Held' flags to true and others to false
+            inputState.knifeHeld = newWeaponKey === 'knife';
+            inputState.primaryHeld = newWeaponKey === getSavedLoadout().primary;
+            inputState.secondaryHeld = newWeaponKey === getSavedLoadout().secondary;
+            
+            updateInventory(currentWeapon);
+            console.log(`Switched to weapon: ${currentWeapon}`);
         }
     }
 }
@@ -551,22 +562,22 @@ function onKeyDown(e) {
             inputState.fireJustPressed = true;
             break;
         case currentKeybinds.knife:
-            // Check if the current weapon is NOT the knife
-            if (currentPlayerWeaponKey !== "knife") {
-                inputState.weaponSwitch = "knife";
+            // Check if the knife is already the current weapon
+            if (currentWeapon !== 'knife' && inputState.weaponSwitchHeld !== currentKeybinds.knife) {
+                inputState.weaponSwitch = 'knife';
                 inputState.weaponSwitchHeld = currentKeybinds.knife;
             }
             break;
         case currentKeybinds.primary:
-            // Check if the primary weapon exists AND the current weapon is NOT the primary weapon
-            if (primary && currentPlayerWeaponKey !== primary) {
+            // Check if primary weapon is available and is not the current weapon
+            if (primary && currentWeapon !== primary && inputState.weaponSwitchHeld !== currentKeybinds.primary) {
                 inputState.weaponSwitch = primary;
                 inputState.weaponSwitchHeld = currentKeybinds.primary;
             }
             break;
         case currentKeybinds.secondary:
-            // Check if the secondary weapon exists AND the current weapon is NOT the secondary weapon
-            if (secondary && currentPlayerWeaponKey !== secondary) {
+            // Check if secondary weapon is available and is not the current weapon
+            if (secondary && currentWeapon !== secondary && inputState.weaponSwitchHeld !== currentKeybinds.secondary) {
                 inputState.weaponSwitch = secondary;
                 inputState.weaponSwitchHeld = currentKeybinds.secondary;
             }
@@ -575,9 +586,9 @@ function onKeyDown(e) {
             handled = false;
     }
 
-    if (handled) {
-        e.preventDefault();
-    }
+    if (handled) {
+        e.preventDefault();
+    }
 }
 
 function onKeyUp(e) {
@@ -622,7 +633,6 @@ function onKeyUp(e) {
             inputState.fire = false;
             break;
         case currentKeybinds.knife:
-            // Check if the released key code matches the held key code
             if (inputState.weaponSwitchHeld === currentKeybinds.knife) {
                 inputState.weaponSwitchHeld = null;
             }
@@ -805,6 +815,7 @@ function checkPlayerDeadAndPause() {
 }
 
 export function initInput() {
+        inputState.knifeHeld = true; // Player starts with knife
     loadKeybinds(); // Load keybinds at startup
     populateKeybindSettings(); // Populate the settings UI
 
