@@ -550,31 +550,31 @@ function onKeyDown(e) {
             inputState.fire = true;
             inputState.fireJustPressed = true;
             break;
-        case currentKeybinds.knife:
-            if (inputState.weaponSwitchHeld !== "knife") {
-                inputState.weaponSwitch = "knife";
-                inputState.weaponSwitchHeld = "knife";
-            }
-            break;
-        case currentKeybinds.primary:
-            if (primary && inputState.weaponSwitchHeld !== primary) {
-                inputState.weaponSwitch = primary;
-                inputState.weaponSwitchHeld = primary;
-            }
-            break;
-        case currentKeybinds.secondary:
-            if (secondary && inputState.weaponSwitchHeld !== secondary) {
-                inputState.weaponSwitch = secondary;
-                inputState.weaponSwitchHeld = secondary;
-            }
-            break;
-        default:
-            handled = false;
-    }
+        case currentKeybinds.knife:
+            if (inputState.weaponSwitchHeld !== "knife" && currentPlayerWeaponKey !== "knife") {
+                inputState.weaponSwitch = "knife";
+                inputState.weaponSwitchHeld = "knife";
+            }
+            break;
+        case currentKeybinds.primary:
+            if (primary && inputState.weaponSwitchHeld !== primary && currentPlayerWeaponKey !== primary) {
+                inputState.weaponSwitch = primary;
+                inputState.weaponSwitchHeld = primary;
+            }
+            break;
+        case currentKeybinds.secondary:
+            if (secondary && inputState.weaponSwitchHeld !== secondary && currentPlayerWeaponKey !== secondary) {
+                inputState.weaponSwitch = secondary;
+                inputState.weaponSwitchHeld = secondary;
+            }
+            break;
+        default:
+            handled = false;
+    }
 
-    if (handled) {
-        e.preventDefault();
-    }
+    if (handled) {
+        e.preventDefault();
+    }
 }
 
 function onKeyUp(e) {
