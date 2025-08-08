@@ -419,6 +419,17 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
         slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
     }
 
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        console.error("No authenticated user found. Cannot join game.");
+        Swal.fire('Error', 'You must be logged in to join a game.', 'error');
+        if (activeGameSlotName) await releaseGameSlot(activeGameSlotName);
+        return false;
+    }
+
+    const localPlayerId = user.uid;
+    window.localPlayerId = localPlayerId;
+
     const rootRef = slotApp.database().ref();
     dbRefs = {
         playersRef: rootRef.child('players'),
@@ -430,38 +441,15 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
         gameConfigRef: rootRef.child('gameConfig'),
     };
     setUIDbRefs(dbRefs);
+
     console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotConfig.databaseURL}`);
-    const currentPlayersSnap = await dbRefs.playersRef.once('value');
-    if (currentPlayersSnap.numChildren() >= 10) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Game Full',
-            text: 'Sorry, this game slot already has 10 players.'
-        });
-        return false;
-    }
+
     if (dbRefs.playersRef && dbRefs.playersRef.database && dbRefs.playersRef.database.app_ && dbRefs.playersRef.database.app_.options) {
         console.log(`[network.js] Game is connected to Firebase database: ${dbRefs.playersRef.database.app_.options.databaseURL}`);
     } else {
         console.warn("[network.js] Could not determine database URL from dbRefs.playersRef. This might be expected if dbRefs are not fully initialized yet or structure is different.");
     }
     console.log("[network.js] dbRefs after claiming slot (from network.js):", dbRefs);
-
-    let storedPlayerId = localStorage.getItem(`playerId-${activeGameSlotName}`);
-    if (storedPlayerId) {
-        localPlayerId = storedPlayerId;
-        console.log(`[network.js] Re-using localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
-    } else {
-        if (!dbRefs.playersRef) {
-            console.error("[network.js] dbRefs.playersRef is not defined. Cannot generate localPlayerId.");
-            if (activeGameSlotName) await releaseGameSlot(activeGameSlotName);
-            return false;
-        }
-        localPlayerId = dbRefs.playersRef.push().key;
-        localStorage.setItem(`playerId-${activeGameSlotName}`, localPlayerId);
-        console.log(`[network.js] Generated new localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
-    }
-    window.localPlayerId = localPlayerId;
 
     dbRefs.playersRef.child(localPlayerId).onDisconnect().remove()
         .then(() => console.log(`[network.js] onDisconnect set for player '${localPlayerId}' in game DB.`))
@@ -507,7 +495,6 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     console.log("[network.js] Network initialization complete.");
     return true;
 }
-
 //
 // -- Main Cleanup & Player Listeners --
 //
