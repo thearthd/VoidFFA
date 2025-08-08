@@ -2312,17 +2312,30 @@ export function initMenuUI() {
     let username           = localStorage.getItem("username") || "";
     let currentDetailsEnabled = localStorage.getItem("detailsEnabled") === "false" ? false : true;
 
-    // Initialize menu app instance & firebase refs if not already done
+    // Ensure we use the menuApp instance for both DB and Auth (safe fallback if not initialized)
+    let menuAppInstance;
     try {
         menuAppInstance = firebase.app("menuApp");
     } catch (e) {
         menuAppInstance = firebase.initializeApp(menuConfig, "menuApp");
     }
-    db = menuAppInstance.database();
-    auth = menuAppInstance.auth();
-    menuChatRef = db.ref("chat");
+    const db = menuAppInstance.database();
+    const auth = menuAppInstance.auth();
     const usersRef = db.ref("users");
-    const usernamesRef = db.ref("usernames");
+    const usernamesRef = db.ref("usernames"); // index: name -> uid
+
+    /** 
+     * Throw if no valid username is set.
+     * Also forces the username prompt UI.
+     */
+    function requireUsername() {
+        const u = localStorage.getItem("username");
+        if (!u || !u.trim()) {
+            showPanel(usernamePrompt);
+            throw new Error("Username required before proceeding.");
+        }
+        return u;
+    }
 
     function showPanel(panelToShow) {
         [usernamePrompt, mapSelect, controlsMenu].forEach(p => {
@@ -2334,16 +2347,7 @@ export function initMenuUI() {
         }
     }
 
-    function requireUsername() {
-        const u = localStorage.getItem("username");
-        if (!u || !u.trim()) {
-            showPanel(usernamePrompt);
-            throw new Error("Username required before proceeding.");
-        }
-        return u;
-    }
-
-    // Sign in anonymously if needed
+    // Sign in anonymously (on the menuApp auth instance) if needed
     async function authenticateUser() {
         if (!auth.currentUser) {
             try {
@@ -2356,8 +2360,8 @@ export function initMenuUI() {
         }
     }
 
-    // Initialize menu display (auth + username verification)
     async function initializeMenuDisplay() {
+        // Wait for auth state to be ready using the menuApp auth instance
         await new Promise(resolve => {
             const unsubscribe = auth.onAuthStateChanged(user => {
                 if (user) {
@@ -2377,24 +2381,27 @@ export function initMenuUI() {
         }
         const uid = user.uid;
 
-        // Try find canonical username from index
+        // Attempt 1: find canonical name by looking up usernames index where value == uid
         try {
             const byUidSnap = await usernamesRef.orderByValue().equalTo(uid).once("value");
             if (byUidSnap.exists()) {
+                // pick first matching username key
                 const firstKey = Object.keys(byUidSnap.val())[0];
                 if (firstKey) {
+                    // double-check that /users/{name}/ids/{uid} exists
                     const idSnap = await usersRef.child(firstKey).child("ids").child(uid).once("value");
                     if (idSnap.exists()) {
                         username = firstKey;
                         localStorage.setItem("username", username);
                     } else {
+                        // If index pointed to uid but users record doesn't contain this id, clear both to avoid mismatch
                         try { await usernamesRef.child(firstKey).remove(); } catch(e) { /* ignore */ }
                         localStorage.removeItem("username");
                         username = "";
                     }
                 }
             } else {
-                // fallback: verify local username ownership
+                // If no index entry, but a local username exists, verify ownership
                 username = localStorage.getItem("username") || "";
                 if (username && username.trim()) {
                     const key = username.toLowerCase();
@@ -2407,6 +2414,7 @@ export function initMenuUI() {
             }
         } catch (err) {
             console.warn("Could not verify username/index:", err);
+            // fallback: clear local username to avoid accidental mismatches
             username = localStorage.getItem("username") || "";
             if (username && username.trim()) {
                 try {
@@ -2423,7 +2431,7 @@ export function initMenuUI() {
             }
         }
 
-        // Show/hide UI and init chat if username present
+        // Show/hide UI
         if (username && username.trim()) {
             showPanel(null);
             if (typeof menu === "function") menu();
@@ -2431,9 +2439,6 @@ export function initMenuUI() {
             if (logo) logo.classList.add("hidden");
             if (menuOverlay) menuOverlay.style.display = "none";
             if (typeof canvas !== "undefined" && canvas) canvas.style.display = "block";
-
-            // initialize chat UI now that db/auth and username are in place
-            initChatUI();
         } else {
             showPanel(usernamePrompt);
             if (typeof canvas !== "undefined" && canvas) canvas.style.display = "none";
@@ -2442,21 +2447,25 @@ export function initMenuUI() {
         }
     }
 
-    // Wire existing menu buttons & behaviors (same as before)
+    // HTML Play
     if (htmlPlayButton) {
         htmlPlayButton.addEventListener("click", () => showPanel(mapSelect));
     }
+    // HTML Settings
     if (htmlSettingsButton) {
         htmlSettingsButton.addEventListener("click", () => showPanel(controlsMenu));
     }
+    // HTML Career
     if (htmlCareerButton) {
         htmlCareerButton.addEventListener("click", () => console.log("Career clicked!"));
     }
 
+    // Pre-fill username input if already set
     if (usernameInput && username) {
         usernameInput.value = username;
     }
 
+    // Save Username Button
     if (saveUsernameBtn) {
         saveUsernameBtn.addEventListener("click", async () => {
             const raw = usernameInput.value.trim();
@@ -2476,8 +2485,9 @@ export function initMenuUI() {
             const uid = user.uid;
             const key = raw.toLowerCase();
 
+            // 1) Claim username in /usernames/<key> via transaction (index: name -> uid)
             try {
-                const txResult = await db.ref(`usernames/${key}`).transaction(current => {
+                const txResult = await usernamesRef.child(key).transaction(current => {
                     if (current === null || current === uid) {
                         return uid;
                     }
@@ -2485,9 +2495,10 @@ export function initMenuUI() {
                 });
 
                 if (!txResult.committed) {
-                    return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
+                    return Swal.fire('Name Taken', `${raw} is already in use.`, 'warning');
                 }
 
+                // 2) Write canonical profile to /users/{name} and include ids/{uid}=true in the same atomic update
                 const updates = {};
                 updates[`/users/${key}/username`] = raw;
                 updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
@@ -2502,7 +2513,7 @@ export function initMenuUI() {
                     try { playerCard.setText(username); } catch (e) { /* ignore */ }
                 }
 
-                // Hide prompt, show game and init chat
+                // Hide prompt, show game
                 showPanel(null);
                 if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
                 if (typeof menu === "function") menu();
@@ -2510,13 +2521,14 @@ export function initMenuUI() {
                 if (logo) logo.classList.add("hidden");
                 if (menuOverlay) menuOverlay.style.display = 'none';
 
-                initChatUI();
             } catch (err) {
                 console.error("Error saving to DB:", err);
+
+                // Rollback: if we claimed usernames/<key> but failed to write /users/{key}, remove claim (only if still ours)
                 try {
-                    const claimedSnap = await db.ref(`usernames/${key}`).once("value");
+                    const claimedSnap = await usernamesRef.child(key).once("value");
                     if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
-                        await db.ref(`usernames/${key}`).remove();
+                        await usernamesRef.child(key).remove();
                     }
                 } catch (rollbackErr) {
                     console.error("Failed to rollback username reservation:", rollbackErr);
@@ -2530,6 +2542,7 @@ export function initMenuUI() {
         });
     }
 
+    // Details Toggle
     if (toggleDetailsBtn) {
         toggleDetailsBtn.textContent = currentDetailsEnabled ? "Details: On" : "Details: Off";
         toggleDetailsBtn.addEventListener("click", () => {
@@ -2540,6 +2553,7 @@ export function initMenuUI() {
         });
     }
 
+    // Map Buttons (start game)
     mapButtons.forEach(btn => {
         btn.addEventListener("click", () => {
             let user;
@@ -2563,6 +2577,8 @@ export function initMenuUI() {
                 }
                 wrapper.style.display = 'block';
                 if (typeof createGameUI === "function") createGameUI(wrapper);
+                // initNetwork(user, mapName);
+                // startGame(user, mapName, currentDetailsEnabled, ffaEnabled);
                 console.log(`Game initialized for ${user} on map ${mapName}`);
             } else {
                 console.error("game-container element not found!");
@@ -2570,7 +2586,7 @@ export function initMenuUI() {
         });
     });
 
-    // start
+    // Kick off initial state
     initializeMenuDisplay();
 }
 // --- Main execution logic ---
