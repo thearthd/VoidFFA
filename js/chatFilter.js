@@ -1,3 +1,5 @@
+import { bannedWords } from './bannedWords.js';
+
 // A simple profanity filter using canonicalization and fuzzy matching.
 
 // --- Canonicalization Functions ---
@@ -34,8 +36,7 @@ function createCanonicalForm(word) {
         .replace(/ss/g, 's');
 
     canonical = canonical.replace(/[^a-z]/g, '');
-    // Removed the line that collapsed repeated characters to fix the 'kkk' issue.
-
+    
     return canonical;
 }
 
