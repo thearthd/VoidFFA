@@ -2217,11 +2217,12 @@ export function initMenuUI() {
     // Ensure we use the menuApp instance for both DB and Auth
     const menuAppInstance = firebase.app("menuApp");
     const db = menuAppInstance.database();
-    const auth = menuAppInstance.auth(); // <-- auth tied to menuApp instance
+    const auth = menuAppInstance.auth(); // auth tied to menuApp instance
     const usersRef = db.ref("users");
-    const usernamesRef = db.ref("usernames");
+    const usernamesRef = db.ref("usernames"); // still used for atomic reservation to guarantee uniqueness
 
-    /** * Throw if no valid username is set.
+    /** 
+     * Throw if no valid username is set.
      * Also forces the username prompt UI.
      */
     function requireUsername() {
@@ -2258,7 +2259,7 @@ export function initMenuUI() {
     }
 
     async function initializeMenuDisplay() {
-        // Wait for auth state to be ready using the menuApp auth instance
+        // Ensure auth is ready
         await new Promise(resolve => {
             const unsubscribe = auth.onAuthStateChanged(user => {
                 if (user) {
@@ -2277,22 +2278,43 @@ export function initMenuUI() {
             return;
         }
 
+        // Prefer canonical username from /users/$uid (server truth)
         username = localStorage.getItem("username") || "";
-        if (username && username.trim()) {
-            const key = username.toLowerCase();
-            try {
-                // Check if the username exists and belongs to the current user
-                const snap = await usernamesRef.child(key).once("value");
-                if (!snap.exists() || snap.val() !== user.uid) {
+        try {
+            const uidSnap = await usersRef.child(user.uid).once("value");
+            if (uidSnap.exists()) {
+                const data = uidSnap.val();
+                if (data && data.username) {
+                    // Keep server username as canonical value
+                    localStorage.setItem("username", data.username);
+                    username = data.username;
+                } else {
+                    // No username stored for this uid on server
+                    if (username && username.trim()) {
+                        // local username exists but not on server: remove it so user must re-save (avoid mismatch)
+                        localStorage.removeItem("username");
+                        username = "";
+                    }
+                }
+            } else {
+                // No /users/$uid node
+                if (username && username.trim()) {
+                    // local username exists but there's no server record for this uid
+                    // Remove it to force re-save (avoids claiming another user's name)
                     localStorage.removeItem("username");
                     username = "";
                 }
-            } catch {
+            }
+        } catch (e) {
+            console.warn("Could not verify existing user record:", e);
+            // On error, clear local username to be safe (prevents accidental mismatch)
+            if (username && username.trim()) {
                 localStorage.removeItem("username");
                 username = "";
             }
         }
 
+        // If user has a valid username locally after verification, proceed to menu
         if (username && username.trim()) {
             showPanel(null);
             if (typeof menu === "function") menu();
@@ -2330,7 +2352,6 @@ export function initMenuUI() {
     if (saveUsernameBtn) {
         saveUsernameBtn.addEventListener("click", async () => {
             const raw = usernameInput.value.trim();
-
             if (!/^[A-Za-z0-9_]+$/.test(raw)) {
                 return Swal.fire(
                     'Invalid Username',
@@ -2339,39 +2360,53 @@ export function initMenuUI() {
                 );
             }
 
-            // Get the authenticated user from the menuApp auth instance.
+            // Ensure auth ready and get uid
             const user = auth.currentUser;
             if (!user) {
-                // This is a fallback for the rare case where auth is still not complete.
                 console.error("Firebase user not authenticated (menuApp).");
                 return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
             }
-
             const uid = user.uid;
             const key = raw.toLowerCase();
 
+            // We will attempt to reserve the username in /usernames using a transaction
+            // and then write the canonical record to /users/$uid. This guarantees uniqueness
+            // while keeping the main profile data under /users (as you requested).
             try {
-                // Check if the username is taken by another user.
-                const snap = await usernamesRef.child(key).once("value");
+                const transactionResult = await usernamesRef.child(key).transaction(current => {
+                    // If empty or already owned by this uid, claim it.
+                    if (current === null || current === uid) {
+                        return uid;
+                    }
+                    // Someone else owns it — abort by returning undefined (no change).
+                    return;
+                });
 
-                // If the username exists AND the value is not the current user's UID, it's taken.
-                if (snap.exists() && snap.val() !== uid) {
-                    return Swal.fire('Name Taken', `"${raw}" is already in use.`, 'warning');
+                const committed = transactionResult.committed;
+                const snapshot = transactionResult.snapshot;
+
+                if (!committed) {
+                    // Name taken by someone else
+                    return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
                 }
 
-                // Save locally & to DB.
-                localStorage.setItem("username", raw);
-                username = raw;
-
-                // Perform an atomic update so both nodes are written in a single request
+                // At this point, /usernames/<key> is set to our uid (or was already ours).
+                // Now write the canonical profile under /users/$uid with username and timestamp.
                 const updates = {};
                 updates[`/users/${uid}`] = {
                     username: raw,
                     savedAt: firebase.database.ServerValue.TIMESTAMP
                 };
-                updates[`/usernames/${key}`] = uid;
 
-                await db.ref().update(updates); // atomic write on menuApp database reference
+                // Use atomic update to write the user record (we already claimed the username)
+                await db.ref().update(updates);
+
+                // Update local state & UI (maintain the behavior you had earlier)
+                localStorage.setItem("username", raw);
+                username = raw;
+                if (typeof playerCard !== "undefined" && playerCard && typeof playerCard.setText === "function") {
+                    try { playerCard.setText(username); } catch (e) { /* ignore */ }
+                }
 
                 // Hide prompt, show game
                 showPanel(null);
@@ -2382,8 +2417,19 @@ export function initMenuUI() {
                 if (menuOverlay) menuOverlay.style.display = 'none';
 
             } catch (err) {
-                // Catch and handle the specific permission denied error here.
                 console.error("Error saving to DB:", err);
+
+                // If we claimed the username but failed to write /users/$uid, rollback the claim
+                try {
+                    const claimedByMeSnap = await usernamesRef.child(key).once("value");
+                    if (claimedByMeSnap.exists() && claimedByMeSnap.val() === auth.currentUser.uid) {
+                        // Only remove the reservation if it's still ours
+                        await usernamesRef.child(key).remove();
+                    }
+                } catch (rollbackErr) {
+                    console.error("Failed to rollback username reservation:", rollbackErr);
+                }
+
                 if (err && (err.code === "PERMISSION_DENIED" || (err.code && err.code.toLowerCase().includes("permission")))) {
                     return Swal.fire('Error', 'Could not save username. You may not be authenticated on this app instance or the name was taken by another player. Try again.', 'error');
                 }
@@ -2422,7 +2468,9 @@ export function initMenuUI() {
             const wrapper = document.getElementById('game-container');
             if (wrapper) {
                 let ffaEnabled = true;
-                // menuSong.pause(); // Assuming this exists
+                if (typeof menuSong !== "undefined" && menuSong && typeof menuSong.pause === "function") {
+                    try { menuSong.pause(); } catch (e) { /* ignore */ }
+                }
                 wrapper.style.display = 'block';
                 if (typeof createGameUI === "function") createGameUI(wrapper);
                 // initNetwork(user, mapName);
