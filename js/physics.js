@@ -158,7 +158,6 @@ export class PhysicsController {
         // —— NEW: stuck-in-air detection fields —— 
         this._lastY = null;
         this._yStuckTimer = 0;
-        this.lastStepUpTime = 0;
     }
 
     /**
@@ -356,13 +355,6 @@ _applyAirControl(dt) {
     }
 
 _stepUpIfPossible() {
-    // Get the current time in milliseconds
-    const currentTime = Date.now();
-
-    // If less than 100ms have passed since the last step up, exit
-    if (currentTime - this.lastStepUpTime < 100) {
-        return;
-    }
     if (!this.collider) return;
     if (this.playerVelocity.y > 0.1) return;
 
@@ -370,7 +362,7 @@ _stepUpIfPossible() {
     const playerHeight = PLAYER_TOTAL_HEIGHT * this.player.scale.y;
     const downRay = new THREE.Raycaster(
         this.player.position.clone(),
-        new THREE.Vector3(0, -0.1, 0),
+        new THREE.Vector3(0, -1, 0),
         0,
         playerHeight + 0.2
     );
@@ -402,7 +394,7 @@ _stepUpIfPossible() {
             const deltaY = stepTopY - actualGroundY;
 
             if (
-                deltaY > 0.15 &&
+                deltaY > 0.05 &&
                 deltaY <= STEP_HEIGHT + 0.01 &&
                 stepTopY >= this.player.position.y - PLAYER_TOTAL_HEIGHT + 0.5
             ) {
@@ -414,16 +406,11 @@ _stepUpIfPossible() {
                     0.1
                 );
                 if (headCheck.intersectObject(this.collider, true).length === 0) {
-                        console.log('step');
                     // Snap up onto the step
                     this.player.position.y = stepTopY + playerHeight - 0.51;
                     this.playerVelocity.y = 0;
                     this.isGrounded = true;
                     this.player.position.add(dir.multiplyScalar(STEP_FORWARD_PUSH));
-                    
-                    // CRUCIAL: Update the timestamp after a successful step-up
-                    this.lastStepUpTime = currentTime; 
-
                     return;
                 }
             }
