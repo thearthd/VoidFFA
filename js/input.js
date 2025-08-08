@@ -19,6 +19,7 @@ const settingsBox = document.getElementById("settings-box"); // Get settings box
 const keybindsContainer = document.getElementById("keybinds-container"); // Container for keybind settings
 const resetKeybindsBtn = document.getElementById("reset-keybinds-btn"); // Reset button
 
+export let currentWeapon = "knife"; // Initial weapon
 
 let chatting = false; // true when chat input is focused
 
