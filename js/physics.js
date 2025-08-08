@@ -363,7 +363,6 @@ _stepUpIfPossible() {
     if (currentTime - this.lastStepUpTime < 100) {
         return;
     }
-
     if (!this.collider) return;
     if (this.playerVelocity.y > 0.1) return;
 
@@ -415,6 +414,7 @@ _stepUpIfPossible() {
                     0.1
                 );
                 if (headCheck.intersectObject(this.collider, true).length === 0) {
+                        console.log('step');
                     // Snap up onto the step
                     this.player.position.y = stepTopY + playerHeight - 0.51;
                     this.playerVelocity.y = 0;
