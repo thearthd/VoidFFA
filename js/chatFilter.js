@@ -1,51 +1,87 @@
 import { bannedWords } from './bannedWords.js';
-import Swal from 'sweetalert2';
 
+// Pre-process banned words for easier checking
+const processedBannedWords = bannedWords.map(word => createCanonicalForm(word));
+
+// Create canonical form: lowercase, remove diacritics, normalize leetspeak, etc.
 function createCanonicalForm(word) {
-  let s = word.normalize('NFKC').toLowerCase();
-  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const charMap = {
-    '0': 'o', '1': 'i', '2': 'z', '3': 'e', '4': 'a', '5': 's',
-    '6': 'g', '7': 't', '8': 'b', '9': 'g', '@': 'a', '$': 's'
-  };
-  s = s.split('').map(ch => charMap[ch] || ch).join('');
-  return s.replace(/[^a-z]/g, '');
+  const normalized = word
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  let canonical = normalized
+    .replace(/[013457@$]/g, c => ({
+      "1": "i", "3": "e", "4": "a", "@": "a",
+      "0": "o", "$": "s", "5": "s", "7": "t"
+    })[c] || c)
+    .replace(/ph/g, 'f')
+    .replace(/ck/g, 'k')
+    .replace(/ch/g, 'sh')
+    .replace(/ss/g, 's')
+    .replace(/z/g, 's')
+    .replace(/x/g, 'ks')
+    .replace(/c/g, 'k')
+    .replace(/t/g, 'th');
+
+  canonical = canonical.replace(/[^a-z]/g, '');  // remove non-letters
+  canonical = canonical.replace(/(.)\1+/g, '$1'); // collapse duplicates
+  return canonical;
 }
 
-// Pre-build regex patterns for each banned word
-const bannedPatterns = bannedWords.map(word => {
-  const canon = createCanonicalForm(word);
-  const letters = canon.split('').join('.*'); // h.*i.*t.*l.*e.*r
-  return new RegExp(letters, 'i'); // case-insensitive
-});
-
-function showBlocked(title, text) {
-  if (typeof Swal !== 'undefined') {
-    Swal.fire({ icon: 'error', title, text, confirmButtonText: 'OK' });
-  } else {
-    alert(`${title}\n\n${text}`);
+// Detects if text contains a dangerous sequence of letters (in order)
+function containsLetterSequence(text, sequence) {
+  let idx = 0;
+  for (const char of text) {
+    if (char === sequence[idx]) {
+      idx++;
+      if (idx === sequence.length) return true;
+    }
   }
+  return false;
 }
 
 export function isMessageClean(text) {
-  if (typeof text !== 'string') return true;
-  if (!text.trim()) return true;
+  const containsBadAss = /\b(dumbass|jackass|smartass|lazyass|asshole)\b/i.test(text);
 
-  const allowedPattern = /^[\p{L}\p{N}\p{P}\p{S}\s]*$/u;
-  if (!allowedPattern.test(text)) {
-    showBlocked('Invalid Characters', 'Your message contains unsupported symbols.');
+  // Allow normal characters + emoji
+  const keyboardAndEmojiPattern = /^[a-zA-Z0-9 `~!@#$%^&*()\-_=+\[\]{}|;:'",.<>\/?\\\p{Emoji}\s]*$/u;
+  if (!keyboardAndEmojiPattern.test(text)) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Invalid Characters',
+      text: 'Your message contains unsupported symbols. Please remove them and try again.',
+      confirmButtonText: 'OK'
+    });
     return false;
   }
 
-  // Canonicalize input
-  const canonText = createCanonicalForm(text);
+  const canonicalText = createCanonicalForm(text);
 
-  // Pattern match
-  for (const pattern of bannedPatterns) {
-    if (pattern.test(canonText)) {
-      showBlocked('Message Blocked', 'Your message was blocked by the autofilter.');
-      return false;
-    }
+  // 1. Exact or partial banned word matches
+  const containsBanned = processedBannedWords.some(bannedWord => canonicalText.includes(bannedWord));
+
+  // 2. Sequence detection for problematic words (like "hitler")
+  const dangerousSequences = [
+    "hitler",
+    "nazi",
+    "kkk"
+  ];
+  const containsSequence = dangerousSequences.some(seq => containsLetterSequence(canonicalText, seq));
+
+  // 3. Start/end pattern match (to catch prefix/suffix use)
+  const containsStartOrEndMatch = processedBannedWords.some(bw =>
+    canonicalText.startsWith(bw) || canonicalText.endsWith(bw)
+  );
+
+  if (containsBanned || containsBadAss || containsSequence || containsStartOrEndMatch) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Message Blocked',
+      text: 'Your message was blocked by the autofilter. Please review your message for inappropriate content.',
+      confirmButtonText: 'OK'
+    });
+    return false;
   }
 
   return true;
