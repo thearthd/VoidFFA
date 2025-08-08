@@ -158,6 +158,7 @@ export class PhysicsController {
         // —— NEW: stuck-in-air detection fields —— 
         this._lastY = null;
         this._yStuckTimer = 0;
+        this.lastStepUpTime = 0;
     }
 
     /**
@@ -355,6 +356,14 @@ _applyAirControl(dt) {
     }
 
 _stepUpIfPossible() {
+    // Get the current time in milliseconds
+    const currentTime = Date.now();
+
+    // If less than 100ms have passed since the last step up, exit
+    if (currentTime - this.lastStepUpTime < 100) {
+        return;
+    }
+
     if (!this.collider) return;
     if (this.playerVelocity.y > 0.1) return;
 
@@ -411,6 +420,10 @@ _stepUpIfPossible() {
                     this.playerVelocity.y = 0;
                     this.isGrounded = true;
                     this.player.position.add(dir.multiplyScalar(STEP_FORWARD_PUSH));
+                    
+                    // CRUCIAL: Update the timestamp after a successful step-up
+                    this.lastStepUpTime = currentTime; 
+
                     return;
                 }
             }
