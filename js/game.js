@@ -1814,109 +1814,53 @@ respawnPlayer();
 }
 
 function createLeaderboardOverlay() {
-if (document.getElementById("leaderboard-overlay")) return;
-
-// 1) Container
-const overlay = document.createElement("div");
-overlay.id = "leaderboard-overlay";
-Object.assign(overlay.style, {
-position:       "fixed",
-top:            "10px",
-right:          "10px",
-background:     "rgba(0,0,0,0.85)",
-color:          "#fff",
-padding:        "12px 16px",
-borderRadius:   "8px",
-fontFamily:     "Arial, sans-serif",
-zIndex:         "10",
-pointerEvents:  "none",
-display:        "block",      // default to visible
-maxHeight:      "70vh",
-overflowY:      "auto",
-minWidth:       "240px",
-});
-
-// 2) Title
-const title = document.createElement("div");
-title.textContent = "Leaderboard (T to toggle)";
-Object.assign(title.style, {
-fontSize: "1.3rem",
-fontWeight: "bold",
-marginBottom: "8px",
-textAlign: "center"
-});
-overlay.appendChild(title);
-
-// 3) Table skeleton
-const table = document.createElement("table");
-Object.assign(table.style, {
-width: "100%",
-borderCollapse: "collapse",
-textAlign: "left",
-fontSize: "0.9rem"
-});
-table.innerHTML = `
-   <thead>
-     <tr>
-       <th style="padding:4px;">Name</th>
-       <th style="padding:4px;">K</th>
-       <th style="padding:4px;">D</th>
-       <th style="padding:4px;">KS</th>
-     </tr>
-   </thead>
-   <tbody id="leaderboard-body">
-     <tr><td colspan="4" style="padding:4px; text-align:center;">Loading…</td></tr>
-   </tbody>
- `;
-overlay.appendChild(table);
-
-document.body.appendChild(overlay);
-
-// 4) Firebase listener
-playersRef.on("value", snapshot => {
-const players = [];
-snapshot.forEach(snap => {
-const d = snap.val();
-if (d && d.username) {
-players.push({
-name: d.username,
-kills: d.kills || 0,
-deaths: d.deaths || 0,
-ks: d.ks || 0
-});
-}
-});
-players.sort((a,b) => b.kills - a.kills || b.ks - a.ks);
-
-const tbody = document.getElementById("leaderboard-body");
-tbody.innerHTML = "";
-if (players.length === 0) {
-tbody.innerHTML = `<tr><td colspan="4" style="padding:4px; text-align:center;">No players</td></tr>`;
-} else {
-players.forEach(p => {
-const row = document.createElement("tr");
-row.innerHTML = `
-         <td style="padding:4px;">${p.name}</td>
-         <td style="padding:4px;">${p.kills}</td>
-         <td style="padding:4px;">${p.deaths}</td>
-         <td style="padding:4px;">${p.ks}</td>
-       `;
-tbody.appendChild(row);
-});
-}
-});
-
-// 5) Toggle with T, ignoring repeats
-
-
-window.addEventListener("keydown", e => {
-  if (isChatting()) return;    // ← if they’re typing, do nothing
-
-  if (e.code === currentKeybinds.toggleLeaderboard && !e.repeat) {
-    overlay.style.display = overlay.style.display === "none" ? "block" : "none";
-    e.preventDefault();
+  const tbody = document.getElementById("leaderboard-body");
+  
+  if (!tbody) {
+    console.error("Leaderboard body not found. Please ensure an element with id 'leaderboard-body' exists in your HTML.");
+    return;
   }
-});
+
+  // Firebase listener
+  playersRef.on("value", snapshot => {
+    const players = [];
+    snapshot.forEach(snap => {
+      const d = snap.val();
+      if (d && d.username) {
+        players.push({
+          name: d.username,
+          kills: d.kills || 0,
+          deaths: d.deaths || 0,
+          ks: d.ks || 0
+        });
+      }
+    });
+    players.sort((a, b) => b.kills - a.kills || b.ks - a.ks);
+
+    tbody.innerHTML = "";
+    if (players.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="padding:4px; text-align:center;">No players</td></tr>`;
+    } else {
+      players.forEach(p => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td style="padding:4px;">${p.name}</td>
+          <td style="padding:4px;">${p.kills}</td>
+          <td style="padding:4px;">${p.deaths}</td>
+          <td style="padding:4px;">${p.ks}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+  });
+    window.addEventListener("keydown", e => {
+      if (isChatting()) return;    // ← if they’re typing, do nothing
+    
+      if (e.code === currentKeybinds.toggleLeaderboard && !e.repeat) {
+        overlay.style.display = overlay.style.display === "none" ? "block" : "none";
+        e.preventDefault();
+      }
+    });
 }
 
 
@@ -2825,6 +2769,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
