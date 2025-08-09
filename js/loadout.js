@@ -196,28 +196,14 @@ function populateWeaponGrid(containerId, list, slotType) {
 
     btn.onmousemove = (e) => {
       // Position the info panel relative to viewport, constrained to the loadout panel
-      const rect = loadoutScreen.getBoundingClientRect();
-      const x = e.clientX;
-      const y = e.clientY;
+  const rect = loadoutScreen.getBoundingClientRect();
+  // offsetX, offsetY inside the screen:
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
 
-      const panelHeight = infoPanel.getBoundingClientRect().height || 120;
-      // place the panel above the cursor when possible
-      let newTop = y + panelHeight - 12;
-      // clamp vertically inside the visible loadout-screen area
-      const topLimit = rect.top + 8;
-      const bottomLimit = rect.bottom - panelHeight - 8;
-      if (newTop < topLimit) newTop = y + 18; // below cursor if not enough space above
-      newTop = Math.max(topLimit, Math.min(newTop, bottomLimit));
-
-      // center horizontally around cursor but keep inside panel rect
-      const panelWidth = infoPanel.getBoundingClientRect().width || 220;
-      let newLeft = x + panelWidth / 2;
-      const leftLimit = rect.left + 8;
-      const rightLimit = rect.right - panelWidth - 8;
-      newLeft = Math.max(leftLimit, Math.min(newLeft, rightLimit));
-
-      infoPanel.style.left = `${newLeft}px`;
-      infoPanel.style.top = `${newTop}px`;
+  // 3) place panel so its bottom-left corner is at (x,y)
+  infoPanel.style.left = `${x}px`;
+  infoPanel.style.top  = `${y}px`;
     };
 
     btn.onmouseleave = () => {
