@@ -491,31 +491,40 @@ export function initInventory(currentWeaponKey) {
     if (!inv) return;
 
     const { primary, secondary } = getSavedLoadout();
-    const weaponKeys = ['knife'];
-    if (primary) weaponKeys.push(primary);
-    if (secondary) weaponKeys.push(secondary);
+    const weaponKeys = ['knife', primary, secondary].filter(Boolean);
 
-    for (const key of weaponKeys) {
-        const slot = document.getElementById(`inv-${key}`);
-        if (!slot) continue;
-
-        const img = slot.querySelector("img");
-        if (img) {
-            img.src = WEAPON_IMAGES[key] || "";
-            img.alt = key;
+    weaponKeys.forEach((key) => {
+        let slot = document.getElementById(`inv-${key}`);
+        
+        // If slot doesn't exist, create it
+        if (!slot) {
+            slot = document.createElement("div");
+            slot.classList.add("inventory-slot");
+            slot.id = `inv-${key}`;
+            
+            const img = document.createElement("img");
+            slot.appendChild(img);
+            inv.appendChild(slot);
         }
 
+        // Set the image
+        const img = slot.querySelector("img");
+        img.src = WEAPON_IMAGES[key] || "";
+        img.alt = key;
+
+        // Apply selection
         if (key === currentWeaponKey) {
             slot.classList.add("selected");
         } else {
             slot.classList.remove("selected");
         }
-    }
+    });
 }
 
 export function updateInventory(currentWeaponKey) {
-    const slots = document.querySelectorAll(".inventory-slot");
-    slots.forEach((s) => s.classList.remove("selected"));
+    document.querySelectorAll(".inventory-slot").forEach((s) => {
+        s.classList.remove("selected");
+    });
 
     const currentSlot = document.getElementById(`inv-${currentWeaponKey}`);
     if (currentSlot) {
