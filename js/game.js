@@ -577,7 +577,7 @@ export async function startGame(username, mapName, initialDetailsEnabled, ffaEna
   if (ffaEnabled) {
     gameTimerElement.style.display = 'block';
 
-    const INITIAL_DURATION = 10 * 60;
+    const INITIAL_DURATION = 1 * 60;
     let currentRemainingSeconds = null;
     let gameEnded = false;
     let ownerInterval = null;
@@ -2773,6 +2773,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
