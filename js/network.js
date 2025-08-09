@@ -452,26 +452,26 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
 
     console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotApp.options.databaseURL}`);
 
-    // Always match localPlayerId with current auth.uid
-    let storedPlayerId = localStorage.getItem(`playerId-${activeGameSlotName}`);
-    if (!storedPlayerId || storedPlayerId !== userId) {
-        // Either no ID stored or it doesn't match current auth.uid — replace it
-        localStorage.setItem(`playerId-${activeGameSlotName}`, userId);
-        storedPlayerId = userId;
-        console.log(`[network.js] Stored playerId updated to current auth.uid: ${storedPlayerId}`);
-    }
-    localPlayerId = storedPlayerId;
-    window.localPlayerId = localPlayerId;
+    // Force correct ID from auth (guarantees localPlayerId === auth.uid)
+    const correctPlayerId = userId; // From Firebase auth
+    localStorage.setItem(`playerId-${activeGameSlotName}`, correctPlayerId);
+    localPlayerId = correctPlayerId;
+    window.localPlayerId = correctPlayerId;
+    console.log(`[network.js] Using auth.uid as localPlayerId: ${correctPlayerId}`);
 
-    // Use .child() to get the reference, then chain .onDisconnect() and .remove()
-    const playerRef = dbRefs.playersRef.child(localPlayerId);
-    const playerOnDisconnectRef = playerRef.onDisconnect();
-    await playerOnDisconnectRef.remove()
-        .then(() => console.log(`[network.js] onDisconnect set for player '${localPlayerId}' in game DB.`))
-        .catch(err => console.error(`[network.js] Error setting onDisconnect for player '${localPlayerId}':`, err));
+    // Now bind playerRef AFTER correcting ID
+    const playerRef = dbRefs.playersRef.child(correctPlayerId);
+
+    // Clean up on disconnect
+    try {
+        await playerRef.onDisconnect().remove();
+        console.log(`[network.js] onDisconnect set for player '${correctPlayerId}'.`);
+    } catch (err) {
+        console.error(`[network.js] Error setting onDisconnect for player '${correctPlayerId}':`, err);
+    }
 
     const initialPlayerState = {
-        id: localPlayerId,
+        id: correctPlayerId,
         username,
         x: 0, y: 0, z: 0,
         rotY: 0,
@@ -487,6 +487,7 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     };
 
     try {
+        // This will now match your Firebase security rule ".write": "auth.uid === $playerId"
         await playerRef.set(initialPlayerState);
         console.log("Local player initial state set in Firebase for slot:", activeGameSlotName);
     } catch (err) {
