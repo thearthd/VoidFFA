@@ -171,51 +171,56 @@ export async function authenticateToAllSlotApps() {
  * @returns {Promise<{slotApp: firebase.app.App, userId: string, dbRefs: object}>} An object with the slot's app, the player's userId, and the database references.
  */
 export async function initGameFirebaseApp(slotName) {
-    if (!gameDatabaseConfigs[slotName]) {
-        console.error(`No configuration found for slot: ${slotName}`);
-        return null;
-    }
+  if (!gameDatabaseConfigs[slotName]) {
+    console.error(`No configuration found for slot: ${slotName}`);
+    return null;
+  }
 
-    if (!gameApps[slotName]) {
-        try {
-            gameApps[slotName] = firebase.app(slotName + "App");
-        } catch (e) {
-            gameApps[slotName] = firebase.initializeApp(
-                gameDatabaseConfigs[slotName],
-                slotName + "App"
-            );
-        }
-    }
-    const slotApp = gameApps[slotName];
-    if (!slotApp) {
-        console.error(`Failed to initialize Firebase app for slot: ${slotName}`);
-        return null;
-    }
-
-    // Authenticate the player anonymously
-    const auth = slotApp.auth();
-    let user;
+  if (!gameApps[slotName]) {
     try {
-        const userCredential = await auth.signInAnonymously();
-        user = userCredential.user;
-        console.log(`[auth] Successfully signed in anonymously to game slot "${slotName}". User ID: ${user.uid}`);
-    } catch (error) {
-        console.error(`[auth] Failed to sign in anonymously to game slot "${slotName}":`, error);
-        return null;
+      gameApps[slotName] = firebase.app(slotName + "App");
+    } catch (e) {
+      gameApps[slotName] = firebase.initializeApp(
+        gameDatabaseConfigs[slotName],
+        slotName + "App"
+      );
     }
+  }
+  const slotApp = gameApps[slotName];
+  if (!slotApp) return null;
 
-    const db = slotApp.database();
-    const dbRefs = {
-        playersRef: db.ref('players'),
-        chatRef: db.ref('chat'),
-        killsRef: db.ref('kills'),
-        mapStateRef: db.ref('mapState'),
-        tracersRef: db.ref('tracers'),
-        soundsRef: db.ref('sounds'),
-        gameConfigRef: db.ref('gameConfig'),
-    };
+  const auth = slotApp.auth();
+  let user = auth.currentUser;
 
-    return { slotApp, userId: user.uid, dbRefs };
+  // If we already pre-authenticated earlier (authenticateToAllSlotApps), this will be present.
+  if (!user) {
+    try {
+      const cred = await auth.signInAnonymously();
+      user = cred.user;
+      console.log(`[auth] Signed into slot ${slotName} (initGameFirebaseApp). UID:`, user.uid);
+    } catch (err) {
+      console.error(`[auth] Failed to sign into slot ${slotName}:`, err);
+      return null;
+    }
+  } else {
+    console.log(`[auth] Reusing existing slot auth for ${slotName}:`, user.uid);
+  }
+
+  // Save the slot uid to localStorage (so our earlier authenticateToAllSlotApps and initNetwork share same mapping)
+  try { localStorage.setItem(`playerId-${slotName}`, user.uid); } catch(e){}
+
+  const db = slotApp.database();
+  const dbRefs = {
+      playersRef: db.ref('players'),
+      chatRef: db.ref('chat'),
+      killsRef: db.ref('kills'),
+      mapStateRef: db.ref('mapState'),
+      tracersRef: db.ref('tracers'),
+      soundsRef: db.ref('sounds'),
+      gameConfigRef: db.ref('gameConfig'),
+  };
+
+  return { slotApp, userId: user.uid, dbRefs };
 }
 
 
