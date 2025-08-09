@@ -248,97 +248,131 @@ export async function assignPlayerVersion(username, version) {
  * Claim the first free slot by inspecting its own /game node.
  */
 export async function claimGameSlot(username, map, ffaEnabled) {
-    // Before claiming a slot, check if the player's version matches the required version
-    // The clientVersion is now passed explicitly or accessed via a shared mechanism.
-    const playerVersion = localStorage.getItem("playerVersion"); // Assuming it's still stored here.
+  // Before claiming a slot, check client version
+  const playerVersion = localStorage.getItem("playerVersion");
+  if (playerVersion !== requiredGameVersion) {
+    Swal.fire('Update Required', `Your game version (${playerVersion || 'N/A'}) does not match the required version (${requiredGameVersion}). Please update your game.`, 'error');
+    return null;
+  }
 
-    if (playerVersion !== requiredGameVersion) {
-        Swal.fire('Update Required', `Your game version (${playerVersion || 'N/A'}) does not match the required version (${requiredGameVersion}). Please update your game.`, 'error');
-        return null;
+  let chosenKey = null;
+  let chosenApp = null;
+
+  // iterate slots and pick first free one (ensuring each slot app is auth'd before we probe)
+  for (const slotName of Object.keys(gameDatabaseConfigs)) {
+    const cfg = gameDatabaseConfigs[slotName];
+    if (!cfg) {
+      console.warn(`No configuration found for slot: ${slotName}`);
+      continue;
     }
 
-
-    let chosenKey = null,
-        chosenApp = null;
-
-    // Find the first free slot by checking its own /game node
-    for (let slotName in gameDatabaseConfigs) {
-        if (!gameDatabaseConfigs[slotName]) {
-            console.warn(`No configuration found for slot: ${slotName}`);
-            continue;
+    // init slot app if not already
+    if (!gameApps[slotName]) {
+      try {
+        gameApps[slotName] = firebase.app(slotName + "App");
+      } catch (e) {
+        try {
+          gameApps[slotName] = firebase.initializeApp(cfg, slotName + "App");
+        } catch (initErr) {
+          console.warn(`Failed to initialize app for ${slotName}:`, initErr);
+          continue;
         }
-
-        if (!gameApps[slotName]) {
-            try {
-                // Try to get an existing app instance if it was initialized elsewhere
-                gameApps[slotName] = firebase.app(slotName + "App");
-            } catch (e) {
-                // If not found, initialize it
-                gameApps[slotName] = firebase.initializeApp(
-                    gameDatabaseConfigs[slotName],
-                    slotName + "App"
-                );
-            }
-        }
-        const app = gameApps[slotName];
-
-        // Ensure the app is correctly initialized before proceeding
-        if (!app) {
-            console.error(`Failed to initialize Firebase app for slot: ${slotName}`);
-            continue;
-        }
-
-        const gameSnap = await app.database().ref("game").once("value");
-        if (!gameSnap.exists() || Object.keys(gameSnap.val() || {}).length === 0) {
-            chosenKey = slotName;
-            chosenApp = app;
-            break;
-        }
+      }
     }
 
-    if (!chosenKey) {
-        console.log("No free game slots available.");
-        return null;
+    const app = gameApps[slotName];
+    if (!app) continue;
+
+    const slotAuth = app.auth();
+    try {
+      // Ensure the slot app has an authenticated user so reads are allowed by rules
+      if (!slotAuth.currentUser) {
+        await slotAuth.signInAnonymously();
+        console.log(`[claimGameSlot] Signed into slot ${slotName} anonymously.`);
+      }
+    } catch (authErr) {
+      console.warn(`[claimGameSlot] Could not sign into slot ${slotName}:`, authErr);
+      // skip this slot
+      continue;
     }
 
-    const db = chosenApp.database();
-    const gameRef = db.ref("game");
+    try {
+      const gameSnap = await app.database().ref("game").once("value");
+      // empty/non-existent -> available
+      const val = gameSnap.exists() ? gameSnap.val() : null;
+      if (!val || Object.keys(val).length === 0) {
+        chosenKey = slotName;
+        chosenApp = app;
+        break;
+      }
+    } catch (probeErr) {
+      console.warn(`[claimGameSlot] Probe read failed for ${slotName}:`, probeErr);
+      // skip this slot
+      continue;
+    }
+  }
 
-    // Create game entry
-    await gameRef.set({
-        host: username,
-        map,
-        ffaEnabled,
-        createdAt: firebase.database.ServerValue.TIMESTAMP,
-        gameVersion: requiredGameVersion // Assign the current required game version to the game instance
-    });
+  if (!chosenKey || !chosenApp) {
+    console.log("No free game slots available.");
+    return null;
+  }
 
-    // Create gameConfig inside the /game node
+  // Now create the /game entry in the chosen slot using that slot app's auth UID as hostUid
+  const db = chosenApp.database();
+  const slotAuth = chosenApp.auth();
+  const slotUid = slotAuth.currentUser?.uid;
+
+  if (!slotUid) {
+    console.error("claimGameSlot: slot app has no authenticated user; aborting.");
+    return null;
+  }
+
+  const gameRef = db.ref("game");
+  const gameData = {
+    host: username,
+    hostUid: slotUid,         // <- REQUIRED by your security rules
+    map,
+    ffaEnabled,
+    createdAt: firebase.database.ServerValue.TIMESTAMP,
+    gameVersion: requiredGameVersion
+  };
+
+  try {
+    await gameRef.set(gameData);
+  } catch (err) {
+    console.error("claimGameSlot: failed to create /game in chosen slot:", err);
+    return null;
+  }
+
+  // Create gameConfig inside the /game node
+  try {
     const startTime = Date.now();
-    const gameDuration = 60; // seconds
+    const gameDuration = 60; // seconds (or whatever you want)
     const endTime = startTime + gameDuration * 1000;
-
     await gameRef.child("gameConfig").set({
-        startTime,
-        gameDuration,
-        endTime
+      startTime,
+      gameDuration,
+      endTime
     });
+  } catch (err) {
+    console.warn("claimGameSlot: could not write gameConfig (non-fatal):", err);
+  }
 
-    // Return useful database references
-    const dbRefs = {
-        playersRef: db.ref("game/players"),
-        chatRef: db.ref("game/chat"),
-        killsRef: db.ref("game/kills"),
-        mapStateRef: db.ref("game/mapState"),
-        tracersRef: db.ref("game/tracers"),
-        soundsRef: db.ref("game/sounds"),
-        gameConfigRef: db.ref("game/gameConfig")
-    };
+  // Return dbRefs namespaced under /game
+  const dbRefs = {
+    playersRef: db.ref("game/players"),
+    chatRef: db.ref("game/chat"),
+    killsRef: db.ref("game/kills"),
+    mapStateRef: db.ref("game/mapState"),
+    tracersRef: db.ref("game/tracers"),
+    soundsRef: db.ref("game/sounds"),
+    gameConfigRef: db.ref("game/gameConfig")
+  };
 
-    return {
-        slotName: chosenKey,
-        dbRefs
-    };
+  return {
+    slotName: chosenKey,
+    dbRefs
+  };
 }
 /**
  * Release the slot by clearing /game in its own DB and marking it free in lobby.
