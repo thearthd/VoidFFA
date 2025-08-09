@@ -1,6 +1,5 @@
 // firebase-config.js
 
-
 // Configuration for your Firebase projects
 // Make sure these match your actual Firebase project configurations
 export const menuConfig = {
@@ -91,15 +90,15 @@ export function initializeMenuFirebase() {
         menuApp = firebase.initializeApp(menuConfig, "menuApp");
     }
 
-    const db = getDatabase(menuApp);
-    gamesRef = ref(db, "games");
-    usersRef = ref(db, "users");
-    slotsRef = ref(db, "slots");
-    menuConfigRef = ref(db, "menu");
-    menuChatRef = ref(db, "chat");
+    const db = menuApp.database();
+    gamesRef = db.ref("games");
+    usersRef = db.ref("users");
+    slotsRef = db.ref("slots");
+    menuConfigRef = db.ref("menu");
+    menuChatRef = db.ref("chat");
 
     // Fetch the required game version from the database
-    onValue(ref(menuConfigRef, "gameVersion"), (snapshot) => {
+    menuConfigRef.child("gameVersion").on("value", (snapshot) => {
         if (snapshot.exists()) {
             requiredGameVersion = snapshot.val();
             console.log("Required Game Version:", requiredGameVersion);
@@ -142,10 +141,10 @@ export async function initGameFirebaseApp(slotName) {
     }
 
     // Authenticate the player anonymously
-    const auth = getAuth(slotApp);
+    const auth = slotApp.auth();
     let user;
     try {
-        const userCredential = await signInAnonymously(auth);
+        const userCredential = await auth.signInAnonymously();
         user = userCredential.user;
         console.log(`[auth] Successfully signed in anonymously to game slot "${slotName}". User ID: ${user.uid}`);
     } catch (error) {
@@ -153,15 +152,15 @@ export async function initGameFirebaseApp(slotName) {
         return null;
     }
 
-    const db = getDatabase(slotApp);
+    const db = slotApp.database();
     const dbRefs = {
-        playersRef: ref(db, 'players'),
-        chatRef: ref(db, 'chat'),
-        killsRef: ref(db, 'kills'),
-        mapStateRef: ref(db, 'mapState'),
-        tracersRef: ref(db, 'tracers'),
-        soundsRef: ref(db, 'sounds'),
-        gameConfigRef: ref(db, 'gameConfig'),
+        playersRef: db.ref('players'),
+        chatRef: db.ref('chat'),
+        killsRef: db.ref('kills'),
+        mapStateRef: db.ref('mapState'),
+        tracersRef: db.ref('tracers'),
+        soundsRef: db.ref('sounds'),
+        gameConfigRef: db.ref('gameConfig'),
     };
 
     return { slotApp, userId: user.uid, dbRefs };
@@ -180,7 +179,7 @@ export async function assignPlayerVersion(username, version) {
         return;
     }
     try {
-        await set(ref(usersRef, username + "/version"), version);
+        await usersRef.child(username).child("version").set(version);
         console.log(`Player ${username} assigned version: ${version}`);
     } catch (error) {
         console.error("Failed to assign player version:", error);
@@ -232,7 +231,7 @@ export async function claimGameSlot(username, map, ffaEnabled) {
             continue;
         }
 
-        const gameSnap = await get(ref(getDatabase(app), "game"));
+        const gameSnap = await app.database().ref("game").once("value");
         if (!gameSnap.exists() || Object.keys(gameSnap.val() || {}).length === 0) {
             chosenKey = slotName;
             chosenApp = app;
@@ -245,11 +244,11 @@ export async function claimGameSlot(username, map, ffaEnabled) {
         return null;
     }
 
-    const db = getDatabase(chosenApp);
-    const gameRef = ref(db, "game");
+    const db = chosenApp.database();
+    const gameRef = db.ref("game");
 
     // Create game entry
-    await set(gameRef, {
+    await gameRef.set({
         host: username,
         map,
         ffaEnabled,
@@ -262,7 +261,7 @@ export async function claimGameSlot(username, map, ffaEnabled) {
     const gameDuration = 60; // seconds
     const endTime = startTime + gameDuration * 1000;
 
-    await set(ref(gameRef, "gameConfig"), {
+    await gameRef.child("gameConfig").set({
         startTime,
         gameDuration,
         endTime
@@ -270,13 +269,13 @@ export async function claimGameSlot(username, map, ffaEnabled) {
 
     // Return useful database references
     const dbRefs = {
-        playersRef: ref(db, "game/players"),
-        chatRef: ref(db, "game/chat"),
-        killsRef: ref(db, "game/kills"),
-        mapStateRef: ref(db, "game/mapState"),
-        tracersRef: ref(db, "game/tracers"),
-        soundsRef: ref(db, "game/sounds"),
-        gameConfigRef: ref(db, "game/gameConfig")
+        playersRef: db.ref("game/players"),
+        chatRef: db.ref("game/chat"),
+        killsRef: db.ref("game/kills"),
+        mapStateRef: db.ref("game/mapState"),
+        tracersRef: db.ref("game/tracers"),
+        soundsRef: db.ref("game/sounds"),
+        gameConfigRef: db.ref("game/gameConfig")
     };
 
     return {
@@ -315,11 +314,13 @@ export async function releaseGameSlot(slotName) {
         return;
     }
 
+    const db = app.database();
+
     // 1) Mark the slot free in the menu database
     // Ensure slotsRef is initialized. It depends on menuApp, which is initialized by initializeMenuFirebase().
     // The user's code calls initializeMenuFirebase() at the end, so this should be fine.
     if (slotsRef) {
-        await set(ref(slotsRef, slotName), {
+        await slotsRef.child(slotName).set({
             status: "free"
         });
     } else {
@@ -327,7 +328,7 @@ export async function releaseGameSlot(slotName) {
         // Attempt to initialize if it's not. This might be redundant if the initial call is reliable.
         initializeMenuFirebase();
         if (slotsRef) {
-            await set(ref(slotsRef, slotName), {
+            await slotsRef.child(slotName).set({
                 status: "free"
             });
         } else {
@@ -338,12 +339,12 @@ export async function releaseGameSlot(slotName) {
 
 
     // 2) Clear the per-slot game data in its own database
-    await remove(ref(getDatabase(app), "game"));
+    await db.ref("game").remove();
 
 
     // 3) Also remove the lobby node under /games/{activeGameId} in the menu database
     if (activeGameId && gamesRef) {
-        await remove(ref(gamesRef, activeGameId));
+        await gamesRef.child(activeGameId).remove();
         activeGameId = null;
     } else {
         console.warn("Warning: activeGameId or gamesRef not available when trying to remove game from lobby.");
