@@ -546,38 +546,46 @@ let lastValidHp = 100;
 let lastValidShield = 50;
 
 export function updateHealthShieldUI(hp, shield) {
-    const validHp = typeof hp === 'number' && !Number.isNaN(hp);
-    const validShield = typeof shield === 'number' && !Number.isNaN(shield);
+    const validHp = typeof hp === 'number' && !Number.isNaN(hp);
+    const validShield = typeof shield === 'number' && !Number.isNaN(shield);
 
-    const rawHp = validHp ? hp : lastValidHp;
-    const rawShield = validShield ? shield : lastValidShield;
+    const rawHp = validHp ? hp : lastValidHp;
+    const rawShield = validShield ? shield : lastValidShield;
 
-    const clampedHp = Math.max(0, Math.min(rawHp, 100));
-    const clampedShield = Math.max(0, Math.min(rawShield, 50));
+    const clampedHp = Math.max(0, Math.min(rawHp, 100));
+    const clampedShield = Math.max(0, Math.min(rawShield, 50));
 
-    lastValidHp = clampedHp;
-    lastValidShield = clampedShield;
+    lastValidHp = clampedHp;
+    lastValidShield = clampedShield;
 
-    const healthFrac = clampedHp / 100;
-    const shieldFrac = clampedShield / 50;
+    // compute proportions relative to combined total so bar reads as one continuous bar
+    const total = clampedHp + clampedShield || 1; // avoid divide-by-zero
+    const healthPctOfTotal = (clampedHp / total) * 100;
+    const shieldPctOfTotal = (clampedShield / total) * 100;
 
-    const healthFill = document.getElementById("health-bar-fill");
-    const healthText = document.getElementById("health-text");
-    if (healthFill) {
-        healthFill.style.width = `${healthFrac * 100}%`;
-    }
-    if (healthText) {
-        healthText.textContent = `${clampedHp} / 100`;
-    }
+    const healthSeg = document.getElementById("health-segment");
+    const healthText = document.getElementById("health-text");
+    if (healthSeg) {
+        healthSeg.style.width = `${healthPctOfTotal}%`;
+    }
+    if (healthText) {
+        healthText.textContent = `${clampedHp} / 100`;
+    }
 
-    const shieldFill = document.getElementById("shield-bar-fill");
-    const shieldText = document.getElementById("shield-text");
-    if (shieldFill) {
-        shieldFill.style.width = `${shieldFrac * 100}%`;
-    }
-    if (shieldText) {
-        shieldText.textContent = `${clampedShield} / 50`;
-    }
+    const shieldSeg = document.getElementById("shield-segment");
+    const shieldText = document.getElementById("shield-text");
+    if (shieldSeg) {
+        shieldSeg.style.width = `${shieldPctOfTotal}%`;
+    }
+    if (shieldText) {
+        shieldText.textContent = `${clampedShield} / 50`;
+    }
+
+    // update combined aria value for accessibility (optional)
+    const combinedBar = document.querySelector('.combined-bar');
+    if (combinedBar) {
+      combinedBar.setAttribute('aria-valuenow', String(clampedHp + clampedShield));
+    }
 }
 
 const activeTracers = {};
