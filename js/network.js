@@ -686,7 +686,7 @@ export async function fullCleanup(gameId) {
         localPlayerId = null;
 
         console.log("[fullCleanup] END");
-        location.reload();
+       // location.reload();
         return true;
 
     } catch (err) {
