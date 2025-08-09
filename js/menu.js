@@ -2291,6 +2291,35 @@ export function initMenuUI() {
         }
         const uid = user.uid;
 
+        // --- NEW: pre-authenticate to all slot apps if helper exists ---
+        // This will create per-slot anonymous auth sessions and store their uids in localStorage:
+        if (typeof authenticateToAllSlotApps === "function") {
+            try {
+                await authenticateToAllSlotApps();
+                // Optionally write a debug map of slotName -> slotUid into the menu DB
+                try {
+                    const slotMap = {};
+                    if (typeof gameDatabaseConfigs === "object") {
+                        Object.keys(gameDatabaseConfigs).forEach(slotName => {
+                            const slotUid = localStorage.getItem(`playerId-${slotName}`);
+                            if (slotUid) slotMap[slotName] = slotUid;
+                        });
+                    }
+                    if (Object.keys(slotMap).length) {
+                        await db.ref(`slotAuthMap/${uid}`).set(slotMap).catch(e => {
+                            // non-fatal: keep going even if this write fails
+                            console.warn("Failed to write slotAuthMap:", e);
+                        });
+                    }
+                } catch (e) {
+                    console.warn("slotAuthMap write failed:", e);
+                }
+            } catch (err) {
+                // Non-fatal — if slot auth fails, continue. initGameFirebaseApp will attempt sign-in on demand.
+                console.warn("authenticateToAllSlotApps failed or partial:", err);
+            }
+        }
+
         // Attempt 1: find canonical name by looking up usernames index where value == uid
         try {
             const byUidSnap = await usernamesRef.orderByValue().equalTo(uid).once("value");
@@ -2376,83 +2405,83 @@ export function initMenuUI() {
     }
 
     // Save Username Button
-if (saveUsernameBtn) {
-    saveUsernameBtn.addEventListener("click", async () => {
-        const raw = usernameInput.value.trim();
+    if (saveUsernameBtn) {
+        saveUsernameBtn.addEventListener("click", async () => {
+            const raw = usernameInput.value.trim();
 
-        // 1) Run banned words check
-        if (!isMessageClean(raw)) {
-            return; // isMessageClean already shows the alert and blocks
-        }
-
-        // 2) Run character whitelist check
-        if (!/^[A-Za-z0-9_]+$/.test(raw)) {
-            return Swal.fire(
-                'Invalid Username',
-                'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
-                'error'
-            );
-        }
-
-        const user = auth.currentUser;
-        if (!user) {
-            console.error("Firebase user not authenticated (menuApp).");
-            return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
-        }
-        const uid = user.uid;
-        const key = raw.toLowerCase();
-
-        // 3) Claim username in /usernames/<key>
-        try {
-            const txResult = await usernamesRef.child(key).transaction(current => {
-                if (current === null || current === uid) {
-                    return uid;
-                }
-                return; // abort - already taken
-            });
-
-            if (!txResult.committed) {
-                return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
+            // 1) Run banned words check
+            if (!isMessageClean(raw)) {
+                return; // isMessageClean already shows the alert and blocks
             }
 
-            // 4) Save to /users/{key}
-            const updates = {};
-            updates[`/users/${key}/username`] = raw;
-            updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
-            updates[`/users/${key}/ids/${uid}`] = true;
-            updates[`/users/${key}/version`] = CLIENT_GAME_VERSION;
-
-            await db.ref().update(updates);
-
-            localStorage.setItem("username", raw);
-            username = raw;
-            if (typeof playerCard !== "undefined" && playerCard?.setText) {
-                try { playerCard.setText(username); } catch (e) {}
+            // 2) Run character whitelist check
+            if (!/^[A-Za-z0-9_]+$/.test(raw)) {
+                return Swal.fire(
+                    'Invalid Username',
+                    'Usernames may only contain letters (A–Z), numbers (0–9), or underscores (_).',
+                    'error'
+                );
             }
 
-            showPanel(null);
-            if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
-            if (typeof menu === "function") menu();
-            document.getElementById("game-logo")?.classList.add("hidden");
-            if (menuOverlay) menuOverlay.style.display = 'none';
+            const user = auth.currentUser;
+            if (!user) {
+                console.error("Firebase user not authenticated (menuApp).");
+                return Swal.fire('Error', 'Please wait for authentication to complete and try again.', 'error');
+            }
+            const uid = user.uid;
+            const key = raw.toLowerCase();
 
-        } catch (err) {
-            console.error("Error saving to DB:", err);
+            // 3) Claim username in /usernames/<key>
             try {
-                const claimedSnap = await usernamesRef.child(key).once("value");
-                if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
-                    await usernamesRef.child(key).remove();
+                const txResult = await usernamesRef.child(key).transaction(current => {
+                    if (current === null || current === uid) {
+                        return uid;
+                    }
+                    return; // abort - already taken
+                });
+
+                if (!txResult.committed) {
+                    return Swal.fire('Name Taken', `“${raw}” is already in use.`, 'warning');
                 }
-            } catch (rollbackErr) {
-                console.error("Failed to rollback username reservation:", rollbackErr);
+
+                // 4) Save to /users/{key}
+                const updates = {};
+                updates[`/users/${key}/username`] = raw;
+                updates[`/users/${key}/savedAt`] = firebase.database.ServerValue.TIMESTAMP;
+                updates[`/users/${key}/ids/${uid}`] = true;
+                updates[`/users/${key}/version`] = CLIENT_GAME_VERSION;
+
+                await db.ref().update(updates);
+
+                localStorage.setItem("username", raw);
+                username = raw;
+                if (typeof playerCard !== "undefined" && playerCard?.setText) {
+                    try { playerCard.setText(username); } catch (e) {}
+                }
+
+                showPanel(null);
+                if (typeof canvas !== "undefined" && canvas) canvas.style.display = 'block';
+                if (typeof menu === "function") menu();
+                document.getElementById("game-logo")?.classList.add("hidden");
+                if (menuOverlay) menuOverlay.style.display = 'none';
+
+            } catch (err) {
+                console.error("Error saving to DB:", err);
+                try {
+                    const claimedSnap = await usernamesRef.child(key).once("value");
+                    if (claimedSnap.exists() && claimedSnap.val() === auth.currentUser.uid) {
+                        await usernamesRef.child(key).remove();
+                    }
+                } catch (rollbackErr) {
+                    console.error("Failed to rollback username reservation:", rollbackErr);
+                }
+                if (err?.code === "PERMISSION_DENIED" || err?.code?.toLowerCase().includes("permission")) {
+                    return Swal.fire('Error', 'Could not save username. Check authentication or try a different name.', 'error');
+                }
+                return Swal.fire('Error', 'Could not save username. Please check your permissions.', 'error');
             }
-            if (err?.code === "PERMISSION_DENIED" || err?.code?.toLowerCase().includes("permission")) {
-                return Swal.fire('Error', 'Could not save username. Check authentication or try a different name.', 'error');
-            }
-            return Swal.fire('Error', 'Could not save username. Please check your permissions.', 'error');
-        }
-    });
-}
+        });
+    }
 
     // Details Toggle
     if (toggleDetailsBtn) {
