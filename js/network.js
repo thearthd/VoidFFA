@@ -309,6 +309,7 @@ export function disconnectPlayer(playerId) {
     }
 
     if (playerId === localPlayerId) {
+        location.reload();
         console.log("Disconnecting local player:", playerId);
         remove(ref(dbRefs.playersRef, playerId))
             .then(() => {
