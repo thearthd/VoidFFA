@@ -283,10 +283,14 @@ export function updateHUD() {
 }
 
 export function showLoadoutScreen() {
-  document.getElementById("loadout-screen").style.display = "block";
+  const el = document.getElementById("loadout-screen");
+  if (!el) return;
+  el.classList.add("open");
 }
 export function hideLoadoutScreen() {
-  document.getElementById("loadout-screen").style.display = "none";
+  const el = document.getElementById("loadout-screen");
+  if (!el) return;
+  el.classList.remove("open");
 }
 
 // Expose so you can call from your menu code:
