@@ -753,13 +753,13 @@ export function initAmmoDisplay(weaponKey, maxAmmo) {
         const inventoryRect = inventory.getBoundingClientRect();
         
         // Use the inventory's right edge as the starting point and add a margin
-        ammoDiv.style.left = `${inventoryRect.right + 10}px`;
+
         
         // Center the ammo display vertically with the inventory
         const ammoHeight = ammoDiv.offsetHeight;
         const inventoryHeight = inventoryRect.height;
         const verticalOffset = (inventoryHeight - ammoHeight) / 2;
-        ammoDiv.style.top = `${inventoryRect.top + verticalOffset}px`;
+
     }
 }
 
