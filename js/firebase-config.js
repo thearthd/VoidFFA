@@ -108,10 +108,62 @@ export function initializeMenuFirebase() {
     });
 }
 
+
+
 initializeMenuFirebase();
 
 export let activeGameId = null;
 const gameApps = {};
+
+
+export async function authenticateToAllSlotApps() {
+  const slotNames = Object.keys(gameDatabaseConfigs);
+  for (const slotName of slotNames) {
+    const cfg = gameDatabaseConfigs[slotName];
+    if (!cfg) continue;
+
+    // initialize app instance for slot if missing
+    if (!gameApps[slotName]) {
+      try {
+        gameApps[slotName] = firebase.app(slotName + "App");
+      } catch (e) {
+        try {
+          gameApps[slotName] = firebase.initializeApp(cfg, slotName + "App");
+        } catch (initErr) {
+          console.warn(`[authAll] Failed to initialize app for ${slotName}:`, initErr);
+          continue;
+        }
+      }
+    }
+
+    const slotApp = gameApps[slotName];
+    if (!slotApp) continue;
+
+    try {
+      const slotAuth = slotApp.auth();
+
+      // If already signed in, reuse that user
+      if (!slotAuth.currentUser) {
+        const cred = await slotAuth.signInAnonymously();
+        const uid = cred.user?.uid;
+        if (uid) {
+          localStorage.setItem(`playerId-${slotName}`, uid);
+          console.log(`[authAll] Signed into ${slotName}, uid: ${uid}`);
+        } else {
+          console.warn(`[authAll] Sign-in returned no uid for ${slotName}`);
+        }
+      } else {
+        // already signed in for this slot
+        const uid = slotAuth.currentUser.uid;
+        localStorage.setItem(`playerId-${slotName}`, uid);
+        console.log(`[authAll] Already signed into ${slotName}, uid: ${uid}`);
+      }
+    } catch (err) {
+      console.warn(`[authAll] Anonymous sign-in failed for ${slotName}:`, err);
+    }
+  }
+}
+
 
 /**
  * Initializes the Firebase app for a given game slot and authenticates the player anonymously.
