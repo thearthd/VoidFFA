@@ -344,66 +344,57 @@ export async function claimGameSlot(username, map, ffaEnabled) {
  * Release the slot by clearing /game in its own DB and marking it free in lobby.
  */
 export async function releaseGameSlot(slotName) {
-    // Ensure the Firebase app for this slot is initialized if it hasn't been already in this session.
-    if (!gameApps[slotName]) {
+  // init slot app if needed (your existing logic)
+  if (!gameApps[slotName]) {
+    try { gameApps[slotName] = firebase.app(slotName + "App"); }
+    catch (e) {
+      if (gameDatabaseConfigs[slotName]) {
+        gameApps[slotName] = firebase.initializeApp(gameDatabaseConfigs[slotName], slotName + "App");
+      } else {
+        console.error(`No config for slot ${slotName}`); return;
+      }
+    }
+  }
+  const app = gameApps[slotName];
+  const db = app.database();
+  const auth = app.auth();
+
+  // read the /game node to get hostUid
+  try {
+    const snap = await db.ref("game").once("value");
+    if (!snap.exists()) {
+      console.log("releaseGameSlot: nothing to remove in slot", slotName);
+    } else {
+      const data = snap.val();
+      const hostUid = data.hostUid || data.hostUid === null ? data.hostUid : null;
+
+      // if hostUid is set, require it to match the slot app's current user
+      const slotUid = auth.currentUser?.uid;
+      if (hostUid && slotUid && hostUid !== slotUid) {
+        console.warn(`releaseGameSlot: current slot uid (${slotUid}) is not hostUid (${hostUid}). Skipping removal to avoid permission error.`);
+      } else {
+        // either hostUid matches or hostUid not set: attempt removal of allowed children first
         try {
-            // Try to get an existing app instance if it was initialized elsewhere
-            gameApps[slotName] = firebase.app(slotName + "App");
-        } catch (e) {
-            // If not found, initialize it, but only if config exists
-            if (gameDatabaseConfigs[slotName]) {
-                gameApps[slotName] = firebase.initializeApp(
-                    gameDatabaseConfigs[slotName],
-                    slotName + "App"
-                );
-            } else {
-                console.error(`Error: Configuration for slot '${slotName}' not found. Cannot release.`);
-                return; // Cannot proceed without config
-            }
+          // Prefer removing children rather than root if you want finer-grained rules
+          await db.ref("game/gameConfig").remove().catch(e=>{});
+          await db.ref("game/players").remove().catch(e=>{});
+          await db.ref("game/chat").remove().catch(e=>{});
+          await db.ref("game/kills").remove().catch(e=>{});
+          // finally try removing the root node
+          await db.ref("game").remove();
+          console.log(`releaseGameSlot: cleared /game for slot ${slotName}`);
+        } catch (remErr) {
+          console.error("releaseGameSlot: failed to remove /game:", remErr);
         }
+      }
     }
+  } catch (err) {
+    console.error("releaseGameSlot failed during cleanup:", err);
+  }
 
-    const app = gameApps[slotName];
-
-    // If after all checks, app is still null/undefined, something is fundamentally wrong
-    if (!app) {
-        console.error(`Error: Firebase app for slot '${slotName}' could not be initialized. Cannot release.`);
-        return;
-    }
-
-    const db = app.database();
-
-    // 1) Mark the slot free in the menu database
-    // Ensure slotsRef is initialized. It depends on menuApp, which is initialized by initializeMenuFirebase().
-    // The user's code calls initializeMenuFirebase() at the end, so this should be fine.
-    if (slotsRef) {
-        await slotsRef.child(slotName).set({
-            status: "free"
-        });
-    } else {
-        console.error("Error: slotsRef is not initialized. Call initializeMenuFirebase() first.");
-        // Attempt to initialize if it's not. This might be redundant if the initial call is reliable.
-        initializeMenuFirebase();
-        if (slotsRef) {
-            await slotsRef.child(slotName).set({
-                status: "free"
-            });
-        } else {
-            console.error("Error: Failed to initialize slotsRef even after attempting to re-initialize menu Firebase.");
-            return;
-        }
-    }
-
-
-    // 2) Clear the per-slot game data in its own database
-    await db.ref("game").remove();
-
-
-    // 3) Also remove the lobby node under /games/{activeGameId} in the menu database
-    if (activeGameId && gamesRef) {
-        await gamesRef.child(activeGameId).remove();
-        activeGameId = null;
-    } else {
-        console.warn("Warning: activeGameId or gamesRef not available when trying to remove game from lobby.");
-    }
+  // mark slot free in menu DB (your existing logic) ...
+  if (slotsRef) {
+    try { await slotsRef.child(slotName).set({ status: "free" }); }
+    catch(e) { console.warn("Could not mark slot free in menu DB:", e); }
+  }
 }
