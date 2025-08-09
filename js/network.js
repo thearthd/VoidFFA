@@ -686,7 +686,6 @@ export async function fullCleanup(gameId) {
         localPlayerId = null;
 
         console.log("[fullCleanup] END");
-       location.reload();
         return true;
 
     } catch (err) {
@@ -782,7 +781,7 @@ function setupPlayersListener(playersRef) {
             console.warn("Local player removed from Firebase. Handling disconnection.");
             localStorage.removeItem(`playerId-${activeGameSlotName}`); // Clear slot-specific ID
             localPlayerId = null; // Ensure game loop knows to stop
-            // location.reload(); // Simple reload for now to go back to initial state
+             location.reload();
             return;
         }
         permanentlyRemoved.add(id);
