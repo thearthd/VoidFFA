@@ -491,32 +491,42 @@ export function initInventory(currentWeaponKey) {
     if (!inv) return;
 
     const { primary, secondary } = getSavedLoadout();
-    const weaponKeys = ['knife', primary, secondary].filter(Boolean);
+
+    // Always have these 3 keys in this order
+    const weaponKeys = ['knife', primary, secondary].filter(key => key && WEAPON_IMAGES[key]);
 
     weaponKeys.forEach((key) => {
+        // Try to find an existing slot
         let slot = document.getElementById(`inv-${key}`);
-        
-        // If slot doesn't exist, create it
+
+        // If it doesn't exist, create it once
         if (!slot) {
             slot = document.createElement("div");
             slot.classList.add("inventory-slot");
             slot.id = `inv-${key}`;
-            
+
             const img = document.createElement("img");
             slot.appendChild(img);
             inv.appendChild(slot);
         }
 
-        // Set the image
+        // Update image source
         const img = slot.querySelector("img");
-        img.src = WEAPON_IMAGES[key] || "";
+        img.src = WEAPON_IMAGES[key];
         img.alt = key;
 
-        // Apply selection
+        // Apply selected style
         if (key === currentWeaponKey) {
             slot.classList.add("selected");
         } else {
             slot.classList.remove("selected");
+        }
+    });
+
+    // Remove any slots that are not in our weaponKeys array
+    inv.querySelectorAll(".inventory-slot").forEach(slot => {
+        if (!weaponKeys.includes(slot.id.replace("inv-", ""))) {
+            slot.remove();
         }
     });
 }
