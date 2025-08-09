@@ -542,51 +542,79 @@ export function updateInventory(currentWeaponKey) {
     }
 }
 
-let lastValidHp = 100;
-let lastValidShield = 50;
+const MAX_HP = 100;
+const MAX_SHIELD = 50;
+const MAX_TOTAL = MAX_HP + MAX_SHIELD;
+    
+let lastValidHp = MAX_HP;
+let lastValidShield = MAX_SHIELD;
 
-export function updateHealthShieldUI(hp, shield) {
+function updateHealthShieldUI(hp, shield) {
     const validHp = typeof hp === 'number' && !Number.isNaN(hp);
     const validShield = typeof shield === 'number' && !Number.isNaN(shield);
 
     const rawHp = validHp ? hp : lastValidHp;
     const rawShield = validShield ? shield : lastValidShield;
 
-    const clampedHp = Math.max(0, Math.min(rawHp, 100));
-    const clampedShield = Math.max(0, Math.min(rawShield, 50));
+    const clampedHp = Math.max(0, Math.min(rawHp, MAX_HP));
+    const clampedShield = Math.max(0, Math.min(rawShield, MAX_SHIELD));
 
     lastValidHp = clampedHp;
     lastValidShield = clampedShield;
 
-    // compute proportions relative to combined total so bar reads as one continuous bar
-    const total = clampedHp + clampedShield || 1; // avoid divide-by-zero
-    const healthPctOfTotal = (clampedHp / total) * 100;
-    const shieldPctOfTotal = (clampedShield / total) * 100;
+    const totalCurrent = clampedHp + clampedShield;
+    const totalWidthPct = (totalCurrent / MAX_TOTAL) * 100;
+    
+    // This calculates the percentage of the ENTIRE bar that is still health.
+    // It prevents the visual jump because the total (MAX_TOTAL) is a constant.
+    const healthPctOfTotal = (clampedHp / MAX_TOTAL) * 100;
 
-    const healthSeg = document.getElementById("health-segment");
+    const filledBar = document.getElementById("filled-bar");
+    if (filledBar) {
+        filledBar.style.width = `${totalWidthPct}%`;
+        
+        // Generate and apply a new dynamic gradient based on the current values
+        const newGradient = `linear-gradient(to right, 
+            var(--health-color) 0%, 
+            var(--health-color) ${healthPctOfTotal}%, 
+            var(--shield-color) ${healthPctOfTotal}%, 
+            var(--shield-color) 100%
+        )`;
+        filledBar.style.backgroundImage = newGradient;
+    }
+
     const healthText = document.getElementById("health-text");
-    if (healthSeg) {
-        healthSeg.style.width = `${healthPctOfTotal}%`;
-    }
-    if (healthText) {
-        healthText.textContent = `${clampedHp} / 100`;
-    }
-
-    const shieldSeg = document.getElementById("shield-segment");
     const shieldText = document.getElementById("shield-text");
-    if (shieldSeg) {
-        shieldSeg.style.width = `${shieldPctOfTotal}%`;
+    if (healthText) {
+        healthText.textContent = `${clampedHp} / ${MAX_HP}`;
     }
     if (shieldText) {
-        shieldText.textContent = `${clampedShield} / 50`;
+        shieldText.textContent = `${clampedShield} / ${MAX_SHIELD}`;
     }
 
-    // update combined aria value for accessibility (optional)
     const combinedBar = document.querySelector('.combined-bar');
     if (combinedBar) {
-      combinedBar.setAttribute('aria-valuenow', String(clampedHp + clampedShield));
+        combinedBar.setAttribute('aria-valuenow', String(totalCurrent));
     }
 }
+
+function updateHealth(amount) {
+    let newHp = lastValidHp + amount;
+    updateHealthShieldUI(newHp, lastValidShield);
+}
+
+function updateShield(amount) {
+    let newShield = lastValidShield + amount;
+    updateHealthShieldUI(lastValidHp, newShield);
+}
+
+function updateBoth(hp, shield) {
+    updateHealthShieldUI(hp, shield);
+}
+
+window.onload = () => {
+    updateHealthShieldUI(lastValidHp, lastValidShield);
+};
 
 const activeTracers = {};
 const bulletHoles = {}; // Keep this map to track active bullet hole meshes
