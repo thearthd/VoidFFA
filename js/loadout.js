@@ -195,8 +195,9 @@ function populateWeaponGrid(containerId, list, slotType) {
     };
 
     btn.onmousemove = (e) => {
+      const canvas = document.getElementById('menuCanvas');
       // Position the info panel relative to viewport, constrained to the loadout panel
-  const rect = loadoutScreen.getBoundingClientRect();
+  const rect = canvas.getBoundingClientRect();
   // offsetX, offsetY inside the screen:
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
