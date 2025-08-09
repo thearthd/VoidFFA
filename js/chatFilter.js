@@ -53,18 +53,24 @@ function createCanonicalForm(word) {
  */
 function isFuzzyMatch(inputCanonical, bannedCanonical) {
     // A direct substring match is the strongest form of fuzzy match.
-    if (canonicalText.includes(canonicalBannedWord)) {
+    if (inputCanonical.includes(bannedCanonical) && inputCanonical.length > 3) {
         return true;
     }
 
-    // Levenshtein distance check.
-    const distance = getLevenshteinDistance(inputCanonical, bannedCanonical);
-    
-    // A distance of 1-2 indicates a very close match.
-    if (distance <= 2) {
-        return true;
+    // Check for a high degree of character overlap.
+    const minOverlapPercentage = 0.75; // 75% of letters must match
+    let matchingCharacters = 0;
+    let bannedChars = bannedCanonical.split('');
+
+    for (const char of inputCanonical) {
+        const index = bannedChars.indexOf(char);
+        if (index !== -1) {
+            matchingCharacters++;
+            bannedChars.splice(index, 1);
+        }
     }
-    return false;
+    
+    return matchingCharacters >= bannedCanonical.length * minOverlapPercentage;
 }
 
 // --- Main Filter Function ---
