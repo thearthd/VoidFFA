@@ -739,22 +739,27 @@ export function initAmmoDisplay(weaponKey, maxAmmo) {
         return;
     }
 
-    // Get the span that is already in the HTML
     ammoCountSpan = ammoDiv.querySelector('.ammo');
     if (!ammoCountSpan) {
         console.warn("Ammo count span not found inside ammo display div.");
         return;
     }
 
-    // Set the initial text
     ammoCountSpan.innerText = `${maxAmmo} / ${maxAmmo}`;
     
     // Positioning logic based on the inventory element's position.
     const inventory = document.getElementById('inventory');
     if (inventory) {
-        const rect = inventory.getBoundingClientRect();
-        ammoDiv.style.left = `${rect.right + 10}px`; // 10px to the right of inventory
-        ammoDiv.style.top = `${rect.top}px`; // Vertically align with the top of the inventory
+        const inventoryRect = inventory.getBoundingClientRect();
+        
+        // Use the inventory's right edge as the starting point and add a margin
+        ammoDiv.style.left = `${inventoryRect.right + 10}px`;
+        
+        // Center the ammo display vertically with the inventory
+        const ammoHeight = ammoDiv.offsetHeight;
+        const inventoryHeight = inventoryRect.height;
+        const verticalOffset = (inventoryHeight - ammoHeight) / 2;
+        ammoDiv.style.top = `${inventoryRect.top + verticalOffset}px`;
     }
 }
 
