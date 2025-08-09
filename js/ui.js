@@ -487,72 +487,40 @@ function getSavedLoadout() {
 }
 
 export function initInventory(currentWeaponKey) {
-    const inv = document.getElementById("inventory");
-    if (!inv) return;
-    inv.innerHTML = "";
+    const inv = document.getElementById("inventory");
+    if (!inv) return;
 
-    const parent = inv.parentNode;
-    if (getComputedStyle(parent).position === 'static') {
-        parent.style.position = 'relative';
-    }
+    const { primary, secondary } = getSavedLoadout();
+    const weaponKeys = ['knife'];
+    if (primary) weaponKeys.push(primary);
+    if (secondary) weaponKeys.push(secondary);
 
-    const { primary, secondary } = getSavedLoadout();
-    const weaponKeys = ['knife']; // Knife is always present
-    if (primary) weaponKeys.push(primary);
-    if (secondary) weaponKeys.push(secondary);
+    for (const key of weaponKeys) {
+        const slot = document.getElementById(`inv-${key}`);
+        if (!slot) continue;
 
-    for (const key of weaponKeys) {
-        const slot = document.createElement("div");
-        slot.classList.add("inventory-slot");
-        slot.id = `inv-${key}`;
-        Object.assign(slot.style, {
-            width: '100px', // Set a fixed width for the image container
-            height: '60px', // Set a fixed height for the image container
-            backgroundColor: '#333',
-            border: '1px solid #555',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            transition: 'background-color 0.2s, border-color 0.2s',
-            pointerEvents: 'auto',
-            display: 'flex', // Use flexbox for centering
-            justifyContent: 'center', // Center horizontally
-            alignItems: 'center', // Center vertically
-            overflow: 'hidden', // Hide overflow if image is too large
-        });
+        const img = slot.querySelector("img");
+        if (img) {
+            img.src = WEAPON_IMAGES[key] || "";
+            img.alt = key;
+        }
 
-        const img = document.createElement("img");
-        img.src = WEAPON_IMAGES[key];
-        img.alt = key; // Add alt text for accessibility
-        Object.assign(img.style, {
-            maxWidth: '90%', // Ensure image fits within the slot
-            maxHeight: '90%', // Ensure image fits within the slot
-            objectFit: 'contain', // Scale image down to fit
-        });
-        slot.appendChild(img);
-
-        if (key === currentWeaponKey) {
-            slot.classList.add("selected");
-            slot.style.borderColor = '#0f0';
-            slot.style.backgroundColor = '#444';
-        }
-        inv.appendChild(slot);
-    }
+        if (key === currentWeaponKey) {
+            slot.classList.add("selected");
+        } else {
+            slot.classList.remove("selected");
+        }
+    }
 }
 
-
 export function updateInventory(currentWeaponKey) {
-    const slots = document.querySelectorAll(".inventory-slot");
-    slots.forEach((s) => {
-        s.classList.remove("selected");
-        s.style.borderColor = '#555'; // Reset border color
-        s.style.backgroundColor = '#333'; // Reset background color
-    });
-    const currentSlot = document.getElementById(`inv-${currentWeaponKey}`);
-    if (currentSlot) {
-        currentSlot.classList.add("selected");
-        currentSlot.style.borderColor = '#0f0'; // Highlight selected
-        currentSlot.style.backgroundColor = '#444';
-    }
+    const slots = document.querySelectorAll(".inventory-slot");
+    slots.forEach((s) => s.classList.remove("selected"));
+
+    const currentSlot = document.getElementById(`inv-${currentWeaponKey}`);
+    if (currentSlot) {
+        currentSlot.classList.add("selected");
+    }
 }
 
 let lastValidHp = 100;
