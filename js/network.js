@@ -418,7 +418,8 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
     await endGameCleanup();
 
-    const slotSnap = await get(ref(gamesRef, gameId + "/slot"));
+    // Use .child() and .once() from the compat SDK
+    const slotSnap = await gamesRef.child(gameId + "/slot").once("value");
     const slotName = slotSnap.val();
     if (!slotName) {
         Swal.fire('Error', 'No slot associated with that game ID.', 'error');
@@ -436,7 +437,8 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     dbRefs = newDbRefs;
     setUIDbRefs(dbRefs);
 
-    const currentPlayersSnap = await get(dbRefs.playersRef);
+    // Use .once() from the compat SDK
+    const currentPlayersSnap = await dbRefs.playersRef.once("value");
     const playerCount = currentPlayersSnap.exists() ? Object.keys(currentPlayersSnap.val()).length : 0;
     if (playerCount >= 10) {
         Swal.fire({
@@ -460,8 +462,10 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     }
     window.localPlayerId = localPlayerId;
 
-    const playerOnDisconnectRef = ref(dbRefs.playersRef, localPlayerId);
-    await onDisconnect(playerOnDisconnectRef).remove()
+    // Use .child() to get the reference, then chain .onDisconnect() and .remove()
+    const playerRef = dbRefs.playersRef.child(localPlayerId);
+    const playerOnDisconnectRef = playerRef.onDisconnect();
+    await playerOnDisconnectRef.remove()
         .then(() => console.log(`[network.js] onDisconnect set for player '${localPlayerId}' in game DB.`))
         .catch(err => console.error(`[network.js] Error setting onDisconnect for player '${localPlayerId}':`, err));
 
@@ -482,7 +486,8 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     };
 
     try {
-        await set(playerOnDisconnectRef, initialPlayerState);
+        // Use .set() on the player reference
+        await playerRef.set(initialPlayerState);
         console.log("Local player initial state set in Firebase for slot:", activeGameSlotName);
     } catch (err) {
         console.error("Failed to set initial player data:", err);
