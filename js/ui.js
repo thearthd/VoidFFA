@@ -705,7 +705,6 @@ export function initAmmoDisplay(weaponKey, maxAmmo) {
     // Only display numbers
     ammoDiv.innerText = `${maxAmmo} / ${maxAmmo}`;
     // Position it to the right of the inventory
-    positionAmmoDisplay();
 }
 
 export function updateAmmoDisplay(currentAmmo, maxAmmo) {
@@ -713,16 +712,4 @@ export function updateAmmoDisplay(currentAmmo, maxAmmo) {
     // Only display numbers
     ammoDiv.innerText = `${currentAmmo} / ${maxAmmo}`;
     // Re-position in case inventory shifts (though unlikely in real-time)
-    positionAmmoDisplay();
-}
-
-function positionAmmoDisplay() {
-    const inventory = document.getElementById('inventory');
-    const ammoDisplay = document.getElementById('ammo-display');
-    if (inventory && ammoDisplay) {
-        const invRect = inventory.getBoundingClientRect();
-        // Calculate position based on inventory's right edge + a small gap
-        ammoDisplay.style.left = `${invRect.right + 10}px`; // 10px gap
-        ammoDisplay.style.transform = `translateX(0)`; // Remove transform if it was centered
-    }
 }
