@@ -309,15 +309,13 @@ export function disconnectPlayer(playerId) {
 
     if (playerId === localPlayerId) {
         console.log("Disconnecting local player:", playerId);
-        dbRefs.playersRef.child(playerId).remove()
+        remove(ref(dbRefs.playersRef, playerId))
             .then(() => {
                 console.log(`Local player ${playerId} removed from Firebase.`);
-                // Note: The `child_removed` listener for `localPlayerId` will handle `localStorage.removeItem("playerId")`
-                // and `location.reload()`, so we don't duplicate that here.
             })
             .catch(err => console.error("Failed to remove local player from Firebase:", err));
 
-        localPlayerId = null; // Setting localPlayerId to null will also stop the animate loop in game.js
+        localPlayerId = null;
     } else {
         console.log("Disconnecting remote player:", playerId);
         removeRemotePlayerModel(playerId);
@@ -325,6 +323,7 @@ export function disconnectPlayer(playerId) {
         permanentlyRemoved.add(playerId);
     }
 }
+
 window.disconnectPlayer = disconnectPlayer; // Make accessible globally for button presses etc.
 
 // --- Game End Cleanup ---
@@ -332,41 +331,38 @@ window.disconnectPlayer = disconnectPlayer; // Make accessible globally for butt
 export async function endGameCleanup() {
     console.log("[network.js] Running endGameCleanup...");
 
-    // Detach all Firebase listeners from the current game database
-    if (playersListener && dbRefs.playersRef) {
-        dbRefs.playersRef.off("value", playersListener);
+    if (playersListener) {
+        onValue(dbRefs.playersRef, () => {});
         playersListener = null;
         console.log("Players listener detached.");
     }
-    if (chatListener && dbRefs.chatRef) {
-        dbRefs.chatRef.off("child_added", chatListener);
+    if (chatListener) {
+        onValue(dbRefs.chatRef, () => {});
         chatListener = null;
         console.log("Chat listener detached.");
     }
-    if (killsListener && dbRefs.killsRef) {
-        dbRefs.killsRef.off("child_added", killsListener);
+    if (killsListener) {
+        onValue(dbRefs.killsRef, () => {});
         killsListener = null;
         console.log("Kills listener detached.");
     }
-    if (mapStateListener && dbRefs.mapStateRef) {
-        // Note: The original code was only detaching from 'bullets'.
-        // Ensure this is the correct behavior or adjust if other mapState children need detaching.
-        dbRefs.mapStateRef.child("bullets").off("child_added", mapStateListener);
+    if (mapStateListener) {
+        onValue(dbRefs.mapStateRef, () => {});
         mapStateListener = null;
-        console.log("MapState/bullets listener detached.");
+        console.log("MapState listener detached.");
     }
-    if (tracersListener && dbRefs.tracersRef) {
-        dbRefs.tracersRef.off("child_added", tracersListener);
+    if (tracersListener) {
+        onValue(dbRefs.tracersRef, () => {});
         tracersListener = null;
         console.log("Tracers listener detached.");
     }
-    if (soundsListener && dbRefs.soundsRef) {
-        dbRefs.soundsRef.off("child_added", soundsListener);
+    if (soundsListener) {
+        onValue(dbRefs.soundsRef, () => {});
         soundsListener = null;
         console.log("Sounds listener detached.");
     }
-    if (gameConfigListener && dbRefs.gameConfigRef) {
-        dbRefs.gameConfigRef.off("value", gameConfigListener);
+    if (gameConfigListener) {
+        onValue(dbRefs.gameConfigRef, () => {});
         gameConfigListener = null;
         console.log("GameConfig listener detached.");
     }
@@ -378,34 +374,28 @@ export async function endGameCleanup() {
 
     if (dbRefs.playersRef && localPlayerId) {
         try {
-            // Remove the local player's entry from the Firebase database
-            await dbRefs.playersRef.child(localPlayerId).remove();
+            const playerRef = ref(dbRefs.playersRef, localPlayerId);
+            const db = getDatabase(firebase.app(activeGameSlotName + "App"));
+            await remove(playerRef);
             console.log(`Local player '${localPlayerId}' explicitly removed from Firebase.`);
-            // The onDisconnect().cancel() was commented out, if it's needed, uncomment it here.
-            // dbRefs.playersRef.child(localPlayerId).onDisconnect().cancel();
         } catch (error) {
             console.error(`Error removing local player '${localPlayerId}' from Firebase during cleanup:`, error);
         }
     }
 
-    // Release the game slot and remove the lobby entry
-    // This function is responsible for setting activeGameSlotName to null
     if (activeGameSlotName) {
         await releaseGameSlot(activeGameSlotName);
         console.log(`Game slot '${activeGameSlotName}' released AND lobby entry removed.`);
         localStorage.removeItem(`playerId-${activeGameSlotName}`);
-        activeGameSlotName = null; // Ensure it's nullified here
+        activeGameSlotName = null;
     }
 
-    // Clear local state variables
-    localPlayerId = null; // Ensure localPlayerId is also nullified
-    dbRefs = {}; // Clear all database references
+    localPlayerId = null;
+    dbRefs = {};
     
-    // Clear remote player models and data
     for (const id in remotePlayers) {
-        removeRemotePlayerModel(id); // Assuming this function disposes Three.js objects
+        removeRemotePlayerModel(id);
     }
-    // Clear the remotePlayers object itself
     for (const key in remotePlayers) {
         delete remotePlayers[key];
     }
@@ -414,7 +404,6 @@ export async function endGameCleanup() {
 
     console.log("[network.js] Game cleanup complete. All listeners detached and data cleared.");
 }
-
 
 
 /**
@@ -426,96 +415,60 @@ export async function endGameCleanup() {
  * @returns {Promise<boolean>} True if network initialization was successful, false otherwise.
  */
 export async function initNetwork(username, mapName, gameId, ffaEnabled) {
-  console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
-  await endGameCleanup();
+    console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
+    await endGameCleanup();
 
-  // 1) look up slotName from the game entry
-  const slotSnap = await gamesRef.child(gameId).child('slot').once('value');
-  const slotName = slotSnap.val();
-  if (!slotName) {
-    Swal.fire('Error','No slot associated with that game ID.','error');
-    return false;
-  }
-activeGameId = gameId;
-  // ─── MANUAL SLOT INITIALIZATION (instead of claimGameSlot) ───
-  activeGameSlotName = slotName;
-
-  // Pick the right config object from your firebase-config.js
-  const slotConfig = gameDatabaseConfigs[slotName];
-  if (!slotConfig) {
-    console.error(`No firebase config found for slot "${slotName}"`);
-    return false;
-  }
-
-  // Initialize—or re‑use if already initialized—the slot‑specific app
-  let slotApp;
-  try {
-    slotApp = firebase.app(slotName + 'App');
-  } catch (e) {
-    slotApp = firebase.initializeApp(slotConfig, slotName + 'App');
-  }
-
-  // Build your DB refs exactly as claimGameSlot would have done
-  const rootRef = slotApp.database().ref();
-  dbRefs = {
-    playersRef:    rootRef.child('players'),
-    chatRef:       rootRef.child('chat'),
-    killsRef:      rootRef.child('kills'),
-    mapStateRef:   rootRef.child('mapState'),
-    tracersRef:    rootRef.child('tracers'),
-    soundsRef:     rootRef.child('sounds'),
-    gameConfigRef: rootRef.child('gameConfig'),
-  };
-  setUIDbRefs(dbRefs);
-  console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotConfig.databaseURL}`);
-  const currentPlayersSnap = await dbRefs.playersRef.once('value');
-  if (currentPlayersSnap.numChildren() >= 10) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Game Full',
-      text: 'Sorry, this game slot already has 10 players.'
-    });
-    return false;
-  }
-    // --- CONSOLE LOG ADDED HERE ---
-    if (dbRefs.playersRef && dbRefs.playersRef.database && dbRefs.playersRef.database.app_ && dbRefs.playersRef.database.app_.options) {
-        console.log(`[network.js] Game is connected to Firebase database: ${dbRefs.playersRef.database.app_.options.databaseURL}`);
-    } else {
-        console.warn("[network.js] Could not determine database URL from dbRefs.playersRef.database.app_.options. This might be expected if dbRefs are not fully initialized yet or structure is different.");
+    const slotSnap = await get(ref(gamesRef, gameId + "/slot"));
+    const slotName = slotSnap.val();
+    if (!slotName) {
+        Swal.fire('Error', 'No slot associated with that game ID.', 'error');
+        return false;
     }
-    console.log("[network.js] dbRefs after claiming slot (from network.js):", dbRefs);
-    // --- END CONSOLE LOG ---
+    activeGameId = gameId;
+    activeGameSlotName = slotName;
 
-    // Set localPlayerId
+    const gameAuthResult = await initGameFirebaseApp(slotName);
+    if (!gameAuthResult) {
+        console.error("Failed to initialize Firebase app or authenticate for game slot.");
+        return false;
+    }
+    const { slotApp, userId, dbRefs: newDbRefs } = gameAuthResult;
+    dbRefs = newDbRefs;
+    setUIDbRefs(dbRefs);
+
+    const currentPlayersSnap = await get(dbRefs.playersRef);
+    const playerCount = currentPlayersSnap.exists() ? Object.keys(currentPlayersSnap.val()).length : 0;
+    if (playerCount >= 10) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Game Full',
+            text: 'Sorry, this game slot already has 10 players.'
+        });
+        return false;
+    }
+
+    console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotApp.options.databaseURL}`);
+
     let storedPlayerId = localStorage.getItem(`playerId-${activeGameSlotName}`);
     if (storedPlayerId) {
         localPlayerId = storedPlayerId;
         console.log(`[network.js] Re-using localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
     } else {
-        // Ensure that dbRefs.playersRef is available before trying to push
-        if (!dbRefs.playersRef) {
-             console.error("[network.js] dbRefs.playersRef is not defined. Cannot generate localPlayerId.");
-             // Attempt to release the slot if it was claimed but playerRef isn't ready
-             if (activeGameSlotName) await releaseGameSlot(activeGameSlotName);
-             return false;
-        }
-        localPlayerId = dbRefs.playersRef.push().key; // Generate a new player ID
+        localPlayerId = userId;
         localStorage.setItem(`playerId-${activeGameSlotName}`, localPlayerId);
-        console.log(`[network.js] Generated new localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
+        console.log(`[network.js] Generated new localPlayerId (from UID) for slot '${activeGameSlotName}':`, localPlayerId);
     }
-    window.localPlayerId = localPlayerId; // Ensure it's accessible globally if needed by game.js directly
+    window.localPlayerId = localPlayerId;
 
-    // Set onDisconnect for the *game-specific* player reference
-    // This removes the player's data from the active game DB if they disconnect
-    dbRefs.playersRef.child(localPlayerId).onDisconnect().remove()
+    const playerOnDisconnectRef = ref(dbRefs.playersRef, localPlayerId);
+    await onDisconnect(playerOnDisconnectRef).remove()
         .then(() => console.log(`[network.js] onDisconnect set for player '${localPlayerId}' in game DB.`))
         .catch(err => console.error(`[network.js] Error setting onDisconnect for player '${localPlayerId}':`, err));
 
-    // Initial player state
     const initialPlayerState = {
         id: localPlayerId,
         username,
-        x: 0, y: 0, z: 0, // These will be overwritten by game.js's spawn point
+        x: 0, y: 0, z: 0,
         rotY: 0,
         health: 100,
         shield: 50,
@@ -529,7 +482,7 @@ activeGameId = gameId;
     };
 
     try {
-        await dbRefs.playersRef.child(localPlayerId).set(initialPlayerState);
+        await set(playerOnDisconnectRef, initialPlayerState);
         console.log("Local player initial state set in Firebase for slot:", activeGameSlotName);
     } catch (err) {
         console.error("Failed to set initial player data:", err);
@@ -538,22 +491,19 @@ activeGameId = gameId;
             title: 'Firebase Error',
             text: 'Could not write initial player data. Please check connection and try again.'
         });
-        // Release the slot if we failed to set initial player data
         if (activeGameSlotName) await releaseGameSlot(activeGameSlotName);
         return false;
     }
 
-    // Setup listeners for the new game's database
     setupPlayersListener(dbRefs.playersRef);
     setupChatListener(dbRefs.chatRef);
     setupKillsListener(dbRefs.killsRef);
     setupMapStateListener(dbRefs.mapStateRef);
-    startSoundListener(); // Uses dbRefs.soundsRef internally
+    startSoundListener();
     setupTracerListener(dbRefs.tracersRef);
-    // Note: gameConfig listener is typically set up in game.js for timer management
 
     console.log("[network.js] Network initialization complete.");
-    return true; // Indicate success
+    return true;
 }
 
 // --- Listener Setup Functions ---
