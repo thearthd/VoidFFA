@@ -270,11 +270,13 @@ export function updateHUD() {
 }
 
 export function showLoadoutScreen() {
+  loadoutScreen.style.display = 'flex';
   const el = document.getElementById("loadout-screen");
   if (!el) return;
   el.classList.add("open");
 }
 export function hideLoadoutScreen() {
+  loadoutScreen.style.display = 'none';
   const el = document.getElementById("loadout-screen");
   if (!el) return;
   el.classList.remove("open");
