@@ -320,8 +320,6 @@ async function determineWinnerAndEndGame() {
 
     await disposeGame();
     await fullCleanup(activeGameId);
-    
-    playerIdsToDisconnect.forEach(id => disconnectPlayer(id));
 }
 
 window.determineWinnerAndEndGame = determineWinnerAndEndGame;
@@ -2773,6 +2771,7 @@ lastDamageSourcePosition = null;
 prevHealth = health;
 prevShield = shield;
 }
+
 
 
 
