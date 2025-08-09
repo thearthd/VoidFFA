@@ -438,7 +438,7 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     dbRefs = newDbRefs;
     setUIDbRefs(dbRefs);
 
-    // Use .once() from the compat SDK
+    // Player count check
     const currentPlayersSnap = await dbRefs.playersRef.once("value");
     const playerCount = currentPlayersSnap.exists() ? Object.keys(currentPlayersSnap.val()).length : 0;
     if (playerCount >= 10) {
@@ -452,15 +452,15 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
 
     console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotApp.options.databaseURL}`);
 
+    // Always match localPlayerId with current auth.uid
     let storedPlayerId = localStorage.getItem(`playerId-${activeGameSlotName}`);
-    if (storedPlayerId) {
-        localPlayerId = storedPlayerId;
-        console.log(`[network.js] Re-using localPlayerId for slot '${activeGameSlotName}':`, localPlayerId);
-    } else {
-        localPlayerId = userId;
-        localStorage.setItem(`playerId-${activeGameSlotName}`, localPlayerId);
-        console.log(`[network.js] Generated new localPlayerId (from UID) for slot '${activeGameSlotName}':`, localPlayerId);
+    if (!storedPlayerId || storedPlayerId !== userId) {
+        // Either no ID stored or it doesn't match current auth.uid — replace it
+        localStorage.setItem(`playerId-${activeGameSlotName}`, userId);
+        storedPlayerId = userId;
+        console.log(`[network.js] Stored playerId updated to current auth.uid: ${storedPlayerId}`);
     }
+    localPlayerId = storedPlayerId;
     window.localPlayerId = localPlayerId;
 
     // Use .child() to get the reference, then chain .onDisconnect() and .remove()
@@ -487,7 +487,6 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     };
 
     try {
-        // Use .set() on the player reference
         await playerRef.set(initialPlayerState);
         console.log("Local player initial state set in Firebase for slot:", activeGameSlotName);
     } catch (err) {
