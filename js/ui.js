@@ -549,7 +549,7 @@ const MAX_TOTAL = MAX_HP + MAX_SHIELD;
 let lastValidHp = MAX_HP;
 let lastValidShield = MAX_SHIELD;
 
-function updateHealthShieldUI(hp, shield) {
+export function updateHealthShieldUI(hp, shield) {
     const validHp = typeof hp === 'number' && !Number.isNaN(hp);
     const validShield = typeof shield === 'number' && !Number.isNaN(shield);
 
