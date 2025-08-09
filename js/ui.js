@@ -734,20 +734,39 @@ export function initBulletHoles() {
     AMMO DISPLAY (unchanged)
     ————————————————————————————————————————————————————————————————————— */
 let ammoDiv = null;
+let ammoCountSpan = null;
+
 export function initAmmoDisplay(weaponKey, maxAmmo) {
-    ammoDiv = document.getElementById("ammo-display");
-    if (!ammoDiv) {
-        console.warn("Ammo display div not found after UI creation.");
-        return;
-    }
-    // Only display numbers
-    ammoDiv.innerText = `${maxAmmo} / ${maxAmmo}`;
-    // Position it to the right of the inventory
+    ammoDiv = document.getElementById("ammo-display");
+    if (!ammoDiv) {
+        console.warn("Ammo display div not found after UI creation.");
+        return;
+    }
+
+    // Create the inner span with the 'ammo' class
+    ammoCountSpan = document.createElement('span');
+    ammoCountSpan.className = 'ammo';
+    ammoDiv.appendChild(ammoCountSpan);
+
+    // Set the initial text
+    ammoCountSpan.innerText = `${maxAmmo} / ${maxAmmo}`;
+    
+    // The positioning logic for 'left' and 'top' would go here
+    // based on the inventory element's position.
+    // For example:
+    // const inventory = document.getElementById('inventory-div');
+    // if (inventory) {
+    //     const rect = inventory.getBoundingClientRect();
+    //     ammoDiv.style.left = `${rect.right + 10}px`; // 10px to the right of inventory
+    //     ammoDiv.style.top = `${rect.top}px`;
+    // }
 }
 
 export function updateAmmoDisplay(currentAmmo, maxAmmo) {
-    if (!ammoDiv) return;
-    // Only display numbers
-    ammoDiv.innerText = `${currentAmmo} / ${maxAmmo}`;
-    // Re-position in case inventory shifts (though unlikely in real-time)
+    if (!ammoCountSpan) return;
+    
+    // Update the inner span's text content
+    ammoCountSpan.innerText = `${currentAmmo} / ${maxAmmo}`;
+    
+    // Repositioning logic would go here if needed.
 }
