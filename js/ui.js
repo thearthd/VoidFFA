@@ -729,13 +729,6 @@ export function initBulletHoles() {
     console.log("UI: initBulletHoles called. Direct calls from network.js for add/remove expected.");
 }
 
-
-/* —————————————————————————————————————————————————————————————————————
-    AMMO DISPLAY (unchanged)
-    ————————————————————————————————————————————————————————————————————— */
-let ammoDiv = null;
-let ammoCountSpan = null;
-
 let ammoDiv = null;
 let ammoCountSpan = null;
 
