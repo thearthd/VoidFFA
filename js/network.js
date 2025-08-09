@@ -419,7 +419,7 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     console.log("[network.js] initNetwork for", username, mapName, gameId, ffaEnabled);
     await endGameCleanup();
 
-    // Use .child() and .once() from the compat SDK
+    // --- get slot name from lobby ---
     const slotSnap = await gamesRef.child(gameId + "/slot").once("value");
     const slotName = slotSnap.val();
     if (!slotName) {
@@ -429,16 +429,45 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
     activeGameId = gameId;
     activeGameSlotName = slotName;
 
+    // --- init firebase app for this slot (auth + db) ---
     const gameAuthResult = await initGameFirebaseApp(slotName);
     if (!gameAuthResult) {
         console.error("Failed to initialize Firebase app or authenticate for game slot.");
         return false;
     }
     const { slotApp, userId, dbRefs: newDbRefs } = gameAuthResult;
-    dbRefs = newDbRefs;
+
+    // Keep whatever dbRefs the helper returned, but explicitly create / enforce
+    // a namespaced "game/<gameId>" root for in-game data to match your DB rules.
+    // (This prevents accidental reads/writes to /players at the root.)
+    const slotDb = slotApp.database(); // compat-style Database instance
+    const gameRootRef = slotDb.ref(`game/${gameId}`);
+
+    // Build canonical refs nested under game/<gameId>
+    dbRefs = {
+        rootRef: gameRootRef,
+        playersRef: gameRootRef.child("players"),
+        chatRef: gameRootRef.child("chat"),
+        killsRef: gameRootRef.child("kills"),
+        mapStateRef: gameRootRef.child("mapState"),
+        tracersRef: gameRootRef.child("tracers"),
+        soundsRef: gameRootRef.child("sounds"),
+        gameConfigRef: gameRootRef.child("gameConfig")
+    };
     setUIDbRefs(dbRefs);
 
-    // Player count check
+    // Diagnostic: log the actual paths we're using (very helpful when debugging rules)
+    try {
+        console.log("[network.js] DB refs bound to paths:",
+            "players:", dbRefs.playersRef.toString(),
+            "chat:", dbRefs.chatRef.toString(),
+            "kills:", dbRefs.killsRef.toString()
+        );
+    } catch (e) {
+        console.log("[network.js] (diagnostic) couldn't stringify refs:", e);
+    }
+
+    // --- Player count check (using the namespaced playersRef) ---
     const currentPlayersSnap = await dbRefs.playersRef.once("value");
     const playerCount = currentPlayersSnap.exists() ? Object.keys(currentPlayersSnap.val()).length : 0;
     if (playerCount >= 10) {
@@ -450,16 +479,24 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
         return false;
     }
 
-    console.log(`[network.js] Using existing slot "${slotName}" with DB URL ${slotApp.options.databaseURL}`);
+    console.log(`[network.js] Using slot "${slotName}" with DB URL ${slotApp.options.databaseURL}`);
 
-    // Force correct ID from auth (guarantees localPlayerId === auth.uid)
-    const correctPlayerId = userId; // From Firebase auth
+    // --- Force correct ID from auth (guarantees localPlayerId === auth.uid) ---
+    // userId comes from initGameFirebaseApp and should be the signed-in auth UID
+    const correctPlayerId = userId;
+    if (!correctPlayerId) {
+        console.error("[network.js] No auth UID available (userId is falsy). Aborting initNetwork.");
+        Swal.fire('Error', 'Authentication failed (no UID).', 'error');
+        return false;
+    }
+
+    // Overwrite localStorage for this slot with the authenticated UID (ensures rule match)
     localStorage.setItem(`playerId-${activeGameSlotName}`, correctPlayerId);
     localPlayerId = correctPlayerId;
     window.localPlayerId = correctPlayerId;
     console.log(`[network.js] Using auth.uid as localPlayerId: ${correctPlayerId}`);
 
-    // Now bind playerRef AFTER correcting ID
+    // --- Bind playerRef AFTER correcting ID (so rules like auth.uid === $playerId pass) ---
     const playerRef = dbRefs.playersRef.child(correctPlayerId);
 
     // Clean up on disconnect
@@ -470,6 +507,7 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
         console.error(`[network.js] Error setting onDisconnect for player '${correctPlayerId}':`, err);
     }
 
+    // --- initial player payload ---
     const initialPlayerState = {
         id: correctPlayerId,
         username,
@@ -486,12 +524,14 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
         lastUpdate: Date.now()
     };
 
+    // --- Write initial player to DB (this should now meet the ".write": "auth.uid === $playerId" rule) ---
     try {
-        // This will now match your Firebase security rule ".write": "auth.uid === $playerId"
         await playerRef.set(initialPlayerState);
         console.log("Local player initial state set in Firebase for slot:", activeGameSlotName);
     } catch (err) {
         console.error("Failed to set initial player data:", err);
+        // Helpful debug info for permission_denied: log error.code/message
+        if (err && err.code) console.error("Firebase error code:", err.code);
         Swal.fire({
             icon: 'error',
             title: 'Firebase Error',
@@ -501,6 +541,7 @@ export async function initNetwork(username, mapName, gameId, ffaEnabled) {
         return false;
     }
 
+    // --- Attach listeners (use the namespaced refs) ---
     setupPlayersListener(dbRefs.playersRef);
     setupChatListener(dbRefs.chatRef);
     setupKillsListener(dbRefs.killsRef);
