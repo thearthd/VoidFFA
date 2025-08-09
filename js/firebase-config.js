@@ -76,7 +76,7 @@ export let menuChatRef = null;
 export let requiredGameVersion = "v1.00"; // Default version, will be updated from DB
 
 export function initializeMenuFirebase() {
-    if (firebase.getApps().length === 0) {
+    if (firebase.apps.length === 0) {
         // Initialize the default app first
         firebase.initializeApp(menuConfig);
         console.log("Initialized DEFAULT Firebase App.");
