@@ -332,40 +332,113 @@ window.disconnectPlayer = disconnectPlayer; // Make accessible globally for butt
 export async function endGameCleanup() {
     console.log("[network.js] Running endGameCleanup...");
 
-    if (playersListener) {
-        onValue(dbRefs.playersRef, () => {});
+    // Detach listeners robustly using the refs' .off() when available.
+    try {
+        if (dbRefs?.playersRef) {
+            if (playersListener && typeof dbRefs.playersRef.off === "function") {
+                dbRefs.playersRef.off("value", playersListener);
+            } else if (typeof dbRefs.playersRef.off === "function") {
+                dbRefs.playersRef.off();
+            }
+            playersListener = null;
+            console.log("Players listener detached.");
+        }
+    } catch (e) {
+        console.warn("Failed to detach players listener:", e);
         playersListener = null;
-        console.log("Players listener detached.");
     }
-    if (chatListener) {
-        onValue(dbRefs.chatRef, () => {});
+
+    try {
+        if (dbRefs?.chatRef) {
+            if (chatListener && typeof dbRefs.chatRef.off === "function") {
+                dbRefs.chatRef.off("child_added", chatListener);
+            } else if (typeof dbRefs.chatRef.off === "function") {
+                dbRefs.chatRef.off();
+            }
+            chatListener = null;
+            console.log("Chat listener detached.");
+        }
+    } catch (e) {
+        console.warn("Failed to detach chat listener:", e);
         chatListener = null;
-        console.log("Chat listener detached.");
     }
-    if (killsListener) {
-        onValue(dbRefs.killsRef, () => {});
+
+    try {
+        if (dbRefs?.killsRef) {
+            if (killsListener && typeof dbRefs.killsRef.off === "function") {
+                dbRefs.killsRef.off("child_added", killsListener);
+            } else if (typeof dbRefs.killsRef.off === "function") {
+                dbRefs.killsRef.off();
+            }
+            killsListener = null;
+            console.log("Kills listener detached.");
+        }
+    } catch (e) {
+        console.warn("Failed to detach kills listener:", e);
         killsListener = null;
-        console.log("Kills listener detached.");
     }
-    if (mapStateListener) {
-        onValue(dbRefs.mapStateRef, () => {});
+
+    try {
+        if (dbRefs?.mapStateRef) {
+            if (mapStateListener && typeof dbRefs.mapStateRef.child === "function") {
+                // if you attached child listeners, try to detach them
+                if (typeof mapStateListener === "function" && typeof dbRefs.mapStateRef.child === "function") {
+                    dbRefs.mapStateRef.child("bullets").off("child_added", mapStateListener);
+                }
+            } else if (typeof dbRefs.mapStateRef.off === "function") {
+                dbRefs.mapStateRef.off();
+            }
+            mapStateListener = null;
+            console.log("MapState listener detached.");
+        }
+    } catch (e) {
+        console.warn("Failed to detach mapState listener:", e);
         mapStateListener = null;
-        console.log("MapState listener detached.");
     }
-    if (tracersListener) {
-        onValue(dbRefs.tracersRef, () => {});
+
+    try {
+        if (dbRefs?.tracersRef) {
+            if (tracersListener && typeof dbRefs.tracersRef.off === "function") {
+                dbRefs.tracersRef.off("child_added", tracersListener);
+            } else if (typeof dbRefs.tracersRef.off === "function") {
+                dbRefs.tracersRef.off();
+            }
+            tracersListener = null;
+            console.log("Tracers listener detached.");
+        }
+    } catch (e) {
+        console.warn("Failed to detach tracers listener:", e);
         tracersListener = null;
-        console.log("Tracers listener detached.");
     }
-    if (soundsListener) {
-        onValue(dbRefs.soundsRef, () => {});
+
+    try {
+        if (dbRefs?.soundsRef) {
+            if (soundsListener && typeof dbRefs.soundsRef.off === "function") {
+                dbRefs.soundsRef.off("child_added", soundsListener);
+            } else if (typeof dbRefs.soundsRef.off === "function") {
+                dbRefs.soundsRef.off();
+            }
+            soundsListener = null;
+            console.log("Sounds listener detached.");
+        }
+    } catch (e) {
+        console.warn("Failed to detach sounds listener:", e);
         soundsListener = null;
-        console.log("Sounds listener detached.");
     }
-    if (gameConfigListener) {
-        onValue(dbRefs.gameConfigRef, () => {});
+
+    try {
+        if (dbRefs?.gameConfigRef) {
+            if (gameConfigListener && typeof dbRefs.gameConfigRef.off === "function") {
+                dbRefs.gameConfigRef.off("value", gameConfigListener);
+            } else if (typeof dbRefs.gameConfigRef.off === "function") {
+                dbRefs.gameConfigRef.off();
+            }
+            gameConfigListener = null;
+            console.log("GameConfig listener detached.");
+        }
+    } catch (e) {
+        console.warn("Failed to detach gameConfig listener:", e);
         gameConfigListener = null;
-        console.log("GameConfig listener detached.");
     }
 
     if (audioManagerInstance) {
@@ -373,11 +446,23 @@ export async function endGameCleanup() {
         console.log("Audio manager stopped all sounds.");
     }
 
-    if (dbRefs.playersRef && localPlayerId) {
+    // Remove the local player entry in a way that works for both compat and modular refs
+    if (dbRefs?.playersRef && localPlayerId) {
         try {
-            const playerRef = ref(dbRefs.playersRef, localPlayerId);
-            const db = getDatabase(firebase.app(activeGameSlotName + "App"));
-            await remove(playerRef);
+            if (typeof dbRefs.playersRef.child === "function") {
+                // compat-style ref
+                await dbRefs.playersRef.child(localPlayerId).remove();
+            } else {
+                // fallback to modular-style remove(ref(db, path))
+                try {
+                    const db = getDatabase(firebase.app(activeGameSlotName + "App"));
+                    const modularRef = ref(db, `game/${activeGameId}/players/${localPlayerId}`);
+                    await remove(modularRef);
+                } catch (innerErr) {
+                    console.error("Fallback removal failed (modular attempt):", innerErr);
+                    throw innerErr;
+                }
+            }
             console.log(`Local player '${localPlayerId}' explicitly removed from Firebase.`);
         } catch (error) {
             console.error(`Error removing local player '${localPlayerId}' from Firebase during cleanup:`, error);
@@ -385,15 +470,19 @@ export async function endGameCleanup() {
     }
 
     if (activeGameSlotName) {
-        await releaseGameSlot(activeGameSlotName);
-        console.log(`Game slot '${activeGameSlotName}' released AND lobby entry removed.`);
+        try {
+            await releaseGameSlot(activeGameSlotName);
+            console.log(`Game slot '${activeGameSlotName}' released AND lobby entry removed.`);
+        } catch (e) {
+            console.warn("releaseGameSlot failed during cleanup:", e);
+        }
         localStorage.removeItem(`playerId-${activeGameSlotName}`);
         activeGameSlotName = null;
     }
 
     localPlayerId = null;
     dbRefs = {};
-    
+
     for (const id in remotePlayers) {
         removeRemotePlayerModel(id);
     }
