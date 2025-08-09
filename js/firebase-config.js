@@ -1,7 +1,5 @@
 // firebase-config.js
-import * as firebase from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
-import { getDatabase, ref, onValue, set, get, push, remove, update } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+
 
 // Configuration for your Firebase projects
 // Make sure these match your actual Firebase project configurations
@@ -79,7 +77,7 @@ export let menuChatRef = null;
 export let requiredGameVersion = "v1.00"; // Default version, will be updated from DB
 
 export function initializeMenuFirebase() {
-    if (firebase.apps.length === 0) {
+    if (firebase.getApps().length === 0) {
         // Initialize the default app first
         firebase.initializeApp(menuConfig);
         console.log("Initialized DEFAULT Firebase App.");
