@@ -202,7 +202,7 @@ function populateWeaponGrid(containerId, list, slotType) {
 
       const panelHeight = infoPanel.getBoundingClientRect().height || 120;
       // place the panel above the cursor when possible
-      let newTop = y - panelHeight - 12;
+      let newTop = y + panelHeight - 12;
       // clamp vertically inside the visible loadout-screen area
       const topLimit = rect.top + 8;
       const bottomLimit = rect.bottom - panelHeight - 8;
@@ -211,7 +211,7 @@ function populateWeaponGrid(containerId, list, slotType) {
 
       // center horizontally around cursor but keep inside panel rect
       const panelWidth = infoPanel.getBoundingClientRect().width || 220;
-      let newLeft = x - panelWidth / 2;
+      let newLeft = x + panelWidth / 2;
       const leftLimit = rect.left + 8;
       const rightLimit = rect.right - panelWidth - 8;
       newLeft = Math.max(leftLimit, Math.min(newLeft, rightLimit));
