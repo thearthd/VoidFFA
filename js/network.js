@@ -7,7 +7,8 @@ import {
     claimGameSlot,
     releaseGameSlot,
     gamesRef,
-    gameDatabaseConfigs
+    gameDatabaseConfigs,
+    initGameFirebaseApp
 } from "./firebase-config.js";
 
 import { isMessageClean } from './chatFilter.js';
