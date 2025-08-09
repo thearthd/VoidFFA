@@ -564,6 +564,8 @@ export function updateHealthShieldUI(hp, shield) {
 
     const totalCurrent = clampedHp + clampedShield;
     const totalWidthPct = (totalCurrent / MAX_TOTAL) * 100;
+
+    const healthPct = (clampedHp / totalCurrent) * 100;
     
     // This calculates the percentage of the ENTIRE bar that is still health.
     // It prevents the visual jump because the total (MAX_TOTAL) is a constant.
@@ -574,13 +576,13 @@ export function updateHealthShieldUI(hp, shield) {
         filledBar.style.width = `${totalWidthPct}%`;
         
         // Generate and apply a new dynamic gradient based on the current values
-        const newGradient = `linear-gradient(to right, 
-            var(--health-color) 0%, 
-            var(--health-color) ${healthPctOfTotal}%, 
-            var(--shield-color) ${healthPctOfTotal}%, 
-            var(--shield-color) 100%
-        )`;
-        filledBar.style.backgroundImage = newGradient;
+    const newGradient = `linear-gradient(to right, 
+        var(--health-color) 0%, 
+        var(--health-color) ${healthPct}%, 
+        var(--shield-color) ${healthPct}%, 
+        var(--shield-color) 100%
+    )`;
+    filledBar.style.backgroundImage = newGradient;
     }
 
     const healthText = document.getElementById("health-text");
